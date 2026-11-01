@@ -154,7 +154,7 @@ func _bolt(bolt_velocity: Vector2, offset: Vector2, sprite: String) -> Dictionar
 func _draw() -> void:
 	var file := SpawnDirector.sprite_for(kind)
 	# Enemies and hazards are drawn facing the way the files face. Do not flip.
-	ArtLibrary.draw_anchored(self, file)
+	ArtLibrary.draw_loop(self, file, age)
 	if hp < max_hp and alive:
 		var box := ArtLibrary.art_bbox(file)
 		var width := maxf(box.x * 0.55, 8.0)

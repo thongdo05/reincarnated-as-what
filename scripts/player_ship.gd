@@ -148,12 +148,8 @@ func _draw() -> void:
 	var file := sprite_name()
 	if form_id == FormCatalog.Id.SLIME:
 		var i := _trail.size()
-		var anchor := ArtLibrary.anchor(file)
-		var tex := ArtLibrary.texture(file)
 		for point in _trail:
 			i -= 1
-			if tex == null:
-				break
 			var tint := Color(1, 1, 1, 0.10 + 0.07 * float(i))
-			draw_texture(tex, point - position - anchor, tint)
-	ArtLibrary.draw_anchored(self, file)
+			ArtLibrary.draw_loop(self, file, _wobble, point - position, tint)
+	ArtLibrary.draw_loop(self, file, _wobble)

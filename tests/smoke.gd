@@ -13,6 +13,7 @@ func _initialize() -> void:
 	_unit_failed += _check_drag()
 	_unit_failed += _check_traits()
 	_unit_failed += _check_art()
+	_unit_failed += _check_idle()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -233,6 +234,95 @@ func _check_art() -> int:
 	if wolf <= eye:
 		push_error("the dire wolf hitbox should be larger than the floating eye")
 		failed += 1
+	return failed
+
+func _check_idle() -> int:
+	var failed := 0
+	var text := FileAccess.get_file_as_string("res://art/manifest.json")
+	var parsed: Variant = JSON.parse_string(text)
+	var static_by_file := {}
+	var idle_count := 0
+	for item in parsed:
+		var entry: Dictionary = item
+		var file_name := str(entry["file"])
+		if file_name.ends_with("_idle.png"):
+			idle_count += 1
+			var frames := int(entry["frames"])
+			var fps := float(entry["fps"])
+			if frames != 4 or absf(fps - 6.0) > 0.01 or not bool(entry["loop"]):
+				push_error("idle sheet %s should be a 4-frame loop at 6 fps" % file_name)
+				failed += 1
+			var base := str(entry.get("base_sprite", "")).get_file()
+			if not ArtLibrary.has_file(base):
+				base = file_name.trim_suffix("_idle.png") + ".png"
+			var static_entry: Dictionary = ArtLibrary.entry(base)
+			if static_entry.is_empty():
+				push_error("idle sheet %s has no static sprite" % file_name)
+				failed += 1
+				continue
+			var idle_anchor: Array = entry["anchor"]
+			var static_anchor: Array = static_entry["anchor"]
+			if int(idle_anchor[0]) != int(static_anchor[0]) or int(idle_anchor[1]) != int(static_anchor[1]):
+				push_error("idle anchor drifted from %s" % base)
+				failed += 1
+			var frame_size: Array = entry["frame_size"]
+			var static_size: Array = static_entry["size"]
+			if int(frame_size[0]) != int(static_size[0]) or int(frame_size[1]) != int(static_size[1]):
+				push_error("idle frame size drifted from %s" % base)
+				failed += 1
+			if ArtLibrary.loop_file(base) != file_name:
+				push_error("loop file for %s was %s" % [base, ArtLibrary.loop_file(base)])
+				failed += 1
+		else:
+			static_by_file[file_name] = entry
+	if idle_count != 22:
+		push_error("expected 22 idle sheets, found %d" % idle_count)
+		failed += 1
+	for file_name in static_by_file:
+		var entry: Dictionary = static_by_file[file_name]
+		var category := str(entry.get("category", ""))
+		var wants_idle := category == "player_form" or category == "player_form_split" or category == "enemy"
+		var idle := ArtLibrary.loop_file(file_name)
+		if wants_idle and idle == file_name:
+			push_error("%s should play an idle sheet" % file_name)
+			failed += 1
+		if not wants_idle and idle != file_name:
+			push_error("%s should stay a static sprite" % file_name)
+			failed += 1
+	if ArtLibrary.loop_file("anvil.png") != "anvil.png" or ArtLibrary.loop_file("piano.png") != "piano.png":
+		push_error("hazards should not loop")
+		failed += 1
+	var ship := PlayerShip.new()
+	ship.setup(FormCatalog.Id.SLIME, Vector2(40, 40))
+	if ArtLibrary.loop_file(ship.sprite_name()) != "slime_r1_idle.png":
+		push_error("rank 0 slime should idle on slime_r1")
+		failed += 1
+	ship.set_rank(2)
+	if ArtLibrary.loop_file(ship.sprite_name()) != "slime_r3_idle.png":
+		push_error("a rank-up should swap to that rank's idle sheet")
+		failed += 1
+	var full := FormCatalog.hit_radius_for(FormCatalog.Id.SLIME, 2, false)
+	if absf(ship.radius - full) > 0.05:
+		push_error("ranking up should keep the static-sprite hitbox")
+		failed += 1
+	if not ship.absorb_lethal_hit() or ArtLibrary.loop_file(ship.sprite_name()) != "slime_small_r3_idle.png":
+		push_error("a split slime should play the small idle sheet of that rank")
+		failed += 1
+	if ship.radius >= full:
+		push_error("the split hitbox should stay inside the static art box")
+		failed += 1
+	ship.free()
+	for kind in [SpawnDirector.EYE, SpawnDirector.WOLF, SpawnDirector.ARCHER, SpawnDirector.WYVERN]:
+		var base := SpawnDirector.sprite_for(kind)
+		if ArtLibrary.loop_file(base) != base.trim_suffix(".png") + "_idle.png":
+			push_error("%s should loop its idle sheet" % base)
+			failed += 1
+		var body := SpawnDirector.body_radius(kind)
+		var box := ArtLibrary.art_bbox(base)
+		var expect := SpawnDirector.BODY_PCT * (box.x + box.y) * 0.25
+		if absf(body - expect) > 0.05:
+			push_error("enemy hitbox should stay on the static art box")
+			failed += 1
 	return failed
 
 func _check_score() -> int:
