@@ -43,7 +43,6 @@ var _effects: Array[PixelEffect] = []
 var _death_fx: DeathFx
 var _tease: Control
 var _loot_spawned := 0
-var _drag_accum := Vector2.ZERO
 var _primary_touch := -1
 var _mouse_down := false
 
@@ -82,6 +81,9 @@ var _death_audio_stage := ""
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	# Touch drags stay raw. Accumulated motion would smooth the finger and
+	# add a frame before the body can follow.
+	Input.use_accumulated_input = false
 	CaptureMode.boot(self)
 	_director = SpawnDirector.new(day_seed)
 	_sound = SoundRig.new()
@@ -98,6 +100,9 @@ func _ready() -> void:
 	print("Reincarnated as %s (seed %d, run %d)" % [CaptureMode.announce_name(form_id), day_seed, run_index])
 	if CaptureMode.is_active():
 		print(CaptureMode.summary())
+	if CaptureMode.wants_hitbox():
+		HitLibrary.show = true
+		_redraw_hitboxes()
 
 func _build_world() -> void:
 	var size := _viewport_size()
@@ -404,6 +409,17 @@ func wants_rotate(size: Vector2) -> bool:
 	var window_size := DisplayServer.window_get_size()
 	return window_size.y > window_size.x
 
+func _input(event: InputEvent) -> void:
+	if _paused or wants_rotate(_viewport_size()):
+		return
+	var consumed := false
+	if event is InputEventScreenDrag:
+		consumed = _on_screen_drag(event)
+	elif event is InputEventMouseMotion:
+		consumed = _on_mouse_motion(event)
+	if consumed and is_inside_tree():
+		get_viewport().set_input_as_handled()
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _is_gesture(event) and _sound != null:
 		_sound.unlock_from_gesture()
@@ -425,12 +441,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventScreenTouch:
 		_on_screen_touch(event)
-	elif event is InputEventScreenDrag:
-		_on_screen_drag(event)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		_on_mouse_button(event)
-	elif event is InputEventMouseMotion:
-		_on_mouse_motion(event)
 
 func _is_gesture(event: InputEvent) -> bool:
 	if event is InputEventScreenTouch:
@@ -457,10 +469,11 @@ func _on_screen_touch(event: InputEventScreenTouch) -> void:
 	elif event.index == _primary_touch:
 		_primary_touch = -1
 
-func _on_screen_drag(event: InputEventScreenDrag) -> void:
-	if phase != PHASE_PLAY or event.index != _primary_touch:
-		return
-	_drag_accum += event.relative
+func _on_screen_drag(event: InputEventScreenDrag) -> bool:
+	if phase != PHASE_PLAY or event.index != _primary_touch or _player == null:
+		return false
+	_player.nudge(event.relative, _play_bounds(_viewport_size()))
+	return true
 
 func _on_mouse_button(event: InputEventMouseButton) -> void:
 	if _hits_pause(event.position) or _hits_sound(event.position) or _hits_audio_blocked(event.position):
@@ -476,10 +489,11 @@ func _on_mouse_button(event: InputEventMouseButton) -> void:
 			return
 		_try_skip_reveal()
 
-func _on_mouse_motion(event: InputEventMouseMotion) -> void:
-	if phase != PHASE_PLAY or _primary_touch != -1 or not _mouse_down:
-		return
-	_drag_accum += event.relative
+func _on_mouse_motion(event: InputEventMouseMotion) -> bool:
+	if phase != PHASE_PLAY or _primary_touch != -1 or not _mouse_down or _player == null:
+		return false
+	_player.nudge(event.relative, _play_bounds(_viewport_size()))
+	return true
 
 func _try_skip_reveal() -> void:
 	if phase == PHASE_REVEAL and reveal_elapsed > 0.35:
@@ -561,9 +575,6 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	var key := _key_vector()
 	if key != Vector2.ZERO:
 		_player.add_drag(key * FormCatalog.max_speed(form_id) * delta, bounds)
-	if _drag_accum != Vector2.ZERO:
-		_player.add_drag(_drag_accum, bounds)
-		_drag_accum = Vector2.ZERO
 	invuln = maxf(invuln - delta, 0.0)
 	_player.invulnerable = invuln > 0.0
 	_player.tick(delta, bounds)
@@ -679,6 +690,7 @@ func _collide() -> void:
 		if not enemy.alive:
 			continue
 		var enemy_file := SpawnDirector.sprite_for(enemy.kind)
+		# Every hurt part, not the movement bounds radius.
 		var enemy_gap := HitLibrary.gap(_player.position, player_file, "hurt", enemy.position, enemy_file, "threat")
 		if enemy_gap <= 0.0:
 			_hurt_player(enemy.kind_name)
@@ -1174,7 +1186,6 @@ func _toggle_pause() -> void:
 	if _sound != null:
 		_sound.unlock_from_gesture()
 	_paused = not _paused
-	_drag_accum = Vector2.ZERO
 	_mouse_down = false
 	_primary_touch = -1
 	if _sound != null:

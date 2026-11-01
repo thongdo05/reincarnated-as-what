@@ -23,6 +23,7 @@ If both are present, the query string wins.
 | `form` | `slime`, `goblin`, `vending_machine`, `cat`, `demon_lord` | Forces the form. Slime and Goblin play. The other three play their title card (and the vending-machine sting), then hold **NOT PLAYABLE YET**. Their gameplay is not in this build. |
 | `seed` | integer | Forces the day seed, so the spawn timeline repeats. |
 | `clean` | `1` | Hides the D pacing overlay, hitbox draw, and the engine collision / path / navigation debug hints. Blocks the H and D debug keys. Arrow keys and WASD still move. |
+| `hitbox` | `1` | Draws the hurt, body, and threat shapes. Works on a normal run (`?hitbox=1`) without the other capture flags. `clean=1` hides them. |
 | `rank` | `1`, `2`, `3` | Starts the run at that rank. The meter matches the gate. |
 | `evo` | `1` | The E key grants enough points to reach the next rank, through the real EVOLVED! / FINAL FORM! FX. Two presses go from rank 1 to rank 3. |
 | `hazard` | `piano` | A piano falls on the player's lane. Other hits do not end the run before it lands, and a Slime does not spend its split on it, so the clip is the piano death. At the end of the `REBORN AS...?` tease the next run's title card starts. Omit `form` if that next card should be the other form in the day's order. |

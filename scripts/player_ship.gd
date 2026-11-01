@@ -1,9 +1,10 @@
 extends Node2D
 class_name PlayerShip
 
-## Relative drag: the finger moves an aim point, and the body chases it.
+## Relative drag: the finger moves an aim point, and the body snaps to it.
 ## The ship never jumps to the finger, so the thumb can stay out of the way.
-## Slime accelerates slowly and keeps sliding. Goblin sprints, then plants.
+## Both forms arrive in about 1-3 frames, with no slide. A slime squash and a
+## goblin lean are drawn only. They do not lag the hurtbox.
 
 var form_id := FormCatalog.Id.SLIME
 var aim := Vector2.ZERO
@@ -17,6 +18,7 @@ var _cooldown := 0.0
 var _wobble := 0.0
 var _trail_timer := 0.0
 var _trail: Array[Vector2] = []
+var _pose := 0.0
 var small := false
 var regrow_left := 0.0
 var regrew := false
@@ -56,9 +58,14 @@ func setup(id: int, start: Vector2) -> void:
 
 func add_drag(relative: Vector2, bounds: Rect2) -> void:
 	aim += relative
-	var pad := radius
-	aim.x = clampf(aim.x, bounds.position.x + pad, bounds.end.x - pad)
-	aim.y = clampf(aim.y, bounds.position.y + pad, bounds.end.y - pad)
+	_clamp_aim(bounds)
+
+## One catch-up step. Pointer input calls this immediately so the body does
+## not wait for the next process tick.
+func nudge(relative: Vector2, bounds: Rect2, step: float = 1.0 / 60.0) -> void:
+	add_drag(relative, bounds)
+	_pursue(step)
+	_clamp(bounds)
 
 ## Slime trait, not an extra life. One life per run still holds.
 ## A full-size Slime spends that trait and becomes small. A hit while small ends the run.
@@ -93,11 +100,17 @@ func tick(delta: float, bounds: Rect2) -> void:
 		_apply_evolve_visual()
 	if _cooldown > 0.0:
 		_cooldown -= delta
-	if form_id == FormCatalog.Id.SLIME:
-		_move_slime(delta)
-		_record_trail(delta)
+	if form_id == FormCatalog.Id.GOBLIN:
+		stride = fmod(stride + delta, FormCatalog.goblin_f("stride"))
+		sprinting = stride < FormCatalog.goblin_f("stride") * FormCatalog.goblin_f("sprint_fraction")
+	var before := position
+	_pursue(delta)
+	if position.distance_to(before) > 0.2:
+		_pose = 1.0
 	else:
-		_move_goblin(delta)
+		_pose = maxf(_pose - delta * 7.0, 0.0)
+	if form_id == FormCatalog.Id.SLIME:
+		_record_trail(delta)
 	_clamp(bounds)
 	if invulnerable:
 		modulate.a = 0.35 if fmod(_wobble, 0.16) < 0.08 else 1.0
@@ -106,32 +119,28 @@ func tick(delta: float, bounds: Rect2) -> void:
 	if is_inside_tree():
 		queue_redraw()
 
-func _move_slime(delta: float) -> void:
+func _pursue(delta: float) -> void:
 	var to_aim := aim - position
 	var dist := to_aim.length()
-	var desired := Vector2.ZERO
-	if dist > 0.6:
-		var speed := minf(FormCatalog.SLIME_MAX_SPEED, dist * FormCatalog.SLIME_ARRIVE)
-		desired = to_aim / dist * speed
-	velocity = velocity.move_toward(desired, FormCatalog.SLIME_ACCEL * delta)
-	position += velocity * delta
+	if dist <= 0.35:
+		position = aim
+		velocity = Vector2.ZERO
+		return
+	var gain := 1.0 - exp(-FormCatalog.SNAP_ARRIVE * delta)
+	var step := to_aim * gain
+	var cap := FormCatalog.SNAP_MAX_SPEED * delta
+	if step.length() > cap:
+		step = to_aim / dist * cap
+	if step.length() >= dist - 0.35:
+		position = aim
+	else:
+		position += step
+	velocity = Vector2.ZERO
 
-func _move_goblin(delta: float) -> void:
-	stride = fmod(stride + delta, FormCatalog.goblin_f("stride"))
-	sprinting = stride < FormCatalog.goblin_f("stride") * FormCatalog.goblin_f("sprint_fraction")
-	var to_aim := aim - position
-	var dist := to_aim.length()
-	var desired := Vector2.ZERO
-	var accel := FormCatalog.goblin_f("accel")
-	if dist > 0.6:
-		var cap := FormCatalog.goblin_f("max_speed")
-		if not sprinting:
-			cap *= FormCatalog.goblin_f("plant_speed_scale")
-			accel *= 0.35
-		var speed := minf(cap, dist * FormCatalog.goblin_f("arrive"))
-		desired = to_aim / dist * speed
-	velocity = velocity.move_toward(desired, accel * delta)
-	position += velocity * delta
+func _clamp_aim(bounds: Rect2) -> void:
+	var pad := radius
+	aim.x = clampf(aim.x, bounds.position.x + pad, bounds.end.x - pad)
+	aim.y = clampf(aim.y, bounds.position.y + pad, bounds.end.y - pad)
 
 func _clamp(bounds: Rect2) -> void:
 	var min_x := bounds.position.x + radius
@@ -189,6 +198,7 @@ func _apply_evolve_visual() -> void:
 		_evolve_fx.play(99.0 if evolve_t < 0.0 else evolve_t)
 
 func _draw() -> void:
+	_begin_pose()
 	if fx_mode == "flash":
 		ArtLibrary.draw_anchored(self, fx_sprite)
 	elif fx_mode == "glow":
@@ -198,8 +208,22 @@ func _draw() -> void:
 	else:
 		_draw_body(sprite_name())
 		_draw_final_banner()
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	if HitLibrary.show:
 		HitLibrary.draw(self, sprite_name(), "hurt", Color(0.35, 1.0, 0.55, 0.95))
+
+## Squash and lean stay under about a pixel on these sprites, and the hurt
+## overlay is drawn after the pose is cleared so it matches the collision.
+func _begin_pose() -> void:
+	if _pose <= 0.01:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
+	if form_id == FormCatalog.Id.SLIME:
+		var squash := 0.06 * _pose
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0 + squash, 1.0 - squash * 0.75))
+	else:
+		var lean := (-0.045 if sprinting else 0.025) * _pose
+		draw_set_transform(Vector2.ZERO, lean, Vector2.ONE)
 
 func _draw_final_banner() -> void:
 	if not evolve_final or evolve_t < 0.0:

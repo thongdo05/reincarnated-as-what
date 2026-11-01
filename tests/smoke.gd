@@ -34,7 +34,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play()
+	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -183,18 +183,25 @@ func _check_spawns() -> int:
 	if float(slow[0]["t"]) > 1.0:
 		push_error("the first enemy should arrive within 1 s, got %s" % str(slow[0]["t"]))
 		return 1
-	var at_60 := Difficulty.spawn_interval(60.0)
-	if absf(at_60 / Difficulty.SPAWN_INTERVAL_START - Difficulty.SPAWN_INTERVAL_60_SCALE) > 0.02:
-		push_error("spawn interval at 60 s should be about 35 percent of the start, got %s" % at_60)
+	var at_20 := Difficulty.spawn_interval(20.0)
+	if absf(at_20 - Difficulty.SPAWN_INTERVAL_AT_20) > 0.02:
+		push_error("spawn interval at 20 s should still match the old opening, got %s" % at_20)
 		return 1
-	if absf(Difficulty.speed_scale(60.0) - Difficulty.SPEED_AT_60) > 0.02:
-		push_error("speed at 60 s should be about 1.6x")
+	var at_50 := Difficulty.spawn_interval(50.0)
+	if absf(at_50 - Difficulty.SPAWN_INTERVAL_AT_50) > 0.02 or at_50 >= at_20:
+		push_error("spawn interval should drop faster after 20 s, got %s" % at_50)
+		return 1
+	if absf(Difficulty.speed_scale(20.0) - Difficulty.SPEED_AT_20) > 0.02:
+		push_error("speed at 20 s should still be 1.2x")
+		return 1
+	if absf(Difficulty.speed_scale(50.0) - Difficulty.SPEED_AT_50) > 0.02 or Difficulty.speed_scale(50.0) <= Difficulty.speed_scale(20.0):
+		push_error("shot speed should climb faster after 20 s")
 		return 1
 	if absf(Difficulty.scroll_scale(45.0) - Difficulty.SCROLL_AT_45) > 0.02:
 		push_error("scroll at 45 s should be about 1.3x")
 		return 1
-	if Difficulty.speed_scale(120.0) > Difficulty.SPEED_CAP + 0.001 or Difficulty.spawn_interval(120.0) < Difficulty.SPAWN_INTERVAL_START * Difficulty.SPAWN_INTERVAL_FLOOR_SCALE - 0.001:
-		push_error("the ramp after 60 s should stay inside the cap")
+	if Difficulty.speed_scale(120.0) > Difficulty.SPEED_CAP + 0.001 or Difficulty.spawn_interval(120.0) < Difficulty.SPAWN_INTERVAL_FLOOR - 0.001:
+		push_error("the ramp after 50 s should stay inside the cap")
 		return 1
 	var paired := false
 	var seen := {}
@@ -726,13 +733,13 @@ func _check_shapes() -> int:
 		push_error("the piano's outer edge should forgive a brush")
 		failed += 1
 	if not HitLibrary.contains_local("slime_r1.png", "hurt", Vector2.ZERO):
-		push_error("the slime core should be the hurtbox")
+		push_error("the slime body should include the anchor")
 		failed += 1
 	if HitLibrary.contains_local("slime_r1.png", "hurt", Vector2(10, 10)):
-		push_error("the slime hurtbox should stay inside the sprite")
+		push_error("empty space beside the slime drips should not be a hurt")
 		failed += 1
-	if HitLibrary.contains_local("goblin_r1.png", "hurt", Vector2(0, -14)):
-		push_error("the goblin crown should not be part of the hurtbox")
+	if not HitLibrary.contains_local("goblin_r1.png", "hurt", Vector2(0, -14)):
+		push_error("the goblin crown should be part of the hurtbox")
 		failed += 1
 	var wolf := Vector2(120, 80)
 	if not HitLibrary.overlaps(wolf + Vector2(-20, 0), "slime_shot.png", "body", wolf, "dire_wolf.png", "body"):
@@ -742,44 +749,208 @@ func _check_shapes() -> int:
 		push_error("a slime shot over the wolf should miss")
 		failed += 1
 	var eye := Vector2(40, 40)
-	var brush := HitLibrary.gap(eye + Vector2(14, 0), "slime_r1.png", "hurt", eye, "floating_eye.png", "threat")
-	if brush <= 0.0:
-		push_error("overlapping the eye's rim with the sprite should not kill when the core is clear (gap %s)" % brush)
+	var clear := HitLibrary.gap(eye + Vector2(36, 0), "slime_r1.png", "hurt", eye, "floating_eye.png", "threat")
+	if clear <= 0.0:
+		push_error("a slime that is clear of the eye should live (gap %s)" % clear)
 		failed += 1
-	var fatal := HitLibrary.gap(eye + Vector2(10, 0), "slime_r1.png", "hurt", eye, "floating_eye.png", "threat")
+	var fatal := HitLibrary.gap(eye + Vector2(6, 0), "slime_r1.png", "hurt", eye, "floating_eye.png", "threat")
 	if fatal > 0.0:
-		push_error("a core inside the eye should be fatal (gap %s)" % fatal)
+		push_error("a slime body inside the eye should be fatal (gap %s)" % fatal)
 		failed += 1
 	var prev_slime := 0.0
 	var prev_goblin := 0.0
 	for rank in 3:
-		var slime_r := HitLibrary.max_part_radius(str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, rank)["sprite"]), "hurt")
-		var goblin_r := HitLibrary.max_part_radius(str(FormCatalog.rank_spec(FormCatalog.Id.GOBLIN, rank)["sprite"]), "hurt")
-		var full_expect: float = [5.5, 6.4, 7.3][rank]
-		var goblin_expect: float = [4.6, 5.2, 5.8][rank]
-		if absf(slime_r - full_expect) > 0.01 or absf(goblin_r - goblin_expect) > 0.01:
-			push_error("full-form cores should stay put (slime %s goblin %s)" % [slime_r, goblin_r])
-			failed += 1
+		var slime_file := str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, rank)["sprite"])
+		var goblin_file := str(FormCatalog.rank_spec(FormCatalog.Id.GOBLIN, rank)["sprite"])
+		var small_file := str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, rank)["sprite_small"])
+		var slime_r := HitLibrary.max_part_radius(slime_file, "hurt")
+		var goblin_r := HitLibrary.max_part_radius(goblin_file, "hurt")
+		var small_r := HitLibrary.max_part_radius(small_file, "hurt")
 		if slime_r <= goblin_r:
-			push_error("the slime core should stay a bigger target than the goblin")
+			push_error("the slime body should stay a bigger target than the goblin")
 			failed += 1
 		if rank > 0 and (slime_r <= prev_slime or goblin_r <= prev_goblin):
-			push_error("cores should grow with rank")
+			push_error("hurt shapes should grow with rank")
 			failed += 1
 		if rank > 0 and (slime_r > prev_slime * 1.35 or goblin_r > prev_goblin * 1.35):
-			push_error("cores grew more than a modest step")
+			push_error("hurt shapes grew more than a modest step")
 			failed += 1
-		var small_r := HitLibrary.max_part_radius(str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, rank)["sprite_small"]), "hurt")
 		if small_r >= slime_r:
-			push_error("the split slime core should be smaller")
+			push_error("the split slime hurt shape should be smaller")
 			failed += 1
-		var split_expect: float = [3.6, 4.5, 5.4][rank]
-		if absf(small_r - split_expect) > 0.01:
-			push_error("split slime r%d hurt radius should be %.1f, got %s" % [rank + 1, split_expect, small_r])
-			failed += 1
+		failed += _check_body_cover(slime_file)
+		failed += _check_body_cover(small_file)
+		failed += _check_body_cover(goblin_file)
 		prev_slime = slime_r
 		prev_goblin = goblin_r
 	return failed
+
+## Opaque body pixels, skipping the ink outline. Local points are pixel centers.
+func _body_pixels(file_name: String) -> Array[Vector2]:
+	var image := ArtLibrary.texture(file_name).get_image()
+	var anchor := ArtLibrary.anchor(file_name)
+	var pts: Array[Vector2] = []
+	for y in image.get_height():
+		for x in image.get_width():
+			var color := image.get_pixel(x, y)
+			if color.a < 0.5:
+				continue
+			if color.r8 == 20 and color.g8 == 18 and color.b8 == 31:
+				continue
+			pts.append(Vector2(x, y) - anchor + Vector2(0.5, 0.5))
+	return pts
+
+func _check_body_cover(file_name: String) -> int:
+	var pts := _body_pixels(file_name)
+	if pts.is_empty():
+		push_error("%s has no opaque body" % file_name)
+		return 1
+	var head := pts[0]
+	var foot := pts[0]
+	var outside := 0
+	for point in pts:
+		if point.y < head.y or (is_equal_approx(point.y, head.y) and absf(point.x) < absf(head.x)):
+			head = point
+		if point.y > foot.y or (is_equal_approx(point.y, foot.y) and absf(point.x) < absf(foot.x)):
+			foot = point
+		var gap := HitLibrary.local_gap(file_name, "hurt", point)
+		if gap > 1.02:
+			outside += 1
+	if outside > 0:
+		push_error("%s leaves %d body pixels more than 1px outside the hurt shape" % [file_name, outside])
+		return 1
+	for point in pts:
+		if not is_equal_approx(point.y, head.y) and not is_equal_approx(point.y, foot.y):
+			continue
+		if HitLibrary.local_gap(file_name, "hurt", point) > 0.0:
+			push_error("%s head/foot pixel %s should be inside the hurt shape" % [file_name, point])
+			return 1
+	var sky := HitLibrary.local_gap(file_name, "hurt", head + Vector2(0, -4))
+	if sky <= 0.0:
+		push_error("%s hurt shape should not cover empty space above the head" % file_name)
+		return 1
+	# The movement pad is one circle. Collision is the parts, so some point
+	# inside that circle must miss.
+	var pad := HitLibrary.bounds_radius(file_name, "hurt")
+	var missed := false
+	for i in 32:
+		var probe := Vector2.from_angle(float(i) / 32.0 * TAU) * pad * 0.9
+		if not HitLibrary.contains_local(file_name, "hurt", probe):
+			missed = true
+			break
+	if not missed:
+		push_error("%s hurt shape collapsed to its bounds radius" % file_name)
+		return 1
+	var player := Vector2(90, 120)
+	if not HitLibrary.overlaps(player, file_name, "hurt", player + head, "floating_eye_bolt.png", "threat"):
+		push_error("a bolt on the %s head pixel should overlap" % file_name)
+		return 1
+	if not HitLibrary.overlaps(player, file_name, "hurt", player + foot, "floating_eye_bolt.png", "threat"):
+		push_error("a bolt on the %s foot pixel should overlap" % file_name)
+		return 1
+	return 0
+
+func _check_hurt_kills() -> int:
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	var failed := 0
+	failed += _expect_bolt_kill(game, FormCatalog.Id.GOBLIN, false, true)
+	failed += _expect_bolt_kill(game, FormCatalog.Id.GOBLIN, false, false)
+	# A full slime spends its split on the head, then the small body's foot kills.
+	game.phase = game.PHASE_PLAY
+	game.form_id = FormCatalog.Id.SLIME
+	game._player.form_id = FormCatalog.Id.SLIME
+	game._player.small = false
+	game._player.rank_index = 0
+	game._player.alive = true
+	game._player.position = Vector2(100, 130)
+	game._player.aim = game._player.position
+	game._player._apply_radius()
+	game.invuln = 0.0
+	game._player.invulnerable = false
+	var head := _extremity(_body_pixels("slime_r1.png"), true)
+	_fire_bolt(game, head)
+	if game._player.small != true or int(game.phase) != game.PHASE_PLAY:
+		push_error("a bolt on the full slime's head should connect and split")
+		failed += 1
+	# The split's iframes are the trait, not the hurt shape. The next bolt is the kill.
+	game.invuln = 0.0
+	game._player.invulnerable = false
+	var foot := _extremity(_body_pixels(game._player.sprite_name()), false)
+	_fire_bolt(game, foot)
+	if int(game.phase) != game.PHASE_DEAD:
+		push_error("a bolt on the small slime's foot should kill")
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
+func _expect_bolt_kill(game, form: int, small: bool, head: bool) -> int:
+	game.phase = game.PHASE_PLAY
+	game.form_id = form
+	game._player.form_id = form
+	game._player.small = small
+	game._player.rank_index = 0
+	game._player.alive = true
+	game._player.position = Vector2(100, 130)
+	game._player.aim = game._player.position
+	game._player._apply_radius()
+	game.invuln = 0.0
+	game._player.invulnerable = false
+	game.killer_name = ""
+	var file := str(game._player.sprite_name())
+	var pad := float(game._player.radius)
+	var ghost := Vector2(pad * 0.92, 0.0)
+	var found_miss := false
+	for i in 48:
+		var probe := Vector2.from_angle(float(i) / 48.0 * TAU) * pad * 0.92
+		var separation := HitLibrary.gap(game._player.position, file, "hurt", game._player.position + probe, "floating_eye_bolt.png", "threat")
+		if separation > 0.4:
+			ghost = probe
+			found_miss = true
+			break
+	if not found_miss:
+		push_error("%s has no miss inside the movement radius" % file)
+		return 1
+	_fire_bolt(game, ghost)
+	if int(game.phase) != game.PHASE_PLAY:
+		push_error("a bolt inside the movement radius but off the body should miss %s" % file)
+		return 1
+	var point := _extremity(_body_pixels(file), head)
+	_fire_bolt(game, point)
+	if int(game.phase) != game.PHASE_DEAD:
+		push_error("a bolt on %s %s should kill" % [file, "head" if head else "foot"])
+		return 1
+	return 0
+
+func _extremity(pts: Array[Vector2], head: bool) -> Vector2:
+	var best := pts[0]
+	for point in pts:
+		if head:
+			if point.y < best.y or (is_equal_approx(point.y, best.y) and absf(point.x) < absf(best.x)):
+				best = point
+		elif point.y > best.y or (is_equal_approx(point.y, best.y) and absf(point.x) < absf(best.x)):
+			best = point
+	return best
+
+func _fire_bolt(game, local: Vector2) -> void:
+	for shot in game._shots:
+		if is_instance_valid(shot):
+			shot.queue_free()
+	game._shots.clear()
+	game._spawn_shot({
+		"position": game._player.position + local,
+		"velocity": Vector2(-30, 0),
+		"damage": 1,
+		"radius": 2.0,
+		"sprite": "floating_eye_bolt.png",
+		"killer_name": "Floating Eye",
+		"style": "blob",
+		"color": Color.WHITE,
+	}, false)
+	game._collide()
 
 func _check_score() -> int:
 	var failed := 0
@@ -891,28 +1062,35 @@ func _check_traits() -> int:
 func _check_drag() -> int:
 	var bounds := Rect2(0, 0, 360, 780)
 	var drag := Vector2(150, -80)
-	var slime_early := _sample(FormCatalog.Id.SLIME, drag, bounds, 8)
-	var goblin_early := _sample(FormCatalog.Id.GOBLIN, drag, bounds, 8)
-	var slime_end := _sample(FormCatalog.Id.SLIME, drag, bounds, 180)
-	var goblin_end := _sample(FormCatalog.Id.GOBLIN, drag, bounds, 180)
+	var slime_fast := _sample(FormCatalog.Id.SLIME, drag, bounds, 3)
+	var goblin_fast := _sample(FormCatalog.Id.GOBLIN, drag, bounds, 3)
+	var slime_end := _sample(FormCatalog.Id.SLIME, drag, bounds, 20)
+	var goblin_end := _sample(FormCatalog.Id.GOBLIN, drag, bounds, 20)
 	var failed := 0
 	var start := Vector2(120, 500)
 	var aim := start + drag
-	if slime_end.distance_to(aim) > 18.0 or goblin_end.distance_to(aim) > 18.0:
-		push_error("ship did not settle on the drag aim (slime %s goblin %s aim %s)" % [slime_end, goblin_end, aim])
+	if slime_fast.distance_to(aim) > 2.0 or goblin_fast.distance_to(aim) > 2.0:
+		push_error("both forms should reach the aim within 3 frames (slime %s goblin %s aim %s)" % [slime_fast, goblin_fast, aim])
 		failed += 1
-	var slime_travel := slime_early.distance_to(start)
-	var goblin_travel := goblin_early.distance_to(start)
-	if goblin_travel <= slime_travel:
-		push_error("goblin should cover the first stride faster than slime slides (%.1f vs %.1f)" % [goblin_travel, slime_travel])
-		failed += 1
-	if slime_early.distance_to(aim) < 40.0:
-		push_error("slime reached the aim too quickly to feel slippery")
+	if slime_end.distance_to(aim) > 0.5 or goblin_end.distance_to(aim) > 0.5:
+		push_error("the body should stay on the aim with no slide (slime %s goblin %s)" % [slime_end, goblin_end])
 		failed += 1
 	# A drag of +150 must not be treated as a finger coordinate of (150, -80).
 	if slime_end.x < start.x + 100.0:
 		push_error("relative drag did not carry the ship by the drag delta")
 		failed += 1
+	var wall := PlayerShip.new()
+	wall.setup(FormCatalog.Id.GOBLIN, Vector2(40, 40))
+	var box := Rect2(0, 0, 220, 180)
+	wall.nudge(Vector2(-800, -800), box)
+	wall.tick(1.0 / 60.0, box)
+	if wall.position.x < wall.radius - 0.2 or wall.position.y < wall.radius - 0.2:
+		push_error("the body should stay inside the padded field (%s pad %s)" % [wall.position, wall.radius])
+		failed += 1
+	if wall.aim.x < wall.radius - 0.2 or wall.aim.y < wall.radius - 0.2:
+		push_error("the aim point should stay inside the padded field")
+		failed += 1
+	wall.free()
 	return failed
 
 func _check_play() -> int:
@@ -964,12 +1142,21 @@ func _check_play() -> int:
 	touch.pressed = true
 	touch.position = before + Vector2(40, 80)
 	game._unhandled_input(touch)
+	var snap := InputEventScreenDrag.new()
+	snap.index = 0
+	snap.relative = Vector2(24, -10)
+	snap.position = touch.position + snap.relative
+	var at_input: Vector2 = game._player.position
+	game._input(snap)
+	if game._player.position.distance_to(at_input) < 10.0:
+		push_error("a drag in _input should move the body before _process (moved %s)" % game._player.position.distance_to(at_input))
+		failed += 1
 	for i in 50:
 		var drag := InputEventScreenDrag.new()
 		drag.index = 0
 		drag.relative = Vector2(2.4, -1.2)
 		drag.position = before + Vector2(40 + float(i) * 2.4, 80 - float(i) * 1.2)
-		game._unhandled_input(drag)
+		game._input(drag)
 		game._process(step)
 	var after: Vector2 = game._player.position
 	if after.x < before.x + 40.0 or after.y > before.y - 15.0:
@@ -1137,7 +1324,7 @@ func _check_pause() -> int:
 	drag.index = 0
 	drag.relative = Vector2(40, -24)
 	drag.position = touch.position + drag.relative
-	game._unhandled_input(drag)
+	game._input(drag)
 	game._process(step)
 	if game._player.position.distance_to(ship_before) > 8.0:
 		push_error("a pause touch should not drag the ship (%s -> %s)" % [ship_before, game._player.position])
@@ -1919,7 +2106,7 @@ func _check_audio_play() -> int:
 	drag.index = 0
 	drag.relative = Vector2(30, -20)
 	drag.position = touch.position + drag.relative
-	game._unhandled_input(drag)
+	game._input(drag)
 	game._process(step)
 	if game._player.position.distance_to(ship_before) > 8.0:
 		push_error("a sound-toggle touch should not drag the ship")
