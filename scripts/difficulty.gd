@@ -71,18 +71,18 @@ const GRAZE_RANK2 := 55
 const RANK2_KILL_KEEP := 0.40
 const RANK2_CHAIN_WEIGHT := 0.45
 
-## Gem points, not kill score. Two gems reach rank 2. Seven reach rank 3.
+## Gem points, not kill score. One gem reaches rank 2. Nine reach rank 3.
 ## Both stay above the flappy rank-2 gate (640).
-const GATE_RANK2 := 900
-const GATE_RANK3 := 9000
-const GEM_EVO := 450
+const GATE_RANK2 := 720
+const GATE_RANK3 := 6480
+const GEM_EVO := 720
 const GEM_SCORE := 40
 const GEM_CHANCE := 0.8
 const GEM_LIFE := 3.05
 const GEM_DRIFT := 36.0
 
 ## Goblin loot trait. Applied only in the default game.
-const GOBLIN_MAGNET := 26.0
+const GOBLIN_MAGNET := 40.0
 const GOBLIN_MAGNET_SPEED := 90.0
 
 const POWER_CHANCE := 0.065

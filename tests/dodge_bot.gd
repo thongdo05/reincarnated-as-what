@@ -218,7 +218,7 @@ func _safest_y(game, where: Vector2) -> float:
 	return best_y
 
 ## Expert thumb on the 480x270 field. A full-height correction takes about a quarter second.
-const TOUCH_SPEED := 820.0
+const TOUCH_SPEED := 960.0
 const LOOKAHEAD := 0.95
 
 func _strong_steer(game, ship: PlayerShip) -> void:
@@ -245,9 +245,10 @@ func _strong_steer(game, ship: PlayerShip) -> void:
 		var clamped := _clamp_point(target, bounds, radius)
 		var safety := _path_clearance(origin, clamped, radius, threats)
 		# Any spot that stays clear beats a hit. Among clear spots, step toward gems.
-		var score := safety
-		if safety > 15.0:
-			score = 800.0 + safety + _pickup_pull(origin, clamped, game) * 2.2 
+		# A clearly safer lane beats a gem. Gems only matter when the lanes are close.
+		var score := safety * 4.0
+		if safety > 18.0:
+			score += _pickup_pull(origin, clamped, game) 
 		if score > best_score:
 			best_score = score
 			best_target = clamped
@@ -278,11 +279,10 @@ func _strong_threats(game) -> Array[Dictionary]:
 			"pad": enemy.radius,
 		})
 		for item in enemy.telegraphs:
-			var delay := float(item["left"])
 			rows.append({
-				"pos": enemy.position + item["offset"] + enemy.move_velocity * delay,
+				"pos": item["pos"],
 				"vel": item["velocity"],
-				"delay": delay,
+				"delay": float(item["left"]),
 				"pad": 4.0,
 			})
 	for item in game.pattern_shots:

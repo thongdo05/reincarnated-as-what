@@ -191,10 +191,12 @@ func _commit_shot(fired: Array[Dictionary], bolt_velocity: Vector2, offset: Vect
 	if windup <= 0.02:
 		fired.append(_bolt(bolt_velocity, offset, sprite))
 		return
+	# Lock the muzzle in world space. The body can keep moving; the shot
+	# still leaves from the point the telegraph showed.
 	telegraphs.append({
 		"left": windup,
 		"velocity": bolt_velocity,
-		"offset": offset,
+		"pos": position + offset,
 		"sprite": sprite,
 	})
 
@@ -205,7 +207,8 @@ func _release_telegraphs(fired: Array[Dictionary], delta: float) -> void:
 	for item in telegraphs:
 		var left := float(item["left"]) - delta
 		if left <= 0.0:
-			fired.append(_bolt(item["velocity"], item["offset"], str(item["sprite"])))
+			var world: Vector2 = item["pos"]
+			fired.append(_bolt(item["velocity"], world - position, str(item["sprite"])))
 		else:
 			item["left"] = left
 			still.append(item)
@@ -272,7 +275,7 @@ func _draw_telegraphs() -> void:
 	var pulse := 0.45 + 0.45 * absf(sin(age * 28.0))
 	var ink := Color(1.0, 0.82, 0.35, pulse)
 	for item in telegraphs:
-		var origin: Vector2 = item["offset"]
+		var origin: Vector2 = item["pos"] - position
 		var vel: Vector2 = item["velocity"]
 		if vel.length_squared() < 1.0:
 			continue
