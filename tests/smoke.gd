@@ -23,6 +23,7 @@ func _initialize() -> void:
 	_unit_failed += _check_hud()
 	_unit_failed += _check_death_sequence()
 	_unit_failed += _check_share_card()
+	_unit_failed += _check_icons()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -1277,6 +1278,29 @@ func _check_share_card() -> int:
 	})
 	if exported.get_width() != 1080 or exported.get_height() != 1080:
 		push_error("share card should export at 1080")
+		failed += 1
+	return failed
+
+func _check_icons() -> int:
+	var failed := 0
+	var project := FileAccess.get_file_as_string("res://project.godot")
+	if project.find("res://app_icon/app_icon_1024.png") < 0:
+		push_error("the project icon should be the 1024 app icon")
+		failed += 1
+	var icon := load("res://app_icon/app_icon_1024.png") as Texture2D
+	var touch := load("res://app_icon/app_icon_180.png") as Texture2D
+	var favicon := load("res://app_icon/app_icon_64.png") as Texture2D
+	var pwa := load("res://app_icon/app_icon_512.png") as Texture2D
+	var pwa_small := load("res://app_icon/app_icon_144.png") as Texture2D
+	if icon == null or icon.get_width() != 1024 or touch == null or touch.get_width() != 180:
+		push_error("app icon or apple-touch icon is the wrong size")
+		failed += 1
+	if favicon == null or favicon.get_width() != 64 or pwa == null or pwa.get_width() != 512 or pwa_small == null or pwa_small.get_width() != 144:
+		push_error("favicon or PWA icon is the wrong size")
+		failed += 1
+	var shell := FileAccess.get_file_as_string("res://web/shell.html")
+	if shell.find("apple-touch-icon.png") < 0 or shell.find("shareRunCard") < 0:
+		push_error("the web shell should link the apple touch icon and the share helper")
 		failed += 1
 	return failed
 
