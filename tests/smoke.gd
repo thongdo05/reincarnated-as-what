@@ -150,8 +150,8 @@ func _check_score() -> int:
 	if ScoreRules.format_score(4210) != "4,210":
 		push_error("score formatting broke")
 		failed += 1
-	var line := ScoreRules.share_line("SLIME", 102.0, "Dire Wolf", 4210)
-	if line != "Reborn as SLIME. Lasted 1:42. Died to a Dire Wolf. Score 4,210.":
+	var line := ScoreRules.share_line("SLIME", "Ooze Titan", 102.0, "Dire Wolf", 4210)
+	if line != "Reborn as SLIME, reached OOZE TITAN. Lasted 1:42. Died to a Dire Wolf. Score 4,210.":
 		push_error("share line was '%s'" % line)
 		failed += 1
 	return failed
@@ -189,14 +189,50 @@ func _check_traits() -> int:
 		push_error("base slingshot should fire 3 stones")
 		failed += 1
 	if FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO, 1).size() != 4:
-		push_error("sling level 1 should add a stone")
+		push_error("goblin chief should add a stone")
 		failed += 1
-	if FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO, 3).size() != 5:
-		push_error("sling level 3 should fire 5 stones")
+	if FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO, 2).size() != 5:
+		push_error("goblin king should fire 5 stones")
 		failed += 1
-	if FormCatalog.goblin_interval(3) >= FormCatalog.goblin_interval(0):
-		push_error("higher sling levels should fire faster")
+	if FormCatalog.player_shots(FormCatalog.Id.SLIME, Vector2.ZERO, 2).size() != 3:
+		push_error("ooze titan should fire three streams")
 		failed += 1
+	var base_interval := float(FormCatalog.rank_spec(FormCatalog.Id.GOBLIN, 0)["fire_interval"])
+	var king_interval := float(FormCatalog.rank_spec(FormCatalog.Id.GOBLIN, 2)["fire_interval"])
+	if king_interval >= base_interval:
+		push_error("higher ranks should fire faster")
+		failed += 1
+	if FormCatalog.rank_for_points(0) != 0 or FormCatalog.rank_for_points(FormCatalog.RANK_GATES[0] - 1) != 0:
+		push_error("evolution should stay at rank 0 under the first gate")
+		failed += 1
+	if FormCatalog.rank_for_points(FormCatalog.RANK_GATES[0]) != 1:
+		push_error("the first gate should reach rank 1")
+		failed += 1
+	if FormCatalog.rank_for_points(FormCatalog.RANK_GATES[1]) != 2:
+		push_error("the second gate should reach rank 2")
+		failed += 1
+	var ranked := PlayerShip.new()
+	ranked.setup(FormCatalog.Id.SLIME, Vector2(200, 160))
+	ranked.set_rank(2)
+	if ranked.rank_index != 2 or ranked.small:
+		push_error("set_rank should keep a full-size slime")
+		failed += 1
+	var titan_radius := ranked.radius
+	if not ranked.absorb_lethal_hit() or not ranked.small:
+		push_error("a ranked slime should still split")
+		failed += 1
+	if ranked.radius >= titan_radius:
+		push_error("the split should shrink the current rank")
+		failed += 1
+	for _j in 960:
+		ranked.tick(1.0 / 60.0, bounds)
+	if ranked.small or ranked.rank_index != 2:
+		push_error("regrowth should restore the current rank, not rank 0")
+		failed += 1
+	if ranked.radius + 0.1 < titan_radius:
+		push_error("regrowth should restore the ranked hitbox")
+		failed += 1
+	ranked.free()
 	var fresh: Dictionary = {}
 	var after_slime: Dictionary = BestScores.apply(fresh, "SLIME", 100)
 	var after_low: Dictionary = BestScores.apply(after_slime, "SLIME", 40)

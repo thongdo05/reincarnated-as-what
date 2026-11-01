@@ -14,8 +14,10 @@ The form order and the enemy spawns come from the UTC date. Everyone gets the sa
 
 Score is kills, a combo when kills are chained, near-misses, and survival time. The form does not multiply it. The death card shows your best as that form and your best overall. Those two numbers stay in the browser. There is no online leaderboard.
 
-- **Slime.** Blue jelly cube. Shots fly right and split in two when they hit. Movement keeps sliding after you stop. Its trait, not an extra life: the hit that would kill a full-size Slime splits it smaller instead, with a short moment of safety and a `SPLIT!` pop. Stay alive 15 seconds and it grows back, trait included. A hit while small ends the run. One life still holds.
-- **Goblin.** Tiny crown. Stones lob forward and drop. Movement is a short sprint, then a planted step. Kills drop gems that drift left. Touch one to pick it up. Every 10 gems upgrades the slingshot for that run, up to three times (more stones, then a faster volley). Gems are not points.
+- **Slime.** Blue jelly cube. Shots fly right and split in two when they hit. Movement keeps sliding after you stop. Its trait, not an extra life: the hit that would kill a full-size Slime splits it smaller instead, with a short moment of safety and a `SPLIT!` pop. Stay alive 15 seconds and it grows back at the same rank, trait included. A hit while small ends the run. One life still holds. Ranks: Slime, Gel Knight, Ooze Titan.
+- **Goblin.** Tiny crown. Stones lob forward and drop. Movement is a short sprint, then a planted step. Kills drop gems that drift left. Touch one to pick it up for a score bonus. The slingshot does not level from a gem count. Ranks: Goblin, Goblin Chief, Goblin King.
+
+Kills, combos, near-misses, and Goblin gems fill an evolution meter. The gates are placeholder constants. Each rank is a bigger, brighter placeholder and a stronger weapon, with an `EVOLVED!` pop. The death card names the highest rank, for example `Reborn as SLIME, reached OOZE TITAN`.
 
 The field is a bright isekai sky: pastel clouds far away, castle spires and floating islands in the middle, green hills, treetops, and crystals up close. All three layers scroll left.
 

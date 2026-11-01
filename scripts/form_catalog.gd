@@ -33,6 +33,13 @@ const GOBLIN_SPRINT_FRACTION := 0.70
 const GOBLIN_PLANT_SPEED_SCALE := 0.16
 const GOBLIN_HIT_RADIUS := 11.0
 
+## Cumulative skill points to reach rank 1, then rank 2. Rank 0 is the start.
+## Placeholder. Tune these two numbers.
+const RANK_GATES: Array[int] = [500, 1500]
+
+## A Goblin gem. Added to the score and to the evolution meter. Not a weapon upgrade.
+const LOOT_POINTS := 40
+
 static func display_name(id: int) -> String:
 	match id:
 		Id.SLIME:
@@ -88,33 +95,107 @@ static func id_for_run(day_seed: int, run_index: int) -> int:
 		index += forms.size()
 	return forms[index]
 
-static func goblin_interval(level: int) -> float:
-	match clampi(level, 0, 3):
-		1:
-			return 0.42
-		2:
-			return 0.34
-		3:
-			return 0.28
-		_:
-			return GOBLIN_FIRE_INTERVAL
-
-static func goblin_spread(level: int) -> Array[float]:
-	match clampi(level, 0, 3):
-		1, 2:
-			return [-150.0, -50.0, 50.0, 150.0]
-		3:
-			return [-180.0, -90.0, 0.0, 90.0, 180.0]
-		_:
-			return [-GOBLIN_SPREAD, 0.0, GOBLIN_SPREAD]
-
-static func player_shots(id: int, origin: Vector2, sling_level: int = 0) -> Array[Dictionary]:
-	var shots: Array[Dictionary] = []
+## Three ranks per form. sprite_key is the slot for later art (one sprite per rank).
+## Until those files exist, the game draws a scaled, brighter placeholder.
+static func rank_table(id: int) -> Array[Dictionary]:
 	if id == Id.SLIME:
-		shots.append(_blob(origin + Vector2(20, 0), Vector2(SLIME_SHOT_SPEED, 0), 5.0, 1, Color("7ec8ff")))
+		return [
+			{
+				"name": "Slime",
+				"sprite_key": "slime_0",
+				"body_scale": 1.0,
+				"fire_interval": SLIME_FIRE_INTERVAL,
+				"shot_radius": 5.0,
+				"shot_color": Color("7ec8ff"),
+				"lanes": [0.0],
+				"spread": [],
+			},
+			{
+				"name": "Gel Knight",
+				"sprite_key": "slime_1",
+				"body_scale": 1.28,
+				"fire_interval": 0.13,
+				"shot_radius": 6.5,
+				"shot_color": Color("b7e4ff"),
+				"lanes": [-12.0, 12.0],
+				"spread": [],
+			},
+			{
+				"name": "Ooze Titan",
+				"sprite_key": "slime_2",
+				"body_scale": 1.62,
+				"fire_interval": 0.10,
+				"shot_radius": 8.0,
+				"shot_color": Color("eaf7ff"),
+				"lanes": [-18.0, 0.0, 18.0],
+				"spread": [],
+			},
+		]
+	return [
+		{
+			"name": "Goblin",
+			"sprite_key": "goblin_0",
+			"body_scale": 1.0,
+			"fire_interval": GOBLIN_FIRE_INTERVAL,
+			"shot_radius": 4.5,
+			"shot_color": Color("f0c36a"),
+			"lanes": [],
+			"spread": [-GOBLIN_SPREAD, 0.0, GOBLIN_SPREAD],
+		},
+		{
+			"name": "Goblin Chief",
+			"sprite_key": "goblin_1",
+			"body_scale": 1.26,
+			"fire_interval": 0.36,
+			"shot_radius": 5.5,
+			"shot_color": Color("ffe08a"),
+			"lanes": [],
+			"spread": [-150.0, -50.0, 50.0, 150.0],
+		},
+		{
+			"name": "Goblin King",
+			"sprite_key": "goblin_2",
+			"body_scale": 1.55,
+			"fire_interval": 0.28,
+			"shot_radius": 6.5,
+			"shot_color": Color("fff3c4"),
+			"lanes": [],
+			"spread": [-180.0, -90.0, 0.0, 90.0, 180.0],
+		},
+	]
+
+static func rank_spec(id: int, rank_index: int) -> Dictionary:
+	var table := rank_table(id)
+	return table[clampi(rank_index, 0, table.size() - 1)]
+
+static func rank_name(id: int, rank_index: int) -> String:
+	return str(rank_spec(id, rank_index)["name"])
+
+static func rank_for_points(points: int) -> int:
+	var rank := 0
+	for gate in RANK_GATES:
+		if points >= gate:
+			rank += 1
+	return mini(rank, RANK_GATES.size())
+
+static func gate_for_next_rank(rank_index: int) -> int:
+	if rank_index < 0 or rank_index >= RANK_GATES.size():
+		return -1
+	return RANK_GATES[rank_index]
+
+static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array[Dictionary]:
+	var spec := rank_spec(id, rank_index)
+	var shots: Array[Dictionary] = []
+	var shot_radius := float(spec["shot_radius"])
+	var shot_color: Color = spec["shot_color"]
+	if id == Id.SLIME:
+		var lanes: Array = spec["lanes"]
+		for lane in lanes:
+			shots.append(_blob(origin + Vector2(20, float(lane)), Vector2(SLIME_SHOT_SPEED, 0), shot_radius, 1, shot_color))
 	else:
-		for vy in goblin_spread(sling_level):
-			var stone := _blob(origin + Vector2(16, -2), Vector2(GOBLIN_SHOT_SPEED, vy), 4.5, 0, Color("f0c36a"))
+		var spread: Array = spec["spread"]
+		for vy in spread:
+			var stone := _blob(origin + Vector2(16, -2), Vector2(GOBLIN_SHOT_SPEED, float(vy)), shot_radius, 0, shot_color)
 			stone["gravity"] = GOBLIN_GRAVITY
 			stone["style"] = "stone"
 			shots.append(stone)

@@ -20,6 +20,8 @@ var _trail: Array[Vector2] = []
 var small := false
 var regrow_left := 0.0
 var regrew := false
+var rank_index := 0
+var evolve_flash := 0.0
 
 const REGROW_SECONDS := 15.0
 const SMALL_SCALE := 0.62
@@ -28,8 +30,8 @@ func setup(id: int, start: Vector2) -> void:
 	form_id = id
 	position = start
 	aim = start
-	radius = FormCatalog.hit_radius(id)
 	_cooldown = 0.12
+	_apply_radius()
 
 func add_drag(relative: Vector2, bounds: Rect2) -> void:
 	aim += relative
@@ -44,7 +46,7 @@ func absorb_lethal_hit() -> bool:
 		return false
 	small = true
 	regrow_left = REGROW_SECONDS
-	radius = FormCatalog.SLIME_HIT_RADIUS * SMALL_SCALE
+	_apply_radius()
 	return true
 
 func ready_to_fire() -> bool:
@@ -61,8 +63,10 @@ func tick(delta: float, bounds: Rect2) -> void:
 		if regrow_left <= 0.0:
 			small = false
 			regrow_left = 0.0
-			radius = FormCatalog.hit_radius(form_id)
 			regrew = true
+			_apply_radius()
+	if evolve_flash > 0.0:
+		evolve_flash = maxf(evolve_flash - delta, 0.0)
 	if _cooldown > 0.0:
 		_cooldown -= delta
 	if form_id == FormCatalog.Id.SLIME:
@@ -126,11 +130,28 @@ func _record_trail(delta: float) -> void:
 	while _trail.size() > 5:
 		_trail.pop_back()
 
+func set_rank(index: int) -> void:
+	rank_index = index
+	evolve_flash = 0.4
+	_apply_radius()
+
+func _apply_radius() -> void:
+	var spec_scale := float(FormCatalog.rank_spec(form_id, rank_index)["body_scale"])
+	var base := FormCatalog.hit_radius(form_id) * spec_scale
+	radius = base * (SMALL_SCALE if small else 1.0)
+
+func _body_scale() -> float:
+	var spec_scale := float(FormCatalog.rank_spec(form_id, rank_index)["body_scale"])
+	return spec_scale * (SMALL_SCALE if small else 1.0)
+
 func _draw() -> void:
 	if form_id == FormCatalog.Id.SLIME:
 		_draw_slime()
 	else:
 		_draw_goblin()
+	if evolve_flash > 0.0:
+		var alpha := clampf(evolve_flash / 0.4, 0.0, 0.65)
+		draw_rect(Rect2(-28, -28, 56, 56), Color(1, 1, 1, alpha))
 
 func _draw_slime() -> void:
 	var i := _trail.size()
@@ -142,7 +163,7 @@ func _draw_slime() -> void:
 		var local := point - position
 		draw_rect(Rect2(local - Vector2(size, size) * 0.5, Vector2(size, size)), blob)
 	var squash := 1.0 + sin(_wobble * 7.0) * 0.07
-	var body_scale := SMALL_SCALE if small else 1.0
+	var body_scale := _body_scale()
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(body_scale / squash, body_scale * squash))
 	draw_rect(Rect2(-18, -18, 36, 34), Color("10243f"))
 	draw_rect(Rect2(-16, -13, 32, 26), Color("1a4f9c"))
@@ -154,6 +175,9 @@ func _draw_slime() -> void:
 	draw_rect(Rect2(4, -2, 6, 6), Color("f4fbff"))
 	draw_rect(Rect2(-6, -1, 3, 3), Color("0c1424"))
 	draw_rect(Rect2(6, 0, 3, 3), Color("0c1424"))
+	if rank_index > 0:
+		var shine := Color(1, 1, 1, 0.18 * float(rank_index))
+		draw_rect(Rect2(-12, -14, 22, 10), shine)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 func _draw_goblin() -> void:
@@ -161,6 +185,8 @@ func _draw_goblin() -> void:
 		draw_rect(Rect2(-18, 2, 4, 3), Color("6a5640"))
 		draw_rect(Rect2(-14, 6, 3, 3), Color("8a7058"))
 	# Tiny crown, a size too proud for the head under it. Face points right.
+	var body_scale := _body_scale()
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(body_scale, body_scale))
 	draw_rect(Rect2(-9, -22, 20, 30), Color("24180a"))
 	draw_rect(Rect2(-6, -20, 12, 3), Color("ffd15c"))
 	draw_rect(Rect2(-6, -24, 3, 6), Color("ffd15c"))
@@ -173,3 +199,6 @@ func _draw_goblin() -> void:
 	var step := 2.0 if sprinting else 0.0
 	draw_rect(Rect2(-6, 2, 3, 5 + step), Color("5c3a24"))
 	draw_rect(Rect2(1, 2, 3, 5 + step), Color("5c3a24"))
+	if rank_index > 0:
+		draw_rect(Rect2(-4, -26, 8, 3), Color(1, 1, 1, 0.25 * float(rank_index)))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

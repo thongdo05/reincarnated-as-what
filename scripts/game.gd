@@ -26,7 +26,8 @@ var game_over_visible := false
 var killer_name := "something"
 var next_enemy_id := 1
 var loot_count := 0
-var sling_level := 0
+var evo_points := 0
+var rank_index := 0
 
 var _player: PlayerShip
 var _background: FieldBackground
@@ -100,7 +101,7 @@ func _build_hud() -> void:
 
 	_loot_label = _make_label(13, Color("8a4b12"))
 	_loot_label.position = Vector2(40, 46)
-	_loot_label.visible = form_id == FormCatalog.Id.GOBLIN
+	_loot_label.visible = true
 	_hud.add_child(_loot_label)
 
 	_time_label = _make_label(20, Color("241428"))
@@ -368,10 +369,8 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		invuln = maxf(invuln, REGROW_IFRAMES)
 		_player.invulnerable = true
 	if _player.ready_to_fire():
-		var interval := FormCatalog.fire_interval(form_id)
-		if form_id == FormCatalog.Id.GOBLIN:
-			interval = FormCatalog.goblin_interval(sling_level)
-		for spec in FormCatalog.player_shots(form_id, _player.position, sling_level):
+		var interval := float(FormCatalog.rank_spec(form_id, rank_index)["fire_interval"])
+		for spec in FormCatalog.player_shots(form_id, _player.position, rank_index):
 			_spawn_shot(spec, true)
 		_player.did_fire(interval)
 	for event in _director.pop_due(elapsed):
@@ -477,7 +476,7 @@ func _award_kill(enemy: EnemyActor) -> void:
 	combo = int(result["combo"])
 	combo_left = float(result["combo_left"])
 	var points := int(result["points"])
-	score += points
+	_gain_skill(points)
 	_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-8, -18), Color("241428"))
 	if form_id == FormCatalog.Id.GOBLIN:
 		_spawn_loot(enemy.position)
@@ -490,7 +489,7 @@ func _graze(hazard: Object, at: Vector2, hazard_radius: float) -> void:
 	if dist < hit or dist > hit + GRAZE_PAD:
 		return
 	hazard.grazed = true
-	score += ScoreRules.GRAZE
+	_gain_skill(ScoreRules.GRAZE)
 	_combat.push("+%d" % ScoreRules.GRAZE, at + Vector2(6, -8), Color("ffe08a"))
 
 func _hurt_player(killer: String) -> void:
@@ -529,10 +528,20 @@ func _tick_loot(delta: float) -> void:
 func _collect_gem(gem: LootGem) -> void:
 	gem.queue_free()
 	loot_count += 1
-	var next_level := mini(int(loot_count / 10), 3)
-	if next_level > sling_level:
-		sling_level = next_level
-		_combat.push("SLING LV %d" % sling_level, _player.position + Vector2(-36, -26), Color("8a4b12"))
+	_gain_skill(FormCatalog.LOOT_POINTS)
+	_combat.push("+%d" % FormCatalog.LOOT_POINTS, gem.position + Vector2(-8, -14), Color("8a4b12"))
+
+func _gain_skill(points: int) -> void:
+	if points <= 0:
+		return
+	score += points
+	evo_points += points
+	var reached := FormCatalog.rank_for_points(evo_points)
+	if reached > rank_index:
+		rank_index = reached
+		_player.set_rank(rank_index)
+		var evolved := FormCatalog.rank_name(form_id, rank_index)
+		_combat.push("EVOLVED! %s" % evolved, _player.position + Vector2(-52, -30), Color("fff6c8"))
 	_refresh_hud()
 
 func _kill_player(name: String) -> void:
@@ -549,7 +558,8 @@ func _kill_player(name: String) -> void:
 func _show_game_over() -> void:
 	game_over_visible = true
 	var form_name := FormCatalog.display_name(form_id)
-	_share_label.text = ScoreRules.share_line(form_name, elapsed, killer_name, score)
+	var reached_rank := FormCatalog.rank_name(form_id, rank_index)
+	_share_label.text = ScoreRules.share_line(form_name, reached_rank, elapsed, killer_name, score)
 	var saved := BestScores.record(form_name, score)
 	_best_label.text = "Best as %s: %s / Best overall: %s" % [
 		form_name,
@@ -597,10 +607,12 @@ func _refresh_hud() -> void:
 		_combo_label.text = "x%d" % combo
 	else:
 		_combo_label.text = ""
-	if form_id == FormCatalog.Id.GOBLIN:
-		_loot_label.text = "Gems %d  Lv %d" % [loot_count, sling_level]
+	var evolved_name := FormCatalog.rank_name(form_id, rank_index)
+	var next_gate := FormCatalog.gate_for_next_rank(rank_index)
+	if next_gate < 0:
+		_loot_label.text = evolved_name
 	else:
-		_loot_label.text = ""
+		_loot_label.text = "%s  %d/%d" % [evolved_name, evo_points, next_gate]
 
 func _on_restart() -> void:
 	get_tree().reload_current_scene()
