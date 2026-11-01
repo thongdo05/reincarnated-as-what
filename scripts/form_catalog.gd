@@ -68,7 +68,7 @@ const FORM_CARD := {
 		"used": "Split used.",
 	},
 	Id.GOBLIN: {
-		"trait": "Kills drop loot. Picking it up adds score and evolution points.",
+		"trait": "Kills can drop gems. Picking one up adds score and evolution points. A small magnet pulls nearby gems.",
 		"ready": "",
 		"used": "",
 	},

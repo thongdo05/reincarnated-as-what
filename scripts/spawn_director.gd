@@ -18,12 +18,13 @@ const PIANO := 5
 const HEAVY_CAP := 2
 
 var _rng := RandomNumberGenerator.new()
-var _next_time := Difficulty.FIRST_SPAWN
+var _next_time := 0.0
 var _heavy_until: Array[float] = []
 var max_heavies := 0
 
 func _init(seed_value: int) -> void:
 	_rng.seed = seed_value
+	_next_time = Difficulty.first_spawn()
 
 func pop_due(elapsed: float) -> Array[Dictionary]:
 	var due: Array[Dictionary] = []

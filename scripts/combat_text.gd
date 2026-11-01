@@ -3,15 +3,16 @@ class_name CombatText
 
 var items: Array[Dictionary] = []
 
-func push(text: String, at: Vector2, color: Color) -> void:
+func push(text: String, at: Vector2, color: Color, life: float = 0.34) -> void:
+	if items.size() >= 6:
+		items.remove_at(0)
 	items.append({
 		"text": text,
 		"pos": at,
-		"vel": Vector2(0, -36),
-		"life": 0.7,
-		"max_life": 0.7,
+		"vel": Vector2(0, -22),
+		"life": life,
+		"max_life": life,
 		"color": color,
-		"size": 0.0,
 	})
 
 func tick(delta: float) -> void:

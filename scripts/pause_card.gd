@@ -16,6 +16,7 @@ var _weapon: Label
 var _trait: Label
 var _next: Label
 var _points: Label
+var _drops: Label
 var _meter: Control
 var _row: HBoxContainer
 var _inner_width := 360.0
@@ -43,10 +44,12 @@ func setup(font: Font) -> void:
 	_heading = _label(BODY)
 	_weapon = _label(BODY)
 	_trait = _label(BODY)
+	_drops = _label(KICKER)
 	box.add_child(_title)
 	box.add_child(_heading)
 	box.add_child(_weapon)
 	box.add_child(_trait)
+	box.add_child(_drops)
 	_row = HBoxContainer.new()
 	_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_row.add_theme_constant_override("separation", 4)
@@ -65,6 +68,12 @@ func show_form(id: int, rank_index: int, points: int, split_ready: bool) -> void
 	_heading.add_theme_color_override("font_color", FormCatalog.title_color(id))
 	_weapon.text = "WEAPON  " + FormCatalog.weapon_line(id, rank_index)
 	_trait.text = "TRAIT  " + FormCatalog.trait_line(id, split_ready)
+	if FlappyMode.is_active():
+		_drops.text = ""
+		_drops.visible = false
+	else:
+		_drops.visible = true
+		_drops.text = "DROPS  Gems fill the meter, drift left, and fade. Bomb clears shots. Shield blocks one hit. Rapid and Magnet last 5s. After the final form, gems charge OVERDRIVE."
 	var at_cap := FormCatalog.gate_for_next_rank(rank_index) < 0
 	var points_text := FormCatalog.next_rank_text(rank_index, points)
 	var meter_fill := HudLayout.fill_px(points, rank_index)
@@ -107,8 +116,11 @@ func next_text() -> String:
 func _apply_width() -> void:
 	if _weapon == null:
 		return
-	for label in [_title, _heading, _weapon, _trait]:
-		label.custom_minimum_size = Vector2(_inner_width, _text_height(label.text, _inner_width))
+	for label in [_title, _heading, _weapon, _trait, _drops]:
+		if label == null:
+			continue
+		var line_h := 0.0 if label.text.is_empty() else _text_height(label.text, _inner_width)
+		label.custom_minimum_size = Vector2(_inner_width, line_h)
 
 func _text_height(text: String, width: float) -> float:
 	if text.is_empty() or _font == null:

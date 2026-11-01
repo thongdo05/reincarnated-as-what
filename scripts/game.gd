@@ -39,7 +39,22 @@ var _director: SpawnDirector
 var _enemies: Array[EnemyActor] = []
 var _shots: Array[Shot] = []
 var _loot: Array[LootGem] = []
+var _powers: Array[PowerDrop] = []
 var _effects: Array[PixelEffect] = []
+var pattern_shots: Array[Dictionary] = []
+var power_spawned := 0
+var overdrive := 0
+var rapid_left := 0.0
+var magnet_left := 0.0
+var _next_rake := Difficulty.RAKE_FIRST
+var _overdrive_flash := 0.0
+var _drop_rng := RandomNumberGenerator.new()
+var _drop_seeded := false
+var _shot_pool: Array[Shot] = []
+var _fx_pool: Array[PixelEffect] = []
+var _gem_pool: Array[LootGem] = []
+var _power_pool: Array[PowerDrop] = []
+var _pattern_layer: Node2D
 var _death_fx: DeathFx
 var _tease: Control
 var _loot_spawned := 0
@@ -109,6 +124,7 @@ func _ready() -> void:
 	if CaptureMode.wants_hitbox():
 		HitLibrary.show = true
 		_redraw_hitboxes()
+	_prewarm()
 
 func _build_world() -> void:
 	var size := _viewport_size()
@@ -124,6 +140,10 @@ func _build_world() -> void:
 	_combat = CombatText.new()
 	_combat.z_index = 8
 	add_child(_combat)
+	_pattern_layer = PatternLayer.new()
+	_pattern_layer.z_index = 6
+	(_pattern_layer as PatternLayer).host = self
+	add_child(_pattern_layer)
 
 	_death_fx = DeathFx.new()
 	_death_fx.z_index = 9
@@ -597,6 +617,8 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		_player.invulnerable = true
 	if _player.ready_to_fire():
 		var interval := float(FormCatalog.rank_spec(form_id, rank_index)["fire_interval"])
+		if rapid_left > 0.0 and not FlappyMode.is_active():
+			interval *= Difficulty.RAPID_FIRE_SCALE
 		var shot_event := AudioCues.shot_event_for_form(form_id)
 		if _sound != null and shot_event != "":
 			_sound.play_event(shot_event)
@@ -614,10 +636,18 @@ func _play_frame(delta: float, size: Vector2) -> void:
 			_spawn_shot(spec, false)
 	for shot in _shots:
 		shot.tick(delta)
+	_tick_patterns(delta, size)
 	_collide()
 	if FlappyMode.is_active():
 		FlappyMode.tick(self, delta, size, bounds)
 	_tick_loot(delta)
+	_tick_powers(delta)
+	if rapid_left > 0.0:
+		rapid_left = maxf(rapid_left - delta, 0.0)
+	if magnet_left > 0.0:
+		magnet_left = maxf(magnet_left - delta, 0.0)
+	if _overdrive_flash > 0.0:
+		_overdrive_flash = maxf(_overdrive_flash - delta, 0.0)
 	_sweep(size)
 	_bank_survival(delta)
 	if combo_left > 0.0:
@@ -655,10 +685,14 @@ func _spawn_enemy(data: Dictionary, size: Vector2) -> void:
 	_enemies.append(enemy)
 
 func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
-	var shot := Shot.new()
-	shot.z_index = 4
+	var shot: Shot
+	if _shot_pool.is_empty():
+		shot = Shot.new()
+		add_child(shot)
+	else:
+		shot = _shot_pool.pop_back() as Shot
+	shot.z_index = 3 if from_player else 6
 	shot.setup(data, from_player)
-	add_child(shot)
 	_shots.append(shot)
 	return shot
 
@@ -676,6 +710,8 @@ func _collide() -> void:
 			if shot.ignore_id == enemy.id and shot.age < 0.1:
 				continue
 			var enemy_file := SpawnDirector.sprite_for(enemy.kind)
+			if absf(shot.position.x - enemy.position.x) > 96.0 or absf(shot.position.y - enemy.position.y) > 72.0:
+				continue
 			if not HitLibrary.overlaps(shot.position, shot.sprite_name, "body", enemy.position, enemy_file, "body"):
 				continue
 			enemy.hurt(shot.damage)
@@ -685,7 +721,7 @@ func _collide() -> void:
 					spec["ignore_id"] = enemy.id
 					splits.append(spec)
 			if not enemy.alive:
-				_award_kill(enemy)
+				_award_kill(enemy, true)
 				_spawn_fx("death_puff.png", enemy.position, 0.42, 0.45, 1.55)
 			else:
 				_spawn_fx("hit_flash.png", shot.position, 0.16, 0.75, 1.35)
@@ -721,17 +757,24 @@ func _collide() -> void:
 			return
 		_graze_gap(shot, shot_gap)
 
-func _award_kill(enemy: EnemyActor) -> void:
+func _award_kill(enemy: EnemyActor, drop_loot: bool = true) -> void:
 	var result := ScoreRules.on_kill(enemy.score_value, combo, combo_left, rank_index)
 	combo = int(result["combo"])
 	combo_left = float(result["combo_left"])
 	var points := int(result["points"])
-	_gain_skill(points)
+	if FlappyMode.is_active():
+		_gain_skill(points)
+		_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-8, -18), Color("241428"))
+		if form_id == FormCatalog.Id.GOBLIN:
+			_spawn_loot(enemy.position)
+	else:
+		score += points
+		if points >= Difficulty.POPUP_MIN:
+			_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-6, -12), Color("241428"), Difficulty.POPUP_LIFE)
+		if drop_loot:
+			_roll_drops(enemy.position)
 	if _sound != null:
 		_sound.play_event("enemy_killed")
-	_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-8, -18), Color("241428"))
-	if form_id == FormCatalog.Id.GOBLIN:
-		_spawn_loot(enemy.position)
 
 func _graze_gap(hazard: Object, separation: float) -> void:
 	if hazard.grazed:
@@ -739,15 +782,25 @@ func _graze_gap(hazard: Object, separation: float) -> void:
 	if separation <= 0.0 or separation > GRAZE_PAD:
 		return
 	hazard.grazed = true
-	_gain_skill(ScoreRules.graze_points(rank_index))
-	var at: Vector2 = hazard.position
-	_combat.push("+%d" % ScoreRules.GRAZE, at + Vector2(6, -8), Color("ffe08a"))
-	_spawn_fx("graze_sparkle.png", at, 0.34, 0.45, 1.45)
+	var grazed := ScoreRules.graze_points(rank_index)
+	if FlappyMode.is_active():
+		_gain_skill(grazed)
+		var at: Vector2 = hazard.position
+		_combat.push("+%d" % ScoreRules.GRAZE, at + Vector2(6, -8), Color("ffe08a"))
+		_spawn_fx("graze_sparkle.png", at, 0.34, 0.45, 1.45)
+	else:
+		score += grazed
 
 func _hurt_player(killer: String) -> void:
 	if CaptureMode.ignore_hit(self, killer):
 		return
 	if phase != PHASE_PLAY or not _player.alive:
+		return
+	if not FlappyMode.is_active() and _player.shield_hits > 0:
+		_player.shield_hits = 0
+		invuln = maxf(invuln, Difficulty.SHIELD_IFRAMES)
+		_player.invulnerable = true
+		_spawn_fx("hit_flash.png", _player.position, 0.18, 0.5, 1.2)
 		return
 	# Slime trait only. A small Slime falls through to the one death of the run.
 	# A capture piano is the death the clip is there to record, so it is not spent on the split.
@@ -760,26 +813,68 @@ func _hurt_player(killer: String) -> void:
 	_kill_player(killer)
 
 func _spawn_loot(at: Vector2) -> void:
-	var gem := LootGem.new()
+	if not FlappyMode.is_active():
+		_spawn_evo_gem(at)
+		return
+	var gem := _take_gem()
 	var file := "coin.png" if _loot_spawned % 2 == 0 else "gem.png"
 	_loot_spawned += 1
 	gem.setup(file)
+	gem.life = 99.0
+	gem.drift = 42.0
+	gem.age = 0.0
 	gem.position = at
-	gem.z_index = 4
-	add_child(gem)
+	gem.modulate = Color.WHITE
+	gem.z_index = 7
 	_loot.append(gem)
+
+func _spawn_evo_gem(at: Vector2) -> void:
+	var gem := _take_gem()
+	gem.setup("gem.png")
+	gem.life = Difficulty.GEM_LIFE
+	gem.drift = Difficulty.GEM_DRIFT
+	gem.age = 0.0
+	gem.position = at
+	gem.modulate = Color.WHITE
+	gem.z_index = 7
+	_loot.append(gem)
+
+func _take_gem() -> LootGem:
+	if _gem_pool.is_empty():
+		var gem := LootGem.new()
+		add_child(gem)
+		return gem
+	var gem: LootGem = _gem_pool.pop_back() as LootGem
+	gem.visible = true
+	return gem
+
+func _release_gem(gem: LootGem) -> void:
+	if not is_instance_valid(gem):
+		return
+	gem.visible = false
+	_gem_pool.append(gem)
 
 func _tick_loot(delta: float) -> void:
 	var magnet := 0.0
 	var magnet_speed := 0.0
-	if form_id == FormCatalog.Id.GOBLIN:
-		magnet = FormCatalog.goblin_f("loot_magnet")
-		magnet_speed = FormCatalog.goblin_f("loot_magnet_speed")
-	var keep: Array[LootGem] = []
+	if FlappyMode.is_active():
+		if form_id == FormCatalog.Id.GOBLIN:
+			magnet = FormCatalog.goblin_f("loot_magnet")
+			magnet_speed = FormCatalog.goblin_f("loot_magnet_speed")
+	else:
+		if form_id == FormCatalog.Id.GOBLIN:
+			magnet = Difficulty.GOBLIN_MAGNET
+			magnet_speed = Difficulty.GOBLIN_MAGNET_SPEED
+		if magnet_left > 0.0:
+			magnet = maxf(magnet, Difficulty.MAGNET_RADIUS)
+			magnet_speed = maxf(magnet_speed, Difficulty.MAGNET_SPEED)
+	var write := 0
 	for gem in _loot:
 		if not is_instance_valid(gem):
 			continue
-		gem.tick(delta)
+		if not gem.tick(delta):
+			_release_gem(gem)
+			continue
 		if _player.alive and magnet > 0.0:
 			var offset := _player.position - gem.position
 			var dist := offset.length()
@@ -789,33 +884,228 @@ func _tick_loot(delta: float) -> void:
 			_collect_gem(gem)
 			continue
 		if gem.position.x < -40.0:
-			gem.queue_free()
+			_release_gem(gem)
 			continue
-		keep.append(gem)
-	_loot = keep
+		_loot[write] = gem
+		write += 1
+	_loot.resize(write)
 
 func _collect_gem(gem: LootGem) -> void:
-	gem.queue_free()
+	var at := gem.position
+	_release_gem(gem)
 	loot_count += 1
-	var picked := FormCatalog.loot_points()
-	_gain_skill(picked)
-	_combat.push("+%d" % picked, gem.position + Vector2(-8, -14), Color("8a4b12"))
+	if FlappyMode.is_active():
+		var picked := FormCatalog.loot_points()
+		_gain_skill(picked)
+		_combat.push("+%d" % picked, at + Vector2(-8, -14), Color("8a4b12"))
+		return
+	score += Difficulty.GEM_SCORE
+	_spawn_fx("graze_sparkle.png", at, 0.22, 0.6, 1.2)
+	if FormCatalog.gate_for_next_rank(rank_index) < 0:
+		overdrive += 1
+		if overdrive >= Difficulty.OVERDRIVE_GEMS:
+			overdrive = 0
+			_overdrive_blast()
+		return
+	_add_evo(Difficulty.GEM_EVO)
 
 func _loot_reached(gem: LootGem, magnet: float) -> bool:
 	if _overlaps(_player.position, _player.radius, gem.position, gem.radius):
 		return true
-	return magnet > 0.0 and form_id == FormCatalog.Id.GOBLIN and _player.position.distance_to(gem.position) <= magnet
+	if magnet <= 0.0 or not _player.alive:
+		return false
+	if FlappyMode.is_active():
+		return form_id == FormCatalog.Id.GOBLIN and _player.position.distance_to(gem.position) <= magnet
+	return _player.position.distance_to(gem.position) <= magnet
+
+func _roll_drops(at: Vector2) -> void:
+	if _drop_unit() < Difficulty.GEM_CHANCE:
+		_spawn_evo_gem(at)
+	if _drop_unit() < Difficulty.POWER_CHANCE:
+		var kinds: Array[String] = ["bomb", "shield", "rapid", "magnet"]
+		var index := _drop_rng.randi() % kinds.size()
+		_spawn_power(at + Vector2(8, -6), kinds[index])
+
+func _drop_unit() -> float:
+	if not _drop_seeded:
+		_drop_seeded = true
+		_drop_rng.seed = int(day_seed) * 17 + 3
+	return _drop_rng.randf()
+
+func _spawn_power(at: Vector2, kind: String) -> void:
+	var drop: PowerDrop
+	if _power_pool.is_empty():
+		drop = PowerDrop.new()
+		add_child(drop)
+	else:
+		drop = _power_pool.pop_back() as PowerDrop
+	drop.setup(kind)
+	drop.position = at
+	drop.drift = Difficulty.POWER_DRIFT
+	drop.life = Difficulty.POWER_LIFE
+	drop.z_index = 7
+	drop.visible = true
+	_powers.append(drop)
+	power_spawned += 1
+
+func _tick_powers(delta: float) -> void:
+	if FlappyMode.is_active() or _powers.is_empty():
+		return
+	var magnet := Difficulty.MAGNET_RADIUS if magnet_left > 0.0 else 0.0
+	var write := 0
+	for drop in _powers:
+		if not is_instance_valid(drop):
+			continue
+		if not drop.tick(delta):
+			_release_power(drop)
+			continue
+		if _player.alive and magnet > 0.0:
+			var offset := _player.position - drop.position
+			var dist := offset.length()
+			if dist <= magnet and dist > 0.5:
+				drop.position += offset / dist * Difficulty.MAGNET_SPEED * delta
+		if _player.alive and _overlaps(_player.position, _player.radius, drop.position, drop.radius):
+			_collect_power(drop)
+			continue
+		if drop.position.x < -40.0:
+			_release_power(drop)
+			continue
+		_powers[write] = drop
+		write += 1
+	_powers.resize(write)
+
+func _collect_power(drop: PowerDrop) -> void:
+	var kind := drop.kind
+	var at := drop.position
+	_release_power(drop)
+	_spawn_fx("graze_sparkle.png", at, 0.2, 0.5, 1.3)
+	match kind:
+		"bomb":
+			_detonate()
+		"shield":
+			_player.shield_hits = 1
+		"rapid":
+			rapid_left = Difficulty.POWER_DURATION
+		"magnet":
+			magnet_left = Difficulty.POWER_DURATION
+
+func _release_power(drop: PowerDrop) -> void:
+	if not is_instance_valid(drop):
+		return
+	drop.visible = false
+	_power_pool.append(drop)
+
+func _detonate() -> void:
+	_clear_enemy_shots()
+	score += Difficulty.BOMB_SCORE
+	_combat.push("BOMB", _player.position + Vector2(-16, -20), Color("ffe56a"), 0.4)
+	for enemy in _enemies:
+		if not enemy.alive:
+			continue
+		enemy.hurt(Difficulty.BOMB_DAMAGE)
+		if not enemy.alive:
+			_award_kill(enemy, false)
+			_spawn_fx("death_puff.png", enemy.position, 0.28, 0.4, 1.2)
+
+func _overdrive_blast() -> void:
+	_clear_enemy_shots()
+	score += Difficulty.OVERDRIVE_SCORE
+	_overdrive_flash = 0.32
+	_combat.push("OVERDRIVE", _player.position + Vector2(-32, -24), Color("ffe56a"), 0.45)
+	_spawn_fx("evolved_burst.png", _player.position + Vector2(40, -8), 0.45, 0.6, 1.4)
+	for enemy in _enemies:
+		if not enemy.alive:
+			continue
+		enemy.hurt(99)
+		if not enemy.alive:
+			_award_kill(enemy, false)
+
+func _clear_enemy_shots() -> void:
+	var write := 0
+	for shot in _shots:
+		if not is_instance_valid(shot) or not shot.from_player:
+			_release_shot(shot)
+			continue
+		_shots[write] = shot
+		write += 1
+	_shots.resize(write)
+	pattern_shots.clear()
+
+func _tick_patterns(delta: float, size: Vector2) -> void:
+	if FlappyMode.is_active() or _player == null:
+		return
+	if phase == PHASE_PLAY and elapsed + 0.00001 >= _next_rake:
+		_spawn_rake(size)
+		_next_rake = elapsed + Difficulty.rake_every(elapsed)
+	var write := 0
+	for item in pattern_shots:
+		var left := float(item["left"]) - delta
+		if left <= 0.0:
+			var pos: Vector2 = item["pos"]
+			var vel: Vector2 = item["vel"]
+			_spawn_shot({
+				"position": pos,
+				"velocity": vel,
+				"sprite": str(item["sprite"]),
+				"radius": 5.0,
+				"damage": 1,
+				"killer_name": "rake",
+				"color": Color("f0d78c"),
+			}, false)
+			continue
+		item["left"] = left
+		pattern_shots[write] = item
+		write += 1
+	pattern_shots.resize(write)
+	if _pattern_layer != null:
+		_pattern_layer.queue_redraw()
+
+func _spawn_rake(size: Vector2) -> void:
+	var gap_h := Difficulty.rake_gap(elapsed)
+	var player_y := _player.position.y
+	var min_y := 40.0
+	var max_y := 214.0
+	var gap_y := player_y + Difficulty.RAKE_SHIFT
+	if player_y > (min_y + max_y) * 0.5:
+		gap_y = player_y - Difficulty.RAKE_SHIFT
+	gap_y = clampf(gap_y, min_y + gap_h * 0.5, max_y - gap_h * 0.5)
+	if absf(gap_y - player_y) < _player.radius + 24.0:
+		gap_y = min_y + gap_h * 0.5 if player_y > 120.0 else max_y - gap_h * 0.5
+		gap_y = clampf(gap_y, min_y + gap_h * 0.5, max_y - gap_h * 0.5)
+	var speed := Difficulty.rake_speed(elapsed)
+	var windup := Difficulty.telegraph_for(speed)
+	var y := min_y
+	while y <= max_y + 0.1:
+		if absf(y - gap_y) > gap_h * 0.5:
+			pattern_shots.append({
+				"pos": Vector2(size.x + 18.0, y),
+				"vel": Vector2(-speed, 0.0),
+				"left": windup,
+				"sprite": "floating_eye_bolt.png",
+			})
+		y += 26.0
 
 func _gain_skill(points: int) -> void:
 	if points <= 0:
 		return
 	score += points
+	_add_evo(points)
+
+func _add_evo(points: int) -> void:
+	if points <= 0:
+		return
 	evo_points += points
+	_try_rank()
+
+func _try_rank() -> void:
 	var reached := FormCatalog.rank_for_points(evo_points)
 	if FlappyMode.is_active():
 		reached = FlappyMode.rank_for_points(evo_points)
 	if reached > rank_index:
-		var final := reached >= FormCatalog.rank_gates().size()
+		var gate_count := FormCatalog.rank_gates().size()
+		if FlappyMode.is_active():
+			gate_count = 2
+		var final := reached >= gate_count
 		var old_sprite := _player.sprite_name()
 		rank_index = reached
 		_player.set_rank(rank_index)
@@ -970,28 +1260,36 @@ func _wrapped_height(text: String, width: float, font_size: int) -> float:
 
 func _sweep(size: Vector2) -> void:
 	var field := Rect2(-80, -80, size.x + 160, size.y + 160)
-	var enemies_left: Array[EnemyActor] = []
+	var enemy_write := 0
 	for enemy in _enemies:
-		var gone := not enemy.alive or not field.has_point(enemy.position)
+		var gone := not is_instance_valid(enemy) or not enemy.alive or not field.has_point(enemy.position)
 		if gone:
 			if is_instance_valid(enemy):
 				enemy.queue_free()
-		else:
-			enemies_left.append(enemy)
-	_enemies = enemies_left
-	var shots_left: Array[Shot] = []
+			continue
+		_enemies[enemy_write] = enemy
+		enemy_write += 1
+	_enemies.resize(enemy_write)
+	var shot_write := 0
+	var wide := field.grow(20)
 	for shot in _shots:
-		if not is_instance_valid(shot) or not field.grow(20).has_point(shot.position):
-			if is_instance_valid(shot):
-				shot.queue_free()
-		else:
-			shots_left.append(shot)
-	_shots = shots_left
+		if not is_instance_valid(shot) or not wide.has_point(shot.position):
+			_release_shot(shot)
+			continue
+		_shots[shot_write] = shot
+		shot_write += 1
+	_shots.resize(shot_write)
 
 func _drop_shot(shot: Shot) -> void:
 	_shots.erase(shot)
-	if is_instance_valid(shot):
-		shot.queue_free()
+	_release_shot(shot)
+
+func _release_shot(shot: Shot) -> void:
+	if not is_instance_valid(shot):
+		return
+	shot.visible = false
+	shot.hit_ids.clear()
+	_shot_pool.append(shot)
 
 func _bank_survival(delta: float) -> void:
 	survival_bank += delta
@@ -1032,6 +1330,9 @@ func _refresh_hud() -> void:
 	var fill := HudLayout.fill_px(evo_points, rank_index)
 	if FlappyMode.is_active():
 		fill = FlappyMode.fill_px(evo_points, rank_index)
+	var overdrive_px := -1
+	if not FlappyMode.is_active() and FormCatalog.gate_for_next_rank(rank_index) < 0:
+		overdrive_px = int(round(float(HudLayout.FILL_FULL) * clampf(float(overdrive) / float(Difficulty.OVERDRIVE_GEMS), 0.0, 1.0)))
 	_hud_view.set_run(
 		ScoreRules.format_score(score),
 		ScoreRules.format_time(elapsed),
@@ -1039,7 +1340,11 @@ func _refresh_hud() -> void:
 		FormCatalog.rank_name(form_id, rank_index).to_upper(),
 		rank_index,
 		fill,
-		form_id == FormCatalog.Id.GOBLIN
+		form_id == FormCatalog.Id.GOBLIN,
+		_player != null and _player.shield_hits > 0,
+		int(ceil(rapid_left)) if rapid_left > 0.0 else 0,
+		int(ceil(magnet_left)) if magnet_left > 0.0 else 0,
+		overdrive_px
 	)
 
 func share_run() -> Dictionary:
@@ -1244,21 +1549,64 @@ func _overlaps(a: Vector2, a_radius: float, b: Vector2, b_radius: float) -> bool
 	return a.distance_squared_to(b) <= reach * reach
 
 func _spawn_fx(file_name: String, at: Vector2, duration: float, from_scale: float, to_scale: float) -> void:
-	var fx := PixelEffect.new()
-	fx.z_index = 7
+	if _effects.size() >= Difficulty.MAX_FX:
+		return
+	var fx: PixelEffect
+	if _fx_pool.is_empty():
+		fx = PixelEffect.new()
+		fx.z_index = 7
+		add_child(fx)
+	else:
+		fx = _fx_pool.pop_back() as PixelEffect
 	fx.setup(file_name, at, duration, from_scale, to_scale)
-	add_child(fx)
+	fx.visible = true
 	_effects.append(fx)
 
 func _tick_effects(delta: float) -> void:
-	var keep: Array[PixelEffect] = []
+	var write := 0
 	for fx in _effects:
 		if is_instance_valid(fx) and fx.tick(delta):
-			keep.append(fx)
+			_effects[write] = fx
+			write += 1
 			continue
 		if is_instance_valid(fx):
-			fx.queue_free()
-	_effects = keep
+			fx.visible = false
+			_fx_pool.append(fx)
+	_effects.resize(write)
+
+func _prewarm() -> void:
+	PixelFont.outlined_texture("FINAL FORM!", Color("ffe56a"))
+	PixelFont.outlined_texture("OVERDRIVE", Color("ffe56a"))
+	PixelFont.outlined_texture("BOMB", Color("ffe56a"))
+	PixelFont.outlined_texture("OD", Color("ffe56a"))
+	for file_name in ["fx/fx_evolve_glow.png", "fx/fx_evolve_flash.png", "fx/fx_evolved_pop.png", "evolved_burst.png", "graze_sparkle.png", "hit_flash.png", "anvil.png", "slime_shot.png", "ui/hud_coin_icon.png", "gem.png", "floating_eye_bolt.png", "arrow.png", "wyvern_shot.png"]:
+		ArtLibrary.texture(file_name)
+	for rank in 3:
+		for id in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
+			var spec := FormCatalog.rank_spec(id, rank)
+			ArtLibrary.texture("fx/forms/%s_flash.png" % str(spec["sprite"]).trim_suffix(".png"))
+			ArtLibrary.texture("fx/forms/%s_rim.png" % str(spec["sprite"]).trim_suffix(".png"))
+
+class PatternLayer extends Node2D:
+	var host
+
+	func _draw() -> void:
+		if host == null:
+			return
+		var rows: Array = host.pattern_shots
+		var ink := Color(1.0, 0.84, 0.38, 0.9)
+		for item in rows:
+			var pos: Vector2 = item["pos"]
+			var vel: Vector2 = item["vel"]
+			if vel.length_squared() < 1.0:
+				continue
+			var dir := vel.normalized()
+			draw_line(pos, pos + dir * 14.0, ink, 1.0)
+			draw_arc(pos, 2.5, 0.0, TAU, 8, ink, 1.0, true)
+		var flash := float(host._overdrive_flash)
+		if flash > 0.0:
+			var field: Vector2 = host._viewport_size()
+			draw_rect(Rect2(Vector2.ZERO, field), Color(1.0, 0.93, 0.62, clampf(flash * 1.4, 0.0, 0.55)))
 
 class SpeakerOffMark extends Control:
 	func _draw() -> void:
