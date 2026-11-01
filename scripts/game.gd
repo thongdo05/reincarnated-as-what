@@ -491,6 +491,7 @@ func _graze(hazard: Object, at: Vector2, hazard_radius: float) -> void:
 func _hurt_player(killer: String) -> void:
 	if phase != PHASE_PLAY or not _player.alive:
 		return
+	# Slime trait only. A small Slime falls through to the one death of the run.
 	if _player.absorb_lethal_hit():
 		invuln = maxf(invuln, SPLIT_IFRAMES)
 		_player.invulnerable = true
