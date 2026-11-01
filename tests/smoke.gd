@@ -780,10 +780,13 @@ func _check_play() -> int:
 	var game := packed.instantiate()
 	game.process_mode = Node.PROCESS_MODE_DISABLED
 	root.add_child(game)
-	if game._player == null or game._title_card == null:
+	if game._player == null or game._title_card == null or game._hud_view == null:
 		push_error("game did not finish setting up")
 		game.free()
 		return 1
+	if game._hud_view.show_coins != (int(game.form_id) == FormCatalog.Id.GOBLIN):
+		push_error("only the goblin run should show the coin counter")
+		failed += 1
 	if not game.wants_rotate(Vector2(390, 844)) or game.wants_rotate(Vector2(844, 390)):
 		push_error("portrait should ask for a rotate, landscape should play")
 		game.free()
@@ -1129,6 +1132,15 @@ func _check_hud() -> int:
 	elif outlined.get_string_size("A", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x <= 0.0:
 		push_error("outlined Kaito did not measure a glyph")
 		failed += 1
+	var coins_off := HudView.new()
+	coins_off.set_run("0", "0:00", 4, "SLIME", 0, 0, false)
+	var coins_on := HudView.new()
+	coins_on.set_run("0", "0:00", 4, "GOBLIN", 0, 0, true)
+	if coins_off.show_coins or coins_off._coin != null or not coins_on.show_coins or coins_on._coin == null:
+		push_error("the coin counter should draw only for the goblin")
+		failed += 1
+	coins_off.free()
+	coins_on.free()
 	for file_name in ["ui/hud_clock_icon.png", "ui/hud_pause_button.png", "ui/hud_evo_meter_fill_64x6.png", "ui/hud_coin_icon.png"]:
 		if not ArtLibrary.has_file(file_name):
 			push_error("HUD piece missing from the manifest: %s" % file_name)

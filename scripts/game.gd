@@ -886,7 +886,8 @@ func _refresh_hud() -> void:
 		loot_count,
 		FormCatalog.rank_name(form_id, rank_index).to_upper(),
 		rank_index,
-		HudLayout.fill_px(evo_points, rank_index)
+		HudLayout.fill_px(evo_points, rank_index),
+		form_id == FormCatalog.Id.GOBLIN
 	)
 
 func share_run() -> Dictionary:
