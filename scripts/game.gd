@@ -93,6 +93,25 @@ var _sound_label: Label
 var _audio_blocked_button: Button
 var _audio_blocked_icon: Control
 var _death_audio_stage := ""
+var _short_reveal := false
+var _card_age := 0.0
+var _score_label: Label
+var _new_best_label: Label
+var _text_button: Button
+var _beat_button: Button
+var _form_flash: Label
+var _death_shade: ColorRect
+var _hit_stop_frames := 0
+var _hit_stop_cooldown := 0.0
+var _juice_shake := 0.0
+var _tutorial_active := false
+var _tut_eye := false
+var _tut_gem := false
+var _tut_shot := false
+var _finger: Replay.Finger
+var _chains: Array[Dictionary] = []
+var _new_best := false
+var _copy_left := 0.0
 
 func _ready() -> void:
 	# Experimental modes leave this boot untouched unless their flag is set.
@@ -149,6 +168,10 @@ func _build_world() -> void:
 	_death_fx.z_index = 9
 	_death_fx.visible = false
 	add_child(_death_fx)
+	_finger = Replay.Finger.new()
+	_finger.z_index = 4
+	_finger.visible = false
+	add_child(_finger)
 
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
@@ -213,6 +236,18 @@ func _build_hud() -> void:
 	_skip_label.offset_top = -22.0
 	_skip_label.offset_bottom = -6.0
 	_reveal.add_child(_skip_label)
+	_form_flash = _make_label(18, Color("ffe56a"))
+	_form_flash.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_form_flash.anchor_left = 0.5
+	_form_flash.anchor_right = 0.5
+	_form_flash.anchor_top = 1.0
+	_form_flash.anchor_bottom = 1.0
+	_form_flash.offset_left = -120.0
+	_form_flash.offset_right = 120.0
+	_form_flash.offset_top = -44.0
+	_form_flash.offset_bottom = -22.0
+	_form_flash.visible = false
+	_reveal.add_child(_form_flash)
 
 	_tease = Control.new()
 	_tease.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -238,20 +273,29 @@ func _build_hud() -> void:
 	_game_over.visible = false
 	_game_over.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud.add_child(_game_over)
-	var shade := ColorRect.new()
-	shade.color = Color(0.04, 0.03, 0.07, 0.86)
-	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
-	shade.mouse_filter = Control.MOUSE_FILTER_STOP
-	_game_over.add_child(shade)
+	_death_shade = ColorRect.new()
+	_death_shade.color = Color(0.04, 0.03, 0.07, 0.86)
+	_death_shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_death_shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	_death_shade.gui_input.connect(_on_death_pointer)
+	_game_over.add_child(_death_shade)
 	_death_kicker = _make_label(9, Color("f2fbff"))
 	_death_kicker.text = "RUN OVER"
 	_death_kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_game_over.add_child(_death_kicker)
+	_score_label = _make_label(27, Color("f2fbff"))
+	_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_score_label.visible = false
+	_game_over.add_child(_score_label)
+	_new_best_label = _make_label(18, Color("ffe56a"))
+	_new_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_new_best_label.visible = false
+	_game_over.add_child(_new_best_label)
 	_share_label = _make_label(18, Color("f2fbff"))
 	_share_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_share_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_game_over.add_child(_share_label)
-	_best_label = _make_label(9, Color("ffd84a"))
+	_best_label = _make_label(18, Color("ffd84a"))
 	_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_best_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_game_over.add_child(_best_label)
@@ -298,6 +342,14 @@ func _build_hud() -> void:
 	_share_button.add_theme_font_size_override("font_size", 18)
 	_share_button.pressed.connect(_on_share)
 	_game_over.add_child(_share_button)
+	_text_button = _make_death_button("Text", Color("241428"))
+	_text_button.add_theme_font_size_override("font_size", 9)
+	_text_button.pressed.connect(_on_text_share)
+	_game_over.add_child(_text_button)
+	_beat_button = _make_death_button("Beat", Color("241428"))
+	_beat_button.add_theme_font_size_override("font_size", 9)
+	_beat_button.pressed.connect(_on_beat_link)
+	_game_over.add_child(_beat_button)
 	_layout_death_card()
 
 	_rotate = Control.new()
@@ -427,6 +479,27 @@ func _make_label(size: int, color: Color) -> Label:
 	label.add_theme_color_override("font_color", color)
 	return label
 
+func _make_death_button(caption: String, bg: Color) -> Button:
+	var button := Button.new()
+	button.text = caption
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.set_border_width_all(2)
+	style.border_color = Color("f2fbff")
+	style.set_corner_radius_all(4)
+	button.add_theme_stylebox_override("normal", style)
+	button.add_theme_stylebox_override("hover", style)
+	button.add_theme_stylebox_override("pressed", style)
+	button.add_theme_stylebox_override("focus", style)
+	button.add_theme_font_override("font", _font_outlined)
+	button.add_theme_color_override("font_color", Color("f2fbff"))
+	button.add_theme_color_override("font_hover_color", Color("f2fbff"))
+	button.add_theme_color_override("font_pressed_color", Color("f2fbff"))
+	button.add_theme_font_size_override("font_size", 9)
+	return button
+
 func wants_rotate(size: Vector2) -> bool:
 	# The stretch mode can keep a landscape viewport inside a tall window.
 	# A portrait phone should see the prompt, not a letterboxed strip.
@@ -528,16 +601,43 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> bool:
 	return true
 
 func _try_skip_reveal() -> void:
-	if phase == PHASE_REVEAL and reveal_elapsed > 0.35:
+	if phase != PHASE_REVEAL:
+		return
+	if _short_reveal or reveal_elapsed > 0.35:
 		_begin_play()
 
 func _try_skip_tease() -> bool:
 	if phase != PHASE_DEAD or game_over_visible:
 		return false
-	if FxTimeline.death_stage(death_elapsed) != "tease":
-		return false
-	_show_game_over()
+	# Flappy keeps the old tease-only skip. The default sting can be tapped through.
+	if FlappyMode.is_active():
+		if FxTimeline.death_stage(death_elapsed) != "tease":
+			return false
+		_show_game_over()
+		return true
+	_skip_death_to_card()
 	return true
+
+func _skip_death_to_card() -> void:
+	if phase != PHASE_DEAD or game_over_visible:
+		return
+	var card_at := float(FxTimeline.DEATH_FRAMES) / FxTimeline.FPS + FxTimeline.TEASE_SECONDS
+	if death_elapsed < card_at:
+		death_elapsed = card_at
+	_silence_death()
+	_present_death()
+
+func _on_death_pointer(event: InputEvent) -> void:
+	if FlappyMode.is_active():
+		return
+	var pressed := false
+	if event is InputEventMouseButton:
+		var mouse := event as InputEventMouseButton
+		pressed = mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT
+	elif event is InputEventScreenTouch:
+		pressed = (event as InputEventScreenTouch).pressed
+	if pressed:
+		_on_restart()
 
 func _process(delta: float) -> void:
 	if _background == null or _player == null or _combat == null:
@@ -559,6 +659,10 @@ func _process(delta: float) -> void:
 	if _paused:
 		return
 	delta = clampf(delta, 0.0, 0.033)
+	# A few frozen frames. Elapsed does not move, so the spawn clock stays put.
+	if phase == PHASE_PLAY and _hit_stop_frames > 0 and not FlappyMode.is_active():
+		_hit_stop_frames -= 1
+		return
 	var world_delta := delta
 	if phase == PHASE_PLAY and _slow_left > 0.0:
 		_slow_left = maxf(_slow_left - delta, 0.0)
@@ -571,12 +675,17 @@ func _process(delta: float) -> void:
 			return
 		reveal_elapsed += delta
 		_animate_title_card()
-		_skip_label.text = "Tap to skip" if reveal_elapsed > 0.35 else ""
-		if reveal_elapsed >= REVEAL_SECONDS:
+		_present_reveal()
+		var reveal_limit := Replay.FLASH_REVEAL if _short_reveal else REVEAL_SECONDS
+		if reveal_elapsed >= reveal_limit:
 			_begin_play()
 		return
 	if phase == PHASE_DEAD:
 		death_elapsed += delta
+		if game_over_visible:
+			_card_age += delta
+			_tick_copy_flash(delta)
+			_tick_new_best_pop()
 		_present_death()
 		return
 	_play_frame(world_delta, size)
@@ -600,7 +709,16 @@ func _begin_play() -> void:
 	invuln = INVULN_SECONDS
 	_player.invulnerable = true
 	_reveal.visible = false
+	if _form_flash != null:
+		_form_flash.visible = false
 	_hint_label.visible = true
+	if _wants_tutorial():
+		_tutorial_active = true
+		_tut_eye = false
+		_tut_gem = false
+		_tut_shot = false
+		Replay.mark_seen()
+		_hint_label.visible = false
 
 func _play_frame(delta: float, size: Vector2) -> void:
 	var bounds := _play_bounds(size)
@@ -626,8 +744,14 @@ func _play_frame(delta: float, size: Vector2) -> void:
 			_spawn_shot(spec, true)
 		_player.did_fire(interval)
 	CaptureMode.tick_play(self, delta)
-	for event in _director.pop_due(elapsed):
-		_spawn_enemy(event, size)
+	if _tutorial_active and elapsed < Replay.TUTORIAL_SECONDS:
+		_tick_tutorial(delta, size)
+		_director.pop_due(elapsed)
+	else:
+		if _tutorial_active:
+			_finish_tutorial()
+		for event in _director.pop_due(elapsed):
+			_spawn_enemy(event, size)
 	var player_pos := _player.position
 	for enemy in _enemies:
 		if not enemy.alive:
@@ -653,7 +777,10 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	if combo_left > 0.0:
 		combo_left = maxf(combo_left - delta, 0.0)
 	elapsed += delta
-	if elapsed > 3.2:
+	if _hit_stop_cooldown > 0.0:
+		_hit_stop_cooldown = maxf(_hit_stop_cooldown - delta, 0.0)
+	_tick_chains(delta)
+	if elapsed > 3.2 and not _tutorial_active:
 		_hint_label.visible = false
 	_refresh_hud()
 	_refresh_debug()
@@ -691,7 +818,8 @@ func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
 		add_child(shot)
 	else:
 		shot = _shot_pool.pop_back() as Shot
-	shot.z_index = 3 if from_player else 6
+	# Enemy bullets sit above FX, popups, evolve art, and the overdrive flash.
+	shot.z_index = 3 if from_player else Replay.bullet_z(FlappyMode.is_active())
 	shot.setup(data, from_player)
 	_shots.append(shot)
 	return shot
@@ -775,6 +903,9 @@ func _award_kill(enemy: EnemyActor, drop_loot: bool = true) -> void:
 			_roll_drops(enemy.position)
 	if _sound != null:
 		_sound.play_event("enemy_killed")
+	if not FlappyMode.is_active() and enemy.max_hp >= 3:
+		_request_hit_stop(3)
+		_bump_shake()
 
 func _graze_gap(hazard: Object, separation: float) -> void:
 	if hazard.grazed:
@@ -1013,6 +1144,10 @@ func _overdrive_blast() -> void:
 	_overdrive_flash = 0.32
 	_combat.push("OVERDRIVE", _player.position + Vector2(-32, -24), Color("ffe56a"), 0.45)
 	_spawn_fx("evolved_burst.png", _player.position + Vector2(40, -8), 0.45, 0.6, 1.4)
+	_request_hit_stop(4)
+	_bump_shake()
+	_queue_chain(0.1, "winner_burst.png", Vector2(0, -18), "")
+	_queue_chain(0.18, "", Vector2(-8, -36), "WINNER!")
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
@@ -1035,7 +1170,9 @@ func _tick_patterns(delta: float, size: Vector2) -> void:
 	if FlappyMode.is_active() or _player == null:
 		return
 	if phase == PHASE_PLAY and elapsed + 0.00001 >= _next_rake:
-		_spawn_rake(size)
+		# The lesson keeps the rake clock moving so the wall does not land in a pile at 10s.
+		if not _tutorial_active:
+			_spawn_rake(size)
 		_next_rake = elapsed + Difficulty.rake_every(elapsed)
 	var write := 0
 	for item in pattern_shots:
@@ -1049,7 +1186,7 @@ func _tick_patterns(delta: float, size: Vector2) -> void:
 				"sprite": str(item["sprite"]),
 				"radius": 5.0,
 				"damage": 1,
-				"killer_name": "rake",
+				"killer_name": str(item.get("killer", "rake")),
 				"color": Color("f0d78c"),
 			}, false)
 			continue
@@ -1114,6 +1251,13 @@ func _try_rank() -> void:
 		if final:
 			_slow_left = Difficulty.FINAL_SLOWMO_SECONDS
 			_shake_left = Difficulty.FINAL_SHAKE_SECONDS
+		if not FlappyMode.is_active():
+			_request_hit_stop(3)
+			_bump_shake()
+			var pop_at := 5.0 / FxTimeline.FPS
+			_queue_chain(pop_at, "evolved_burst.png", Vector2(0, -28), "")
+			_queue_chain(pop_at + 0.1, "graze_sparkle.png", Vector2(14, -16), "")
+			_queue_chain(pop_at + 0.18, "graze_sparkle.png", Vector2(-12, -22), "")
 		if _sound != null:
 			_sound.play_event("evolve", Difficulty.FINAL_STING_DB if final else 0.0)
 	_refresh_hud()
@@ -1162,7 +1306,10 @@ func _present_death() -> void:
 		_show_game_over()
 
 func _show_game_over() -> void:
+	if game_over_visible:
+		return
 	game_over_visible = true
+	_card_age = 0.0
 	if _sound != null:
 		_sound.stop_event("reborn_tease")
 	if _tease != null:
@@ -1171,25 +1318,64 @@ func _show_game_over() -> void:
 		_death_fx.visible = false
 	var form_name := FormCatalog.display_name(form_id)
 	var reached_rank := FormCatalog.rank_name(form_id, rank_index)
-	_share_label.text = ScoreRules.share_line(form_name, reached_rank, elapsed, killer_name, score)
-	var saved: Dictionary
 	if FlappyMode.is_active():
-		saved = FlappyMode.record_score(form_name, score)
-		_best_label.text = "Flappy best as %s: %s / Flappy best: %s" % [
-			form_name,
-			ScoreRules.format_score(int(saved["form"])),
-			ScoreRules.format_score(int(saved["overall"])),
-		]
+		_set_flappy_death(form_name, reached_rank)
 	else:
-		saved = CaptureMode.record_score(form_name, score)
-		_best_label.text = "Best as %s: %s / Best overall: %s" % [
-			form_name,
-			ScoreRules.format_score(int(saved["form"])),
-			ScoreRules.format_score(int(saved["overall"])),
-		]
-	_seed_label.text = "UTC seed %d · run %d" % [day_seed, run_index + 1]
+		_set_default_death(form_name, reached_rank)
 	_layout_death_card()
 	_game_over.visible = true
+
+func _set_flappy_death(form_name: String, reached_rank: String) -> void:
+	_new_best = false
+	if _score_label != null:
+		_score_label.text = ""
+		_score_label.visible = false
+	if _new_best_label != null:
+		_new_best_label.text = ""
+		_new_best_label.visible = false
+		_new_best_label.scale = Vector2.ONE
+	_share_label.text = ScoreRules.share_line(form_name, reached_rank, elapsed, killer_name, score)
+	var saved := FlappyMode.record_score(form_name, score)
+	_best_label.text = "Flappy best as %s: %s / Flappy best: %s" % [
+		form_name,
+		ScoreRules.format_score(int(saved["form"])),
+		ScoreRules.format_score(int(saved["overall"])),
+	]
+	_seed_label.text = "UTC seed %d · run %d" % [day_seed, run_index + 1]
+	if _text_button != null:
+		_text_button.visible = false
+	if _beat_button != null:
+		_beat_button.visible = false
+
+func _set_default_death(form_name: String, reached_rank: String) -> void:
+	var prior := BestScores.read()
+	var old_form := int(prior.get(form_name, 0))
+	var old_all := int(prior.get("overall", 0))
+	var saved := CaptureMode.record_score(form_name, score)
+	var beaten := score > 0 and (score > old_form or score > old_all)
+	_new_best = beaten
+	if _score_label != null:
+		_score_label.text = ScoreRules.format_score(score)
+		_score_label.visible = true
+	if _new_best_label != null:
+		_new_best_label.text = "NEW BEST!" if beaten else ""
+		_new_best_label.visible = beaten
+		_new_best_label.scale = Vector2(0.72, 0.72) if beaten else Vector2.ONE
+	_best_label.text = "%s BEST %s\nDAILY BEST %s" % [
+		form_name,
+		ScoreRules.format_score(int(saved["form"])),
+		ScoreRules.format_score(int(saved["overall"])),
+	]
+	_share_label.text = "Reached %s" % reached_rank.to_upper()
+	_seed_label.text = "UTC seed %d · run %d" % [day_seed, run_index + 1]
+	if _text_button != null:
+		_text_button.visible = true
+		_text_button.text = "Text"
+	if _beat_button != null:
+		_beat_button.visible = true
+		_beat_button.text = "Beat"
+	if beaten and _sound != null:
+		_sound.play_event("enemy_killed")
 
 ## Pin Reincarnate inside the field. Long rank names wrap, then shrink, so the
 ## button is never pushed past the bottom of the 480x270 viewport.
@@ -1213,23 +1399,56 @@ func _layout_death_card() -> void:
 	_place_death_control(_restart_button, button_pos, Vector2(reinc_w, button_h))
 	if _share_button != null:
 		_place_death_control(_share_button, Vector2(row_x, button_pos.y), Vector2(share_w, button_h))
+	var utility := _text_button != null and _text_button.visible and _beat_button != null and _beat_button.visible
+	var utility_h := 28.0 if utility else 0.0
+	var utility_gap := 6.0 if utility else 0.0
+	if utility:
+		var beat_w := 88.0
+		var text_w := 88.0
+		var u_gap := 8.0
+		var u_w := text_w + u_gap + beat_w
+		var u_x := (field.x - u_w) * 0.5
+		var u_y := button_pos.y - utility_gap - utility_h
+		_place_death_control(_text_button, Vector2(u_x, u_y), Vector2(text_w, utility_h))
+		_place_death_control(_beat_button, Vector2(u_x + text_w + u_gap, u_y), Vector2(beat_w, utility_h))
 	var text_width := minf(448.0, field.x - 16.0)
 	var text_left := (field.x - text_width) * 0.5
-	var text_top := 8.0
-	var text_bottom := button_pos.y - 8.0
+	var text_top := 6.0
+	var text_bottom := button_pos.y - utility_gap - utility_h - 6.0
 	var text_height := maxf(text_bottom - text_top, 48.0)
-	var kicker_h := 18.0
-	var seed_h := 16.0
-	var text_gap := 4.0
-	var flexible := maxf(text_height - kicker_h - seed_h - text_gap * 3.0, 36.0)
-	_fit_wrapped_label(_share_label, text_width, flexible * 0.68, 18, 9)
-	_fit_wrapped_label(_best_label, text_width, flexible * 0.32, 9, 9)
+	var kicker_h := 14.0
+	var seed_h := 14.0
+	var text_gap := 3.0
+	var score_h := 0.0
+	if _score_label != null and _score_label.visible and not _score_label.text.is_empty():
+		_fit_wrapped_label(_score_label, text_width, 34.0, 27, 18)
+		score_h = _wrapped_height(_score_label.text, text_width, _death_font_size(_score_label))
+	var new_h := 0.0
+	if _new_best_label != null and _new_best_label.visible and not _new_best_label.text.is_empty():
+		_fit_wrapped_label(_new_best_label, text_width, 22.0, 18, 9)
+		new_h = _wrapped_height(_new_best_label.text, text_width, _death_font_size(_new_best_label))
+	var chrome := kicker_h + seed_h + score_h + new_h
+	var gap_count := 3.0
+	if score_h > 0.0:
+		gap_count += 1.0
+	if new_h > 0.0:
+		gap_count += 1.0
+	var room := maxf(text_height - chrome - text_gap * gap_count, 24.0)
+	_fit_wrapped_label(_share_label, text_width, room * 0.4, 18, 9)
+	_fit_wrapped_label(_best_label, text_width, room * 0.6, 18, 9)
 	var share_h := _wrapped_height(_share_label.text, text_width, _death_font_size(_share_label))
 	var best_h := _wrapped_height(_best_label.text, text_width, _death_font_size(_best_label))
-	var used := kicker_h + share_h + best_h + seed_h + text_gap * 3.0
-	var y := text_top + maxf(text_height - used, 0.0) * 0.5
+	var used := chrome + share_h + best_h + text_gap * gap_count
+	var y := text_top + maxf(text_height - used, 0.0) * 0.35
 	_place_death_control(_death_kicker, Vector2(text_left, y), Vector2(text_width, kicker_h))
 	y += kicker_h + text_gap
+	if score_h > 0.0:
+		_place_death_control(_score_label, Vector2(text_left, y), Vector2(text_width, score_h))
+		y += score_h + text_gap
+	if new_h > 0.0:
+		_place_death_control(_new_best_label, Vector2(text_left, y), Vector2(text_width, new_h))
+		_new_best_label.pivot_offset = Vector2(text_width * 0.5, new_h * 0.5)
+		y += new_h + text_gap
 	_place_death_control(_share_label, Vector2(text_left, y), Vector2(text_width, share_h))
 	y += share_h + text_gap
 	_place_death_control(_best_label, Vector2(text_left, y), Vector2(text_width, best_h))
@@ -1313,12 +1532,21 @@ func _refresh_debug() -> void:
 	]
 
 func _apply_shake(delta: float) -> void:
-	if _shake_left <= 0.0:
+	var mag := 0.0
+	if _shake_left > 0.0:
+		_shake_left = maxf(_shake_left - delta, 0.0)
+		mag = maxf(mag, Difficulty.FINAL_SHAKE_PX * clampf(_shake_left / Difficulty.FINAL_SHAKE_SECONDS, 0.0, 1.0))
+	if _juice_shake > 0.0:
+		_juice_shake = maxf(_juice_shake - delta, 0.0)
+		mag = maxf(mag, Replay.JUICE_SHAKE_PX * clampf(_juice_shake / Replay.JUICE_SHAKE_SECONDS, 0.0, 1.0))
+	# Flappy keeps the rank-3 shake it already had. Default mode stays inside a 2px cap
+	# (1px when the platform asks for reduced motion) so a bullet cannot leave the eye.
+	if not FlappyMode.is_active():
+		mag = minf(mag, Replay.shake_cap())
+	if mag <= 0.05:
 		if position != Vector2.ZERO:
 			position = Vector2.ZERO
 		return
-	_shake_left = maxf(_shake_left - delta, 0.0)
-	var mag := Difficulty.FINAL_SHAKE_PX * clampf(_shake_left / Difficulty.FINAL_SHAKE_SECONDS, 0.0, 1.0)
 	position = Vector2(
 		round(_shake_rng.randf_range(-mag, mag)),
 		round(_shake_rng.randf_range(-mag, mag))
@@ -1380,7 +1608,56 @@ func _on_share() -> void:
 	print("Saved share card to %s" % ProjectSettings.globalize_path(path))
 
 func _on_restart() -> void:
-	get_tree().reload_current_scene()
+	if FlappyMode.is_active() or CaptureMode.is_active():
+		get_tree().reload_current_scene()
+		return
+	if phase != PHASE_DEAD or not game_over_visible:
+		return
+	if _card_age < Replay.CARD_GUARD:
+		return
+	_reincarnate()
+
+func _on_text_share() -> void:
+	_copy_text(Replay.daily_text(day_seed, form_id, score, FormCatalog.rank_name(form_id, rank_index)))
+	_flash_copy("text")
+
+func _on_beat_link() -> void:
+	_copy_text(Replay.beat_url_for(day_seed, form_id))
+	_flash_copy("beat")
+
+func _copy_text(text: String) -> void:
+	print(text)
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("if (window.shareRunText) shareRunText(%s);" % JSON.stringify(text), true)
+		return
+	if DisplayServer.get_name() == "headless":
+		return
+	DisplayServer.clipboard_set(text)
+
+func _flash_copy(which: String) -> void:
+	_copy_left = 0.6
+	if which == "text" and _text_button != null:
+		_text_button.text = "OK"
+	elif which == "beat" and _beat_button != null:
+		_beat_button.text = "OK"
+
+func _tick_copy_flash(delta: float) -> void:
+	if _copy_left <= 0.0:
+		return
+	_copy_left = maxf(_copy_left - delta, 0.0)
+	if _copy_left > 0.0:
+		return
+	if _text_button != null and _text_button.text == "OK":
+		_text_button.text = "Text"
+	if _beat_button != null and _beat_button.text == "OK":
+		_beat_button.text = "Beat"
+
+func _tick_new_best_pop() -> void:
+	if _new_best_label == null or not _new_best_label.visible:
+		return
+	var u := clampf(_card_age / 0.22, 0.0, 1.0)
+	var pop := lerpf(0.72, 1.0, 1.0 - pow(1.0 - u, 3.0))
+	_new_best_label.scale = Vector2(pop, pop)
 
 func _redraw_hitboxes() -> void:
 	if _player != null:
@@ -1577,15 +1854,218 @@ func _tick_effects(delta: float) -> void:
 func _prewarm() -> void:
 	PixelFont.outlined_texture("FINAL FORM!", Color("ffe56a"))
 	PixelFont.outlined_texture("OVERDRIVE", Color("ffe56a"))
+	PixelFont.outlined_texture("WINNER!", Color("ffe56a"))
+	PixelFont.outlined_texture("NEW BEST!", Color("ffe56a"))
 	PixelFont.outlined_texture("BOMB", Color("ffe56a"))
 	PixelFont.outlined_texture("OD", Color("ffe56a"))
-	for file_name in ["fx/fx_evolve_glow.png", "fx/fx_evolve_flash.png", "fx/fx_evolved_pop.png", "evolved_burst.png", "graze_sparkle.png", "hit_flash.png", "anvil.png", "slime_shot.png", "ui/hud_coin_icon.png", "gem.png", "floating_eye_bolt.png", "arrow.png", "wyvern_shot.png"]:
+	for file_name in ["fx/fx_evolve_glow.png", "fx/fx_evolve_flash.png", "fx/fx_evolved_pop.png", "evolved_burst.png", "winner_burst.png", "graze_sparkle.png", "hit_flash.png", "anvil.png", "slime_shot.png", "ui/hud_coin_icon.png", "gem.png", "floating_eye_bolt.png", "arrow.png", "wyvern_shot.png"]:
 		ArtLibrary.texture(file_name)
 	for rank in 3:
 		for id in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
 			var spec := FormCatalog.rank_spec(id, rank)
 			ArtLibrary.texture("fx/forms/%s_flash.png" % str(spec["sprite"]).trim_suffix(".png"))
 			ArtLibrary.texture("fx/forms/%s_rim.png" % str(spec["sprite"]).trim_suffix(".png"))
+
+func _present_reveal() -> void:
+	if _form_flash == null or _skip_label == null:
+		return
+	_form_flash.visible = _short_reveal
+	if _short_reveal:
+		_form_flash.text = FormCatalog.display_name(form_id)
+		_skip_label.text = "Tap"
+	else:
+		_skip_label.text = "Tap to skip" if reveal_elapsed > 0.35 else ""
+
+func _wants_tutorial() -> bool:
+	if _short_reveal or FlappyMode.is_active() or CaptureMode.is_active():
+		return false
+	return not Replay.seen()
+
+func _tick_tutorial(delta: float, size: Vector2) -> void:
+	if _finger != null and _player != null:
+		var show := elapsed >= 0.35 and elapsed < 3.1
+		_finger.visible = show
+		if show:
+			_finger.position = _player.position + Vector2(18, 6)
+			_finger.advance(delta)
+	if not _tut_eye and elapsed >= 0.7:
+		_tut_eye = true
+		_spawn_enemy({
+			"t": elapsed,
+			"kind": SpawnDirector.EYE,
+			"x_ratio": 0.08,
+			"phase": 0.4,
+			"stop_ratio": 0.2,
+			"y_bias": 0.0,
+			"wave_amp": 4.0,
+			"hold_fire": true,
+		}, size)
+	if not _tut_gem and elapsed >= 3.6 and _player != null:
+		_tut_gem = true
+		var bounds := _play_bounds(size)
+		var at := _player.position + Vector2(48, -28)
+		at.x = clampf(at.x, bounds.position.x + 16.0, bounds.end.x - 16.0)
+		at.y = clampf(at.y, bounds.position.y + 16.0, bounds.end.y - 16.0)
+		_spawn_evo_gem(at)
+	if not _tut_shot and elapsed >= 6.0 and _player != null:
+		_tut_shot = true
+		var from := Vector2(minf(_player.position.x + 168.0, size.x - 8.0), _player.position.y)
+		pattern_shots.append({
+			"pos": from,
+			"vel": Vector2(-78.0, 0.0),
+			"left": 0.42,
+			"sprite": "floating_eye_bolt.png",
+			"killer": "Floating Eye",
+		})
+
+func _finish_tutorial() -> void:
+	_tutorial_active = false
+	if _finger != null:
+		_finger.visible = false
+
+func _reincarnate() -> void:
+	_silence_death()
+	_clear_field()
+	run_index = DailyRun.consume_run_index()
+	form_id = FormCatalog.id_for_run(day_seed, run_index)
+	score = 0
+	combo = 0
+	combo_left = 0.0
+	survival_bank = 0.0
+	elapsed = 0.0
+	invuln = 0.0
+	loot_count = 0
+	evo_points = 0
+	rank_index = 0
+	overdrive = 0
+	rapid_left = 0.0
+	magnet_left = 0.0
+	power_spawned = 0
+	_loot_spawned = 0
+	_drop_seeded = false
+	_final_evolve = false
+	_slow_left = 0.0
+	_shake_left = 0.0
+	_juice_shake = 0.0
+	_overdrive_flash = 0.0
+	_hit_stop_frames = 0
+	_hit_stop_cooldown = 0.0
+	_next_rake = Difficulty.RAKE_FIRST
+	_tutorial_active = false
+	_tut_eye = false
+	_tut_gem = false
+	_tut_shot = false
+	_new_best = false
+	_copy_left = 0.0
+	killer_name = "something"
+	death_elapsed = 0.0
+	_card_age = 0.0
+	_death_audio_stage = ""
+	game_over_visible = false
+	_paused = false
+	_primary_touch = -1
+	_mouse_down = false
+	position = Vector2.ZERO
+	if _game_over != null:
+		_game_over.visible = false
+	if _tease != null:
+		_tease.visible = false
+	if _death_fx != null:
+		_death_fx.visible = false
+	if _pause_overlay != null:
+		_pause_overlay.visible = false
+	if _finger != null:
+		_finger.visible = false
+	var size := _viewport_size()
+	_director = SpawnDirector.new(day_seed)
+	if _player != null:
+		_player.respawn(form_id, Vector2(size.x * 0.28, size.y * 0.5))
+	if _title_card != null:
+		_title_card.texture = ArtLibrary.texture(FormCatalog.title_card(form_id))
+		_title_card.scale = Vector2(0.84, 0.84)
+	_short_reveal = true
+	reveal_elapsed = 0.0
+	phase = PHASE_REVEAL
+	if _reveal != null:
+		_reveal.visible = true
+	if _hint_label != null:
+		_hint_label.visible = false
+	_present_reveal()
+	if _sound != null:
+		_sound.play_title_card(FormCatalog.title_card(form_id))
+	if _pattern_layer != null:
+		_pattern_layer.queue_redraw()
+	_refresh_hud()
+	_refresh_pause_card()
+
+func _clear_field() -> void:
+	for enemy in _enemies:
+		if is_instance_valid(enemy):
+			enemy.visible = false
+			enemy.alive = false
+			enemy.queue_free()
+	_enemies.clear()
+	for shot in _shots:
+		_release_shot(shot)
+	_shots.clear()
+	for gem in _loot:
+		_release_gem(gem)
+	_loot.clear()
+	for drop in _powers:
+		_release_power(drop)
+	_powers.clear()
+	for fx in _effects:
+		if is_instance_valid(fx):
+			fx.visible = false
+			_fx_pool.append(fx)
+	_effects.clear()
+	pattern_shots.clear()
+	_chains.clear()
+	next_enemy_id = 1
+
+func _silence_death() -> void:
+	if _sound == null:
+		return
+	_sound.stop_event("player_death")
+	_sound.stop_event("reborn_tease")
+
+func _request_hit_stop(frames: int) -> void:
+	if FlappyMode.is_active() or _hit_stop_cooldown > 0.0:
+		return
+	_hit_stop_frames = clampi(frames, 2, 4)
+	_hit_stop_cooldown = 0.2
+
+func _bump_shake() -> void:
+	if FlappyMode.is_active():
+		return
+	_juice_shake = Replay.JUICE_SHAKE_SECONDS
+
+func _queue_chain(delay: float, fx_file: String, offset: Vector2, text: String) -> void:
+	_chains.append({
+		"t": delay,
+		"fx": fx_file,
+		"off": offset,
+		"text": text,
+	})
+
+func _tick_chains(delta: float) -> void:
+	if _chains.is_empty() or _player == null:
+		return
+	var keep: Array[Dictionary] = []
+	for item in _chains:
+		var left := float(item["t"]) - delta
+		if left > 0.0:
+			item["t"] = left
+			keep.append(item)
+			continue
+		var at: Vector2 = _player.position + item["off"]
+		var fx_file := str(item["fx"])
+		if not fx_file.is_empty():
+			_spawn_fx(fx_file, at, 0.28, 0.75, 1.15)
+		var text := str(item["text"])
+		if not text.is_empty():
+			_combat.push(text, at, Color("ffe56a"), 0.36)
+	_chains = keep
 
 class PatternLayer extends Node2D:
 	var host
