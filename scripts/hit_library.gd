@@ -8,7 +8,9 @@ class_name HitLibrary
 ## that visibly touches the wolf's length or the wyvern's wing counts.
 ## threat: where that sprite can kill the player. Inset from the body, so a
 ## brush of a wing, ear, or shot sprite is not a death.
-## hurt: the player's core. Smaller than the sprite.
+## hurt: the player's visible body. Circles and capsules hug the opaque
+## silhouette, head and feet included. The ink outline is not required.
+## A hit tests every part. The movement pad is only the bounds radius.
 
 const PATH := "res://art/hitboxes.json"
 
@@ -56,10 +58,18 @@ static func gap(pos_a: Vector2, file_a: String, role_a: String, pos_b: Vector2, 
 	return best
 
 static func contains_local(file_name: String, role: String, point: Vector2) -> bool:
-	for part in _parts(file_name, role):
-		if _gap_point(point, part) <= 0.0:
-			return true
-	return false
+	return local_gap(file_name, role, point) <= 0.0
+
+## Signed distance from a sprite-local point to the role. Negative is inside.
+## Empty when the role has no parts.
+static func local_gap(file_name: String, role: String, point: Vector2) -> float:
+	var parts := _parts(file_name, role)
+	if parts.is_empty():
+		return 9999.0
+	var best := 9999.0
+	for part in parts:
+		best = minf(best, _gap_point(point, part))
+	return best
 
 ## Largest single radius. Used to compare how big a core is, ignoring offset.
 static func max_part_radius(file_name: String, role: String) -> float:

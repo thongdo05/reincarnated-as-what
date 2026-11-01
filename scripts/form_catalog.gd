@@ -7,11 +7,11 @@ class_name FormCatalog
 ## The vending machine title card is already mapped to its reveal sting. It stays
 ## silent until that form is added to IDS. Goblin shots stay silent too.
 ## Vending Machine's weapon has no random WINNER! burst. WINNER! is only the meter clear.
-## Slime pays for a reliable forward stream with a big body and a long slide.
-## Goblin pays for a small body with stones that lob forward and only fully connect up close,
-## plus a stride that plants his feet for a moment each step.
+## Slime pays for a reliable forward stream with a big body.
+## Goblin pays for stones that lob forward and only fully connect up close.
+## Both bodies snap to the finger's aim. A squash or a sprint lean is cosmetic.
 ## Goblin's rocks hit harder than that stream because most of the arc misses.
-## Every Goblin balance number lives in GOBLIN. Slime's numbers are unchanged.
+## Every Goblin balance number lives in GOBLIN.
 
 enum Id { SLIME, GOBLIN }
 
@@ -19,18 +19,23 @@ const IDS: Array[int] = [Id.SLIME, Id.GOBLIN]
 
 const SLIME_FIRE_INTERVAL := 0.16
 const SLIME_SHOT_SPEED := 700.0
-const SLIME_ACCEL := 1550.0
+## Keyboard aim rate. The body does not lag behind this aim.
 const SLIME_MAX_SPEED := 430.0
-const SLIME_ARRIVE := 4.8
+## Shared by both forms. At 60 fps, about 84% of the remaining gap closes
+## each frame, so a flick lands inside 1-3 frames. The cap stays above a
+## full-screen drag so it does not add a slide.
+const SNAP_ARRIVE := 110.0
+const SNAP_MAX_SPEED := 22000.0
 
 ## Every Goblin balance number. Rank arrays are rank 1, rank 2, rank 3.
 ## Movement, stones, and loot all read this table.
 ## Before this pass: fire_interval [0.48, 0.36, 0.28], shot_speed 780, gravity 170,
 ## spread [±110], [±150, ±50], [±180, ±90, 0], damage 1, pierce 0,
 ## loot_points 40, loot_magnet 0, loot_magnet_speed 0.
-## Movement (accel, max_speed, arrive, stride, sprint, plant) is unchanged.
-## Loot points stay 40. A magnet was measured and left at 0: it inflated score
-## past the bot band without being what closed the survival gap.
+## Movement used to sprint and then plant. Both forms now use SNAP_ARRIVE.
+## Stride only drives the cosmetic lean. Loot points stay 40. A magnet was
+## measured and left at 0: it inflated score past the bot band without being
+## what closed the survival gap.
 const GOBLIN := {
 	"fire_interval": [0.30, 0.24, 0.20],
 	"shot_speed": 780.0,
@@ -42,12 +47,9 @@ const GOBLIN := {
 	],
 	"damage": 2,
 	"pierce": 1,
-	"accel": 3800.0,
 	"max_speed": 560.0,
-	"arrive": 11.0,
 	"stride": 0.32,
 	"sprint_fraction": 0.70,
-	"plant_speed_scale": 0.16,
 	"loot_points": 40,
 	"loot_magnet": 0.0,
 	"loot_magnet_speed": 0.0,

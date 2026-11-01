@@ -20,14 +20,19 @@ class_name Difficulty
 ## Opening spawn. Was 1.45 s. Inside the first second, not on the first frame.
 const FIRST_SPAWN := 0.72
 
-## Gap before the small roll. Was a lerp of 1.85 → 1.05 over 80 s.
-## Now the center of that gap is 35% of the start by 60 s, then eases toward
-## a floor so the ramp does not go to zero.
+## Gap before the small roll.
+## The first 20 s matches the previous line (1.85 down to 1.45). A full-body
+## hurtbox already pulled bot medians to about 19–20 s, so the opening stays.
+## After 20 s the gap falls faster than that line (old 50 s value was ~0.85).
 const SPAWN_INTERVAL_START := 1.85
-const SPAWN_INTERVAL_60_SCALE := 0.35
-const SPAWN_INTERVAL_FLOOR_SCALE := 0.22
+const SPAWN_INTERVAL_AT_20 := 1.45
+const SPAWN_INTERVAL_AT_50 := 0.52
+const SPAWN_INTERVAL_FLOOR := 0.36
+const SPAWN_EASE_SECONDS := 20.0
+const SPAWN_STEEP_SECONDS := 30.0
+const SPAWN_FLOOR_SECONDS := 40.0
+## Enemy mix still spreads across a minute. The spawn gap above is separate.
 const SPAWN_RAMP_SECONDS := 60.0
-const SPAWN_FLOOR_SECONDS := 90.0
 const SPAWN_JITTER_MIN := 0.92
 const SPAWN_JITTER_MAX := 1.08
 
@@ -37,11 +42,16 @@ const BURST_TRIPLE_AFTER := 32.0
 const BURST_PAIR_CHANCE := 0.62
 const BURST_TRIPLE_CHANCE := 0.38
 
-## Speed of enemies and their shots. Was a flat 1.
-const SPEED_AT_60 := 1.6
-const SPEED_CAP := 2.05
-const SPEED_RAMP_SECONDS := 60.0
-const SPEED_CAP_SECONDS := 90.0
+## Speed of enemies and their shots. 1 is the base bolt speed (eye 88,
+## arrow 116, wyvern 104). The first 20 s still reaches 1.2, the old value.
+## After 20 s it climbs to 1.95 by 50 s (the old line was about 1.5) and caps
+## at 2.4, so late shots are faster without crushing the opening.
+const SPEED_AT_20 := 1.20
+const SPEED_AT_50 := 1.95
+const SPEED_CAP := 2.40
+const SPEED_EASE_SECONDS := 20.0
+const SPEED_STEEP_SECONDS := 30.0
+const SPEED_CAP_SECONDS := 40.0
 
 ## Near-layer scroll. 1.0 is the old 28 px/s. 1.3 by 45 s, then a low cap.
 const SCROLL_AT_45 := 1.3
@@ -79,11 +89,11 @@ const GRAZE_RANK2 := 55
 const RANK2_KILL_KEEP := 0.40
 const RANK2_CHAIN_WEIGHT := 0.45
 
-## Cumulative skill points. Was [500, 1500].
-## Rank 2 stays near the measured 20–30 s crossings on the headless bots.
-## Rank 3 sits above every measured run (best was 6442 points): a hot combo
-## streak can reach it a little after a minute, a normal chain closer to 80 s.
-const GATE_RANK2 := 2200
+## Cumulative skill points. Was [500, 1500], then 2200 / 12000.
+## A full-body hurtbox dropped dodge-bot scores (slime median about 1000,
+## goblin about 1400), so 2200 was a rank most runs never saw. 800 clears
+## on about half the slime runs. 12000 stays above the measured bests.
+const GATE_RANK2 := 800
 const GATE_RANK3 := 12000
 
 ## Rank 3 moment. The rank 2 evolve is unchanged (1 s hold, no punch).
@@ -95,19 +105,22 @@ const FINAL_SHAKE_PX := 3.0
 const FINAL_STING_DB := 6.0
 
 static func spawn_interval(elapsed: float) -> float:
-	var start := SPAWN_INTERVAL_START
-	var at_60 := start * SPAWN_INTERVAL_60_SCALE
-	var floor_gap := start * SPAWN_INTERVAL_FLOOR_SCALE
-	if elapsed <= SPAWN_RAMP_SECONDS:
-		return lerpf(start, at_60, clampf(elapsed / SPAWN_RAMP_SECONDS, 0.0, 1.0))
-	var extra := clampf((elapsed - SPAWN_RAMP_SECONDS) / SPAWN_FLOOR_SECONDS, 0.0, 1.0)
-	return lerpf(at_60, floor_gap, extra)
+	if elapsed <= SPAWN_EASE_SECONDS:
+		return lerpf(SPAWN_INTERVAL_START, SPAWN_INTERVAL_AT_20, clampf(elapsed / SPAWN_EASE_SECONDS, 0.0, 1.0))
+	if elapsed <= SPAWN_EASE_SECONDS + SPAWN_STEEP_SECONDS:
+		var u := clampf((elapsed - SPAWN_EASE_SECONDS) / SPAWN_STEEP_SECONDS, 0.0, 1.0)
+		return lerpf(SPAWN_INTERVAL_AT_20, SPAWN_INTERVAL_AT_50, u)
+	var extra := clampf((elapsed - SPAWN_EASE_SECONDS - SPAWN_STEEP_SECONDS) / SPAWN_FLOOR_SECONDS, 0.0, 1.0)
+	return lerpf(SPAWN_INTERVAL_AT_50, SPAWN_INTERVAL_FLOOR, extra)
 
 static func speed_scale(elapsed: float) -> float:
-	if elapsed <= SPEED_RAMP_SECONDS:
-		return lerpf(1.0, SPEED_AT_60, clampf(elapsed / SPEED_RAMP_SECONDS, 0.0, 1.0))
-	var extra := clampf((elapsed - SPEED_RAMP_SECONDS) / SPEED_CAP_SECONDS, 0.0, 1.0)
-	return lerpf(SPEED_AT_60, SPEED_CAP, extra)
+	if elapsed <= SPEED_EASE_SECONDS:
+		return lerpf(1.0, SPEED_AT_20, clampf(elapsed / SPEED_EASE_SECONDS, 0.0, 1.0))
+	if elapsed <= SPEED_EASE_SECONDS + SPEED_STEEP_SECONDS:
+		var u := clampf((elapsed - SPEED_EASE_SECONDS) / SPEED_STEEP_SECONDS, 0.0, 1.0)
+		return lerpf(SPEED_AT_20, SPEED_AT_50, u)
+	var extra := clampf((elapsed - SPEED_EASE_SECONDS - SPEED_STEEP_SECONDS) / SPEED_CAP_SECONDS, 0.0, 1.0)
+	return lerpf(SPEED_AT_50, SPEED_CAP, extra)
 
 static func scroll_scale(elapsed: float) -> float:
 	if elapsed <= SCROLL_RAMP_SECONDS:

@@ -32,6 +32,7 @@ static var _evo := false
 static var _hazard := ""
 static var _hazard_t := DEFAULT_HAZARD_T
 static var _invuln := false
+static var _hitbox := false
 static var _run_offset := 0
 static var _hazard_spent := false
 static var _spawn_at := -1.0
@@ -78,6 +79,8 @@ static func summary() -> String:
 		parts.append("hazard_t=%s" % _format_seconds(_hazard_t))
 	if _invuln:
 		parts.append("invuln=1")
+	if _hitbox:
+		parts.append("hitbox=1")
 	return "Capture mode: %s" % " ".join(parts)
 
 ## Test hook. The exported game never calls this.
@@ -94,6 +97,7 @@ static func reset_for_test(argv: PackedStringArray, web: String = "") -> void:
 	_hazard = ""
 	_hazard_t = DEFAULT_HAZARD_T
 	_invuln = false
+	_hitbox = false
 	_run_offset = 0
 	_hazard_spent = false
 	_use_test = true
@@ -167,6 +171,12 @@ static func eat_key(game: Node, keycode: int) -> bool:
 
 static func hides_overlay() -> bool:
 	return _active and _clean
+
+## Green hurt shapes. `?hitbox=1` on the web, or `--hitbox=1` in a desktop run.
+## clean=1 wins, so a recording stays clear.
+static func wants_hitbox() -> bool:
+	_ensure_parsed()
+	return _hitbox and not hides_overlay()
 
 static func tick_play(game: Node, _delta: float) -> void:
 	if not _active or _spawn_at < 0.0 or _piano_spawned or _hazard_spent:
@@ -288,6 +298,11 @@ static func _apply_tokens(web: String, argv: PackedStringArray) -> void:
 				if value == "1":
 					_invuln = true
 					_active = true
+			"hitbox":
+				# Debug overlay only. It does not turn on the rest of capture mode,
+				# so a normal daily run can still show hurt shapes from the URL.
+				if value == "1":
+					_hitbox = true
 	if _hazard == "piano" and saw_hazard_t:
 		_hazard_t = hazard_t
 

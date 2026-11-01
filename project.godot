@@ -26,9 +26,14 @@ window/stretch/scale_mode="integer"
 window/handheld/orientation=4
 window/vsync/vsync_mode=1
 
+[input]
+
+use_accumulated_input=false
+
 [input_devices]
 
 pointing/emulate_mouse_from_touch=true
+buffering/agile_event_flushing=true
 
 [audio]
 
