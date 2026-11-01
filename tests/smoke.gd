@@ -15,6 +15,7 @@ func _initialize() -> void:
 	_unit_failed += _check_art()
 	_unit_failed += _check_idle()
 	_unit_failed += _check_parallax()
+	_unit_failed += _check_titles()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -352,6 +353,23 @@ func _check_parallax() -> int:
 	bg.free()
 	return failed
 
+func _check_titles() -> int:
+	var failed := 0
+	for id in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
+		var file_name := FormCatalog.title_card(id)
+		if not ArtLibrary.has_file(file_name):
+			push_error("missing title card %s" % file_name)
+			failed += 1
+			continue
+		var size: Array = ArtLibrary.entry(file_name)["size"]
+		if int(size[0]) != 480 or int(size[1]) != 270:
+			push_error("title card %s should fill 480x270" % file_name)
+			failed += 1
+	if FormCatalog.title_card(FormCatalog.Id.SLIME) == FormCatalog.title_card(FormCatalog.Id.GOBLIN):
+		push_error("slime and goblin should reveal different cards")
+		failed += 1
+	return failed
+
 func _check_score() -> int:
 	var failed := 0
 	var first: Dictionary = ScoreRules.on_kill(100, 0, 0.0)
@@ -490,7 +508,7 @@ func _check_play() -> int:
 	var game := packed.instantiate()
 	game.process_mode = Node.PROCESS_MODE_DISABLED
 	root.add_child(game)
-	if game._player == null:
+	if game._player == null or game._title_card == null:
 		push_error("game did not finish setting up")
 		game.free()
 		return 1
@@ -499,9 +517,29 @@ func _check_play() -> int:
 		game.free()
 		return 1
 	var step := 1.0 / 60.0
-	for _i in 160:
-		game._process(step)
 	var failed := 0
+	var card_file := FormCatalog.title_card(int(game.form_id))
+	if game._title_card.texture != ArtLibrary.texture(card_file):
+		push_error("title card should match the rolled form")
+		failed += 1
+	if game._title_card.scale.x > 0.9:
+		push_error("title card should start smaller than the screen")
+		failed += 1
+	for _i in 80:
+		game._process(step)
+	if int(game.phase) != 0:
+		push_error("title card should last about 1.5s when it is not skipped")
+		failed += 1
+	if game._title_card.scale.x < 0.99:
+		push_error("title card pop-in should finish")
+		failed += 1
+	for _i in 16:
+		game._process(step)
+	if int(game.phase) != 1:
+		push_error("title card should hand off to play")
+		failed += 1
+	for _i in 64:
+		game._process(step)
 	if int(game.phase) != 1:
 		push_error("reveal did not hand off to play (phase %s)" % str(game.phase))
 		failed += 1
@@ -534,6 +572,21 @@ func _check_play() -> int:
 	])
 	root.remove_child(game)
 	game.free()
+	var skipped := packed.instantiate()
+	skipped.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(skipped)
+	for _i in 24:
+		skipped._process(step)
+	var skip_touch := InputEventScreenTouch.new()
+	skip_touch.index = 0
+	skip_touch.pressed = true
+	skip_touch.position = Vector2(240, 135)
+	skipped._unhandled_input(skip_touch)
+	if int(skipped.phase) != 1 or absf(float(skipped.invuln) - 1.5) > 0.05:
+		push_error("a tap should skip the title card into 1.5s of invulnerability")
+		failed += 1
+	root.remove_child(skipped)
+	skipped.free()
 	return failed
 
 func _sample(id: int, drag: Vector2, bounds: Rect2, frames: int) -> Vector2:

@@ -1,6 +1,6 @@
 extends Node2D
 
-const REVEAL_SECONDS := 2.3
+const REVEAL_SECONDS := 1.5
 const INVULN_SECONDS := 1.5
 const GRAZE_PAD := 22.0
 const SPLIT_IFRAMES := 1.15
@@ -49,6 +49,7 @@ var _combo_label: Label
 var _form_label: Label
 var _hint_label: Label
 var _reveal: Control
+var _title_card: TextureRect
 var _skip_label: Label
 var _game_over: Control
 var _share_label: Label
@@ -152,33 +153,28 @@ func _build_hud() -> void:
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_reveal.add_child(dim)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_reveal.add_child(center)
-	var column := VBoxContainer.new()
-	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_theme_constant_override("separation", 10)
-	column.custom_minimum_size = Vector2(300, 0)
-	center.add_child(column)
-	var kicker := _make_label(18, Color("c8bdd4"))
-	kicker.text = "YOU ARE NOW"
-	kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(kicker)
-	var title := _make_label(52, FormCatalog.title_color(form_id))
-	title.text = "%s." % FormCatalog.display_name(form_id)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(title)
-	var gag := _make_label(18, Color("f4efe4"))
-	gag.text = FormCatalog.gag(form_id)
-	gag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	gag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	gag.custom_minimum_size = Vector2(280, 60)
-	column.add_child(gag)
-	_skip_label = _make_label(13, Color("8d8298"))
+	_title_card = TextureRect.new()
+	_title_card.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_title_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_title_card.texture = ArtLibrary.texture(FormCatalog.title_card(form_id))
+	_title_card.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_title_card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_title_card.stretch_mode = TextureRect.STRETCH_SCALE
+	_title_card.pivot_offset = _viewport_size() * 0.5
+	_title_card.scale = Vector2(0.84, 0.84)
+	_reveal.add_child(_title_card)
+	_skip_label = _make_label(13, Color("f4efe4"))
 	_skip_label.text = ""
 	_skip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(_skip_label)
+	_skip_label.anchor_left = 0.5
+	_skip_label.anchor_right = 0.5
+	_skip_label.anchor_top = 1.0
+	_skip_label.anchor_bottom = 1.0
+	_skip_label.offset_left = -90.0
+	_skip_label.offset_right = 90.0
+	_skip_label.offset_top = -22.0
+	_skip_label.offset_bottom = -6.0
+	_reveal.add_child(_skip_label)
 
 	_game_over = Control.new()
 	_game_over.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -338,7 +334,8 @@ func _process(delta: float) -> void:
 	_tick_effects(delta)
 	if phase == PHASE_REVEAL:
 		reveal_elapsed += delta
-		_skip_label.text = "Tap to start" if reveal_elapsed > 0.35 else ""
+		_animate_title_card()
+		_skip_label.text = "Tap to skip" if reveal_elapsed > 0.35 else ""
 		if reveal_elapsed >= REVEAL_SECONDS:
 			_begin_play()
 		return
@@ -348,6 +345,16 @@ func _process(delta: float) -> void:
 			_show_game_over()
 		return
 	_play_frame(delta, size)
+
+func _animate_title_card() -> void:
+	if _title_card == null:
+		return
+	var size := _viewport_size()
+	var t := clampf(reveal_elapsed / 0.26, 0.0, 1.0)
+	var eased := 1.0 - pow(1.0 - t, 3.0)
+	var pop := lerpf(0.84, 1.0, eased)
+	_title_card.pivot_offset = size * 0.5
+	_title_card.scale = Vector2(pop, pop)
 
 func _begin_play() -> void:
 	if phase != PHASE_REVEAL:

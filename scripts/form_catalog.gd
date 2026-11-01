@@ -58,6 +58,16 @@ static func gag(id: int) -> String:
 		_:
 			return ""
 
+## Full-screen 480x270 card shown before the run. Files live in res://art/title_cards/.
+static func title_card(id: int) -> String:
+	match id:
+		Id.SLIME:
+			return "title_cards/title_slime.png"
+		Id.GOBLIN:
+			return "title_cards/title_goblin.png"
+		_:
+			return "title_cards/title_slime.png"
+
 static func title_color(id: int) -> Color:
 	if id == Id.SLIME:
 		return Color("8ecbff")
