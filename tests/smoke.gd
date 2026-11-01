@@ -96,8 +96,8 @@ func _check_forms() -> int:
 	if goblin_far >= slime_dps:
 		push_error("goblin's single center stone should not out-damage slime's stream")
 		failed += 1
-	if FormCatalog.hit_radius(FormCatalog.Id.SLIME) <= FormCatalog.hit_radius(FormCatalog.Id.GOBLIN):
-		push_error("slime's cube should be a bigger target than the goblin")
+	if FormCatalog.core_radius(FormCatalog.Id.SLIME, 0, false) <= FormCatalog.core_radius(FormCatalog.Id.GOBLIN, 0, false):
+		push_error("slime's core should be a bigger target than the goblin's")
 		failed += 1
 	var today := DailyRun.date_seed()
 	if today < 20260101 or today > 21000101:
@@ -208,16 +208,10 @@ func _check_art() -> int:
 	for id in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
 		var prev := 0.0
 		for rank in 3:
-			var spec := FormCatalog.rank_spec(id, rank)
-			var pct := float(spec["hit_pct"])
-			if pct < 0.50 or pct > 0.65:
-				push_error("hit pct out of band for %s rank %d" % [FormCatalog.display_name(id), rank])
-				failed += 1
-			var radius := FormCatalog.hit_radius_for(id, rank, false)
-			var box := ArtLibrary.art_bbox(str(spec["sprite"]))
-			var expect := pct * (box.x + box.y) * 0.25
-			if absf(radius - expect) > 0.05:
-				push_error("hit radius drifted from the art box")
+			var radius := FormCatalog.core_radius(id, rank, false)
+			var box := ArtLibrary.art_bbox(str(FormCatalog.rank_spec(id, rank)["sprite"]))
+			if radius * 2.0 > minf(box.x, box.y):
+				push_error("the core should stay inside the sprite for %s rank %d" % [FormCatalog.display_name(id), rank])
 				failed += 1
 			if rank > 0 and radius <= prev:
 				push_error("hitbox should grow with rank")
@@ -227,11 +221,11 @@ func _check_art() -> int:
 				failed += 1
 			prev = radius
 			if id == FormCatalog.Id.SLIME:
-				var small := FormCatalog.hit_radius_for(id, rank, true)
+				var small := FormCatalog.core_radius(id, rank, true)
 				if small >= radius:
 					push_error("split slime hitbox should be smaller than the current rank")
 					failed += 1
-	if FormCatalog.hit_radius(FormCatalog.Id.SLIME) <= FormCatalog.hit_radius(FormCatalog.Id.GOBLIN):
+	if FormCatalog.core_radius(FormCatalog.Id.SLIME, 0, false) <= FormCatalog.core_radius(FormCatalog.Id.GOBLIN, 0, false):
 		push_error("slime's hitbox should stay larger than the goblin's")
 		failed += 1
 	var wolf := SpawnDirector.body_radius(SpawnDirector.WOLF)
@@ -325,9 +319,11 @@ func _check_idle() -> int:
 			failed += 1
 		var body := SpawnDirector.body_radius(kind)
 		var box := ArtLibrary.art_bbox(base)
-		var expect := SpawnDirector.BODY_PCT * (box.x + box.y) * 0.25
-		if absf(body - expect) > 0.05:
-			push_error("enemy hitbox should stay on the static art box")
+		if absf(body - HitLibrary.bounds_radius(base, "body")) > 0.05:
+			push_error("enemy hitbox should come from the static sprite shape")
+			failed += 1
+		if body > maxf(box.x, box.y) * 1.25:
+			push_error("enemy hitbox should stay on the static sprite, not an idle strip")
 			failed += 1
 	return failed
 
@@ -500,19 +496,17 @@ func _check_polish() -> int:
 	if ArtLibrary.anchor("slingshot_stone.png") != Vector2(3, 3) or ArtLibrary.art_bbox("slingshot_stone.png") != Vector2(6, 6):
 		push_error("slingshot stone should be 6x6 anchored at (3, 3)")
 		failed += 1
-	var slime_radius := ArtLibrary.radius_for("slime_shot.png", FormCatalog.SHOT_PCT)
-	var stone_radius := ArtLibrary.radius_for("slingshot_stone.png", FormCatalog.SHOT_PCT)
-	var expect_slime := FormCatalog.SHOT_PCT * (8.0 + 5.0) * 0.25
-	var expect_stone := FormCatalog.SHOT_PCT * (6.0 + 6.0) * 0.25
-	if absf(slime_radius - expect_slime) > 0.01 or absf(stone_radius - expect_stone) > 0.01:
-		push_error("shot hitboxes did not follow the new art")
+	if not HitLibrary.contains_local("slime_shot.png", "body", Vector2(2, 0)) or not HitLibrary.contains_local("slingshot_stone.png", "body", Vector2(1, 1)):
+		push_error("shot shapes should cover the redrawn sprites")
 		failed += 1
+	var slime_radius := HitLibrary.bounds_radius("slime_shot.png", "body")
+	var stone_radius := HitLibrary.bounds_radius("slingshot_stone.png", "body")
 	var slime_shot: Dictionary = FormCatalog.player_shots(FormCatalog.Id.SLIME, Vector2.ZERO, 0)[0]
 	var stone_shot: Dictionary = FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO, 0)[0]
-	if absf(float(slime_shot["radius"]) - slime_radius) > 0.01:
+	if absf(float(slime_shot["radius"]) - slime_radius) > 0.05:
 		push_error("slime shot radius was not retuned")
 		failed += 1
-	if absf(float(stone_shot["radius"]) - stone_radius) > 0.01:
+	if absf(float(stone_shot["radius"]) - stone_radius) > 0.05:
 		push_error("slingshot radius was not retuned")
 		failed += 1
 	var old_slime := FormCatalog.SHOT_PCT * (6.0 + 4.0) * 0.25
@@ -997,6 +991,18 @@ func _check_pause() -> int:
 	game._process(step)
 	if game._player.position.distance_to(ship_before) > 8.0:
 		push_error("a pause touch should not drag the ship (%s -> %s)" % [ship_before, game._player.position])
+		failed += 1
+	HitLibrary.show = false
+	var toggle := InputEventKey.new()
+	toggle.pressed = true
+	toggle.keycode = KEY_H
+	game._unhandled_input(toggle)
+	if not HitLibrary.show:
+		push_error("H should draw the hit shapes")
+		failed += 1
+	game._unhandled_input(toggle)
+	if HitLibrary.show:
+		push_error("H should hide the hit shapes again")
 		failed += 1
 	root.remove_child(game)
 	game.free()

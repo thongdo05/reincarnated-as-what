@@ -27,7 +27,7 @@ The field is the painted isekai sky: an opaque sky, then castles and floating is
 
 Enemies come in from the right and are drawn facing left. A Floating Eye drifts, bobs, and fires a bolt. A Dire Wolf charges. A Skeleton Archer stands on the ground or rides a floating island and shoots arrows left. A Wyvern swoops in a wave and spits a fireball. An anvil or a piano sometimes falls. None of them is a slime or a goblin. Dire wolves and wyverns together stay at two on screen.
 
-Hitboxes sit inside the painted sprites, about half to two thirds of the art, and grow a little when a form ranks up.
+Hit shapes are per sprite in `art/hitboxes.json`. A player shot connects when it touches the opaque body, including a long wolf or a wyvern wing. The player's own hurtbox is a small core, and enemy bodies and shots only kill on a clear overlap of that core. Press **H** to draw them: yellow is where shots connect, red is what can kill you, green is your core.
 
 Each run opens on a title card, then about 1.5 seconds where you cannot die.
 

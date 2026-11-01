@@ -153,3 +153,5 @@ func _draw() -> void:
 			var tint := Color(1, 1, 1, 0.10 + 0.07 * float(i))
 			ArtLibrary.draw_loop(self, file, _wobble, point - position, tint)
 	ArtLibrary.draw_loop(self, file, _wobble)
+	if HitLibrary.show:
+		HitLibrary.draw(self, file, "hurt", Color(0.35, 1.0, 0.55, 0.95))

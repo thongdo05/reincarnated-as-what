@@ -16,8 +16,6 @@ const ANVIL := 4
 const PIANO := 5
 
 const HEAVY_CAP := 2
-const BODY_PCT := 0.55
-const HAZARD_PCT := 0.60
 
 var _rng := RandomNumberGenerator.new()
 var _next_time := 1.45
@@ -160,8 +158,7 @@ static func score_value(kind: int) -> int:
 			return 50
 
 static func body_radius(kind: int) -> float:
-	var pct := HAZARD_PCT if kind == ANVIL or kind == PIANO else BODY_PCT
-	return ArtLibrary.radius_for(sprite_for(kind), pct)
+	return HitLibrary.bounds_radius(sprite_for(kind), "body")
 
 static func cruise_speed(kind: int) -> float:
 	# Tuned for a 480-wide field and sprites up to 64px. The wolf is still the charger.

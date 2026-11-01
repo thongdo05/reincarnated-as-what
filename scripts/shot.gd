@@ -47,3 +47,7 @@ func _draw() -> void:
 	# Art is already aimed: player shots face right, enemy shots face left. Do not flip.
 	# draw_loop plays a strip (the demon orbs). A single frame still draws once.
 	ArtLibrary.draw_loop(self, sprite_name, age)
+	if HitLibrary.show:
+		var role := "body" if from_player else "threat"
+		var color := Color(0.45, 0.9, 1.0, 0.95) if from_player else Color(1.0, 0.55, 0.2, 0.95)
+		HitLibrary.draw(self, sprite_name, role, color)

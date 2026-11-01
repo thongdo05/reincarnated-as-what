@@ -317,6 +317,10 @@ func wants_rotate(size: Vector2) -> bool:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_H:
+			HitLibrary.show = not HitLibrary.show
+			_redraw_hitboxes()
+			return
 		if event.keycode == KEY_ESCAPE or event.keycode == KEY_P:
 			_toggle_pause()
 			return
@@ -504,7 +508,8 @@ func _collide() -> void:
 				continue
 			if shot.ignore_id == enemy.id and shot.age < 0.1:
 				continue
-			if not _overlaps(shot.position, shot.radius, enemy.position, enemy.radius):
+			var enemy_file := SpawnDirector.sprite_for(enemy.kind)
+			if not HitLibrary.overlaps(shot.position, shot.sprite_name, "body", enemy.position, enemy_file, "body"):
 				continue
 			enemy.hurt(shot.damage)
 			if shot.splits > 0:
@@ -525,20 +530,24 @@ func _collide() -> void:
 		child.ignore_id = int(spec["ignore_id"])
 	if not _player.alive or _player.invulnerable:
 		return
+	var player_file := _player.sprite_name()
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
-		if _overlaps(_player.position, _player.radius, enemy.position, enemy.radius):
+		var enemy_file := SpawnDirector.sprite_for(enemy.kind)
+		var enemy_gap := HitLibrary.gap(_player.position, player_file, "hurt", enemy.position, enemy_file, "threat")
+		if enemy_gap <= 0.0:
 			_hurt_player(enemy.kind_name)
 			return
-		_graze(enemy, enemy.position, enemy.radius)
+		_graze_gap(enemy, enemy_gap)
 	for shot in _shots:
 		if shot.from_player or not is_instance_valid(shot):
 			continue
-		if _overlaps(_player.position, _player.radius, shot.position, shot.radius):
+		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat")
+		if shot_gap <= 0.0:
 			_hurt_player(shot.killer_name if shot.killer_name != "" else "shot")
 			return
-		_graze(shot, shot.position, shot.radius)
+		_graze_gap(shot, shot_gap)
 
 func _award_kill(enemy: EnemyActor) -> void:
 	var result := ScoreRules.on_kill(enemy.score_value, combo, combo_left)
@@ -550,15 +559,14 @@ func _award_kill(enemy: EnemyActor) -> void:
 	if form_id == FormCatalog.Id.GOBLIN:
 		_spawn_loot(enemy.position)
 
-func _graze(hazard: Object, at: Vector2, hazard_radius: float) -> void:
+func _graze_gap(hazard: Object, separation: float) -> void:
 	if hazard.grazed:
 		return
-	var dist := _player.position.distance_to(at)
-	var hit := _player.radius + hazard_radius
-	if dist < hit or dist > hit + GRAZE_PAD:
+	if separation <= 0.0 or separation > GRAZE_PAD:
 		return
 	hazard.grazed = true
 	_gain_skill(ScoreRules.GRAZE)
+	var at: Vector2 = hazard.position
 	_combat.push("+%d" % ScoreRules.GRAZE, at + Vector2(6, -8), Color("ffe08a"))
 	_spawn_fx("graze_sparkle.png", at, 0.34, 0.45, 1.45)
 
@@ -752,6 +760,16 @@ func _refresh_hud() -> void:
 
 func _on_restart() -> void:
 	get_tree().reload_current_scene()
+
+func _redraw_hitboxes() -> void:
+	if _player != null:
+		_player.queue_redraw()
+	for enemy in _enemies:
+		if is_instance_valid(enemy):
+			enemy.queue_redraw()
+	for shot in _shots:
+		if is_instance_valid(shot):
+			shot.queue_redraw()
 
 ## Integer viewport scale for stretch mode "viewport", aspect "keep".
 ## One returned unit is one window pixel per viewport pixel. Godot never goes below 1.
