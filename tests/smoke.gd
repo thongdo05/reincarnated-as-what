@@ -18,6 +18,7 @@ func _initialize() -> void:
 	_unit_failed += _check_titles()
 	_unit_failed += _check_facing()
 	_unit_failed += _check_polish()
+	_unit_failed += _check_shapes()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -527,6 +528,118 @@ func _check_polish() -> int:
 	if stone_tex == null or stone_tex.get_width() != 6 or stone_tex.get_height() != 6:
 		push_error("slingshot stone texture should be 6x6")
 		failed += 1
+	return failed
+
+func _check_shapes() -> int:
+	var failed := 0
+	var needed := {
+		"slime_r1.png": "hurt",
+		"slime_r2.png": "hurt",
+		"slime_r3.png": "hurt",
+		"slime_small_r1.png": "hurt",
+		"goblin_r1.png": "hurt",
+		"goblin_r2.png": "hurt",
+		"goblin_r3.png": "hurt",
+		"dire_wolf.png": "body",
+		"floating_eye.png": "body",
+		"skeleton_archer.png": "body",
+		"wyvern.png": "body",
+		"anvil.png": "body",
+		"piano.png": "body",
+		"slime_shot.png": "body",
+		"slingshot_stone.png": "body",
+		"arrow.png": "threat",
+		"floating_eye_bolt.png": "threat",
+		"wyvern_shot.png": "threat",
+	}
+	for file_name in needed:
+		var role := str(needed[file_name])
+		if not HitLibrary.has_role(file_name, role):
+			push_error("%s is missing a %s shape" % [file_name, role])
+			failed += 1
+	# The old circle sat on the anchor, so the wolf's nose and the archer's chest missed.
+	if not HitLibrary.contains_local("dire_wolf.png", "body", Vector2(-20, 0)):
+		push_error("a shot on the wolf's nose should hit the body")
+		failed += 1
+	if not HitLibrary.contains_local("dire_wolf.png", "body", Vector2(18, 0)):
+		push_error("a shot on the wolf's rear should hit the body")
+		failed += 1
+	if HitLibrary.contains_local("dire_wolf.png", "body", Vector2(0, -26)):
+		push_error("empty space above the wolf should not be a hit")
+		failed += 1
+	if not HitLibrary.contains_local("skeleton_archer.png", "body", Vector2(0, -30)):
+		push_error("a shot on the archer's chest should hit")
+		failed += 1
+	if not HitLibrary.contains_local("skeleton_archer.png", "body", Vector2(0, -40)):
+		push_error("a shot on the archer's skull should hit")
+		failed += 1
+	if HitLibrary.contains_local("skeleton_archer.png", "body", Vector2(18, 0)):
+		push_error("the archer hitbox should not be a circle around the feet")
+		failed += 1
+	var wing := Vector2(-20, -16)
+	if not HitLibrary.contains_local("wyvern.png", "body", wing):
+		push_error("a shot on the wyvern's wing should hit the body")
+		failed += 1
+	if HitLibrary.contains_local("wyvern.png", "threat", wing):
+		push_error("a wing tip should not kill the player")
+		failed += 1
+	if not HitLibrary.contains_local("floating_eye.png", "body", Vector2(7, 0)):
+		push_error("the outer eye should catch a shot")
+		failed += 1
+	if HitLibrary.contains_local("floating_eye.png", "threat", Vector2(7, 0)):
+		push_error("the outer eye should not kill on a brush")
+		failed += 1
+	if not HitLibrary.contains_local("piano.png", "body", Vector2(26, -1)):
+		push_error("the piano cabinet should be a solid body")
+		failed += 1
+	if HitLibrary.contains_local("piano.png", "threat", Vector2(26, -1)):
+		push_error("the piano's outer edge should forgive a brush")
+		failed += 1
+	if not HitLibrary.contains_local("slime_r1.png", "hurt", Vector2.ZERO):
+		push_error("the slime core should be the hurtbox")
+		failed += 1
+	if HitLibrary.contains_local("slime_r1.png", "hurt", Vector2(10, 10)):
+		push_error("the slime hurtbox should stay inside the sprite")
+		failed += 1
+	if HitLibrary.contains_local("goblin_r1.png", "hurt", Vector2(0, -14)):
+		push_error("the goblin crown should not be part of the hurtbox")
+		failed += 1
+	var wolf := Vector2(120, 80)
+	if not HitLibrary.overlaps(wolf + Vector2(-20, 0), "slime_shot.png", "body", wolf, "dire_wolf.png", "body"):
+		push_error("a slime shot on the wolf's nose should connect")
+		failed += 1
+	if HitLibrary.overlaps(wolf + Vector2(0, -40), "slime_shot.png", "body", wolf, "dire_wolf.png", "body"):
+		push_error("a slime shot over the wolf should miss")
+		failed += 1
+	var eye := Vector2(40, 40)
+	var brush := HitLibrary.gap(eye + Vector2(14, 0), "slime_r1.png", "hurt", eye, "floating_eye.png", "threat")
+	if brush <= 0.0:
+		push_error("overlapping the eye's rim with the sprite should not kill when the core is clear (gap %s)" % brush)
+		failed += 1
+	var fatal := HitLibrary.gap(eye + Vector2(10, 0), "slime_r1.png", "hurt", eye, "floating_eye.png", "threat")
+	if fatal > 0.0:
+		push_error("a core inside the eye should be fatal (gap %s)" % fatal)
+		failed += 1
+	var prev_slime := 0.0
+	var prev_goblin := 0.0
+	for rank in 3:
+		var slime_r := HitLibrary.max_part_radius(str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, rank)["sprite"]), "hurt")
+		var goblin_r := HitLibrary.max_part_radius(str(FormCatalog.rank_spec(FormCatalog.Id.GOBLIN, rank)["sprite"]), "hurt")
+		if slime_r <= goblin_r:
+			push_error("the slime core should stay a bigger target than the goblin")
+			failed += 1
+		if rank > 0 and (slime_r <= prev_slime or goblin_r <= prev_goblin):
+			push_error("cores should grow with rank")
+			failed += 1
+		if rank > 0 and (slime_r > prev_slime * 1.35 or goblin_r > prev_goblin * 1.35):
+			push_error("cores grew more than a modest step")
+			failed += 1
+		var small_r := HitLibrary.max_part_radius(str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, rank)["sprite_small"]), "hurt")
+		if small_r >= slime_r:
+			push_error("the split slime core should be smaller")
+			failed += 1
+		prev_slime = slime_r
+		prev_goblin = goblin_r
 	return failed
 
 func _check_score() -> int:
