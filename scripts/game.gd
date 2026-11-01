@@ -55,6 +55,8 @@ var _game_over: Control
 var _share_label: Label
 var _best_label: Label
 var _seed_label: Label
+var _death_kicker: Label
+var _restart_button: Button
 var _loot_label: Label
 var _rotate: Control
 
@@ -186,51 +188,41 @@ func _build_hud() -> void:
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	_game_over.add_child(shade)
-	var over_center := CenterContainer.new()
-	over_center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	over_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_game_over.add_child(over_center)
-	var over_column := VBoxContainer.new()
-	over_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	over_column.add_theme_constant_override("separation", 16)
-	over_column.custom_minimum_size = Vector2(300, 0)
-	over_center.add_child(over_column)
-	var over_kicker := _make_label(14, Color("c8bdd4"))
-	over_kicker.text = "RUN OVER"
-	over_kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	over_column.add_child(over_kicker)
-	_share_label = _make_label(22, Color("f4efe4"))
+	_death_kicker = _make_label(14, Color("c8bdd4"))
+	_death_kicker.text = "RUN OVER"
+	_death_kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_game_over.add_child(_death_kicker)
+	_share_label = _make_label(18, Color("f4efe4"))
 	_share_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_share_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_share_label.custom_minimum_size = Vector2(280, 110)
-	over_column.add_child(_share_label)
-	_best_label = _make_label(14, Color("f0d78c"))
+	_game_over.add_child(_share_label)
+	_best_label = _make_label(13, Color("f0d78c"))
 	_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_best_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_best_label.custom_minimum_size = Vector2(280, 40)
-	over_column.add_child(_best_label)
+	_game_over.add_child(_best_label)
 	_seed_label = _make_label(12, Color("8d8298"))
 	_seed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	over_column.add_child(_seed_label)
-	var button := Button.new()
-	button.text = "Reincarnate"
-	button.custom_minimum_size = Vector2(260, 72)
-	button.focus_mode = Control.FOCUS_NONE
+	_game_over.add_child(_seed_label)
+	_restart_button = Button.new()
+	_restart_button.text = "Reincarnate"
+	_restart_button.focus_mode = Control.FOCUS_NONE
+	_restart_button.mouse_filter = Control.MOUSE_FILTER_STOP
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("f0d78c")
 	style.set_corner_radius_all(4)
-	style.content_margin_top = 12
-	style.content_margin_bottom = 12
-	button.add_theme_stylebox_override("normal", style)
-	button.add_theme_stylebox_override("hover", style)
-	button.add_theme_stylebox_override("pressed", style)
-	button.add_theme_stylebox_override("focus", style)
-	button.add_theme_color_override("font_color", Color("24180a"))
-	button.add_theme_color_override("font_hover_color", Color("24180a"))
-	button.add_theme_color_override("font_pressed_color", Color("24180a"))
-	button.add_theme_font_size_override("font_size", 22)
-	button.pressed.connect(_on_restart)
-	over_column.add_child(button)
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	_restart_button.add_theme_stylebox_override("normal", style)
+	_restart_button.add_theme_stylebox_override("hover", style)
+	_restart_button.add_theme_stylebox_override("pressed", style)
+	_restart_button.add_theme_stylebox_override("focus", style)
+	_restart_button.add_theme_color_override("font_color", Color("24180a"))
+	_restart_button.add_theme_color_override("font_hover_color", Color("24180a"))
+	_restart_button.add_theme_color_override("font_pressed_color", Color("24180a"))
+	_restart_button.add_theme_font_size_override("font_size", 22)
+	_restart_button.pressed.connect(_on_restart)
+	_game_over.add_child(_restart_button)
+	_layout_death_card()
 
 	_rotate = Control.new()
 	_rotate.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -588,7 +580,63 @@ func _show_game_over() -> void:
 		ScoreRules.format_score(int(saved["overall"])),
 	]
 	_seed_label.text = "UTC seed %d · run %d" % [day_seed, run_index + 1]
+	_layout_death_card()
 	_game_over.visible = true
+
+## Pin Reincarnate inside the field. Long rank names wrap, then shrink, so the
+## button is never pushed past the bottom of the 480x270 viewport.
+func _layout_death_card() -> void:
+	if _restart_button == null or _share_label == null:
+		return
+	var field := _viewport_size()
+	var button_size := Vector2(minf(280.0, field.x - 24.0), 56.0)
+	var margin := 10.0
+	var button_pos := Vector2((field.x - button_size.x) * 0.5, field.y - margin - button_size.y)
+	_place_death_control(_restart_button, button_pos, button_size)
+	var text_width := minf(448.0, field.x - 16.0)
+	var text_left := (field.x - text_width) * 0.5
+	var text_top := 8.0
+	var text_bottom := button_pos.y - 8.0
+	var text_height := maxf(text_bottom - text_top, 48.0)
+	var kicker_h := 18.0
+	var seed_h := 16.0
+	var gap := 4.0
+	var flexible := maxf(text_height - kicker_h - seed_h - gap * 3.0, 36.0)
+	_fit_wrapped_label(_share_label, text_width, flexible * 0.68, 18, 11)
+	_fit_wrapped_label(_best_label, text_width, flexible * 0.32, 13, 10)
+	var share_h := _wrapped_height(_share_label.text, text_width, _death_font_size(_share_label))
+	var best_h := _wrapped_height(_best_label.text, text_width, _death_font_size(_best_label))
+	var used := kicker_h + share_h + best_h + seed_h + gap * 3.0
+	var y := text_top + maxf(text_height - used, 0.0) * 0.5
+	_place_death_control(_death_kicker, Vector2(text_left, y), Vector2(text_width, kicker_h))
+	y += kicker_h + gap
+	_place_death_control(_share_label, Vector2(text_left, y), Vector2(text_width, share_h))
+	y += share_h + gap
+	_place_death_control(_best_label, Vector2(text_left, y), Vector2(text_width, best_h))
+	y += best_h + gap
+	_place_death_control(_seed_label, Vector2(text_left, y), Vector2(text_width, seed_h))
+
+func _place_death_control(control: Control, pos: Vector2, control_size: Vector2) -> void:
+	control.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	control.position = pos
+	control.size = control_size
+	control.custom_minimum_size = control_size
+
+func _death_font_size(label: Label) -> int:
+	return int(label.get_theme_font_size("font_size"))
+
+func _fit_wrapped_label(label: Label, width: float, max_height: float, start_size: int, min_size: int) -> void:
+	var size := start_size
+	while size > min_size and _wrapped_height(label.text, width, size) > max_height:
+		size -= 1
+	label.add_theme_font_size_override("font_size", size)
+
+func _wrapped_height(text: String, width: float, font_size: int) -> float:
+	if text.is_empty():
+		return 0.0
+	var box := ThemeDB.fallback_font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, width, font_size)
+	# Room for the label shadow so the glyphs are not clipped by the rect.
+	return box.y + 4.0
 
 func _sweep(size: Vector2) -> void:
 	var field := Rect2(-80, -80, size.x + 160, size.y + 160)

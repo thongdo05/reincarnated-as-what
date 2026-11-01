@@ -25,7 +25,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_play()
+	var failed := _unit_failed + _check_play() + _check_death_card()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -645,6 +645,61 @@ func _check_play() -> int:
 		failed += 1
 	root.remove_child(skipped)
 	skipped.free()
+	return failed
+
+func _check_death_card() -> int:
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	var failed := 0
+	if game._restart_button == null:
+		push_error("death card has no Reincarnate button")
+		game.free()
+		return 1
+	var lines := [
+		ScoreRules.share_line("VENDING MACHINE", "Vending Fortress", 5999.0, "Skeleton Archer", 999999),
+		ScoreRules.share_line("DEMON LORD", "True Demon King", 5999.0, "falling piano", 999999),
+		ScoreRules.share_line("SLIME", "Slime", 12.0, "Floating Eye", 100),
+	]
+	var bests := [
+		"Best as VENDING MACHINE: 999,999 / Best overall: 999,999",
+		"Best as DEMON LORD: 999,999 / Best overall: 999,999",
+		"Best as SLIME: 100 / Best overall: 100",
+	]
+	for i in lines.size():
+		game._share_label.text = lines[i]
+		game._best_label.text = bests[i]
+		game._seed_label.text = "UTC seed 20261101 · run 99"
+		game._layout_death_card()
+		var field: Vector2 = game._viewport_size()
+		var button: Button = game._restart_button
+		var rect := Rect2(button.position, button.size)
+		if button.mouse_filter != Control.MOUSE_FILTER_STOP:
+			push_error("Reincarnate should receive taps")
+			failed += 1
+		if rect.size.y < 48.0 or rect.size.x < 200.0:
+			push_error("Reincarnate is too small to tap (%s)" % rect)
+			failed += 1
+		if rect.position.x < -0.5 or rect.position.y < -0.5 or rect.end.x > field.x + 0.5 or rect.end.y > field.y + 0.5:
+			push_error("Reincarnate left the field for '%s' rect %s field %s" % [lines[i], rect, field])
+			failed += 1
+		if field.x >= 480.0 and field.y >= 270.0:
+			if rect.end.x > 480.5 or rect.end.y > 270.5:
+				push_error("Reincarnate left the 480x270 field (%s)" % rect)
+				failed += 1
+		for label in [game._share_label, game._best_label, game._seed_label, game._death_kicker]:
+			var label_rect := Rect2(label.position, label.size)
+			if label_rect.end.y > rect.position.y + 0.5:
+				push_error("death copy overlaps Reincarnate for '%s'" % lines[i])
+				failed += 1
+				break
+			if label_rect.position.y < -0.5 or label_rect.end.y > field.y + 0.5:
+				push_error("death copy left the field for '%s'" % lines[i])
+				failed += 1
+				break
+	root.remove_child(game)
+	game.free()
 	return failed
 
 func _sample(id: int, drag: Vector2, bounds: Rect2, frames: int) -> Vector2:
