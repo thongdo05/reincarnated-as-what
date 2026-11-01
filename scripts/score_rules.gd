@@ -35,9 +35,10 @@ static func format_score(value: int) -> String:
 	parts.insert(0, digits)
 	return sign + ",".join(parts)
 
-static func share_line(form_name: String, seconds: float, killer: String, score: int) -> String:
-	return "Reborn as %s. Lasted %s. Died to a %s. Score %s." % [
+static func share_line(form_name: String, rank_name: String, seconds: float, killer: String, score: int) -> String:
+	return "Reborn as %s, reached %s. Lasted %s. Died to a %s. Score %s." % [
 		form_name,
+		rank_name.to_upper(),
 		format_time(seconds),
 		killer,
 		format_score(score),

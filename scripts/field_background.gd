@@ -1,42 +1,65 @@
 extends Node2D
 class_name FieldBackground
 
-var field_size := Vector2(360, 780)
-var scroll := 0.0
-var _motes: Array[Dictionary] = []
+## Four painted layers, each 480x270, tiled on x.
+## Sky, then clouds, then far (castles, islands), then near (hills).
+## Scroll factors: sky 0.05, clouds 0.15, far 0.3, near 0.6.
+## Near stays at 28 px/s, so a planted archer still drifts with the ground.
+## Enemies are not part of these layers. Island archers read scroll_far to stay on a deck.
 
-func setup(seed_value: int, size: Vector2) -> void:
+const TILE_W := 480.0
+const TILE_H := 270.0
+const GROUND_FEET := 234.0
+const SKY_FACTOR := 0.05
+const CLOUDS_FACTOR := 0.15
+const FAR_FACTOR := 0.3
+const NEAR_FACTOR := 0.6
+## 0.6 of this base is the previous near speed, 28 px/s.
+const SCROLL_BASE := 28.0 / NEAR_FACTOR
+
+## Decks on the redrawn far layer that hold the 28×44 archer.
+## Feet y is the top grass row. The high right island would clip the skull.
+const ISLANDS: Array[Vector2] = [
+	Vector2(63, 43),
+	Vector2(227, 59),
+]
+
+var field_size := Vector2(TILE_W, TILE_H)
+var scroll_sky := 0.0
+var scroll_clouds := 0.0
+var scroll_far := 0.0
+var scroll_near := 0.0
+
+func setup(_seed_value: int, size: Vector2) -> void:
 	field_size = size
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_value + 17
-	_motes.clear()
-	for i in 28:
-		_motes.append({
-			"x": rng.randf_range(20.0, maxf(size.x - 20.0, 40.0)),
-			"y": rng.randf_range(0.0, maxf(size.y, 100.0)),
-			"speed": rng.randf_range(18.0, 46.0),
-			"shade": rng.randf_range(0.25, 0.55),
-		})
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 func tick(delta: float, size: Vector2) -> void:
 	field_size = size
-	scroll += delta * 42.0
-	queue_redraw()
+	scroll_sky += delta * SCROLL_BASE * SKY_FACTOR
+	scroll_clouds += delta * SCROLL_BASE * CLOUDS_FACTOR
+	scroll_far += delta * SCROLL_BASE * FAR_FACTOR
+	scroll_near += delta * SCROLL_BASE * NEAR_FACTOR
+	if is_inside_tree():
+		queue_redraw()
+
+func island_feet(index: int) -> float:
+	return ISLANDS[clampi(index, 0, ISLANDS.size() - 1)].y
 
 func _draw() -> void:
-	var width := field_size.x
-	var height := field_size.y
-	draw_rect(Rect2(0, 0, width, height), Color("100c14"))
-	draw_rect(Rect2(0, 0, 14, height), Color("1b1424"))
-	draw_rect(Rect2(width - 14, 0, 14, height), Color("1b1424"))
-	var brick := 22.0
-	var offset := fmod(scroll, brick)
-	var y := -brick + offset
-	while y < height:
-		draw_rect(Rect2(2, y, 10, 12), Color("32283f"))
-		draw_rect(Rect2(width - 12, y + 8.0, 10, 12), Color("32283f"))
-		y += brick
-	for mote in _motes:
-		var my := fmod(float(mote["y"]) + scroll * float(mote["speed"]) / 42.0, height)
-		var shade := float(mote["shade"])
-		draw_rect(Rect2(float(mote["x"]), my, 2, 2), Color(shade, shade * 0.85, shade * 1.1))
+	_blit("bg_sky.png", scroll_sky)
+	_blit("bg_clouds.png", scroll_clouds)
+	_blit("bg_far.png", scroll_far)
+	_blit("bg_near.png", scroll_near)
+
+func _blit(file_name: String, scroll: float) -> void:
+	var tex := ArtLibrary.texture(file_name)
+	if tex == null:
+		return
+	var offset := fposmod(scroll, TILE_W)
+	var x := -offset
+	var guard := 0
+	while x < field_size.x and guard < 8:
+		draw_texture(tex, Vector2(x, 0.0))
+		x += TILE_W
+		guard += 1

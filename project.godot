@@ -1,12 +1,12 @@
 ; Engine configuration file.
-; Reincarnated as WHAT?! — portrait prototype for Godot 4.7.
+; Reincarnated as WHAT?! — landscape side-scrolling prototype for Godot 4.7.
 
 config_version=5
 
 [application]
 
 config/name="Reincarnated as WHAT?!"
-config/description="A portrait reincarnation shooter. One life. Drag to move. Auto-fire."
+config/description="A landscape side-scrolling reincarnation shooter. One life. Drag to move. Auto-fire."
 config/version="0.1.0"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
@@ -16,13 +16,14 @@ config/icon="res://icon.svg"
 
 [display]
 
-window/size/viewport_width=360
-window/size/viewport_height=780
-window/size/window_width_override=390
-window/size/window_height_override=844
-window/stretch/mode="canvas_items"
-window/stretch/aspect="keep_width"
-window/handheld/orientation=1
+window/size/viewport_width=480
+window/size/viewport_height=270
+window/size/window_width_override=960
+window/size/window_height_override=540
+window/stretch/mode="viewport"
+window/stretch/aspect="keep"
+window/stretch/scale_mode="integer"
+window/handheld/orientation=4
 window/vsync/vsync_mode=1
 
 [input_devices]
@@ -34,4 +35,6 @@ pointing/emulate_mouse_from_touch=true
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/canvas_textures/default_texture_filter=0
+environment/defaults/default_clear_color=Color(0.0627451, 0.0470588, 0.0784314, 1)
 2d/snap/snap_2d_transforms_to_pixel=true
+2d/snap/snap_2d_vertices_to_pixel=true

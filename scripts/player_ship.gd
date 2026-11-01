@@ -8,7 +8,7 @@ class_name PlayerShip
 var form_id := FormCatalog.Id.SLIME
 var aim := Vector2.ZERO
 var velocity := Vector2.ZERO
-var radius := FormCatalog.SLIME_HIT_RADIUS
+var radius := 8.0
 var alive := true
 var invulnerable := true
 var stride := 0.0
@@ -17,19 +17,37 @@ var _cooldown := 0.0
 var _wobble := 0.0
 var _trail_timer := 0.0
 var _trail: Array[Vector2] = []
+var small := false
+var regrow_left := 0.0
+var regrew := false
+var rank_index := 0
+var evolve_flash := 0.0
+
+const REGROW_SECONDS := 15.0
 
 func setup(id: int, start: Vector2) -> void:
 	form_id = id
 	position = start
 	aim = start
-	radius = FormCatalog.hit_radius(id)
 	_cooldown = 0.12
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_apply_radius()
 
 func add_drag(relative: Vector2, bounds: Rect2) -> void:
 	aim += relative
 	var pad := radius
 	aim.x = clampf(aim.x, bounds.position.x + pad, bounds.end.x - pad)
 	aim.y = clampf(aim.y, bounds.position.y + pad, bounds.end.y - pad)
+
+## Slime trait, not an extra life. One life per run still holds.
+## A full-size Slime spends that trait and becomes small. A hit while small ends the run.
+func absorb_lethal_hit() -> bool:
+	if form_id != FormCatalog.Id.SLIME or small:
+		return false
+	small = true
+	regrow_left = REGROW_SECONDS
+	_apply_radius()
+	return true
 
 func ready_to_fire() -> bool:
 	return alive and _cooldown <= 0.0
@@ -39,6 +57,16 @@ func did_fire(interval: float) -> void:
 
 func tick(delta: float, bounds: Rect2) -> void:
 	_wobble += delta
+	regrew = false
+	if small:
+		regrow_left -= delta
+		if regrow_left <= 0.0:
+			small = false
+			regrow_left = 0.0
+			regrew = true
+			_apply_radius()
+	if evolve_flash > 0.0:
+		evolve_flash = maxf(evolve_flash - delta, 0.0)
 	if _cooldown > 0.0:
 		_cooldown -= delta
 	if form_id == FormCatalog.Id.SLIME:
@@ -102,50 +130,26 @@ func _record_trail(delta: float) -> void:
 	while _trail.size() > 5:
 		_trail.pop_back()
 
+func set_rank(index: int) -> void:
+	rank_index = index
+	evolve_flash = 0.4
+	_apply_radius()
+
+func sprite_name() -> String:
+	var spec := FormCatalog.rank_spec(form_id, rank_index)
+	if small and spec.has("sprite_small"):
+		return str(spec["sprite_small"])
+	return str(spec["sprite"])
+
+func _apply_radius() -> void:
+	radius = FormCatalog.hit_radius_for(form_id, rank_index, small)
+
 func _draw() -> void:
+	var file := sprite_name()
 	if form_id == FormCatalog.Id.SLIME:
-		_draw_slime()
-	else:
-		_draw_goblin()
-
-func _draw_slime() -> void:
-	var i := _trail.size()
-	for point in _trail:
-		i -= 1
-		var blob := Color("176b2c")
-		blob.a = 0.18 + 0.1 * float(i)
-		var size := 8.0 + float(i) * 2.0
-		var local := point - position
-		draw_rect(Rect2(local - Vector2(size, size) * 0.5, Vector2(size, size)), blob)
-	var squash := 1.0 + sin(_wobble * 7.0) * 0.07
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0 / squash, squash))
-	draw_rect(Rect2(-16, -13, 32, 26), Color("176b2c"))
-	draw_rect(Rect2(-14, -16, 26, 10), Color("2f9e45"))
-	draw_rect(Rect2(-18, -4, 8, 12), Color("248a38"))
-	draw_rect(Rect2(10, -2, 8, 14), Color("34a844"))
-	draw_rect(Rect2(-6, -18, 14, 8), Color("b6ffbf"))
-	draw_rect(Rect2(-9, -3, 6, 6), Color("f4fff4"))
-	draw_rect(Rect2(3, -2, 6, 6), Color("f4fff4"))
-	draw_rect(Rect2(-7, -1, 3, 3), Color("14200f"))
-	draw_rect(Rect2(5, 0, 3, 3), Color("14200f"))
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
-func _draw_goblin() -> void:
-	if sprinting and velocity.length() > 30.0:
-		var back := -velocity.normalized() * 12.0
-		draw_rect(Rect2(back + Vector2(-5, 2), Vector2(4, 3)), Color("6a5640"))
-		draw_rect(Rect2(back + Vector2(2, 5), Vector2(3, 3)), Color("8a7058"))
-	# Tiny crown, a size too proud for the head under it.
-	draw_rect(Rect2(-7, -20, 14, 3), Color("ffd15c"))
-	draw_rect(Rect2(-7, -24, 3, 6), Color("ffd15c"))
-	draw_rect(Rect2(-1, -27, 3, 9), Color("ffe08a"))
-	draw_rect(Rect2(4, -24, 3, 6), Color("ffd15c"))
-	draw_rect(Rect2(-6, -16, 12, 9), Color("7ea14a"))
-	draw_rect(Rect2(-8, -13, 3, 4), Color("6d8c3e"))
-	draw_rect(Rect2(5, -13, 3, 4), Color("6d8c3e"))
-	draw_rect(Rect2(-5, -6, 10, 10), Color("8a4b2f"))
-	draw_rect(Rect2(-4, -13, 2, 2), Color("14200f"))
-	draw_rect(Rect2(2, -13, 2, 2), Color("14200f"))
-	var step := 2.0 if sprinting else 0.0
-	draw_rect(Rect2(-5, 4, 3, 4 + step), Color("5c3a24"))
-	draw_rect(Rect2(2, 4, 3, 4 + step), Color("5c3a24"))
+		var i := _trail.size()
+		for point in _trail:
+			i -= 1
+			var tint := Color(1, 1, 1, 0.10 + 0.07 * float(i))
+			ArtLibrary.draw_loop(self, file, _wobble, point - position, tint)
+	ArtLibrary.draw_loop(self, file, _wobble)

@@ -1,8 +1,10 @@
 extends Node2D
 
-const REVEAL_SECONDS := 2.3
+const REVEAL_SECONDS := 1.5
 const INVULN_SECONDS := 1.5
 const GRAZE_PAD := 22.0
+const SPLIT_IFRAMES := 1.15
+const REGROW_IFRAMES := 0.45
 
 const PHASE_REVEAL := 0
 const PHASE_PLAY := 1
@@ -23,6 +25,9 @@ var death_elapsed := 0.0
 var game_over_visible := false
 var killer_name := "something"
 var next_enemy_id := 1
+var loot_count := 0
+var evo_points := 0
+var rank_index := 0
 
 var _player: PlayerShip
 var _background: FieldBackground
@@ -30,6 +35,9 @@ var _combat: CombatText
 var _director: SpawnDirector
 var _enemies: Array[EnemyActor] = []
 var _shots: Array[Shot] = []
+var _loot: Array[LootGem] = []
+var _effects: Array[PixelEffect] = []
+var _loot_spawned := 0
 var _drag_accum := Vector2.ZERO
 var _primary_touch := -1
 var _mouse_down := false
@@ -41,12 +49,19 @@ var _combo_label: Label
 var _form_label: Label
 var _hint_label: Label
 var _reveal: Control
+var _title_card: TextureRect
 var _skip_label: Label
 var _game_over: Control
 var _share_label: Label
+var _best_label: Label
 var _seed_label: Label
+var _death_kicker: Label
+var _restart_button: Button
+var _loot_label: Label
+var _rotate: Control
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	day_seed = DailyRun.date_seed()
 	run_index = DailyRun.consume_run_index()
 	form_id = FormCatalog.id_for_run(day_seed, run_index)
@@ -63,7 +78,7 @@ func _build_world() -> void:
 
 	_player = PlayerShip.new()
 	_player.z_index = 5
-	_player.setup(form_id, Vector2(size.x * 0.5, size.y * 0.78))
+	_player.setup(form_id, Vector2(size.x * 0.28, size.y * 0.5))
 	add_child(_player)
 
 	_combat = CombatText.new()
@@ -80,48 +95,56 @@ func _build_hud() -> void:
 	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(_hud)
 
-	_score_label = _make_label(22, Color("f4efe4"))
-	_score_label.position = Vector2(16, 54)
+	_score_label = _make_label(20, Color("241428"))
+	_score_label.position = Vector2(40, 6)
 	_hud.add_child(_score_label)
 
-	_form_label = _make_label(13, FormCatalog.title_color(form_id))
-	_form_label.position = Vector2(16, 80)
+	var form_ink := Color("1a4f9c") if form_id == FormCatalog.Id.SLIME else Color("8a4b12")
+	_form_label = _make_label(13, form_ink)
+	_form_label.position = Vector2(40, 28)
 	_form_label.text = FormCatalog.display_name(form_id)
 	_hud.add_child(_form_label)
 
-	_time_label = _make_label(22, Color("f4efe4"))
+	_loot_label = _make_label(13, Color("8a4b12"))
+	_loot_label.position = Vector2(40, 46)
+	_loot_label.visible = true
+	_hud.add_child(_loot_label)
+
+	_time_label = _make_label(20, Color("241428"))
 	_time_label.anchor_left = 1.0
 	_time_label.anchor_right = 1.0
-	_time_label.offset_left = -150.0
-	_time_label.offset_right = -16.0
-	_time_label.offset_top = 54.0
-	_time_label.offset_bottom = 84.0
+	_time_label.offset_left = -160.0
+	_time_label.offset_right = -40.0
+	_time_label.offset_top = 6.0
+	_time_label.offset_bottom = 32.0
 	_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_hud.add_child(_time_label)
 
-	_combo_label = _make_label(18, Color("ffd56a"))
+	_combo_label = _make_label(18, Color("8a3a12"))
 	_combo_label.anchor_left = 0.5
 	_combo_label.anchor_right = 0.5
 	_combo_label.offset_left = -80.0
 	_combo_label.offset_right = 80.0
-	_combo_label.offset_top = 54.0
-	_combo_label.offset_bottom = 84.0
+	_combo_label.offset_top = 6.0
+	_combo_label.offset_bottom = 32.0
 	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hud.add_child(_combo_label)
 
-	_hint_label = _make_label(16, Color("f4efe4"))
+	_hint_label = _make_label(16, Color("241428"))
 	_hint_label.anchor_left = 0.5
 	_hint_label.anchor_right = 0.5
 	_hint_label.anchor_top = 1.0
 	_hint_label.anchor_bottom = 1.0
 	_hint_label.offset_left = -140.0
 	_hint_label.offset_right = 140.0
-	_hint_label.offset_top = -78.0
-	_hint_label.offset_bottom = -48.0
+	_hint_label.offset_top = -48.0
+	_hint_label.offset_bottom = -26.0
 	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint_label.text = "Drag anywhere to move"
 	_hint_label.visible = false
 	_hud.add_child(_hint_label)
+	for sky_label in [_score_label, _time_label, _combo_label, _form_label, _hint_label, _loot_label]:
+		sky_label.add_theme_color_override("font_shadow_color", Color(1, 1, 1, 0.8))
 
 	_reveal = Control.new()
 	_reveal.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -132,33 +155,28 @@ func _build_hud() -> void:
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_reveal.add_child(dim)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_reveal.add_child(center)
-	var column := VBoxContainer.new()
-	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_theme_constant_override("separation", 10)
-	column.custom_minimum_size = Vector2(300, 0)
-	center.add_child(column)
-	var kicker := _make_label(18, Color("c8bdd4"))
-	kicker.text = "YOU ARE NOW"
-	kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(kicker)
-	var title := _make_label(52, FormCatalog.title_color(form_id))
-	title.text = "%s." % FormCatalog.display_name(form_id)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(title)
-	var gag := _make_label(18, Color("f4efe4"))
-	gag.text = FormCatalog.gag(form_id)
-	gag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	gag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	gag.custom_minimum_size = Vector2(280, 60)
-	column.add_child(gag)
-	_skip_label = _make_label(13, Color("8d8298"))
+	_title_card = TextureRect.new()
+	_title_card.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_title_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_title_card.texture = ArtLibrary.texture(FormCatalog.title_card(form_id))
+	_title_card.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_title_card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_title_card.stretch_mode = TextureRect.STRETCH_SCALE
+	_title_card.pivot_offset = _viewport_size() * 0.5
+	_title_card.scale = Vector2(0.84, 0.84)
+	_reveal.add_child(_title_card)
+	_skip_label = _make_label(13, Color("f4efe4"))
 	_skip_label.text = ""
 	_skip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(_skip_label)
+	_skip_label.anchor_left = 0.5
+	_skip_label.anchor_right = 0.5
+	_skip_label.anchor_top = 1.0
+	_skip_label.anchor_bottom = 1.0
+	_skip_label.offset_left = -90.0
+	_skip_label.offset_right = 90.0
+	_skip_label.offset_top = -22.0
+	_skip_label.offset_bottom = -6.0
+	_reveal.add_child(_skip_label)
 
 	_game_over = Control.new()
 	_game_over.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -170,46 +188,68 @@ func _build_hud() -> void:
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	_game_over.add_child(shade)
-	var over_center := CenterContainer.new()
-	over_center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	over_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_game_over.add_child(over_center)
-	var over_column := VBoxContainer.new()
-	over_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	over_column.add_theme_constant_override("separation", 16)
-	over_column.custom_minimum_size = Vector2(300, 0)
-	over_center.add_child(over_column)
-	var over_kicker := _make_label(14, Color("c8bdd4"))
-	over_kicker.text = "RUN OVER"
-	over_kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	over_column.add_child(over_kicker)
-	_share_label = _make_label(22, Color("f4efe4"))
+	_death_kicker = _make_label(14, Color("c8bdd4"))
+	_death_kicker.text = "RUN OVER"
+	_death_kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_game_over.add_child(_death_kicker)
+	_share_label = _make_label(18, Color("f4efe4"))
 	_share_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_share_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_share_label.custom_minimum_size = Vector2(280, 110)
-	over_column.add_child(_share_label)
+	_game_over.add_child(_share_label)
+	_best_label = _make_label(13, Color("f0d78c"))
+	_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_best_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_game_over.add_child(_best_label)
 	_seed_label = _make_label(12, Color("8d8298"))
 	_seed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	over_column.add_child(_seed_label)
-	var button := Button.new()
-	button.text = "Reincarnate"
-	button.custom_minimum_size = Vector2(260, 72)
-	button.focus_mode = Control.FOCUS_NONE
+	_game_over.add_child(_seed_label)
+	_restart_button = Button.new()
+	_restart_button.text = "Reincarnate"
+	_restart_button.focus_mode = Control.FOCUS_NONE
+	_restart_button.mouse_filter = Control.MOUSE_FILTER_STOP
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("f0d78c")
 	style.set_corner_radius_all(4)
-	style.content_margin_top = 12
-	style.content_margin_bottom = 12
-	button.add_theme_stylebox_override("normal", style)
-	button.add_theme_stylebox_override("hover", style)
-	button.add_theme_stylebox_override("pressed", style)
-	button.add_theme_stylebox_override("focus", style)
-	button.add_theme_color_override("font_color", Color("24180a"))
-	button.add_theme_color_override("font_hover_color", Color("24180a"))
-	button.add_theme_color_override("font_pressed_color", Color("24180a"))
-	button.add_theme_font_size_override("font_size", 22)
-	button.pressed.connect(_on_restart)
-	over_column.add_child(button)
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	_restart_button.add_theme_stylebox_override("normal", style)
+	_restart_button.add_theme_stylebox_override("hover", style)
+	_restart_button.add_theme_stylebox_override("pressed", style)
+	_restart_button.add_theme_stylebox_override("focus", style)
+	_restart_button.add_theme_color_override("font_color", Color("24180a"))
+	_restart_button.add_theme_color_override("font_hover_color", Color("24180a"))
+	_restart_button.add_theme_color_override("font_pressed_color", Color("24180a"))
+	_restart_button.add_theme_font_size_override("font_size", 22)
+	_restart_button.pressed.connect(_on_restart)
+	_game_over.add_child(_restart_button)
+	_layout_death_card()
+
+	_rotate = Control.new()
+	_rotate.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_rotate.visible = false
+	_rotate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.add_child(_rotate)
+	var rotate_dim := ColorRect.new()
+	rotate_dim.color = Color("100c14")
+	rotate_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rotate_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_rotate.add_child(rotate_dim)
+	var rotate_center := CenterContainer.new()
+	rotate_center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rotate_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rotate.add_child(rotate_center)
+	var rotate_column := VBoxContainer.new()
+	rotate_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rotate_column.add_theme_constant_override("separation", 8)
+	rotate_center.add_child(rotate_column)
+	var rotate_title := _make_label(28, Color("f4efe4"))
+	rotate_title.text = "Rotate your phone"
+	rotate_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rotate_column.add_child(rotate_title)
+	var rotate_body := _make_label(16, Color("c8bdd4"))
+	rotate_body.text = "This run flies sideways."
+	rotate_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rotate_column.add_child(rotate_body)
 	_refresh_hud()
 
 func _make_label(size: int, color: Color) -> Label:
@@ -222,7 +262,17 @@ func _make_label(size: int, color: Color) -> Label:
 	label.add_theme_constant_override("shadow_offset_y", 2)
 	return label
 
+func wants_rotate(size: Vector2) -> bool:
+	# The stretch mode can keep a landscape viewport inside a tall window.
+	# A portrait phone should see the prompt, not a letterboxed strip.
+	if size.y > size.x:
+		return true
+	var window_size := DisplayServer.window_get_size()
+	return window_size.y > window_size.x
+
 func _unhandled_input(event: InputEvent) -> void:
+	if wants_rotate(_viewport_size()):
+		return
 	if event is InputEventScreenTouch:
 		_on_screen_touch(event)
 	elif event is InputEventScreenDrag:
@@ -264,13 +314,20 @@ func _try_skip_reveal() -> void:
 func _process(delta: float) -> void:
 	if _background == null or _player == null or _combat == null:
 		return
-	delta = clampf(delta, 0.0, 0.033)
 	var size := _viewport_size()
+	if _rotate != null and wants_rotate(size):
+		_rotate.visible = true
+		return
+	if _rotate != null:
+		_rotate.visible = false
+	delta = clampf(delta, 0.0, 0.033)
 	_background.tick(delta, size)
 	_combat.tick(delta)
+	_tick_effects(delta)
 	if phase == PHASE_REVEAL:
 		reveal_elapsed += delta
-		_skip_label.text = "Tap to start" if reveal_elapsed > 0.35 else ""
+		_animate_title_card()
+		_skip_label.text = "Tap to skip" if reveal_elapsed > 0.35 else ""
 		if reveal_elapsed >= REVEAL_SECONDS:
 			_begin_play()
 		return
@@ -280,6 +337,16 @@ func _process(delta: float) -> void:
 			_show_game_over()
 		return
 	_play_frame(delta, size)
+
+func _animate_title_card() -> void:
+	if _title_card == null:
+		return
+	var size := _viewport_size()
+	var t := clampf(reveal_elapsed / 0.26, 0.0, 1.0)
+	var eased := 1.0 - pow(1.0 - t, 3.0)
+	var pop := lerpf(0.84, 1.0, eased)
+	_title_card.pivot_offset = size * 0.5
+	_title_card.scale = Vector2(pop, pop)
 
 func _begin_play() -> void:
 	if phase != PHASE_REVEAL:
@@ -301,10 +368,14 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	invuln = maxf(invuln - delta, 0.0)
 	_player.invulnerable = invuln > 0.0
 	_player.tick(delta, bounds)
+	if _player.regrew:
+		invuln = maxf(invuln, REGROW_IFRAMES)
+		_player.invulnerable = true
 	if _player.ready_to_fire():
-		for spec in FormCatalog.player_shots(form_id, _player.position):
+		var interval := float(FormCatalog.rank_spec(form_id, rank_index)["fire_interval"])
+		for spec in FormCatalog.player_shots(form_id, _player.position, rank_index):
 			_spawn_shot(spec, true)
-		_player.did_fire(FormCatalog.fire_interval(form_id))
+		_player.did_fire(interval)
 	for event in _director.pop_due(elapsed):
 		_spawn_enemy(event, size)
 	var player_pos := _player.position
@@ -316,6 +387,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	for shot in _shots:
 		shot.tick(delta)
 	_collide()
+	_tick_loot(delta)
 	_sweep(size)
 	_bank_survival(delta)
 	if combo_left > 0.0:
@@ -326,7 +398,8 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	_refresh_hud()
 
 func _play_bounds(size: Vector2) -> Rect2:
-	return Rect2(16, 18, maxf(size.x - 32.0, 40.0), maxf(size.y - 46.0, 40.0))
+	var floor_y := minf(FieldBackground.GROUND_FEET - 2.0, size.y - 8.0)
+	return Rect2(14, 10, maxf(size.x - 28.0, 40.0), maxf(floor_y - 10.0, 40.0))
 
 func _key_vector() -> Vector2:
 	var vector := Vector2.ZERO
@@ -345,7 +418,7 @@ func _key_vector() -> Vector2:
 func _spawn_enemy(data: Dictionary, size: Vector2) -> void:
 	var enemy := EnemyActor.new()
 	enemy.z_index = 3
-	enemy.setup(next_enemy_id, data, size)
+	enemy.setup(next_enemy_id, data, size, _background)
 	next_enemy_id += 1
 	add_child(enemy)
 	_enemies.append(enemy)
@@ -378,6 +451,9 @@ func _collide() -> void:
 					splits.append(spec)
 			if not enemy.alive:
 				_award_kill(enemy)
+				_spawn_fx("death_puff.png", enemy.position, 0.42, 0.45, 1.55)
+			else:
+				_spawn_fx("hit_flash.png", shot.position, 0.16, 0.75, 1.35)
 			spent.append(shot)
 			break
 	for shot in spent:
@@ -391,14 +467,14 @@ func _collide() -> void:
 		if not enemy.alive:
 			continue
 		if _overlaps(_player.position, _player.radius, enemy.position, enemy.radius):
-			_kill_player(enemy.kind_name)
+			_hurt_player(enemy.kind_name)
 			return
 		_graze(enemy, enemy.position, enemy.radius)
 	for shot in _shots:
 		if shot.from_player or not is_instance_valid(shot):
 			continue
 		if _overlaps(_player.position, _player.radius, shot.position, shot.radius):
-			_kill_player(shot.killer_name if shot.killer_name != "" else "shot")
+			_hurt_player(shot.killer_name if shot.killer_name != "" else "shot")
 			return
 		_graze(shot, shot.position, shot.radius)
 
@@ -407,8 +483,10 @@ func _award_kill(enemy: EnemyActor) -> void:
 	combo = int(result["combo"])
 	combo_left = float(result["combo_left"])
 	var points := int(result["points"])
-	score += points
-	_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-8, -18), Color("f4efe4"))
+	_gain_skill(points)
+	_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-8, -18), Color("241428"))
+	if form_id == FormCatalog.Id.GOBLIN:
+		_spawn_loot(enemy.position)
 
 func _graze(hazard: Object, at: Vector2, hazard_radius: float) -> void:
 	if hazard.grazed:
@@ -418,8 +496,66 @@ func _graze(hazard: Object, at: Vector2, hazard_radius: float) -> void:
 	if dist < hit or dist > hit + GRAZE_PAD:
 		return
 	hazard.grazed = true
-	score += ScoreRules.GRAZE
+	_gain_skill(ScoreRules.GRAZE)
 	_combat.push("+%d" % ScoreRules.GRAZE, at + Vector2(6, -8), Color("ffe08a"))
+	_spawn_fx("graze_sparkle.png", at, 0.34, 0.45, 1.45)
+
+func _hurt_player(killer: String) -> void:
+	if phase != PHASE_PLAY or not _player.alive:
+		return
+	# Slime trait only. A small Slime falls through to the one death of the run.
+	if _player.absorb_lethal_hit():
+		invuln = maxf(invuln, SPLIT_IFRAMES)
+		_player.invulnerable = true
+		_combat.push("SPLIT!", _player.position + Vector2(-28, -24), Color("1a4f9c"))
+		_spawn_fx("hit_flash.png", _player.position, 0.22, 0.6, 1.4)
+		return
+	_kill_player(killer)
+
+func _spawn_loot(at: Vector2) -> void:
+	var gem := LootGem.new()
+	var file := "coin.png" if _loot_spawned % 2 == 0 else "gem.png"
+	_loot_spawned += 1
+	gem.setup(file)
+	gem.position = at
+	gem.z_index = 4
+	add_child(gem)
+	_loot.append(gem)
+
+func _tick_loot(delta: float) -> void:
+	var keep: Array[LootGem] = []
+	for gem in _loot:
+		if not is_instance_valid(gem):
+			continue
+		gem.tick(delta)
+		if _player.alive and _overlaps(_player.position, _player.radius, gem.position, gem.radius):
+			_collect_gem(gem)
+			continue
+		if gem.position.x < -40.0:
+			gem.queue_free()
+			continue
+		keep.append(gem)
+	_loot = keep
+
+func _collect_gem(gem: LootGem) -> void:
+	gem.queue_free()
+	loot_count += 1
+	_gain_skill(FormCatalog.LOOT_POINTS)
+	_combat.push("+%d" % FormCatalog.LOOT_POINTS, gem.position + Vector2(-8, -14), Color("8a4b12"))
+
+func _gain_skill(points: int) -> void:
+	if points <= 0:
+		return
+	score += points
+	evo_points += points
+	var reached := FormCatalog.rank_for_points(evo_points)
+	if reached > rank_index:
+		rank_index = reached
+		_player.set_rank(rank_index)
+		var evolved := FormCatalog.rank_name(form_id, rank_index)
+		_combat.push("EVOLVED! %s" % evolved, _player.position + Vector2(-52, -30), Color("fff6c8"))
+		_spawn_fx("evolved_burst.png", _player.position + Vector2(0, -8), 0.72, 0.55, 1.2)
+	_refresh_hud()
 
 func _kill_player(name: String) -> void:
 	if phase != PHASE_PLAY:
@@ -429,14 +565,78 @@ func _kill_player(name: String) -> void:
 	_player.alive = false
 	_player.visible = false
 	_hint_label.visible = false
-	_combat.burst(_player.position, FormCatalog.title_color(form_id))
+	_spawn_fx("death_puff.png", _player.position, 0.5, 0.55, 1.7)
 	_refresh_hud()
 
 func _show_game_over() -> void:
 	game_over_visible = true
-	_share_label.text = ScoreRules.share_line(FormCatalog.display_name(form_id), elapsed, killer_name, score)
+	var form_name := FormCatalog.display_name(form_id)
+	var reached_rank := FormCatalog.rank_name(form_id, rank_index)
+	_share_label.text = ScoreRules.share_line(form_name, reached_rank, elapsed, killer_name, score)
+	var saved := BestScores.record(form_name, score)
+	_best_label.text = "Best as %s: %s / Best overall: %s" % [
+		form_name,
+		ScoreRules.format_score(int(saved["form"])),
+		ScoreRules.format_score(int(saved["overall"])),
+	]
 	_seed_label.text = "UTC seed %d · run %d" % [day_seed, run_index + 1]
+	_layout_death_card()
 	_game_over.visible = true
+
+## Pin Reincarnate inside the field. Long rank names wrap, then shrink, so the
+## button is never pushed past the bottom of the 480x270 viewport.
+func _layout_death_card() -> void:
+	if _restart_button == null or _share_label == null:
+		return
+	var field := _viewport_size()
+	var button_size := Vector2(minf(280.0, field.x - 24.0), 56.0)
+	var margin := 10.0
+	var button_pos := Vector2((field.x - button_size.x) * 0.5, field.y - margin - button_size.y)
+	_place_death_control(_restart_button, button_pos, button_size)
+	var text_width := minf(448.0, field.x - 16.0)
+	var text_left := (field.x - text_width) * 0.5
+	var text_top := 8.0
+	var text_bottom := button_pos.y - 8.0
+	var text_height := maxf(text_bottom - text_top, 48.0)
+	var kicker_h := 18.0
+	var seed_h := 16.0
+	var gap := 4.0
+	var flexible := maxf(text_height - kicker_h - seed_h - gap * 3.0, 36.0)
+	_fit_wrapped_label(_share_label, text_width, flexible * 0.68, 18, 11)
+	_fit_wrapped_label(_best_label, text_width, flexible * 0.32, 13, 10)
+	var share_h := _wrapped_height(_share_label.text, text_width, _death_font_size(_share_label))
+	var best_h := _wrapped_height(_best_label.text, text_width, _death_font_size(_best_label))
+	var used := kicker_h + share_h + best_h + seed_h + gap * 3.0
+	var y := text_top + maxf(text_height - used, 0.0) * 0.5
+	_place_death_control(_death_kicker, Vector2(text_left, y), Vector2(text_width, kicker_h))
+	y += kicker_h + gap
+	_place_death_control(_share_label, Vector2(text_left, y), Vector2(text_width, share_h))
+	y += share_h + gap
+	_place_death_control(_best_label, Vector2(text_left, y), Vector2(text_width, best_h))
+	y += best_h + gap
+	_place_death_control(_seed_label, Vector2(text_left, y), Vector2(text_width, seed_h))
+
+func _place_death_control(control: Control, pos: Vector2, control_size: Vector2) -> void:
+	control.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	control.position = pos
+	control.size = control_size
+	control.custom_minimum_size = control_size
+
+func _death_font_size(label: Label) -> int:
+	return int(label.get_theme_font_size("font_size"))
+
+func _fit_wrapped_label(label: Label, width: float, max_height: float, start_size: int, min_size: int) -> void:
+	var size := start_size
+	while size > min_size and _wrapped_height(label.text, width, size) > max_height:
+		size -= 1
+	label.add_theme_font_size_override("font_size", size)
+
+func _wrapped_height(text: String, width: float, font_size: int) -> float:
+	if text.is_empty():
+		return 0.0
+	var box := ThemeDB.fallback_font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, width, font_size)
+	# Room for the label shadow so the glyphs are not clipped by the rect.
+	return box.y + 4.0
 
 func _sweep(size: Vector2) -> void:
 	var field := Rect2(-80, -80, size.x + 160, size.y + 160)
@@ -476,6 +676,12 @@ func _refresh_hud() -> void:
 		_combo_label.text = "x%d" % combo
 	else:
 		_combo_label.text = ""
+	var evolved_name := FormCatalog.rank_name(form_id, rank_index)
+	var next_gate := FormCatalog.gate_for_next_rank(rank_index)
+	if next_gate < 0:
+		_loot_label.text = evolved_name
+	else:
+		_loot_label.text = "%s  %d/%d" % [evolved_name, evo_points, next_gate]
 
 func _on_restart() -> void:
 	get_tree().reload_current_scene()
@@ -484,10 +690,27 @@ func _overlaps(a: Vector2, a_radius: float, b: Vector2, b_radius: float) -> bool
 	var reach := a_radius + b_radius
 	return a.distance_squared_to(b) <= reach * reach
 
+func _spawn_fx(file_name: String, at: Vector2, duration: float, from_scale: float, to_scale: float) -> void:
+	var fx := PixelEffect.new()
+	fx.z_index = 7
+	fx.setup(file_name, at, duration, from_scale, to_scale)
+	add_child(fx)
+	_effects.append(fx)
+
+func _tick_effects(delta: float) -> void:
+	var keep: Array[PixelEffect] = []
+	for fx in _effects:
+		if is_instance_valid(fx) and fx.tick(delta):
+			keep.append(fx)
+			continue
+		if is_instance_valid(fx):
+			fx.queue_free()
+	_effects = keep
+
 func _viewport_size() -> Vector2:
 	if not is_inside_tree():
-		return Vector2(360, 780)
+		return Vector2(480, 270)
 	var size := get_viewport_rect().size
 	if size.x < 32.0 or size.y < 32.0:
-		return Vector2(360, 780)
+		return Vector2(480, 270)
 	return size

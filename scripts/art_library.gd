@@ -1,0 +1,115 @@
+extends RefCounted
+class_name ArtLibrary
+
+## Reads res://art/manifest.json. Anchors are pixels from the top-left of the frame.
+## A center anchor draws the sprite around the node's origin. A bottom-center anchor
+## (the skeleton archer) puts the feet on the node's origin.
+## Idle sheets are horizontal strips named <sprite>_idle.png. Hitboxes stay on the
+## static file, so a strip's full width never becomes a collision box.
+
+const ROOT := "res://art/"
+
+static var _entries: Dictionary = {}
+static var _textures: Dictionary = {}
+static var _ready := false
+
+static func _ensure() -> void:
+	if _ready:
+		return
+	_ready = true
+	var path := ROOT + "manifest.json"
+	if not FileAccess.file_exists(path):
+		push_error("art manifest missing at %s" % path)
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(parsed) != TYPE_ARRAY:
+		push_error("art manifest is not a list")
+		return
+	for item in parsed:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = item
+		_entries[str(entry.get("file", ""))] = entry
+
+static func entry(file_name: String) -> Dictionary:
+	_ensure()
+	return _entries.get(file_name, {})
+
+static func has_file(file_name: String) -> bool:
+	return not entry(file_name).is_empty()
+
+static func file_count() -> int:
+	_ensure()
+	return _entries.size()
+
+static func texture(file_name: String) -> Texture2D:
+	if _textures.has(file_name):
+		return _textures[file_name]
+	var tex: Texture2D = load(ROOT + file_name)
+	if tex == null:
+		push_error("missing art %s" % file_name)
+	_textures[file_name] = tex
+	return tex
+
+static func anchor(file_name: String) -> Vector2:
+	var data := entry(file_name)
+	var point: Array = data.get("anchor", [0, 0])
+	return Vector2(float(point[0]), float(point[1]))
+
+## Opaque art size when the manifest measured one, otherwise one frame.
+## Sheets expose frame_size so the strip width is not treated as the body.
+static func art_bbox(file_name: String) -> Vector2:
+	var data := entry(file_name)
+	if data.has("art_bbox"):
+		var box: Array = data["art_bbox"]
+		return Vector2(float(box[0]), float(box[1]))
+	if data.has("frame_size"):
+		var frame: Array = data["frame_size"]
+		return Vector2(float(frame[0]), float(frame[1]))
+	var size: Array = data.get("size", [8, 8])
+	return Vector2(float(size[0]), float(size[1]))
+
+## <name>.png -> <name>_idle.png when that sheet is in the manifest.
+static func loop_file(base_file: String) -> String:
+	var idle := base_file.trim_suffix(".png") + "_idle.png"
+	if has_file(idle):
+		return idle
+	return base_file
+
+## Circle radius whose diameter is pct of the average art-box side.
+## pct stays inside 0.50-0.65 so the hitbox is smaller than the sprite.
+static func radius_for(file_name: String, pct: float) -> float:
+	var box := art_bbox(file_name)
+	var band := clampf(pct, 0.50, 0.65)
+	return band * (box.x + box.y) * 0.25
+
+static func draw_anchored(canvas: CanvasItem, file_name: String, tint: Color = Color.WHITE) -> void:
+	var tex := texture(file_name)
+	if tex == null:
+		return
+	canvas.draw_texture(tex, -anchor(file_name), tint)
+
+## Draw base_file, or its idle sheet, around origin. origin is the actor's
+## anchor point in the canvas's local space (Vector2.ZERO for the actor itself).
+## The anchor is the static sprite's, which matches the sheet.
+static func draw_loop(canvas: CanvasItem, base_file: String, time_sec: float, origin: Vector2 = Vector2.ZERO, tint: Color = Color.WHITE) -> void:
+	var file := loop_file(base_file)
+	var tex := texture(file)
+	if tex == null:
+		return
+	var data := entry(file)
+	var frames := int(data.get("frames", 1))
+	var point := anchor(base_file)
+	if frames <= 1:
+		canvas.draw_texture(tex, origin - point, tint)
+		return
+	var frame_box: Array = data.get("frame_size", [1, 1])
+	var frame := Vector2(float(frame_box[0]), float(frame_box[1]))
+	var fps := float(data.get("fps", 6))
+	var index := int(floor(time_sec * fps))
+	if bool(data.get("loop", true)):
+		index = posmod(index, frames)
+	else:
+		index = clampi(index, 0, frames - 1)
+	var src := Rect2(frame.x * float(index), 0.0, frame.x, frame.y)
+	canvas.draw_texture_rect_region(tex, Rect2(origin - point, frame), src, tint)

@@ -1,0 +1,1501 @@
+[
+  {
+    "file": "slime_r1.png",
+    "size": [
+      24,
+      24
+    ],
+    "frames": 1,
+    "anchor": [
+      12,
+      12
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "slime",
+    "rank": 1,
+    "rank_name": "Slime"
+  },
+  {
+    "file": "slime_r2.png",
+    "size": [
+      28,
+      28
+    ],
+    "frames": 1,
+    "anchor": [
+      14,
+      14
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "slime",
+    "rank": 2,
+    "rank_name": "Gel Knight",
+    "note": "Batch 3 fix: jelly side bulges and extra drips so the armored cube reads soft; crest 1 px shorter (was clipped at top).",
+    "batch": 3
+  },
+  {
+    "file": "slime_r3.png",
+    "size": [
+      32,
+      32
+    ],
+    "frames": 1,
+    "anchor": [
+      16,
+      16
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "slime",
+    "rank": 3,
+    "rank_name": "Ooze Titan",
+    "note": "Batch 3 fix: jelly side bulges and extra drips.",
+    "batch": 3
+  },
+  {
+    "file": "vending_machine_r1.png",
+    "size": [
+      28,
+      40
+    ],
+    "frames": 1,
+    "anchor": [
+      14,
+      20
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "vending_machine",
+    "rank": 1,
+    "rank_name": "Vending Machine",
+    "rescaled": true,
+    "art_bbox": [
+      23,
+      40
+    ],
+    "note": "Rescaled redraw"
+  },
+  {
+    "file": "vending_machine_r2.png",
+    "size": [
+      32,
+      44
+    ],
+    "frames": 1,
+    "anchor": [
+      16,
+      22
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "vending_machine",
+    "rank": 2,
+    "rank_name": "Mega Vendor",
+    "rescaled": true,
+    "art_bbox": [
+      26,
+      44
+    ],
+    "note": "Rescaled redraw"
+  },
+  {
+    "file": "vending_machine_r3.png",
+    "size": [
+      36,
+      48
+    ],
+    "frames": 1,
+    "anchor": [
+      18,
+      24
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "vending_machine",
+    "rank": 3,
+    "rank_name": "Vending Fortress",
+    "rescaled": true,
+    "art_bbox": [
+      34,
+      47
+    ],
+    "note": "Rescaled redraw"
+  },
+  {
+    "file": "goblin_r1.png",
+    "size": [
+      28,
+      32
+    ],
+    "frames": 1,
+    "anchor": [
+      14,
+      16
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "goblin",
+    "rank": 1,
+    "rank_name": "Goblin",
+    "rescaled": true,
+    "art_bbox": [
+      28,
+      31
+    ],
+    "note": "Rescaled redraw"
+  },
+  {
+    "file": "goblin_r2.png",
+    "size": [
+      32,
+      36
+    ],
+    "frames": 1,
+    "anchor": [
+      16,
+      18
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "goblin",
+    "rank": 2,
+    "rank_name": "Goblin Chief",
+    "rescaled": true,
+    "art_bbox": [
+      31,
+      35
+    ],
+    "note": "Rescaled redraw"
+  },
+  {
+    "file": "goblin_r3.png",
+    "size": [
+      36,
+      40
+    ],
+    "frames": 1,
+    "anchor": [
+      18,
+      20
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "goblin",
+    "rank": 3,
+    "rank_name": "Goblin King",
+    "rescaled": true,
+    "art_bbox": [
+      34,
+      40
+    ],
+    "note": "Rescaled redraw"
+  },
+  {
+    "file": "cat_r1.png",
+    "size": [
+      24,
+      24
+    ],
+    "frames": 1,
+    "anchor": [
+      12,
+      12
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "cat",
+    "rank": 1,
+    "rank_name": "Cat (ex-CEO)"
+  },
+  {
+    "file": "cat_r2.png",
+    "size": [
+      28,
+      28
+    ],
+    "frames": 1,
+    "anchor": [
+      14,
+      14
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "cat",
+    "rank": 2,
+    "rank_name": "Cat Chairman"
+  },
+  {
+    "file": "cat_r3.png",
+    "size": [
+      32,
+      32
+    ],
+    "frames": 1,
+    "anchor": [
+      16,
+      16
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "cat",
+    "rank": 3,
+    "rank_name": "Cat Overlord",
+    "note": "Batch 3 fix: top hat brim and crown highlights so the hat separates from the head.",
+    "batch": 3
+  },
+  {
+    "file": "demon_lord_r1.png",
+    "size": [
+      40,
+      44
+    ],
+    "frames": 1,
+    "anchor": [
+      20,
+      22
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "demon_lord",
+    "rank": 1,
+    "rank_name": "Demon Lord",
+    "rescaled": true,
+    "art_bbox": [
+      38,
+      44
+    ],
+    "note": "Rescaled redraw"
+  },
+  {
+    "file": "demon_lord_r2.png",
+    "size": [
+      44,
+      48
+    ],
+    "frames": 1,
+    "anchor": [
+      22,
+      24
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "demon_lord",
+    "rank": 2,
+    "rank_name": "Demon Emperor",
+    "rescaled": true,
+    "art_bbox": [
+      41,
+      47
+    ],
+    "note": "Rescaled redraw"
+  },
+  {
+    "file": "demon_lord_r3.png",
+    "size": [
+      54,
+      52
+    ],
+    "frames": 1,
+    "anchor": [
+      27,
+      26
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "demon_lord",
+    "rank": 3,
+    "rank_name": "True Demon King",
+    "rescaled": true,
+    "art_bbox": [
+      48,
+      51
+    ],
+    "note": "Rescaled redraw Batch 3 fix: larger crimson bat wings, glow ring no longer clipped; frame widened 48x52 -> 54x52.",
+    "batch": 3
+  },
+  {
+    "file": "slime_small_r1.png",
+    "size": [
+      16,
+      16
+    ],
+    "frames": 1,
+    "anchor": [
+      8,
+      8
+    ],
+    "anchor_type": "center",
+    "category": "player_form_split",
+    "facing": "right",
+    "form": "slime",
+    "rank": 1,
+    "note": "Slime after its first lethal hit (split), 16 px"
+  },
+  {
+    "file": "slime_small_r2.png",
+    "size": [
+      16,
+      16
+    ],
+    "frames": 1,
+    "anchor": [
+      8,
+      8
+    ],
+    "anchor_type": "center",
+    "category": "player_form_split",
+    "facing": "right",
+    "form": "slime",
+    "rank": 2,
+    "note": "Slime after its first lethal hit (split), 16 px"
+  },
+  {
+    "file": "slime_small_r3.png",
+    "size": [
+      16,
+      16
+    ],
+    "frames": 1,
+    "anchor": [
+      8,
+      8
+    ],
+    "anchor_type": "center",
+    "category": "player_form_split",
+    "facing": "right",
+    "form": "slime",
+    "rank": 3,
+    "note": "Slime after its first lethal hit (split), 16 px"
+  },
+  {
+    "file": "dire_wolf.png",
+    "size": [
+      56,
+      40
+    ],
+    "frames": 1,
+    "anchor": [
+      28,
+      20
+    ],
+    "anchor_type": "center",
+    "category": "enemy",
+    "facing": "left",
+    "note": "charger. Drawn facing LEFT because enemies enter from the right; do not flip. Rescaled redraw",
+    "rescaled": true,
+    "art_bbox": [
+      56,
+      40
+    ]
+  },
+  {
+    "file": "floating_eye.png",
+    "size": [
+      20,
+      20
+    ],
+    "frames": 1,
+    "anchor": [
+      10,
+      10
+    ],
+    "anchor_type": "center",
+    "category": "enemy",
+    "facing": "left",
+    "note": "drifter. Drawn facing LEFT because enemies enter from the right; do not flip. Rescaled redraw Batch 3 fix: fleshy pink upper eyelid fold with crease (replaces the cap-like lid).",
+    "rescaled": true,
+    "art_bbox": [
+      20,
+      19
+    ],
+    "batch": 3
+  },
+  {
+    "file": "skeleton_archer.png",
+    "size": [
+      28,
+      44
+    ],
+    "frames": 1,
+    "anchor": [
+      14,
+      44
+    ],
+    "anchor_type": "bottom_center",
+    "category": "enemy",
+    "facing": "left",
+    "note": "ground/island shooter. Drawn facing LEFT. Bottom-centre anchor so it stands on islands/ground. Rescaled redraw Batch 3 fix: 2 px bow arm and draw arm, thicker two-tone bow, readable at 1x.",
+    "rescaled": true,
+    "art_bbox": [
+      23,
+      44
+    ],
+    "batch": 3
+  },
+  {
+    "file": "anvil.png",
+    "size": [
+      24,
+      16
+    ],
+    "frames": 1,
+    "anchor": [
+      12,
+      8
+    ],
+    "anchor_type": "center",
+    "category": "hazard",
+    "facing": "none",
+    "note": "falling gag hazard. Size confirmed by Gon."
+  },
+  {
+    "file": "piano.png",
+    "size": [
+      60,
+      44
+    ],
+    "frames": 1,
+    "anchor": [
+      30,
+      22
+    ],
+    "anchor_type": "center",
+    "category": "hazard",
+    "facing": "none",
+    "note": "falling gag hazard (upright piano). Rescaled redraw",
+    "rescaled": true,
+    "art_bbox": [
+      60,
+      44
+    ]
+  },
+  {
+    "file": "slime_shot.png",
+    "size": [
+      6,
+      4
+    ],
+    "frames": 1,
+    "anchor": [
+      3,
+      2
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "right",
+    "note": "Slime player shot (same as style sample 6x4). Size confirmed by Gon."
+  },
+  {
+    "file": "slingshot_stone.png",
+    "size": [
+      5,
+      5
+    ],
+    "frames": 1,
+    "anchor": [
+      2,
+      2
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "none",
+    "note": "Goblin slingshot stone, round so no facing. Size confirmed by Gon."
+  },
+  {
+    "file": "arrow.png",
+    "size": [
+      13,
+      5
+    ],
+    "frames": 1,
+    "anchor": [
+      6,
+      2
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "left",
+    "note": "Skeleton Archer arrow, tip at x=0 pointing left. Size confirmed by Gon."
+  },
+  {
+    "file": "wyvern.png",
+    "size": [
+      64,
+      56
+    ],
+    "frames": 1,
+    "anchor": [
+      32,
+      28
+    ],
+    "anchor_type": "center",
+    "category": "enemy",
+    "facing": "left",
+    "note": "sine-wave swooper. Drawn facing LEFT because enemies enter from the right; do not flip. v2 Oct 31: darker, more saturated teal for contrast vs sky and crystals. Rescaled redraw",
+    "rescaled": true,
+    "art_bbox": [
+      64,
+      55
+    ]
+  },
+  {
+    "file": "floating_eye_bolt.png",
+    "size": [
+      10,
+      6
+    ],
+    "frames": 1,
+    "anchor": [
+      5,
+      3
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "left",
+    "note": "Floating Eye magic bolt, magenta orb with violet trail behind (right). Faces LEFT, do not flip."
+  },
+  {
+    "file": "wyvern_shot.png",
+    "size": [
+      11,
+      7
+    ],
+    "frames": 1,
+    "anchor": [
+      5,
+      3
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "left",
+    "note": "Wyvern fireball, gold core with red tail behind (right). Faces LEFT, do not flip."
+  },
+  {
+    "file": "slingshot_stone_l2.png",
+    "size": [
+      7,
+      7
+    ],
+    "frames": 1,
+    "anchor": [
+      3,
+      3
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "none",
+    "note": "Goblin slingshot level 2: hardened grey stone with gold band."
+  },
+  {
+    "file": "slingshot_stone_l3.png",
+    "size": [
+      9,
+      9
+    ],
+    "frames": 1,
+    "anchor": [
+      4,
+      4
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "none",
+    "note": "Goblin slingshot level 3: gold-banded stone with crystal core and cyan glow ring."
+  },
+  {
+    "file": "coin.png",
+    "size": [
+      8,
+      8
+    ],
+    "frames": 1,
+    "anchor": [
+      4,
+      4
+    ],
+    "anchor_type": "center",
+    "category": "pickup",
+    "facing": "none",
+    "note": "Goblin loot: gold coin (also usable for Vending Machine coins)."
+  },
+  {
+    "file": "gem.png",
+    "size": [
+      8,
+      8
+    ],
+    "frames": 1,
+    "anchor": [
+      4,
+      4
+    ],
+    "anchor_type": "center",
+    "category": "pickup",
+    "facing": "none",
+    "note": "Goblin loot: pink gem."
+  },
+  {
+    "file": "death_puff.png",
+    "size": [
+      24,
+      24
+    ],
+    "frames": 1,
+    "anchor": [
+      12,
+      12
+    ],
+    "anchor_type": "center",
+    "category": "effect",
+    "facing": "none",
+    "note": "Death/kill puff, one static frame."
+  },
+  {
+    "file": "hit_flash.png",
+    "size": [
+      12,
+      12
+    ],
+    "frames": 1,
+    "anchor": [
+      6,
+      6
+    ],
+    "anchor_type": "center",
+    "category": "effect",
+    "facing": "none",
+    "note": "Hit flash starburst, one static frame."
+  },
+  {
+    "file": "graze_sparkle.png",
+    "size": [
+      9,
+      9
+    ],
+    "frames": 1,
+    "anchor": [
+      4,
+      4
+    ],
+    "anchor_type": "center",
+    "category": "effect",
+    "facing": "none",
+    "note": "Near-miss (graze) sparkle, one static frame."
+  },
+  {
+    "file": "evolved_burst.png",
+    "size": [
+      64,
+      32
+    ],
+    "frames": 1,
+    "anchor": [
+      32,
+      16
+    ],
+    "anchor_type": "center",
+    "category": "effect",
+    "facing": "none",
+    "note": "\"EVOLVED!\" pop with pixel lettering over a gold/pink burst, one static frame."
+  },
+  {
+    "file": "vending_can.png",
+    "size": [
+      10,
+      6
+    ],
+    "frames": 1,
+    "anchor": [
+      5,
+      3
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "right",
+    "note": "Vending Machine 3-way spread shot (soda can, lid end forward). Use 3 copies at -15/0/+15 degrees.",
+    "batch": 3
+  },
+  {
+    "file": "demon_orb_r1.png",
+    "size": [
+      12,
+      12
+    ],
+    "frames": 1,
+    "anchor": [
+      6,
+      6
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "none",
+    "note": "Demon Lord big slow homing orb, rank 1 (12x12); grows per rank; r2 adds violet sparks, r3 adds glow ring and orbiting sparks.",
+    "batch": 3,
+    "form": "demon_lord",
+    "rank": 1
+  },
+  {
+    "file": "demon_orb_r2.png",
+    "size": [
+      14,
+      14
+    ],
+    "frames": 1,
+    "anchor": [
+      7,
+      7
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "none",
+    "note": "Demon Lord big slow homing orb, rank 2 (14x14); grows per rank; r2 adds violet sparks, r3 adds glow ring and orbiting sparks.",
+    "batch": 3,
+    "form": "demon_lord",
+    "rank": 2
+  },
+  {
+    "file": "demon_orb_r3.png",
+    "size": [
+      18,
+      18
+    ],
+    "frames": 1,
+    "anchor": [
+      9,
+      9
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "none",
+    "note": "Demon Lord big slow homing orb, rank 3 (18x18); grows per rank; r2 adds violet sparks, r3 adds glow ring and orbiting sparks.",
+    "batch": 3,
+    "form": "demon_lord",
+    "rank": 3
+  },
+  {
+    "file": "cat_swipe.png",
+    "size": [
+      20,
+      24
+    ],
+    "frames": 1,
+    "anchor": [
+      10,
+      12
+    ],
+    "anchor_type": "center",
+    "category": "effect",
+    "facing": "right",
+    "note": "Cat claw-swipe effect: three crescent slashes in front (right) of the cat. One static frame.",
+    "batch": 3
+  },
+  {
+    "file": "reflected_bullet.png",
+    "size": [
+      10,
+      6
+    ],
+    "frames": 1,
+    "anchor": [
+      5,
+      3
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "right",
+    "note": "Enemy bullet reflected by the Cat: recolored to the player-blue ramp with a gold rim, flies right.",
+    "batch": 3
+  },
+  {
+    "file": "winner_burst.png",
+    "size": [
+      112,
+      48
+    ],
+    "frames": 1,
+    "anchor": [
+      56,
+      24
+    ],
+    "anchor_type": "center",
+    "category": "effect",
+    "facing": "none",
+    "note": "\"WINNER!\" screen-clear burst for the Vending Machine meter, gold pixel lettering over rays and coins. One static frame.",
+    "batch": 3
+  },
+  {
+    "file": "bg_sky.png",
+    "size": [
+      480,
+      270
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "background",
+    "facing": "none",
+    "note": "opaque base layer, slowest. Tiles seamlessly left-right every 480 px. Batch 3 redo: soft dithered gradient + faint cirrus.",
+    "batch": 3,
+    "scroll_factor_suggested": 0.05
+  },
+  {
+    "file": "bg_clouds.png",
+    "size": [
+      480,
+      270
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "background",
+    "facing": "none",
+    "note": "NEW optional 4th layer: soft textured cumulus, transparent, tiles every 480 px. Draw between bg_sky and bg_far.",
+    "batch": 3,
+    "scroll_factor_suggested": 0.15
+  },
+  {
+    "file": "bg_far.png",
+    "size": [
+      480,
+      270
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "background",
+    "facing": "none",
+    "note": "castles, spires, floating islands; transparent above. Tiles seamlessly left-right every 480 px. Batch 3 redo: distant mountains, varied castles (keep, domed palace, cliff fort with bridge, ruins), varied floating islands.",
+    "batch": 3,
+    "scroll_factor_suggested": 0.3
+  },
+  {
+    "file": "bg_near.png",
+    "size": [
+      480,
+      270
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "background",
+    "facing": "none",
+    "note": "hills, treetops, crystals; transparent above. Tiles seamlessly left-right every 480 px. Batch 3 redo: two hill rows with depth, trees/pines/crystals/rocks in several sizes, sparse flowers.",
+    "batch": 3,
+    "scroll_factor_suggested": 0.6
+  },
+  {
+    "file": "slime_r1_idle.png",
+    "frame_size": [
+      24,
+      24
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      12,
+      12
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "slime_r1.png",
+    "motion": "squash-and-wobble (approved r1 pattern: neutral, squash+spread, neutral, stretch+narrow)",
+    "size": [
+      96,
+      24
+    ]
+  },
+  {
+    "file": "slime_r2_idle.png",
+    "frame_size": [
+      28,
+      28
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      14,
+      14
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "batch3/slime_r2.png",
+    "motion": "squash-and-wobble (approved r1 pattern: neutral, squash+spread, neutral, stretch+narrow)",
+    "size": [
+      112,
+      28
+    ]
+  },
+  {
+    "file": "slime_r3_idle.png",
+    "frame_size": [
+      32,
+      32
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      16,
+      16
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "batch3/slime_r3.png",
+    "motion": "squash-and-wobble (approved r1 pattern: neutral, squash+spread, neutral, stretch+narrow)",
+    "size": [
+      128,
+      32
+    ]
+  },
+  {
+    "file": "slime_small_r1_idle.png",
+    "frame_size": [
+      16,
+      16
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      8,
+      8
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form_split",
+    "base_sprite": "slime_small_r1.png",
+    "motion": "squash-and-wobble (approved r1 pattern: neutral, squash+spread, neutral, stretch+narrow)",
+    "size": [
+      64,
+      16
+    ]
+  },
+  {
+    "file": "slime_small_r2_idle.png",
+    "frame_size": [
+      16,
+      16
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      8,
+      8
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form_split",
+    "base_sprite": "slime_small_r2.png",
+    "motion": "squash-and-wobble (approved r1 pattern: neutral, squash+spread, neutral, stretch+narrow)",
+    "size": [
+      64,
+      16
+    ]
+  },
+  {
+    "file": "slime_small_r3_idle.png",
+    "frame_size": [
+      16,
+      16
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      8,
+      8
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form_split",
+    "base_sprite": "slime_small_r3.png",
+    "motion": "squash-and-wobble (approved r1 pattern: neutral, squash+spread, neutral, stretch+narrow)",
+    "size": [
+      64,
+      16
+    ]
+  },
+  {
+    "file": "vending_machine_r1_idle.png",
+    "frame_size": [
+      28,
+      40
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      14,
+      20
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "vending_machine_r1.png",
+    "motion": "1 px clunk on frame 2 + chase light along the sign bulbs (r2/r3 marquee border also blinks)",
+    "size": [
+      112,
+      40
+    ]
+  },
+  {
+    "file": "vending_machine_r2_idle.png",
+    "frame_size": [
+      32,
+      44
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      16,
+      22
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "vending_machine_r2.png",
+    "motion": "1 px clunk on frame 2 + chase light along the sign bulbs (r2/r3 marquee border also blinks)",
+    "size": [
+      128,
+      44
+    ]
+  },
+  {
+    "file": "vending_machine_r3_idle.png",
+    "frame_size": [
+      36,
+      48
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      18,
+      24
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "vending_machine_r3.png",
+    "motion": "1 px clunk on frame 2 + chase light along the sign bulbs (r2/r3 marquee border also blinks)",
+    "size": [
+      144,
+      48
+    ]
+  },
+  {
+    "file": "goblin_r1_idle.png",
+    "frame_size": [
+      28,
+      32
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      14,
+      16
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "goblin_r1.png",
+    "motion": "breathing: head/torso dip 1 px on frames 2-3",
+    "size": [
+      112,
+      32
+    ]
+  },
+  {
+    "file": "goblin_r2_idle.png",
+    "frame_size": [
+      32,
+      36
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      16,
+      18
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "goblin_r2.png",
+    "motion": "breathing: head/torso dip 1 px on frames 2-3",
+    "size": [
+      128,
+      36
+    ]
+  },
+  {
+    "file": "goblin_r3_idle.png",
+    "frame_size": [
+      36,
+      40
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      18,
+      20
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "goblin_r3.png",
+    "motion": "breathing: head/torso dip 1 px on frames 2-3",
+    "size": [
+      144,
+      40
+    ]
+  },
+  {
+    "file": "cat_r1_idle.png",
+    "frame_size": [
+      24,
+      24
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      12,
+      12
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "cat_r1.png",
+    "motion": "tail-tip flick 0/1/2/1 px",
+    "size": [
+      96,
+      24
+    ]
+  },
+  {
+    "file": "cat_r2_idle.png",
+    "frame_size": [
+      28,
+      28
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      14,
+      14
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "cat_r2.png",
+    "motion": "tail-tip flick 0/1/2/1 px",
+    "size": [
+      112,
+      28
+    ]
+  },
+  {
+    "file": "cat_r3_idle.png",
+    "frame_size": [
+      32,
+      32
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      16,
+      16
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "batch3/cat_r3.png",
+    "motion": "tail-tip flick 0/1/2/1 px",
+    "size": [
+      128,
+      32
+    ]
+  },
+  {
+    "file": "demon_lord_r1_idle.png",
+    "frame_size": [
+      40,
+      44
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      20,
+      22
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "demon_lord_r1.png",
+    "motion": "breathing dip 1 px + orb glow pulse",
+    "size": [
+      160,
+      44
+    ]
+  },
+  {
+    "file": "demon_lord_r2_idle.png",
+    "frame_size": [
+      44,
+      48
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      22,
+      24
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "demon_lord_r2.png",
+    "motion": "breathing dip 1 px + orb glow pulse",
+    "size": [
+      176,
+      48
+    ]
+  },
+  {
+    "file": "demon_lord_r3_idle.png",
+    "frame_size": [
+      54,
+      52
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      27,
+      26
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "batch3/demon_lord_r3.png",
+    "motion": "breathing dip 1 px + orb glow pulse",
+    "size": [
+      216,
+      52
+    ]
+  },
+  {
+    "file": "dire_wolf_idle.png",
+    "frame_size": [
+      56,
+      40
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      28,
+      20
+    ],
+    "anchor_type": "center",
+    "facing": "left",
+    "category": "enemy",
+    "base_sprite": "dire_wolf.png",
+    "motion": "panting: head/back dip 1 px on frames 2-3",
+    "size": [
+      224,
+      40
+    ]
+  },
+  {
+    "file": "floating_eye_idle.png",
+    "frame_size": [
+      20,
+      20
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      10,
+      10
+    ],
+    "anchor_type": "center",
+    "facing": "left",
+    "category": "enemy",
+    "base_sprite": "batch3/floating_eye.png",
+    "motion": "iris glow pulse + 1 px hover bob",
+    "size": [
+      80,
+      20
+    ]
+  },
+  {
+    "file": "skeleton_archer_idle.png",
+    "frame_size": [
+      28,
+      44
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      14,
+      44
+    ],
+    "anchor_type": "bottom_center",
+    "facing": "left",
+    "category": "enemy",
+    "base_sprite": "batch3/skeleton_archer.png",
+    "motion": "breathing dip 1 px + bow sways 1 px forward (frames 3-4)",
+    "size": [
+      112,
+      44
+    ]
+  },
+  {
+    "file": "wyvern_idle.png",
+    "frame_size": [
+      64,
+      56
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      32,
+      28
+    ],
+    "anchor_type": "center",
+    "facing": "left",
+    "category": "enemy",
+    "base_sprite": "wyvern.png",
+    "motion": "wing flap: wing folds down toward its root (100/80/62/80 %)",
+    "size": [
+      256,
+      56
+    ]
+  },
+  {
+    "file": "title_cards/title_slime.png",
+    "size": [
+      480,
+      270
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "category": "title_card",
+    "form": "slime",
+    "name": "SLIME",
+    "gag": "SQUISH."
+  },
+  {
+    "file": "title_cards/title_vending_machine.png",
+    "size": [
+      480,
+      270
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "category": "title_card",
+    "form": "vending_machine",
+    "name": "VENDING MACHINE",
+    "gag": "CLUNK."
+  },
+  {
+    "file": "title_cards/title_goblin.png",
+    "size": [
+      480,
+      270
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "category": "title_card",
+    "form": "goblin",
+    "name": "GOBLIN",
+    "gag": "NICE CROWN."
+  },
+  {
+    "file": "title_cards/title_cat.png",
+    "size": [
+      480,
+      270
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "category": "title_card",
+    "form": "cat",
+    "name": "CAT (EX-CEO)",
+    "gag": "ADJOURNED."
+  },
+  {
+    "file": "title_cards/title_demon_lord.png",
+    "size": [
+      480,
+      270
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "category": "title_card",
+    "form": "demon_lord",
+    "name": "DEMON LORD",
+    "gag": "KNEEL."
+  }
+]
