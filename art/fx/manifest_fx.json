@@ -8,19 +8,19 @@
   {
    "file": "forms/slime_r1_flash.png",
    "size": [
-    26,
-    26
+    28,
+    28
    ],
    "frames": 1,
    "frame_size": [
-    26,
-    26
+    28,
+    28
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    13,
-    13
+    14,
+    14
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -30,19 +30,19 @@
   {
    "file": "forms/slime_r1_rim.png",
    "size": [
-    26,
-    26
+    28,
+    28
    ],
    "frames": 1,
    "frame_size": [
-    26,
-    26
+    28,
+    28
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    13,
-    13
+    14,
+    14
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -52,19 +52,19 @@
   {
    "file": "forms/slime_r2_flash.png",
    "size": [
-    30,
-    30
+    32,
+    32
    ],
    "frames": 1,
    "frame_size": [
-    30,
-    30
+    32,
+    32
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    15,
-    15
+    16,
+    16
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -74,19 +74,19 @@
   {
    "file": "forms/slime_r2_rim.png",
    "size": [
-    30,
-    30
+    32,
+    32
    ],
    "frames": 1,
    "frame_size": [
-    30,
-    30
+    32,
+    32
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    15,
-    15
+    16,
+    16
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -96,19 +96,19 @@
   {
    "file": "forms/slime_r3_flash.png",
    "size": [
-    34,
-    34
+    36,
+    36
    ],
    "frames": 1,
    "frame_size": [
-    34,
-    34
+    36,
+    36
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    17,
-    17
+    18,
+    18
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -118,19 +118,19 @@
   {
    "file": "forms/slime_r3_rim.png",
    "size": [
-    34,
-    34
+    36,
+    36
    ],
    "frames": 1,
    "frame_size": [
-    34,
-    34
+    36,
+    36
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    17,
-    17
+    18,
+    18
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -140,19 +140,19 @@
   {
    "file": "forms/vending_machine_r1_flash.png",
    "size": [
-    30,
-    42
+    32,
+    44
    ],
    "frames": 1,
    "frame_size": [
-    30,
-    42
+    32,
+    44
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    15,
-    21
+    16,
+    22
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -162,19 +162,19 @@
   {
    "file": "forms/vending_machine_r1_rim.png",
    "size": [
-    30,
-    42
+    32,
+    44
    ],
    "frames": 1,
    "frame_size": [
-    30,
-    42
+    32,
+    44
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    15,
-    21
+    16,
+    22
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -184,19 +184,19 @@
   {
    "file": "forms/vending_machine_r2_flash.png",
    "size": [
-    34,
-    46
+    36,
+    48
    ],
    "frames": 1,
    "frame_size": [
-    34,
-    46
+    36,
+    48
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    17,
-    23
+    18,
+    24
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -206,19 +206,19 @@
   {
    "file": "forms/vending_machine_r2_rim.png",
    "size": [
-    34,
-    46
+    36,
+    48
    ],
    "frames": 1,
    "frame_size": [
-    34,
-    46
+    36,
+    48
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    17,
-    23
+    18,
+    24
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -228,19 +228,19 @@
   {
    "file": "forms/vending_machine_r3_flash.png",
    "size": [
-    38,
-    50
+    40,
+    52
    ],
    "frames": 1,
    "frame_size": [
-    38,
-    50
+    40,
+    52
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    19,
-    25
+    20,
+    26
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -250,19 +250,19 @@
   {
    "file": "forms/vending_machine_r3_rim.png",
    "size": [
-    38,
-    50
+    40,
+    52
    ],
    "frames": 1,
    "frame_size": [
-    38,
-    50
+    40,
+    52
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    19,
-    25
+    20,
+    26
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -272,19 +272,19 @@
   {
    "file": "forms/goblin_r1_flash.png",
    "size": [
-    30,
-    34
+    32,
+    36
    ],
    "frames": 1,
    "frame_size": [
-    30,
-    34
+    32,
+    36
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    15,
-    17
+    16,
+    18
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -294,19 +294,19 @@
   {
    "file": "forms/goblin_r1_rim.png",
    "size": [
-    30,
-    34
+    32,
+    36
    ],
    "frames": 1,
    "frame_size": [
-    30,
-    34
+    32,
+    36
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    15,
-    17
+    16,
+    18
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -316,19 +316,19 @@
   {
    "file": "forms/goblin_r2_flash.png",
    "size": [
-    34,
-    38
+    36,
+    40
    ],
    "frames": 1,
    "frame_size": [
-    34,
-    38
+    36,
+    40
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    17,
-    19
+    18,
+    20
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -338,19 +338,19 @@
   {
    "file": "forms/goblin_r2_rim.png",
    "size": [
-    34,
-    38
+    36,
+    40
    ],
    "frames": 1,
    "frame_size": [
-    34,
-    38
+    36,
+    40
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    17,
-    19
+    18,
+    20
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -360,19 +360,19 @@
   {
    "file": "forms/goblin_r3_flash.png",
    "size": [
-    38,
-    42
+    40,
+    44
    ],
    "frames": 1,
    "frame_size": [
-    38,
-    42
+    40,
+    44
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    19,
-    21
+    20,
+    22
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -382,19 +382,19 @@
   {
    "file": "forms/goblin_r3_rim.png",
    "size": [
-    38,
-    42
+    40,
+    44
    ],
    "frames": 1,
    "frame_size": [
-    38,
-    42
+    40,
+    44
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    19,
-    21
+    20,
+    22
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -404,19 +404,19 @@
   {
    "file": "forms/cat_r1_flash.png",
    "size": [
-    26,
-    26
+    28,
+    28
    ],
    "frames": 1,
    "frame_size": [
-    26,
-    26
+    28,
+    28
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    13,
-    13
+    14,
+    14
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -426,19 +426,19 @@
   {
    "file": "forms/cat_r1_rim.png",
    "size": [
-    26,
-    26
+    28,
+    28
    ],
    "frames": 1,
    "frame_size": [
-    26,
-    26
+    28,
+    28
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    13,
-    13
+    14,
+    14
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -448,19 +448,19 @@
   {
    "file": "forms/cat_r2_flash.png",
    "size": [
-    30,
-    30
+    32,
+    32
    ],
    "frames": 1,
    "frame_size": [
-    30,
-    30
+    32,
+    32
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    15,
-    15
+    16,
+    16
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -470,19 +470,19 @@
   {
    "file": "forms/cat_r2_rim.png",
    "size": [
-    30,
-    30
+    32,
+    32
    ],
    "frames": 1,
    "frame_size": [
-    30,
-    30
+    32,
+    32
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    15,
-    15
+    16,
+    16
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -492,19 +492,19 @@
   {
    "file": "forms/cat_r3_flash.png",
    "size": [
-    34,
-    34
+    36,
+    36
    ],
    "frames": 1,
    "frame_size": [
-    34,
-    34
+    36,
+    36
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    17,
-    17
+    18,
+    18
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -514,19 +514,19 @@
   {
    "file": "forms/cat_r3_rim.png",
    "size": [
-    34,
-    34
+    36,
+    36
    ],
    "frames": 1,
    "frame_size": [
-    34,
-    34
+    36,
+    36
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    17,
-    17
+    18,
+    18
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -536,19 +536,19 @@
   {
    "file": "forms/demon_lord_r1_flash.png",
    "size": [
-    42,
-    46
+    44,
+    48
    ],
    "frames": 1,
    "frame_size": [
-    42,
-    46
+    44,
+    48
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    21,
-    23
+    22,
+    24
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -558,19 +558,19 @@
   {
    "file": "forms/demon_lord_r1_rim.png",
    "size": [
-    42,
-    46
+    44,
+    48
    ],
    "frames": 1,
    "frame_size": [
-    42,
-    46
+    44,
+    48
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    21,
-    23
+    22,
+    24
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -580,19 +580,19 @@
   {
    "file": "forms/demon_lord_r2_flash.png",
    "size": [
-    46,
-    50
+    48,
+    52
    ],
    "frames": 1,
    "frame_size": [
-    46,
-    50
+    48,
+    52
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    23,
-    25
+    24,
+    26
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -602,19 +602,19 @@
   {
    "file": "forms/demon_lord_r2_rim.png",
    "size": [
-    46,
-    50
+    48,
+    52
    ],
    "frames": 1,
    "frame_size": [
-    46,
-    50
+    48,
+    52
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    23,
-    25
+    24,
+    26
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -624,19 +624,19 @@
   {
    "file": "forms/demon_lord_r3_flash.png",
    "size": [
-    56,
-    54
+    58,
+    56
    ],
    "frames": 1,
    "frame_size": [
-    56,
-    54
+    58,
+    56
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    28,
-    27
+    29,
+    28
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -646,19 +646,19 @@
   {
    "file": "forms/demon_lord_r3_rim.png",
    "size": [
-    56,
-    54
+    58,
+    56
    ],
    "frames": 1,
    "frame_size": [
-    56,
-    54
+    58,
+    56
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    28,
-    27
+    29,
+    28
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -668,19 +668,19 @@
   {
    "file": "forms/slime_small_r1_flash.png",
    "size": [
-    18,
-    18
+    20,
+    20
    ],
    "frames": 1,
    "frame_size": [
-    18,
-    18
+    20,
+    20
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    9,
-    9
+    10,
+    10
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -690,19 +690,19 @@
   {
    "file": "forms/slime_small_r1_rim.png",
    "size": [
-    18,
-    18
+    20,
+    20
    ],
    "frames": 1,
    "frame_size": [
-    18,
-    18
+    20,
+    20
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    9,
-    9
+    10,
+    10
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -712,19 +712,19 @@
   {
    "file": "forms/slime_small_r2_flash.png",
    "size": [
-    18,
-    18
+    24,
+    24
    ],
    "frames": 1,
    "frame_size": [
-    18,
-    18
+    24,
+    24
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    9,
-    9
+    12,
+    12
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -734,19 +734,19 @@
   {
    "file": "forms/slime_small_r2_rim.png",
    "size": [
-    18,
-    18
+    24,
+    24
    ],
    "frames": 1,
    "frame_size": [
-    18,
-    18
+    24,
+    24
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    9,
-    9
+    12,
+    12
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -756,19 +756,19 @@
   {
    "file": "forms/slime_small_r3_flash.png",
    "size": [
-    18,
-    18
+    28,
+    28
    ],
    "frames": 1,
    "frame_size": [
-    18,
-    18
+    28,
+    28
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    9,
-    9
+    14,
+    14
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -778,19 +778,19 @@
   {
    "file": "forms/slime_small_r3_rim.png",
    "size": [
-    18,
-    18
+    28,
+    28
    ],
    "frames": 1,
    "frame_size": [
-    18,
-    18
+    28,
+    28
    ],
    "fps": 12,
    "loop": false,
    "anchor": [
-    9,
-    9
+    14,
+    14
    ],
    "anchor_type": "center",
    "category": "fx_form_overlay",
@@ -837,7 +837,7 @@
    ],
    "anchor_type": "center",
    "category": "fx",
-   "use": "death 2 POP for forms up to 32 px: form centre, frames 2-4, form hidden"
+   "use": "death 2 POP for forms up to 34 px: form centre, frames 2-4, form hidden"
   },
   {
    "file": "fx_death_pop_l.png",

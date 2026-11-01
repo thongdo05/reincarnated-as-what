@@ -80,8 +80,14 @@ static func loop_file(base_file: String) -> String:
 
 ## Circle radius whose diameter is pct of the average art-box side.
 ## pct stays inside 0.50-0.65 so the hitbox is smaller than the sprite.
+## Ringed player forms store was_art_bbox. A radius taken from the box uses
+## that pre-ring measurement, so the outline does not change the result.
 static func radius_for(file_name: String, pct: float) -> float:
+	var data := entry(file_name)
 	var box := art_bbox(file_name)
+	if data.has("was_art_bbox"):
+		var old: Array = data["was_art_bbox"]
+		box = Vector2(float(old[0]), float(old[1]))
 	var band := clampf(pct, 0.50, 0.65)
 	return band * (box.x + box.y) * 0.25
 

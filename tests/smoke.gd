@@ -280,6 +280,13 @@ func _check_art() -> int:
 		if absf(got.x - float(anchor[0])) > 0.01 or absf(got.y - float(anchor[1])) > 0.01:
 			push_error("anchor mismatch for %s" % file_name)
 			failed += 1
+		var category := str(entry.get("category", ""))
+		if category == "player_form" or category == "player_form_split" or category == "fx_form_overlay":
+			var tex := ArtLibrary.texture(file_name)
+			var size: Array = entry["size"]
+			if tex == null or tex.get_width() != int(size[0]) or tex.get_height() != int(size[1]):
+				push_error("%s did not import at its manifest size" % file_name)
+				failed += 1
 	for parked in ["vending_machine_r1.png", "vending_machine_r3.png", "cat_r2.png", "demon_lord_r1.png", "demon_lord_r3.png"]:
 		if not ArtLibrary.has_file(parked):
 			push_error("parked form art missing: %s" % parked)
@@ -326,6 +333,11 @@ func _check_art() -> int:
 					failed += 1
 	if FormCatalog.core_radius(FormCatalog.Id.SLIME, 0, false) <= FormCatalog.core_radius(FormCatalog.Id.GOBLIN, 0, false):
 		push_error("slime's hitbox should stay larger than the goblin's")
+		failed += 1
+	var kept := ArtLibrary.radius_for("vending_machine_r1.png", 0.62)
+	var from_old := 0.62 * (23.0 + 40.0) * 0.25
+	if absf(kept - from_old) > 0.01:
+		push_error("a radius taken from art_bbox should stay on the pre-ring box")
 		failed += 1
 	var wolf := SpawnDirector.body_radius(SpawnDirector.WOLF)
 	var eye := SpawnDirector.body_radius(SpawnDirector.EYE)
@@ -718,6 +730,11 @@ func _check_shapes() -> int:
 	for rank in 3:
 		var slime_r := HitLibrary.max_part_radius(str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, rank)["sprite"]), "hurt")
 		var goblin_r := HitLibrary.max_part_radius(str(FormCatalog.rank_spec(FormCatalog.Id.GOBLIN, rank)["sprite"]), "hurt")
+		var full_expect: float = [5.5, 6.4, 7.3][rank]
+		var goblin_expect: float = [4.6, 5.2, 5.8][rank]
+		if absf(slime_r - full_expect) > 0.01 or absf(goblin_r - goblin_expect) > 0.01:
+			push_error("full-form cores should stay put (slime %s goblin %s)" % [slime_r, goblin_r])
+			failed += 1
 		if slime_r <= goblin_r:
 			push_error("the slime core should stay a bigger target than the goblin")
 			failed += 1
@@ -730,6 +747,10 @@ func _check_shapes() -> int:
 		var small_r := HitLibrary.max_part_radius(str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, rank)["sprite_small"]), "hurt")
 		if small_r >= slime_r:
 			push_error("the split slime core should be smaller")
+			failed += 1
+		var split_expect: float = [3.6, 4.5, 5.4][rank]
+		if absf(small_r - split_expect) > 0.01:
+			push_error("split slime r%d hurt radius should be %.1f, got %s" % [rank + 1, split_expect, small_r])
 			failed += 1
 		prev_slime = slime_r
 		prev_goblin = goblin_r
@@ -1279,11 +1300,21 @@ func _check_death_sequence() -> int:
 		if stage != str(sample[1]):
 			push_error("death t=%.3f should be %s, got %s" % [float(sample[0]), sample[1], stage])
 			failed += 1
-	if FxTimeline.pop_file(Vector2(24, 24)) != "fx/fx_death_pop_s.png" or FxTimeline.pop_file(Vector2(32, 32)) != "fx/fx_death_pop_s.png":
-		push_error("forms up to 32 px should pop small")
+	if FxTimeline.pop_file(Vector2(24, 24)) != "fx/fx_death_pop_s.png" or FxTimeline.pop_file(Vector2(34, 34)) != "fx/fx_death_pop_s.png":
+		push_error("forms up to 34 px should pop small")
 		failed += 1
-	if FxTimeline.pop_file(Vector2(32, 36)) != "fx/fx_death_pop_l.png" or FxTimeline.pop_file(Vector2(40, 48)) != "fx/fx_death_pop_l.png":
+	if FxTimeline.pop_file(Vector2(35, 34)) != "fx/fx_death_pop_l.png" or FxTimeline.pop_file(Vector2(40, 48)) != "fx/fx_death_pop_l.png":
 		push_error("big forms should pop large")
+		failed += 1
+	if FxTimeline.pop_file(ArtLibrary.art_bbox("slime_r3.png")) != "fx/fx_death_pop_s.png":
+		push_error("ringed slime r3 should keep the small death pop")
+		failed += 1
+	if FxTimeline.pop_file(ArtLibrary.art_bbox("cat_r3.png")) != "fx/fx_death_pop_s.png":
+		push_error("cat r3 should keep the small death pop")
+		failed += 1
+	var cat_size: Array = ArtLibrary.entry("cat_r3.png")["size"]
+	if FxTimeline.pop_file(Vector2(float(cat_size[0]), float(cat_size[1]))) != "fx/fx_death_pop_s.png":
+		push_error("cat r3 frame size should still pop small")
 		failed += 1
 	for crowned in ["goblin_r1.png", "goblin_r2.png", "goblin_r3.png", "cat_r3.png", "demon_lord_r3.png", "slime_r3.png", "slime_small_r3.png"]:
 		if not FxTimeline.wears_crown(crowned):

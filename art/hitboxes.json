@@ -12,10 +12,10 @@
     "hurt": [{ "type": "circle", "center": [0, 0], "r": 3.6 }]
   },
   "slime_small_r2.png": {
-    "hurt": [{ "type": "circle", "center": [0, 0], "r": 3.6 }]
+    "hurt": [{ "type": "circle", "center": [0, 0], "r": 4.5 }]
   },
   "slime_small_r3.png": {
-    "hurt": [{ "type": "circle", "center": [0, 0], "r": 3.6 }]
+    "hurt": [{ "type": "circle", "center": [0, 0], "r": 5.4 }]
   },
   "goblin_r1.png": {
     "hurt": [{ "type": "circle", "center": [1, 4], "r": 4.6 }]
