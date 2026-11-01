@@ -157,5 +157,13 @@ static func checksum(image: Image) -> int:
 			acc = (acc + red * 3 + green * 5 + blue * 7 + x * 11 + y * 13) & 0xFFFFFFFF
 	return acc
 
+static func plain_atlas() -> Image:
+	_ensure()
+	return _plain_img
+
+static func plain_glyphs() -> Dictionary:
+	_ensure()
+	return _plain["glyphs"]
+
 static func _key(x: int, y: int) -> int:
 	return y * 8192 + x

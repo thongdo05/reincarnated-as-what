@@ -60,6 +60,7 @@ var _best_label: Label
 var _seed_label: Label
 var _death_kicker: Label
 var _restart_button: Button
+var _share_button: Button
 var _rotate: Control
 var _paused := false
 var _pause_button: Button
@@ -224,6 +225,26 @@ func _build_hud() -> void:
 	_restart_button.add_theme_font_size_override("font_size", 18)
 	_restart_button.pressed.connect(_on_restart)
 	_game_over.add_child(_restart_button)
+	_share_button = Button.new()
+	_share_button.text = "Share"
+	_share_button.focus_mode = Control.FOCUS_NONE
+	_share_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	var share_style := StyleBoxFlat.new()
+	share_style.bg_color = Color("241428")
+	share_style.set_border_width_all(2)
+	share_style.border_color = Color("f2fbff")
+	share_style.set_corner_radius_all(4)
+	_share_button.add_theme_stylebox_override("normal", share_style)
+	_share_button.add_theme_stylebox_override("hover", share_style)
+	_share_button.add_theme_stylebox_override("pressed", share_style)
+	_share_button.add_theme_stylebox_override("focus", share_style)
+	_share_button.add_theme_font_override("font", _font_outlined)
+	_share_button.add_theme_color_override("font_color", Color("f2fbff"))
+	_share_button.add_theme_color_override("font_hover_color", Color("f2fbff"))
+	_share_button.add_theme_color_override("font_pressed_color", Color("f2fbff"))
+	_share_button.add_theme_font_size_override("font_size", 18)
+	_share_button.pressed.connect(_on_share)
+	_game_over.add_child(_share_button)
 	_layout_death_card()
 
 	_rotate = Control.new()
@@ -698,10 +719,22 @@ func _layout_death_card() -> void:
 	if _restart_button == null or _share_label == null:
 		return
 	var field := _viewport_size()
-	var button_size := Vector2(minf(280.0, field.x - 24.0), 56.0)
 	var margin := 10.0
-	var button_pos := Vector2((field.x - button_size.x) * 0.5, field.y - margin - button_size.y)
-	_place_death_control(_restart_button, button_pos, button_size)
+	var share_w := 120.0
+	var gap := 8.0
+	var reinc_w := minf(220.0, field.x - 24.0 - share_w - gap)
+	reinc_w = maxf(reinc_w, minf(200.0, field.x - 24.0))
+	var button_h := 56.0
+	var row_w := share_w + gap + reinc_w
+	if row_w > field.x - 8.0:
+		share_w = 96.0
+		reinc_w = minf(200.0, field.x - 16.0 - share_w - gap)
+		row_w = share_w + gap + reinc_w
+	var row_x := (field.x - row_w) * 0.5
+	var button_pos := Vector2(row_x + share_w + gap, field.y - margin - button_h)
+	_place_death_control(_restart_button, button_pos, Vector2(reinc_w, button_h))
+	if _share_button != null:
+		_place_death_control(_share_button, Vector2(row_x, button_pos.y), Vector2(share_w, button_h))
 	var text_width := minf(448.0, field.x - 16.0)
 	var text_left := (field.x - text_width) * 0.5
 	var text_top := 8.0
@@ -709,20 +742,20 @@ func _layout_death_card() -> void:
 	var text_height := maxf(text_bottom - text_top, 48.0)
 	var kicker_h := 18.0
 	var seed_h := 16.0
-	var gap := 4.0
-	var flexible := maxf(text_height - kicker_h - seed_h - gap * 3.0, 36.0)
+	var text_gap := 4.0
+	var flexible := maxf(text_height - kicker_h - seed_h - text_gap * 3.0, 36.0)
 	_fit_wrapped_label(_share_label, text_width, flexible * 0.68, 18, 9)
 	_fit_wrapped_label(_best_label, text_width, flexible * 0.32, 9, 9)
 	var share_h := _wrapped_height(_share_label.text, text_width, _death_font_size(_share_label))
 	var best_h := _wrapped_height(_best_label.text, text_width, _death_font_size(_best_label))
-	var used := kicker_h + share_h + best_h + seed_h + gap * 3.0
+	var used := kicker_h + share_h + best_h + seed_h + text_gap * 3.0
 	var y := text_top + maxf(text_height - used, 0.0) * 0.5
 	_place_death_control(_death_kicker, Vector2(text_left, y), Vector2(text_width, kicker_h))
-	y += kicker_h + gap
+	y += kicker_h + text_gap
 	_place_death_control(_share_label, Vector2(text_left, y), Vector2(text_width, share_h))
-	y += share_h + gap
+	y += share_h + text_gap
 	_place_death_control(_best_label, Vector2(text_left, y), Vector2(text_width, best_h))
-	y += best_h + gap
+	y += best_h + text_gap
 	_place_death_control(_seed_label, Vector2(text_left, y), Vector2(text_width, seed_h))
 
 func _place_death_control(control: Control, pos: Vector2, control_size: Vector2) -> void:
@@ -789,6 +822,38 @@ func _refresh_hud() -> void:
 		rank_index,
 		HudLayout.fill_px(evo_points, rank_index)
 	)
+
+func share_run() -> Dictionary:
+	return {
+		"form": ShareCard.form_key(form_id),
+		"rank_reached": rank_index + 1,
+		"time": ScoreRules.format_time(elapsed),
+		"score": score,
+		"killer": ShareCard.killer_id(killer_name),
+	}
+
+func _on_share() -> void:
+	var run := share_run()
+	var image := ShareCard.render(run)
+	var text := ScoreRules.share_line(
+		str(ShareCard.resolve(run)["form_name"]),
+		str(ShareCard.resolve(run)["rank_name"]),
+		elapsed,
+		killer_name,
+		score
+	)
+	if OS.has_feature("web"):
+		var encoded := Marshalls.raw_to_base64(image.save_png_to_buffer())
+		var call := "shareRunCard(%s,%s,%s)" % [
+			JSON.stringify(encoded),
+			JSON.stringify("reincarnated.png"),
+			JSON.stringify(text),
+		]
+		JavaScriptBridge.eval(call, true)
+		return
+	var path := "user://reincarnated.png"
+	image.save_png(path)
+	print("Saved share card to %s" % ProjectSettings.globalize_path(path))
 
 func _on_restart() -> void:
 	get_tree().reload_current_scene()

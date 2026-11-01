@@ -22,6 +22,7 @@ func _initialize() -> void:
 	_unit_failed += _check_loot()
 	_unit_failed += _check_hud()
 	_unit_failed += _check_death_sequence()
+	_unit_failed += _check_share_card()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -1214,6 +1215,69 @@ func _check_death_play() -> int:
 		failed += 1
 	root.remove_child(game)
 	game.free()
+	return failed
+
+func _check_share_card() -> int:
+	var failed := 0
+	if ShareCard.killer_id("falling piano") != "piano" or ShareCard.killer_id("Dire Wolf") != "dire_wolf":
+		push_error("killer names should map onto the share-card ids")
+		failed += 1
+	if ShareCard.form_key(FormCatalog.Id.SLIME) != "slime" or ShareCard.form_key(FormCatalog.Id.GOBLIN) != "goblin":
+		push_error("playable forms should map onto the share-card config")
+		failed += 1
+	var fields := ShareCard.resolve({
+		"form": "slime",
+		"rank_reached": 2,
+		"time": "0:12",
+		"score": 100,
+		"killer": "piano",
+	})
+	if str(fields["form_name"]) != "SLIME" or str(fields["rank_name"]) != "GEL KNIGHT":
+		push_error("share card should name the form and the rank reached")
+		failed += 1
+	if str(fields["time"]) != "0:12" or str(fields["score"]) != "100" or str(fields["killer_label"]) != "PIANO":
+		push_error("share card should keep time, score, and the killer label")
+		failed += 1
+	if str(fields["sprite"]) != "slime_r2.png" or str(fields["gag"]) != "Struck a final chord.":
+		push_error("share card should use the reached sprite and the killer's gag")
+		failed += 1
+	var king := ShareCard.resolve({
+		"form": "goblin",
+		"rank_reached": 3,
+		"time": "1:42",
+		"score": 4210,
+		"killer": "skeleton_archer",
+	})
+	if str(king["rank_name"]) != "GOBLIN KING" or str(king["killer_label"]) != "ARCHER" or str(king["gag"]) != "The crown fell off.":
+		push_error("goblin rank 3 should read GOBLIN KING, died to ARCHER")
+		failed += 1
+	var low := ShareCard.render_base({
+		"form": "slime",
+		"rank_reached": 1,
+		"time": "0:05",
+		"score": 100,
+		"killer": "floating_eye",
+	})
+	var high := ShareCard.render_base({
+		"form": "slime",
+		"rank_reached": 1,
+		"time": "0:05",
+		"score": 9999,
+		"killer": "floating_eye",
+	})
+	if low.get_width() != 270 or PixelFont.checksum(low) == PixelFont.checksum(high):
+		push_error("the score field should change the card")
+		failed += 1
+	var exported := ShareCard.render({
+		"form": "goblin",
+		"rank_reached": 3,
+		"time": "1:42",
+		"score": 4210,
+		"killer": "skeleton_archer",
+	})
+	if exported.get_width() != 1080 or exported.get_height() != 1080:
+		push_error("share card should export at 1080")
+		failed += 1
 	return failed
 
 func _check_evolve_play() -> int:

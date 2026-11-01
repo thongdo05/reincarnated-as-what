@@ -1,0 +1,96 @@
+{
+ "canvas": {
+  "base": [
+   270,
+   270
+  ],
+  "export_scale": 4,
+  "export": [
+   1080,
+   1080
+  ],
+  "note": "draw at 270x270 with nearest filtering, export at 4x; all coordinates below are base px"
+ },
+ "font": {
+  "small_labels": "font_kaito5x7_outlined (1x, #f2fbff, ink shadow)",
+  "big_values": "title-card lettering (font_kaito5x7 caps/digits at 2x or 3x, 2 px ink outline, gold ramp, coloured extrude)",
+  "gag": "font_kaito5x7 at 2x with ink outline, #ffbcea, #eb31bc shadow (drops to 1x if wider than 262 px)"
+ },
+ "regions": {
+  "brand_ribbon": {
+   "rect": [
+    0,
+    0,
+    270,
+    39
+   ],
+   "content": "static: logo 'REINCARNATED AS / WHAT?!'"
+  },
+  "hero": {
+   "centre": [
+    64,
+    104
+   ],
+   "ground_y": 152,
+   "content": "dynamic: sprite of highest rank reached, integer scale fitting 112x112, 2 px ink ring, burst in form colours"
+  },
+  "right_column": {
+   "centre_x": 191,
+   "y_range": [
+    41,
+    162
+   ],
+   "content": "REBORN AS / form name (dynamic, on ink plate; 3x, else 2x, else 2 lines at 2x) / REACHED + 3 rank tiles (lit = rank reached) / rank name (dynamic; 2x, else 2 lines at 2x)",
+   "max_text_width": 150
+  },
+  "stat_lasted": {
+   "rect": [
+    6,
+    164,
+    80,
+    236
+   ],
+   "value_centre": [
+    43,
+    190
+   ],
+   "format": "M:SS"
+  },
+  "stat_score": {
+   "rect": [
+    80,
+    164,
+    188,
+    236
+   ],
+   "value_centre": [
+    134,
+    190
+   ],
+   "format": "thousands comma, e.g. 4,210; 3x if <=104 px wide else 2x"
+  },
+  "stat_died_to": {
+   "rect": [
+    188,
+    164,
+    263,
+    236
+   ],
+   "content": "dynamic: killer sprite (1x, max 44 px tall, cropped if taller) + short label at y 226"
+  },
+  "gag": {
+   "centre_x": 135,
+   "y": 241,
+   "content": "dynamic: gag line, max 262 px wide"
+  }
+ },
+ "dynamic_fields": [
+  "form",
+  "rank_reached (1-3)",
+  "time",
+  "score",
+  "killer",
+  "gag"
+ ],
+ "config_file": "share_cards_config.json"
+}

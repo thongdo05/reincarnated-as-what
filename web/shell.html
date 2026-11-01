@@ -180,6 +180,32 @@ body {
 				event.preventDefault();
 			});
 		</script>
+		<script>
+			window.shareRunCard = function (b64, filename, text) {
+				var binary = atob(b64);
+				var bytes = new Uint8Array(binary.length);
+				for (var i = 0; i < binary.length; i++) {
+					bytes[i] = binary.charCodeAt(i);
+				}
+				var file = new File([bytes], filename, { type: "image/png" });
+				function download() {
+					var url = URL.createObjectURL(file);
+					var link = document.createElement("a");
+					link.href = url;
+					link.download = filename;
+					document.body.appendChild(link);
+					link.click();
+					link.remove();
+					setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+				}
+				var payload = { files: [file], title: "Reincarnated as WHAT?!", text: text };
+				if (navigator.canShare && navigator.canShare(payload)) {
+					navigator.share(payload).catch(function () { download(); });
+				} else {
+					download();
+				}
+			};
+		</script>
 		<script src="$GODOT_URL"></script>
 		<script>
 const GODOT_CONFIG = $GODOT_CONFIG;
