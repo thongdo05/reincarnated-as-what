@@ -8,7 +8,7 @@ class_name PlayerShip
 var form_id := FormCatalog.Id.SLIME
 var aim := Vector2.ZERO
 var velocity := Vector2.ZERO
-var radius := FormCatalog.SLIME_HIT_RADIUS
+var radius := 8.0
 var alive := true
 var invulnerable := true
 var stride := 0.0
@@ -24,13 +24,13 @@ var rank_index := 0
 var evolve_flash := 0.0
 
 const REGROW_SECONDS := 15.0
-const SMALL_SCALE := 0.62
 
 func setup(id: int, start: Vector2) -> void:
 	form_id = id
 	position = start
 	aim = start
 	_cooldown = 0.12
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_apply_radius()
 
 func add_drag(relative: Vector2, bounds: Rect2) -> void:
@@ -135,70 +135,25 @@ func set_rank(index: int) -> void:
 	evolve_flash = 0.4
 	_apply_radius()
 
-func _apply_radius() -> void:
-	var spec_scale := float(FormCatalog.rank_spec(form_id, rank_index)["body_scale"])
-	var base := FormCatalog.hit_radius(form_id) * spec_scale
-	radius = base * (SMALL_SCALE if small else 1.0)
+func sprite_name() -> String:
+	var spec := FormCatalog.rank_spec(form_id, rank_index)
+	if small and spec.has("sprite_small"):
+		return str(spec["sprite_small"])
+	return str(spec["sprite"])
 
-func _body_scale() -> float:
-	var spec_scale := float(FormCatalog.rank_spec(form_id, rank_index)["body_scale"])
-	return spec_scale * (SMALL_SCALE if small else 1.0)
+func _apply_radius() -> void:
+	radius = FormCatalog.hit_radius_for(form_id, rank_index, small)
 
 func _draw() -> void:
+	var file := sprite_name()
 	if form_id == FormCatalog.Id.SLIME:
-		_draw_slime()
-	else:
-		_draw_goblin()
-	if evolve_flash > 0.0:
-		var alpha := clampf(evolve_flash / 0.4, 0.0, 0.65)
-		draw_rect(Rect2(-28, -28, 56, 56), Color(1, 1, 1, alpha))
-
-func _draw_slime() -> void:
-	var i := _trail.size()
-	for point in _trail:
-		i -= 1
-		var blob := Color("1a4f9c")
-		blob.a = 0.18 + 0.1 * float(i)
-		var size := 8.0 + float(i) * 2.0
-		var local := point - position
-		draw_rect(Rect2(local - Vector2(size, size) * 0.5, Vector2(size, size)), blob)
-	var squash := 1.0 + sin(_wobble * 7.0) * 0.07
-	var body_scale := _body_scale()
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(body_scale / squash, body_scale * squash))
-	draw_rect(Rect2(-18, -18, 36, 34), Color("10243f"))
-	draw_rect(Rect2(-16, -13, 32, 26), Color("1a4f9c"))
-	draw_rect(Rect2(-10, -16, 22, 10), Color("3b82f6"))
-	draw_rect(Rect2(-18, -4, 8, 12), Color("2563c7"))
-	draw_rect(Rect2(10, -6, 10, 14), Color("60a5fa"))
-	draw_rect(Rect2(2, -18, 12, 8), Color("d7ecff"))
-	draw_rect(Rect2(-8, -3, 6, 6), Color("f4fbff"))
-	draw_rect(Rect2(4, -2, 6, 6), Color("f4fbff"))
-	draw_rect(Rect2(-6, -1, 3, 3), Color("0c1424"))
-	draw_rect(Rect2(6, 0, 3, 3), Color("0c1424"))
-	if rank_index > 0:
-		var shine := Color(1, 1, 1, 0.18 * float(rank_index))
-		draw_rect(Rect2(-12, -14, 22, 10), shine)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
-func _draw_goblin() -> void:
-	if sprinting and velocity.length() > 30.0:
-		draw_rect(Rect2(-18, 2, 4, 3), Color("6a5640"))
-		draw_rect(Rect2(-14, 6, 3, 3), Color("8a7058"))
-	# Tiny crown, a size too proud for the head under it. Face points right.
-	var body_scale := _body_scale()
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(body_scale, body_scale))
-	draw_rect(Rect2(-9, -22, 20, 30), Color("24180a"))
-	draw_rect(Rect2(-6, -20, 12, 3), Color("ffd15c"))
-	draw_rect(Rect2(-6, -24, 3, 6), Color("ffd15c"))
-	draw_rect(Rect2(-1, -27, 3, 9), Color("ffe08a"))
-	draw_rect(Rect2(3, -24, 3, 6), Color("ffd15c"))
-	draw_rect(Rect2(-6, -16, 12, 9), Color("7ea14a"))
-	draw_rect(Rect2(4, -13, 6, 5), Color("6d8c3e"))
-	draw_rect(Rect2(1, -14, 2, 2), Color("14200f"))
-	draw_rect(Rect2(-7, -7, 12, 9), Color("8a4b2f"))
-	var step := 2.0 if sprinting else 0.0
-	draw_rect(Rect2(-6, 2, 3, 5 + step), Color("5c3a24"))
-	draw_rect(Rect2(1, 2, 3, 5 + step), Color("5c3a24"))
-	if rank_index > 0:
-		draw_rect(Rect2(-4, -26, 8, 3), Color(1, 1, 1, 0.25 * float(rank_index)))
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		var i := _trail.size()
+		var anchor := ArtLibrary.anchor(file)
+		var tex := ArtLibrary.texture(file)
+		for point in _trail:
+			i -= 1
+			if tex == null:
+				break
+			var tint := Color(1, 1, 1, 0.10 + 0.07 * float(i))
+			draw_texture(tex, point - position - anchor, tint)
+	ArtLibrary.draw_anchored(self, file)

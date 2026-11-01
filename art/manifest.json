@@ -1,0 +1,757 @@
+[
+ {
+  "file": "slime_r1.png",
+  "size": [
+   24,
+   24
+  ],
+  "frames": 1,
+  "anchor": [
+   12,
+   12
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "slime",
+  "rank": 1,
+  "rank_name": "Slime"
+ },
+ {
+  "file": "slime_r2.png",
+  "size": [
+   28,
+   28
+  ],
+  "frames": 1,
+  "anchor": [
+   14,
+   14
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "slime",
+  "rank": 2,
+  "rank_name": "Gel Knight"
+ },
+ {
+  "file": "slime_r3.png",
+  "size": [
+   32,
+   32
+  ],
+  "frames": 1,
+  "anchor": [
+   16,
+   16
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "slime",
+  "rank": 3,
+  "rank_name": "Ooze Titan"
+ },
+ {
+  "file": "vending_machine_r1.png",
+  "size": [
+   28,
+   40
+  ],
+  "frames": 1,
+  "anchor": [
+   14,
+   20
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "vending_machine",
+  "rank": 1,
+  "rank_name": "Vending Machine",
+  "rescaled": true,
+  "art_bbox": [
+   23,
+   40
+  ],
+  "note": "Rescaled redraw (pending Gon sign-off)."
+ },
+ {
+  "file": "vending_machine_r2.png",
+  "size": [
+   32,
+   44
+  ],
+  "frames": 1,
+  "anchor": [
+   16,
+   22
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "vending_machine",
+  "rank": 2,
+  "rank_name": "Mega Vendor",
+  "rescaled": true,
+  "art_bbox": [
+   26,
+   44
+  ],
+  "note": "Rescaled redraw (pending Gon sign-off)."
+ },
+ {
+  "file": "vending_machine_r3.png",
+  "size": [
+   36,
+   48
+  ],
+  "frames": 1,
+  "anchor": [
+   18,
+   24
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "vending_machine",
+  "rank": 3,
+  "rank_name": "Vending Fortress",
+  "rescaled": true,
+  "art_bbox": [
+   34,
+   47
+  ],
+  "note": "Rescaled redraw (pending Gon sign-off)."
+ },
+ {
+  "file": "goblin_r1.png",
+  "size": [
+   28,
+   32
+  ],
+  "frames": 1,
+  "anchor": [
+   14,
+   16
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "goblin",
+  "rank": 1,
+  "rank_name": "Goblin",
+  "rescaled": true,
+  "art_bbox": [
+   28,
+   31
+  ],
+  "note": "Rescaled redraw (pending Gon sign-off)."
+ },
+ {
+  "file": "goblin_r2.png",
+  "size": [
+   32,
+   36
+  ],
+  "frames": 1,
+  "anchor": [
+   16,
+   18
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "goblin",
+  "rank": 2,
+  "rank_name": "Goblin Chief",
+  "rescaled": true,
+  "art_bbox": [
+   31,
+   35
+  ],
+  "note": "Rescaled redraw (pending Gon sign-off)."
+ },
+ {
+  "file": "goblin_r3.png",
+  "size": [
+   36,
+   40
+  ],
+  "frames": 1,
+  "anchor": [
+   18,
+   20
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "goblin",
+  "rank": 3,
+  "rank_name": "Goblin King",
+  "rescaled": true,
+  "art_bbox": [
+   34,
+   40
+  ],
+  "note": "Rescaled redraw (pending Gon sign-off)."
+ },
+ {
+  "file": "cat_r1.png",
+  "size": [
+   24,
+   24
+  ],
+  "frames": 1,
+  "anchor": [
+   12,
+   12
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "cat",
+  "rank": 1,
+  "rank_name": "Cat (ex-CEO)"
+ },
+ {
+  "file": "cat_r2.png",
+  "size": [
+   28,
+   28
+  ],
+  "frames": 1,
+  "anchor": [
+   14,
+   14
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "cat",
+  "rank": 2,
+  "rank_name": "Cat Chairman"
+ },
+ {
+  "file": "cat_r3.png",
+  "size": [
+   32,
+   32
+  ],
+  "frames": 1,
+  "anchor": [
+   16,
+   16
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "cat",
+  "rank": 3,
+  "rank_name": "Cat Overlord"
+ },
+ {
+  "file": "demon_lord_r1.png",
+  "size": [
+   40,
+   44
+  ],
+  "frames": 1,
+  "anchor": [
+   20,
+   22
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "demon_lord",
+  "rank": 1,
+  "rank_name": "Demon Lord",
+  "rescaled": true,
+  "art_bbox": [
+   38,
+   44
+  ],
+  "note": "Rescaled redraw (pending Gon sign-off)."
+ },
+ {
+  "file": "demon_lord_r2.png",
+  "size": [
+   44,
+   48
+  ],
+  "frames": 1,
+  "anchor": [
+   22,
+   24
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "demon_lord",
+  "rank": 2,
+  "rank_name": "Demon Emperor",
+  "rescaled": true,
+  "art_bbox": [
+   41,
+   47
+  ],
+  "note": "Rescaled redraw (pending Gon sign-off)."
+ },
+ {
+  "file": "demon_lord_r3.png",
+  "size": [
+   48,
+   52
+  ],
+  "frames": 1,
+  "anchor": [
+   24,
+   26
+  ],
+  "anchor_type": "center",
+  "category": "player_form",
+  "facing": "right",
+  "form": "demon_lord",
+  "rank": 3,
+  "rank_name": "True Demon King",
+  "rescaled": true,
+  "art_bbox": [
+   48,
+   51
+  ],
+  "note": "Rescaled redraw (pending Gon sign-off)."
+ },
+ {
+  "file": "slime_small_r1.png",
+  "size": [
+   16,
+   16
+  ],
+  "frames": 1,
+  "anchor": [
+   8,
+   8
+  ],
+  "anchor_type": "center",
+  "category": "player_form_split",
+  "facing": "right",
+  "form": "slime",
+  "rank": 1,
+  "note": "Slime after its first lethal hit (split), 16 px"
+ },
+ {
+  "file": "slime_small_r2.png",
+  "size": [
+   16,
+   16
+  ],
+  "frames": 1,
+  "anchor": [
+   8,
+   8
+  ],
+  "anchor_type": "center",
+  "category": "player_form_split",
+  "facing": "right",
+  "form": "slime",
+  "rank": 2,
+  "note": "Slime after its first lethal hit (split), 16 px"
+ },
+ {
+  "file": "slime_small_r3.png",
+  "size": [
+   16,
+   16
+  ],
+  "frames": 1,
+  "anchor": [
+   8,
+   8
+  ],
+  "anchor_type": "center",
+  "category": "player_form_split",
+  "facing": "right",
+  "form": "slime",
+  "rank": 3,
+  "note": "Slime after its first lethal hit (split), 16 px"
+ },
+ {
+  "file": "dire_wolf.png",
+  "size": [
+   56,
+   40
+  ],
+  "frames": 1,
+  "anchor": [
+   28,
+   20
+  ],
+  "anchor_type": "center",
+  "category": "enemy",
+  "facing": "left",
+  "note": "charger. Drawn facing LEFT because enemies enter from the right; do not flip. Rescaled redraw (pending Gon sign-off).",
+  "rescaled": true,
+  "art_bbox": [
+   56,
+   40
+  ]
+ },
+ {
+  "file": "floating_eye.png",
+  "size": [
+   20,
+   20
+  ],
+  "frames": 1,
+  "anchor": [
+   10,
+   10
+  ],
+  "anchor_type": "center",
+  "category": "enemy",
+  "facing": "left",
+  "note": "drifter. Drawn facing LEFT because enemies enter from the right; do not flip. Rescaled redraw (pending Gon sign-off).",
+  "rescaled": true,
+  "art_bbox": [
+   20,
+   19
+  ]
+ },
+ {
+  "file": "skeleton_archer.png",
+  "size": [
+   28,
+   44
+  ],
+  "frames": 1,
+  "anchor": [
+   14,
+   44
+  ],
+  "anchor_type": "bottom_center",
+  "category": "enemy",
+  "facing": "left",
+  "note": "ground/island shooter. Drawn facing LEFT. Bottom-centre anchor so it stands on islands/ground. Rescaled redraw (pending Gon sign-off).",
+  "rescaled": true,
+  "art_bbox": [
+   23,
+   44
+  ]
+ },
+ {
+  "file": "anvil.png",
+  "size": [
+   24,
+   16
+  ],
+  "frames": 1,
+  "anchor": [
+   12,
+   8
+  ],
+  "anchor_type": "center",
+  "category": "hazard",
+  "facing": "none",
+  "note": "falling gag hazard. Size confirmed by Gon."
+ },
+ {
+  "file": "piano.png",
+  "size": [
+   60,
+   44
+  ],
+  "frames": 1,
+  "anchor": [
+   30,
+   22
+  ],
+  "anchor_type": "center",
+  "category": "hazard",
+  "facing": "none",
+  "note": "falling gag hazard (upright piano). Rescaled redraw (pending Gon sign-off).",
+  "rescaled": true,
+  "art_bbox": [
+   60,
+   44
+  ]
+ },
+ {
+  "file": "slime_shot.png",
+  "size": [
+   6,
+   4
+  ],
+  "frames": 1,
+  "anchor": [
+   3,
+   2
+  ],
+  "anchor_type": "center",
+  "category": "projectile",
+  "facing": "right",
+  "note": "Slime player shot (same as style sample 6x4). Size confirmed by Gon."
+ },
+ {
+  "file": "slingshot_stone.png",
+  "size": [
+   5,
+   5
+  ],
+  "frames": 1,
+  "anchor": [
+   2,
+   2
+  ],
+  "anchor_type": "center",
+  "category": "projectile",
+  "facing": "none",
+  "note": "Goblin slingshot stone, round so no facing. Size confirmed by Gon."
+ },
+ {
+  "file": "arrow.png",
+  "size": [
+   13,
+   5
+  ],
+  "frames": 1,
+  "anchor": [
+   6,
+   2
+  ],
+  "anchor_type": "center",
+  "category": "projectile",
+  "facing": "left",
+  "note": "Skeleton Archer arrow, tip at x=0 pointing left. Size confirmed by Gon."
+ },
+ {
+  "file": "bg_sky.png",
+  "size": [
+   480,
+   270
+  ],
+  "frames": 1,
+  "anchor": [
+   0,
+   0
+  ],
+  "anchor_type": "top_left",
+  "category": "background",
+  "facing": "none",
+  "note": "opaque base layer, slowest. Tiles seamlessly left-right every 480 px."
+ },
+ {
+  "file": "bg_far.png",
+  "size": [
+   480,
+   270
+  ],
+  "frames": 1,
+  "anchor": [
+   0,
+   0
+  ],
+  "anchor_type": "top_left",
+  "category": "background",
+  "facing": "none",
+  "note": "castles, spires, floating islands; transparent above. Tiles seamlessly left-right every 480 px."
+ },
+ {
+  "file": "bg_near.png",
+  "size": [
+   480,
+   270
+  ],
+  "frames": 1,
+  "anchor": [
+   0,
+   0
+  ],
+  "anchor_type": "top_left",
+  "category": "background",
+  "facing": "none",
+  "note": "hills, treetops, crystals; transparent above. Tiles seamlessly left-right every 480 px."
+ },
+ {
+  "file": "wyvern.png",
+  "size": [
+   64,
+   56
+  ],
+  "frames": 1,
+  "anchor": [
+   32,
+   28
+  ],
+  "anchor_type": "center",
+  "category": "enemy",
+  "facing": "left",
+  "note": "sine-wave swooper. Drawn facing LEFT because enemies enter from the right; do not flip. v2 Oct 31: darker, more saturated teal for contrast vs sky and crystals. Rescaled redraw (pending Gon sign-off).",
+  "rescaled": true,
+  "art_bbox": [
+   64,
+   55
+  ]
+ },
+ {
+  "file": "floating_eye_bolt.png",
+  "size": [
+   10,
+   6
+  ],
+  "frames": 1,
+  "anchor": [
+   5,
+   3
+  ],
+  "anchor_type": "center",
+  "category": "projectile",
+  "facing": "left",
+  "note": "Floating Eye magic bolt, magenta orb with violet trail behind (right). Faces LEFT, do not flip."
+ },
+ {
+  "file": "wyvern_shot.png",
+  "size": [
+   11,
+   7
+  ],
+  "frames": 1,
+  "anchor": [
+   5,
+   3
+  ],
+  "anchor_type": "center",
+  "category": "projectile",
+  "facing": "left",
+  "note": "Wyvern fireball, gold core with red tail behind (right). Faces LEFT, do not flip."
+ },
+ {
+  "file": "slingshot_stone_l2.png",
+  "size": [
+   7,
+   7
+  ],
+  "frames": 1,
+  "anchor": [
+   3,
+   3
+  ],
+  "anchor_type": "center",
+  "category": "projectile",
+  "facing": "none",
+  "note": "Goblin slingshot level 2: hardened grey stone with gold band."
+ },
+ {
+  "file": "slingshot_stone_l3.png",
+  "size": [
+   9,
+   9
+  ],
+  "frames": 1,
+  "anchor": [
+   4,
+   4
+  ],
+  "anchor_type": "center",
+  "category": "projectile",
+  "facing": "none",
+  "note": "Goblin slingshot level 3: gold-banded stone with crystal core and cyan glow ring."
+ },
+ {
+  "file": "coin.png",
+  "size": [
+   8,
+   8
+  ],
+  "frames": 1,
+  "anchor": [
+   4,
+   4
+  ],
+  "anchor_type": "center",
+  "category": "pickup",
+  "facing": "none",
+  "note": "Goblin loot: gold coin (also usable for Vending Machine coins)."
+ },
+ {
+  "file": "gem.png",
+  "size": [
+   8,
+   8
+  ],
+  "frames": 1,
+  "anchor": [
+   4,
+   4
+  ],
+  "anchor_type": "center",
+  "category": "pickup",
+  "facing": "none",
+  "note": "Goblin loot: pink gem."
+ },
+ {
+  "file": "death_puff.png",
+  "size": [
+   24,
+   24
+  ],
+  "frames": 1,
+  "anchor": [
+   12,
+   12
+  ],
+  "anchor_type": "center",
+  "category": "effect",
+  "facing": "none",
+  "note": "Death/kill puff, one static frame."
+ },
+ {
+  "file": "hit_flash.png",
+  "size": [
+   12,
+   12
+  ],
+  "frames": 1,
+  "anchor": [
+   6,
+   6
+  ],
+  "anchor_type": "center",
+  "category": "effect",
+  "facing": "none",
+  "note": "Hit flash starburst, one static frame."
+ },
+ {
+  "file": "graze_sparkle.png",
+  "size": [
+   9,
+   9
+  ],
+  "frames": 1,
+  "anchor": [
+   4,
+   4
+  ],
+  "anchor_type": "center",
+  "category": "effect",
+  "facing": "none",
+  "note": "Near-miss (graze) sparkle, one static frame."
+ },
+ {
+  "file": "evolved_burst.png",
+  "size": [
+   64,
+   32
+  ],
+  "frames": 1,
+  "anchor": [
+   32,
+   16
+  ],
+  "anchor_type": "center",
+  "category": "effect",
+  "facing": "none",
+  "note": "\"EVOLVED!\" pop with pixel lettering over a gold/pink burst, one static frame."
+ }
+]

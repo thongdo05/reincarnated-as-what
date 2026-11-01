@@ -12,6 +12,7 @@ func _initialize() -> void:
 	_unit_failed += _check_score()
 	_unit_failed += _check_drag()
 	_unit_failed += _check_traits()
+	_unit_failed += _check_art()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -128,6 +129,19 @@ func _check_spawns() -> int:
 	if early_fang:
 		push_error("a fang spawned immediately")
 		return 1
+	var long := SpawnDirector.new(20261101)
+	long.pop_due(90.0)
+	if long.max_heavies > SpawnDirector.HEAVY_CAP:
+		push_error("dire wolf + wyvern exceeded the on-screen cap (%d)" % long.max_heavies)
+		return 1
+	if long.max_heavies < 1:
+		push_error("the heavy cap ate every dire wolf and wyvern")
+		return 1
+	var other_day := SpawnDirector.new(20261102)
+	other_day.pop_due(90.0)
+	if other_day.max_heavies > SpawnDirector.HEAVY_CAP:
+		push_error("heavy cap depends on the date")
+		return 1
 	return 0
 
 func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
@@ -139,6 +153,87 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 		for event in director.pop_due(t):
 			events.append(event)
 	return events
+
+func _check_art() -> int:
+	var failed := 0
+	if ArtLibrary.file_count() != 40:
+		push_error("art manifest should have 40 entries, found %d" % ArtLibrary.file_count())
+		failed += 1
+	var text := FileAccess.get_file_as_string("res://art/manifest.json")
+	var parsed: Variant = JSON.parse_string(text)
+	if typeof(parsed) != TYPE_ARRAY:
+		push_error("art manifest did not parse")
+		return failed + 1
+	for item in parsed:
+		var entry: Dictionary = item
+		var file_name := str(entry["file"])
+		if not FileAccess.file_exists("res://art/" + file_name):
+			push_error("missing art file %s" % file_name)
+			failed += 1
+		var anchor: Array = entry["anchor"]
+		var got := ArtLibrary.anchor(file_name)
+		if absf(got.x - float(anchor[0])) > 0.01 or absf(got.y - float(anchor[1])) > 0.01:
+			push_error("anchor mismatch for %s" % file_name)
+			failed += 1
+	for parked in ["vending_machine_r1.png", "vending_machine_r3.png", "cat_r2.png", "demon_lord_r1.png", "demon_lord_r3.png"]:
+		if not ArtLibrary.has_file(parked):
+			push_error("parked form art missing: %s" % parked)
+			failed += 1
+	if FormCatalog.IDS.size() != 2:
+		push_error("vending, cat, and demon lord should stay out of the roster")
+		failed += 1
+	var slime_r1 := str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, 0)["sprite"])
+	var slime_r3 := str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, 2)["sprite"])
+	var small_r2 := str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, 1)["sprite_small"])
+	if slime_r1 != "slime_r1.png" or slime_r3 != "slime_r3.png" or small_r2 != "slime_small_r2.png":
+		push_error("slime ranks should swap r1/r2/r3 sprites, including the split")
+		failed += 1
+	var stones := [
+		str(FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO, 0)[0]["sprite"]),
+		str(FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO, 1)[0]["sprite"]),
+		str(FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO, 2)[0]["sprite"]),
+	]
+	if stones != ["slingshot_stone.png", "slingshot_stone_l2.png", "slingshot_stone_l3.png"]:
+		push_error("goblin stones should step l1/l2/l3 with rank, got %s" % str(stones))
+		failed += 1
+	if str(FormCatalog.player_shots(FormCatalog.Id.SLIME, Vector2.ZERO, 2)[0]["sprite"]) != "slime_shot.png":
+		push_error("slime should fire slime_shot")
+		failed += 1
+	for id in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
+		var prev := 0.0
+		for rank in 3:
+			var spec := FormCatalog.rank_spec(id, rank)
+			var pct := float(spec["hit_pct"])
+			if pct < 0.50 or pct > 0.65:
+				push_error("hit pct out of band for %s rank %d" % [FormCatalog.display_name(id), rank])
+				failed += 1
+			var radius := FormCatalog.hit_radius_for(id, rank, false)
+			var box := ArtLibrary.art_bbox(str(spec["sprite"]))
+			var expect := pct * (box.x + box.y) * 0.25
+			if absf(radius - expect) > 0.05:
+				push_error("hit radius drifted from the art box")
+				failed += 1
+			if rank > 0 and radius <= prev:
+				push_error("hitbox should grow with rank")
+				failed += 1
+			if rank > 0 and radius > prev * 1.35:
+				push_error("hitbox grew more than a modest step")
+				failed += 1
+			prev = radius
+			if id == FormCatalog.Id.SLIME:
+				var small := FormCatalog.hit_radius_for(id, rank, true)
+				if small >= radius:
+					push_error("split slime hitbox should be smaller than the current rank")
+					failed += 1
+	if FormCatalog.hit_radius(FormCatalog.Id.SLIME) <= FormCatalog.hit_radius(FormCatalog.Id.GOBLIN):
+		push_error("slime's hitbox should stay larger than the goblin's")
+		failed += 1
+	var wolf := SpawnDirector.body_radius(SpawnDirector.WOLF)
+	var eye := SpawnDirector.body_radius(SpawnDirector.EYE)
+	if wolf <= eye:
+		push_error("the dire wolf hitbox should be larger than the floating eye")
+		failed += 1
+	return failed
 
 func _check_score() -> int:
 	var failed := 0
@@ -164,7 +259,8 @@ func _check_traits() -> int:
 	if slime.small or not slime.absorb_lethal_hit():
 		push_error("a full slime should split instead of dying")
 		failed += 1
-	if not slime.small or slime.radius >= FormCatalog.SLIME_HIT_RADIUS:
+	var full_radius := FormCatalog.hit_radius(FormCatalog.Id.SLIME)
+	if not slime.small or slime.radius >= full_radius:
 		push_error("the split slime should be smaller")
 		failed += 1
 	if slime.absorb_lethal_hit():
@@ -175,7 +271,7 @@ func _check_traits() -> int:
 	if slime.small:
 		push_error("the slime should regrow after 15 seconds")
 		failed += 1
-	if absf(slime.radius - FormCatalog.SLIME_HIT_RADIUS) > 0.1:
+	if absf(slime.radius - full_radius) > 0.1:
 		push_error("the regrown slime should have a full hitbox")
 		failed += 1
 	slime.free()

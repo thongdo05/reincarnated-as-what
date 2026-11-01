@@ -36,6 +36,8 @@ var _director: SpawnDirector
 var _enemies: Array[EnemyActor] = []
 var _shots: Array[Shot] = []
 var _loot: Array[LootGem] = []
+var _effects: Array[PixelEffect] = []
+var _loot_spawned := 0
 var _drag_accum := Vector2.ZERO
 var _primary_touch := -1
 var _mouse_down := false
@@ -56,6 +58,7 @@ var _loot_label: Label
 var _rotate: Control
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	day_seed = DailyRun.date_seed()
 	run_index = DailyRun.consume_run_index()
 	form_id = FormCatalog.id_for_run(day_seed, run_index)
@@ -332,6 +335,7 @@ func _process(delta: float) -> void:
 	delta = clampf(delta, 0.0, 0.033)
 	_background.tick(delta, size)
 	_combat.tick(delta)
+	_tick_effects(delta)
 	if phase == PHASE_REVEAL:
 		reveal_elapsed += delta
 		_skip_label.text = "Tap to start" if reveal_elapsed > 0.35 else ""
@@ -395,7 +399,8 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	_refresh_hud()
 
 func _play_bounds(size: Vector2) -> Rect2:
-	return Rect2(36, 26, maxf(size.x - 72.0, 40.0), maxf(size.y - 54.0, 40.0))
+	var floor_y := minf(FieldBackground.GROUND_FEET - 2.0, size.y - 8.0)
+	return Rect2(14, 10, maxf(size.x - 28.0, 40.0), maxf(floor_y - 10.0, 40.0))
 
 func _key_vector() -> Vector2:
 	var vector := Vector2.ZERO
@@ -414,7 +419,7 @@ func _key_vector() -> Vector2:
 func _spawn_enemy(data: Dictionary, size: Vector2) -> void:
 	var enemy := EnemyActor.new()
 	enemy.z_index = 3
-	enemy.setup(next_enemy_id, data, size)
+	enemy.setup(next_enemy_id, data, size, _background)
 	next_enemy_id += 1
 	add_child(enemy)
 	_enemies.append(enemy)
@@ -447,6 +452,9 @@ func _collide() -> void:
 					splits.append(spec)
 			if not enemy.alive:
 				_award_kill(enemy)
+				_spawn_fx("death_puff.png", enemy.position, 0.42, 0.45, 1.55)
+			else:
+				_spawn_fx("hit_flash.png", shot.position, 0.16, 0.75, 1.35)
 			spent.append(shot)
 			break
 	for shot in spent:
@@ -491,6 +499,7 @@ func _graze(hazard: Object, at: Vector2, hazard_radius: float) -> void:
 	hazard.grazed = true
 	_gain_skill(ScoreRules.GRAZE)
 	_combat.push("+%d" % ScoreRules.GRAZE, at + Vector2(6, -8), Color("ffe08a"))
+	_spawn_fx("graze_sparkle.png", at, 0.34, 0.45, 1.45)
 
 func _hurt_player(killer: String) -> void:
 	if phase != PHASE_PLAY or not _player.alive:
@@ -500,11 +509,15 @@ func _hurt_player(killer: String) -> void:
 		invuln = maxf(invuln, SPLIT_IFRAMES)
 		_player.invulnerable = true
 		_combat.push("SPLIT!", _player.position + Vector2(-28, -24), Color("1a4f9c"))
+		_spawn_fx("hit_flash.png", _player.position, 0.22, 0.6, 1.4)
 		return
 	_kill_player(killer)
 
 func _spawn_loot(at: Vector2) -> void:
 	var gem := LootGem.new()
+	var file := "coin.png" if _loot_spawned % 2 == 0 else "gem.png"
+	_loot_spawned += 1
+	gem.setup(file)
 	gem.position = at
 	gem.z_index = 4
 	add_child(gem)
@@ -542,6 +555,7 @@ func _gain_skill(points: int) -> void:
 		_player.set_rank(rank_index)
 		var evolved := FormCatalog.rank_name(form_id, rank_index)
 		_combat.push("EVOLVED! %s" % evolved, _player.position + Vector2(-52, -30), Color("fff6c8"))
+		_spawn_fx("evolved_burst.png", _player.position + Vector2(0, -8), 0.72, 0.55, 1.2)
 	_refresh_hud()
 
 func _kill_player(name: String) -> void:
@@ -552,7 +566,7 @@ func _kill_player(name: String) -> void:
 	_player.alive = false
 	_player.visible = false
 	_hint_label.visible = false
-	_combat.burst(_player.position, FormCatalog.title_color(form_id))
+	_spawn_fx("death_puff.png", _player.position, 0.5, 0.55, 1.7)
 	_refresh_hud()
 
 func _show_game_over() -> void:
@@ -621,10 +635,27 @@ func _overlaps(a: Vector2, a_radius: float, b: Vector2, b_radius: float) -> bool
 	var reach := a_radius + b_radius
 	return a.distance_squared_to(b) <= reach * reach
 
+func _spawn_fx(file_name: String, at: Vector2, duration: float, from_scale: float, to_scale: float) -> void:
+	var fx := PixelEffect.new()
+	fx.z_index = 7
+	fx.setup(file_name, at, duration, from_scale, to_scale)
+	add_child(fx)
+	_effects.append(fx)
+
+func _tick_effects(delta: float) -> void:
+	var keep: Array[PixelEffect] = []
+	for fx in _effects:
+		if is_instance_valid(fx) and fx.tick(delta):
+			keep.append(fx)
+			continue
+		if is_instance_valid(fx):
+			fx.queue_free()
+	_effects = keep
+
 func _viewport_size() -> Vector2:
 	if not is_inside_tree():
-		return Vector2(780, 360)
+		return Vector2(480, 270)
 	var size := get_viewport_rect().size
 	if size.x < 32.0 or size.y < 32.0:
-		return Vector2(780, 360)
+		return Vector2(480, 270)
 	return size

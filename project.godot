@@ -16,12 +16,13 @@ config/icon="res://icon.svg"
 
 [display]
 
-window/size/viewport_width=780
-window/size/viewport_height=360
-window/size/window_width_override=844
-window/size/window_height_override=390
-window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
+window/size/viewport_width=480
+window/size/viewport_height=270
+window/size/window_width_override=960
+window/size/window_height_override=540
+window/stretch/mode="viewport"
+window/stretch/aspect="keep"
+window/stretch/scale_mode="integer"
 window/handheld/orientation=4
 window/vsync/vsync_mode=1
 
@@ -34,4 +35,6 @@ pointing/emulate_mouse_from_touch=true
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/canvas_textures/default_texture_filter=0
+environment/defaults/default_clear_color=Color(0.0627451, 0.0470588, 0.0784314, 1)
 2d/snap/snap_2d_transforms_to_pixel=true
+2d/snap/snap_2d_vertices_to_pixel=true

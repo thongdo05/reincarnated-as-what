@@ -1,23 +1,23 @@
 extends Node2D
 class_name LootGem
 
-## A kill drops one of these. It drifts left with the field and is picked up on touch.
-## It is not worth points. Goblins spend them on the slingshot.
+## A Goblin kill drops a coin or a gem. It drifts left. Touching it scores and fills the meter.
+## It does not upgrade the slingshot. Evolution does that.
 
-var radius := 7.0
-var drift := 92.0
+var sprite_name := "gem.png"
+var radius := 3.0
+var drift := 42.0
+
+func setup(file_name: String) -> void:
+	sprite_name = file_name
+	radius = ArtLibrary.radius_for(file_name, 0.65)
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 func tick(delta: float) -> void:
 	position.x -= drift * delta
-	position.y += sin(position.x * 0.05) * 8.0 * delta
+	position.y += sin(position.x * 0.08) * 10.0 * delta
 	if is_inside_tree():
 		queue_redraw()
 
 func _draw() -> void:
-	draw_colored_polygon(PackedVector2Array([
-		Vector2(0, -7),
-		Vector2(6, 0),
-		Vector2(0, 7),
-		Vector2(-6, 0),
-	]), Color("ffd56a"))
-	draw_rect(Rect2(-2, -3, 3, 3), Color("fff6c8"))
+	ArtLibrary.draw_anchored(self, sprite_name)

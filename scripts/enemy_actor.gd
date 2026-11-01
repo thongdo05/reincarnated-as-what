@@ -10,18 +10,21 @@ var score_value := 100
 var kind_name := "Floating Eye"
 var alive := true
 var age := 0.0
-var flash := 0.0
 var grazed := false
 var phase := 0.0
-var stop_x := 500.0
+var stop_x := 360.0
 var origin_y := 0.0
 var stopped := false
-var shot_cooldown := 0.7
-var speed := 80.0
-var on_ceiling := false
-var field_size := Vector2(780, 360)
+var shot_cooldown := 1.6
+var speed := 40.0
+var on_island := false
+var ride_island := 0
+var ride_tex_x := 0.0
+var planted_scroll := 0.0
+var field_size := Vector2(480, 270)
+var background: FieldBackground
 
-func setup(spawn_id: int, data: Dictionary, field: Vector2) -> void:
+func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: FieldBackground) -> void:
 	id = spawn_id
 	kind = int(data["kind"])
 	kind_name = SpawnDirector.kind_name(kind)
@@ -32,119 +35,130 @@ func setup(spawn_id: int, data: Dictionary, field: Vector2) -> void:
 	speed = SpawnDirector.cruise_speed(kind)
 	phase = float(data["phase"])
 	field_size = field
+	background = field_background
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var lane := float(data["x_ratio"])
-	origin_y = clampf(lane * field.y, 40.0, field.y - 40.0)
-	on_ceiling = lane < 0.5
-	var park := clampf(0.62 + float(data["stop_ratio"]) * 0.55, 0.62, 0.9)
+	origin_y = clampf(lane * field.y, 36.0, field.y - 96.0)
+	var park := clampf(0.62 + float(data["stop_ratio"]) * 0.55, 0.62, 0.88)
 	stop_x = field.x * park
-	if kind == SpawnDirector.ARCHER:
-		var edge_y := 18.0 if on_ceiling else field.y - 18.0
-		position = Vector2(field.x + radius + 16.0, edge_y)
+	if kind == SpawnDirector.ANVIL or kind == SpawnDirector.PIANO:
+		var span := maxf(field.x - 80.0, 40.0)
+		position = Vector2(40.0 + lane * span, -radius - 8.0)
+	elif kind == SpawnDirector.ARCHER:
+		on_island = lane < 0.45
+		if on_island and background != null:
+			ride_island = 0 if float(data["stop_ratio"]) < 0.28 else 1
+			_mount_island()
+		else:
+			position = Vector2(field.x + radius + 20.0, FieldBackground.GROUND_FEET)
 	else:
-		position = Vector2(field.x + radius + 16.0, origin_y)
+		position = Vector2(field.x + radius + 20.0, origin_y)
 
 func hurt(amount: int) -> void:
 	if not alive:
 		return
 	hp -= amount
-	flash = 0.08
 	if hp <= 0:
 		alive = false
 
 func tick(delta: float, _player_pos: Vector2) -> Array[Dictionary]:
 	age += delta
-	if flash > 0.0:
-		flash = maxf(flash - delta, 0.0)
 	var fired: Array[Dictionary] = []
 	match kind:
 		SpawnDirector.EYE:
 			position.x -= speed * delta
-			position.y = origin_y + sin(age * 1.6 + phase) * 20.0
+			position.y = origin_y + sin(age * 1.5 + phase) * 8.0
+			_try_fire(fired, delta, 2.6, Vector2(-88, 0), "floating_eye_bolt.png", Vector2(-12, 0))
 		SpawnDirector.WOLF:
 			position.x -= speed * delta
-			position.y = origin_y + sin(age * 1.1 + phase) * 6.0
+			position.y = origin_y + sin(age * 1.1 + phase) * 3.0
 		SpawnDirector.ARCHER:
-			if not stopped:
-				position.x -= speed * delta
-				if position.x <= stop_x:
-					position.x = stop_x
-					stopped = true
-					shot_cooldown = 0.55
-			else:
-				shot_cooldown -= delta
-				if shot_cooldown <= 0.0:
-					shot_cooldown = 1.2
-					fired.append(_bolt(Vector2(-240, 0), Vector2(-radius - 6.0, -2.0)))
+			_tick_archer(delta, fired)
 		SpawnDirector.WYVERN:
 			position.x -= speed * delta
-			position.y = origin_y + sin(age * 2.3 + phase) * 36.0
+			position.y = origin_y + sin(age * 2.1 + phase) * 12.0
+			_try_fire(fired, delta, 2.2, Vector2(-104, 8), "wyvern_shot.png", Vector2(-20, 4))
+		SpawnDirector.ANVIL:
+			position.x -= 16.0 * delta
+			position.y += 96.0 * delta
+		SpawnDirector.PIANO:
+			position.x -= 12.0 * delta
+			position.y += 62.0 * delta
 	if kind == SpawnDirector.EYE or kind == SpawnDirector.WOLF or kind == SpawnDirector.WYVERN:
-		position.y = clampf(position.y, 30.0, field_size.y - 30.0)
+		position.y = clampf(position.y, 28.0, field_size.y - 78.0)
 	if is_inside_tree():
 		queue_redraw()
 	return fired
 
-func _bolt(bolt_velocity: Vector2, offset: Vector2) -> Dictionary:
+func _mount_island() -> void:
+	var feet := background.island_feet(ride_island)
+	var tex_x := FieldBackground.ISLANDS[ride_island].x
+	var screen := tex_x - background.scroll_far
+	var min_x := field_size.x * 0.72
+	while screen < min_x:
+		screen += FieldBackground.TILE_W
+	while screen >= min_x + FieldBackground.TILE_W:
+		screen -= FieldBackground.TILE_W
+	ride_tex_x = screen + background.scroll_far
+	position = Vector2(screen, feet)
+	shot_cooldown = 1.8
+
+func _tick_archer(delta: float, fired: Array[Dictionary]) -> void:
+	if on_island and background != null:
+		position.x = ride_tex_x - background.scroll_far
+		position.y = background.island_feet(ride_island)
+		if position.x < -40.0:
+			alive = false
+			return
+		_try_fire(fired, delta, 1.7, Vector2(-116, 0), "arrow.png", Vector2(-16, -26))
+		return
+	if not stopped:
+		position.x -= speed * delta
+		position.y = FieldBackground.GROUND_FEET
+		if position.x <= stop_x:
+			position.x = stop_x
+			stopped = true
+			planted_scroll = background.scroll_near if background != null else 0.0
+			shot_cooldown = 1.4
+	else:
+		if background != null:
+			position.x = stop_x - (background.scroll_near - planted_scroll)
+		position.y = FieldBackground.GROUND_FEET
+		if position.x < -40.0:
+			alive = false
+			return
+		_try_fire(fired, delta, 1.7, Vector2(-116, 0), "arrow.png", Vector2(-16, -26))
+
+func _try_fire(fired: Array[Dictionary], delta: float, interval: float, bolt_velocity: Vector2, sprite: String, offset: Vector2) -> void:
+	# shot_cooldown starts above zero, so a spawn on the right edge cannot snipe.
+	shot_cooldown -= delta
+	if shot_cooldown > 0.0:
+		return
+	shot_cooldown = interval
+	fired.append(_bolt(bolt_velocity, offset, sprite))
+
+func _bolt(bolt_velocity: Vector2, offset: Vector2, sprite: String) -> Dictionary:
 	return {
 		"position": position + offset,
 		"velocity": bolt_velocity,
 		"gravity": 0.0,
 		"damage": 1,
-		"radius": 5.0,
+		"radius": ArtLibrary.radius_for(sprite, 0.62),
 		"splits": 0,
 		"color": Color("f0d78c"),
-		"style": "arrow",
+		"style": "arrow" if sprite == "arrow.png" else "blob",
+		"sprite": sprite,
 		"killer_name": kind_name,
 	}
 
 func _draw() -> void:
-	match kind:
-		SpawnDirector.EYE:
-			draw_circle(Vector2.ZERO, radius + 2.0, Color("ff8ad4"))
-			draw_circle(Vector2.ZERO, radius, Color("fff8ee"))
-			draw_circle(Vector2(-1, 0), radius * 0.55, Color("e0239a"))
-			draw_circle(Vector2(-1, 0), radius * 0.24, Color("1a1020"))
-			draw_rect(Rect2(-radius * 0.35, -radius * 0.45, 3, 3), Color("ffffff"))
-		SpawnDirector.WOLF:
-			draw_rect(Rect2(-12, -4, 26, 12), Color("2a1c18"))
-			draw_rect(Rect2(-22, -8, 14, 11), Color("4a3028"))
-			draw_rect(Rect2(-28, -3, 8, 5), Color("6a4638"))
-			draw_colored_polygon(PackedVector2Array([
-				Vector2(-16, -8), Vector2(-12, -15), Vector2(-8, -8),
-			]), Color("3a241e"))
-			draw_rect(Rect2(-18, -6, 3, 3), Color("ffb020"))
-			draw_rect(Rect2(-8, 6, 4, 5), Color("2a1c18"))
-			draw_rect(Rect2(4, 6, 4, 5), Color("2a1c18"))
-			draw_rect(Rect2(-26, -1, 3, 2), Color("f4efe4"))
-		SpawnDirector.ARCHER:
-			draw_rect(Rect2(-6, -16, 12, 10), Color("f6f0e4"))
-			draw_rect(Rect2(-4, -13, 3, 3), Color("1a1020"))
-			draw_rect(Rect2(1, -13, 3, 3), Color("1a1020"))
-			draw_rect(Rect2(-4, -6, 8, 12), Color("f0e6d2"))
-			draw_rect(Rect2(-5, -2, 10, 2), Color("d9cbb4"))
-			draw_rect(Rect2(-5, 2, 10, 2), Color("d9cbb4"))
-			draw_line(Vector2(-14, -12), Vector2(-14, 8), Color("6a3a22"), 2.0)
-			draw_line(Vector2(-14, -12), Vector2(-6, -2), Color("c9854a"), 1.5)
-			draw_line(Vector2(-14, 8), Vector2(-6, -2), Color("c9854a"), 1.5)
-			var foot := -radius - 4.0 if on_ceiling else radius - 2.0
-			draw_rect(Rect2(-8, foot, 16, 4), Color("6a4630"))
-		SpawnDirector.WYVERN:
-			var flap := sin(age * 8.0) * 4.0
-			draw_colored_polygon(PackedVector2Array([
-				Vector2(-2, -2), Vector2(8, -4), Vector2(-4, -16 - flap),
-			]), Color("ff5a2a"))
-			draw_colored_polygon(PackedVector2Array([
-				Vector2(-2, 2), Vector2(8, 4), Vector2(-4, 16 + flap),
-			]), Color("e23b22"))
-			draw_rect(Rect2(-8, -4, 22, 8), Color("c4382a"))
-			draw_rect(Rect2(-16, -5, 10, 7), Color("ff6a3a"))
-			draw_rect(Rect2(-14, -3, 2, 2), Color("1a1020"))
-			draw_rect(Rect2(12, -2, 8, 3), Color("8a241c"))
-	if flash > 0.0:
-		draw_rect(Rect2(-radius, -radius, radius * 2.0, radius * 2.0), Color(1, 1, 1, 0.45))
+	var file := SpawnDirector.sprite_for(kind)
+	# Enemies and hazards are drawn facing the way the files face. Do not flip.
+	ArtLibrary.draw_anchored(self, file)
 	if hp < max_hp and alive:
-		var width := radius * 2.0
-		var left := -radius
-		var y := -radius - 6.0
-		draw_rect(Rect2(left, y, width, 3), Color(0, 0, 0, 0.65))
-		draw_rect(Rect2(left, y, width * float(hp) / float(max_hp), 3), Color("f4efe4"))
+		var box := ArtLibrary.art_bbox(file)
+		var width := maxf(box.x * 0.55, 8.0)
+		var left := -width * 0.5
+		var y := -ArtLibrary.anchor(file).y - 3.0
+		draw_rect(Rect2(left, y, width, 2), Color(0, 0, 0, 0.7))
+		draw_rect(Rect2(left, y, width * float(hp) / float(max_hp), 2), Color("f4efe4"))
