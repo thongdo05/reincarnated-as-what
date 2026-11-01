@@ -5,6 +5,9 @@ const INVULN_SECONDS := 1.5
 const GRAZE_PAD := 22.0
 const SPLIT_IFRAMES := 1.15
 const REGROW_IFRAMES := 0.45
+## The pause glyph stays 18 viewport pixels. The control around it is the touch target.
+const PAUSE_ART_PX := 18.0
+const PAUSE_MIN_PT := 44.0
 
 const PHASE_REVEAL := 0
 const PHASE_PLAY := 1
@@ -59,6 +62,10 @@ var _death_kicker: Label
 var _restart_button: Button
 var _loot_label: Label
 var _rotate: Control
+var _paused := false
+var _pause_button: Button
+var _pause_icon: TextureRect
+var _pause_overlay: Control
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -250,6 +257,44 @@ func _build_hud() -> void:
 	rotate_body.text = "This run flies sideways."
 	rotate_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rotate_column.add_child(rotate_body)
+
+	_pause_overlay = Control.new()
+	_pause_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_pause_overlay.visible = false
+	_pause_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.add_child(_pause_overlay)
+	var pause_dim := ColorRect.new()
+	pause_dim.color = Color(0.04, 0.03, 0.07, 0.45)
+	pause_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pause_overlay.add_child(pause_dim)
+	var pause_label := _make_label(22, Color("f4efe4"))
+	pause_label.text = "PAUSED"
+	pause_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pause_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	pause_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_pause_overlay.add_child(pause_label)
+
+	_pause_button = Button.new()
+	_pause_button.focus_mode = Control.FOCUS_NONE
+	_pause_button.flat = true
+	_pause_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	_pause_button.z_index = 2
+	var empty := StyleBoxEmpty.new()
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		_pause_button.add_theme_stylebox_override(state, empty)
+	_pause_button.pressed.connect(_toggle_pause)
+	_hud.add_child(_pause_button)
+	_pause_icon = TextureRect.new()
+	_pause_icon.texture = _make_pause_icon()
+	_pause_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_pause_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pause_icon.stretch_mode = TextureRect.STRETCH_KEEP
+	_pause_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_pause_icon.size = Vector2(PAUSE_ART_PX, PAUSE_ART_PX)
+	_pause_icon.custom_minimum_size = Vector2(PAUSE_ART_PX, PAUSE_ART_PX)
+	_pause_button.add_child(_pause_icon)
+	_layout_pause(_viewport_size())
 	_refresh_hud()
 
 func _make_label(size: int, color: Color) -> Label:
@@ -271,7 +316,11 @@ func wants_rotate(size: Vector2) -> bool:
 	return window_size.y > window_size.x
 
 func _unhandled_input(event: InputEvent) -> void:
-	if wants_rotate(_viewport_size()):
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_ESCAPE or event.keycode == KEY_P:
+			_toggle_pause()
+			return
+	if _paused or wants_rotate(_viewport_size()):
 		return
 	if event is InputEventScreenTouch:
 		_on_screen_touch(event)
@@ -283,6 +332,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_mouse_motion(event)
 
 func _on_screen_touch(event: InputEventScreenTouch) -> void:
+	if _hits_pause(event.position):
+		if not event.pressed and event.index == _primary_touch:
+			_primary_touch = -1
+		return
 	if event.pressed:
 		if _primary_touch == -1:
 			_primary_touch = event.index
@@ -296,6 +349,10 @@ func _on_screen_drag(event: InputEventScreenDrag) -> void:
 	_drag_accum += event.relative
 
 func _on_mouse_button(event: InputEventMouseButton) -> void:
+	if _hits_pause(event.position):
+		if not event.pressed:
+			_mouse_down = false
+		return
 	if _primary_touch != -1:
 		return
 	_mouse_down = event.pressed
@@ -317,9 +374,14 @@ func _process(delta: float) -> void:
 	var size := _viewport_size()
 	if _rotate != null and wants_rotate(size):
 		_rotate.visible = true
+		if _pause_button != null:
+			_pause_button.visible = false
 		return
 	if _rotate != null:
 		_rotate.visible = false
+	_layout_pause(size)
+	if _paused:
+		return
 	delta = clampf(delta, 0.0, 0.033)
 	_background.tick(delta, size)
 	_combat.tick(delta)
@@ -562,6 +624,11 @@ func _kill_player(name: String) -> void:
 		return
 	killer_name = name
 	phase = PHASE_DEAD
+	_paused = false
+	if _pause_overlay != null:
+		_pause_overlay.visible = false
+	if _pause_button != null:
+		_pause_button.visible = false
 	_player.alive = false
 	_player.visible = false
 	_hint_label.visible = false
@@ -685,6 +752,88 @@ func _refresh_hud() -> void:
 
 func _on_restart() -> void:
 	get_tree().reload_current_scene()
+
+## Integer viewport scale for stretch mode "viewport", aspect "keep".
+## One returned unit is one window pixel per viewport pixel. Godot never goes below 1.
+func visible_pixel_scale(viewport: Vector2, window: Vector2) -> float:
+	if window.x < 1.0 or window.y < 1.0 or viewport.x < 1.0 or viewport.y < 1.0:
+		return 1.0
+	var viewport_aspect := viewport.x / viewport.y
+	var window_aspect := window.x / window.y
+	var screen := window
+	if not is_equal_approx(viewport_aspect, window_aspect):
+		if viewport_aspect < window_aspect:
+			screen = Vector2(floorf(window.y * viewport_aspect), window.y)
+		else:
+			screen = Vector2(window.x, floorf(window.x / viewport_aspect))
+	var scale := minf(floorf(screen.x / viewport.x), floorf(screen.y / viewport.y))
+	return maxf(scale, 1.0)
+
+## Viewport pixels that cover at least 44 points on this window.
+## The floor is 44 viewport pixels: on a phone, one game pixel is at most one point,
+## and an 18px glyph would otherwise be an 18pt target.
+func pause_hit_px(viewport: Vector2, window: Vector2, screen_scale: float) -> float:
+	var pixel_scale := visible_pixel_scale(viewport, window)
+	var safe_screen := screen_scale if screen_scale >= 1.0 else 1.0
+	var points_per_px := pixel_scale / safe_screen
+	var from_points := PAUSE_MIN_PT / points_per_px
+	return maxf(ceilf(from_points), PAUSE_MIN_PT)
+
+func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float) -> void:
+	if _pause_button == null or _pause_icon == null:
+		return
+	var hit := pause_hit_px(viewport, window, screen_scale)
+	var control_size := Vector2(hit, hit)
+	_pause_button.position = Vector2(4, 4)
+	_pause_button.size = control_size
+	_pause_button.custom_minimum_size = control_size
+	var art := Vector2(PAUSE_ART_PX, PAUSE_ART_PX)
+	_pause_icon.scale = Vector2.ONE
+	_pause_icon.size = art
+	_pause_icon.custom_minimum_size = art
+	_pause_icon.position = (control_size - art) * 0.5
+	var left := _pause_button.position.x + control_size.x + 6.0
+	if _score_label != null:
+		_score_label.position = Vector2(left, 6)
+	if _form_label != null:
+		_form_label.position = Vector2(left, 28)
+	if _loot_label != null:
+		_loot_label.position = Vector2(left, 46)
+	var show := phase == PHASE_PLAY or _paused
+	_pause_button.visible = show
+	if _pause_overlay != null:
+		_pause_overlay.visible = _paused
+
+func _layout_pause(viewport: Vector2) -> void:
+	var window := DisplayServer.window_get_size()
+	apply_pause_layout(viewport, Vector2(window), DisplayServer.screen_get_scale())
+
+func _hits_pause(point: Vector2) -> bool:
+	if _pause_button == null or not _pause_button.visible:
+		return false
+	return Rect2(_pause_button.position, _pause_button.size).has_point(point)
+
+func _toggle_pause() -> void:
+	if phase != PHASE_PLAY and not _paused:
+		return
+	_paused = not _paused
+	_drag_accum = Vector2.ZERO
+	_mouse_down = false
+	_primary_touch = -1
+	_layout_pause(_viewport_size())
+
+func _make_pause_icon() -> Texture2D:
+	var image := Image.create(int(PAUSE_ART_PX), int(PAUSE_ART_PX), false, Image.FORMAT_RGBA8)
+	image.fill(Color(0, 0, 0, 0))
+	var ink := Color("241428")
+	var paper := Color("f4efe4")
+	# Two 4px bars inside a 1px outline. The texture stays 18x18 and is never scaled.
+	for bar_x in [3, 10]:
+		for y in range(3, 15):
+			for x in range(bar_x, bar_x + 6):
+				var inside: bool = x >= bar_x + 1 and x < bar_x + 5 and y >= 4 and y < 14
+				image.set_pixel(x, y, paper if inside else ink)
+	return ImageTexture.create_from_image(image)
 
 func _overlaps(a: Vector2, a_radius: float, b: Vector2, b_radius: float) -> bool:
 	var reach := a_radius + b_radius

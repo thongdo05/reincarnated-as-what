@@ -10,6 +10,8 @@ Turn the phone sideways. In portrait the game asks you to rotate instead of squa
 
 Drag anywhere. The ship follows the drag, so your finger does not have to sit on it. You start in the left third and can drag anywhere on the screen. You fire forward, to the right, on your own. One life per run: a hit ends it. Tap **Reincarnate** for the next one. Arrow keys or WASD also move, for a desktop check.
 
+The pause mark in the top-left is 18 pixels and is not scaled. Its touch target is at least 44 points, so a thumb can hit it on an iPhone. Tap it again, or press Esc, to resume.
+
 The field is 480×270 and scales up by whole pixels, so the art stays sharp. On a desktop the window opens at 960×540, which is that field at 2×.
 
 The form order and the enemy spawns come from the UTC date. Everyone gets the same order and the same spawns that day. Your place in the order is remembered in the browser. There is no leaderboard yet.

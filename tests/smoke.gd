@@ -26,7 +26,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_play() + _check_death_card()
+	var failed := _unit_failed + _check_play() + _check_death_card() + _check_pause()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -799,6 +799,92 @@ func _check_death_card() -> int:
 				push_error("death copy left the field for '%s'" % lines[i])
 				failed += 1
 				break
+	root.remove_child(game)
+	game.free()
+	return failed
+
+func _check_pause() -> int:
+	var failed := 0
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	var step := 1.0 / 60.0
+	for _i in 100:
+		game._process(step)
+	if int(game.phase) != 1 or game._pause_button == null or game._pause_icon == null:
+		push_error("pause check did not reach play with a pause control")
+		root.remove_child(game)
+		game.free()
+		return 1
+	var viewport := Vector2(480, 270)
+	# iPhone 14 landscape, CSS points times a 3x screen. Godot's web export
+	# reports the canvas in device pixels and the scale as devicePixelRatio.
+	var iphone := Vector2(2532, 1170)
+	var hit: float = game.pause_hit_px(viewport, iphone, 3.0)
+	var pixel_scale: float = game.visible_pixel_scale(viewport, iphone)
+	var points := hit * pixel_scale / 3.0
+	if hit + 0.01 < 44.0 or points + 0.01 < 44.0:
+		push_error("iPhone pause target should be at least 44pt (hit %s points %s scale %s)" % [hit, points, pixel_scale])
+		failed += 1
+	var se_hit: float = game.pause_hit_px(viewport, Vector2(1334, 750), 2.0)
+	var se_scale: float = game.visible_pixel_scale(viewport, Vector2(1334, 750))
+	if se_hit * se_scale / 2.0 + 0.01 < 44.0:
+		push_error("iPhone SE pause target shrank under 44pt")
+		failed += 1
+	game.apply_pause_layout(viewport, iphone, 3.0)
+	var button: Button = game._pause_button
+	if button.size.x + 0.01 < 44.0 or button.size.y + 0.01 < 44.0:
+		push_error("pause control is smaller than 44px (%s)" % button.size)
+		failed += 1
+	if button.mouse_filter != Control.MOUSE_FILTER_STOP:
+		push_error("pause control should take the touch")
+		failed += 1
+	var icon: TextureRect = game._pause_icon
+	if icon.texture == null or icon.texture.get_width() != 18 or icon.texture.get_height() != 18:
+		push_error("pause art should stay 18 px")
+		failed += 1
+	if absf(icon.size.x - 18.0) > 0.01 or absf(icon.size.y - 18.0) > 0.01 or absf(icon.scale.x - 1.0) > 0.01 or absf(icon.scale.y - 1.0) > 0.01:
+		push_error("pause art should not be scaled (size %s scale %s)" % [icon.size, icon.scale])
+		failed += 1
+	var icon_rect := Rect2(button.position + icon.position, icon.size)
+	var pad := button.position + Vector2(2, 2)
+	if not Rect2(button.position, button.size).has_point(pad):
+		push_error("pause padding should be inside the control")
+		failed += 1
+	if icon_rect.has_point(pad):
+		push_error("the 44px target should extend past the 18px art")
+		failed += 1
+	if not game._hits_pause(pad):
+		push_error("a touch on the padding should hit pause")
+		failed += 1
+	var elapsed_before := float(game.elapsed)
+	game._toggle_pause()
+	for _i in 30:
+		game._process(step)
+	if not game._paused or float(game.elapsed) > elapsed_before + 0.001:
+		push_error("pause should freeze the run")
+		failed += 1
+	game._toggle_pause()
+	game._process(step)
+	if game._paused or float(game.elapsed) <= elapsed_before:
+		push_error("resume should advance the run")
+		failed += 1
+	var ship_before: Vector2 = game._player.position
+	var touch := InputEventScreenTouch.new()
+	touch.index = 0
+	touch.pressed = true
+	touch.position = game._pause_button.position + Vector2(2, 2)
+	game._unhandled_input(touch)
+	var drag := InputEventScreenDrag.new()
+	drag.index = 0
+	drag.relative = Vector2(40, -24)
+	drag.position = touch.position + drag.relative
+	game._unhandled_input(drag)
+	game._process(step)
+	if game._player.position.distance_to(ship_before) > 8.0:
+		push_error("a pause touch should not drag the ship (%s -> %s)" % [ship_before, game._player.position])
+		failed += 1
 	root.remove_child(game)
 	game.free()
 	return failed
