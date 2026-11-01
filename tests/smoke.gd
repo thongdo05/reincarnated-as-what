@@ -1645,7 +1645,7 @@ func _check_audio() -> int:
 		push_error("shot pitch should be +/- 8 percent")
 		failed += 1
 	if AudioCues.music_playback_type(false) != AudioServer.PLAYBACK_TYPE_STREAM or AudioCues.music_playback_type(true) != AudioServer.PLAYBACK_TYPE_SAMPLE:
-		push_error("web music should be a sample so iOS Safari plays the loop")
+		push_error("web music should play as a sample and desktop should stream it")
 		failed += 1
 	if absf(float(AudioCues.spec("slime_shot")["volume_db"]) - AudioCues.SHOT_VOLUME_DB) > 0.01 or absf(AudioCues.SHOT_VOLUME_DB + 10.0) > 0.01:
 		push_error("slime shot should be -10 dB on its player")
@@ -1698,6 +1698,9 @@ func _check_audio() -> int:
 	var shell := FileAccess.get_file_as_string("res://web/shell.html")
 	if shell.find("unlockGodotAudio") < 0 or shell.find("GodotAudio.ctx") < 0 or shell.find("__godotAudioGesture") < 0:
 		push_error("the web shell should resume audio on the first tap")
+		failed += 1
+	if shell.find("__godotAudioCtx") < 0 or shell.find("__godotAudioState") < 0 or shell.find("visibilitychange") < 0 or shell.find("__godotMusicSources") < 0:
+		push_error("the web shell should publish the audio context, because GodotAudio is not a page global")
 		failed += 1
 	var readme := FileAccess.get_file_as_string("res://audio/README.md")
 	if readme.find("TEST") < 0:
@@ -1765,6 +1768,33 @@ func _check_audio_play() -> int:
 		if game._sound_label.text != "SND":
 			push_error("sound on should read SND")
 			failed += 1
+		if game._audio_blocked_button == null or game._audio_blocked_icon == null:
+			push_error("the speaker-off mark should be built")
+			failed += 1
+		elif game._audio_blocked_button.visible or game._sound.output_blocked:
+			push_error("the speaker-off mark stays hidden when web audio is not locked")
+			failed += 1
+		else:
+			var blocked_rect := Rect2(game._audio_blocked_button.position, game._audio_blocked_button.size)
+			if blocked_rect.intersects(pause_rect) or blocked_rect.intersects(sound_rect):
+				push_error("the speaker-off mark should not cover pause or SND")
+				failed += 1
+			if blocked_rect.position.y + 0.01 < sound_rect.end.y or blocked_rect.position.y - sound_rect.end.y > 8.0:
+				push_error("the speaker-off mark should sit just under SND")
+				failed += 1
+			if absf(blocked_rect.position.x - pause_rect.position.x) > 0.01 or blocked_rect.size.x + 0.01 < 44.0:
+				push_error("the speaker-off mark should match the pause target")
+				failed += 1
+	var music_nodes := 0
+	for child in game._sound.get_children():
+		if str(child.name) == "gameplay_music":
+			music_nodes += 1
+	game._sound.start_gameplay_music()
+	if music_nodes != 1:
+		push_error("a run should keep a single music player")
+		failed += 1
+	# Headless never calls play(), so stream_paused does not latch. The web
+	# probe checks that pause actually stops the buffer source.
 	var elapsed_before := float(game.elapsed)
 	game._toggle_sound()
 	if game._paused or game._sound.enabled or game._sound_label.text != "OFF":

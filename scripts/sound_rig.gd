@@ -3,9 +3,10 @@ class_name SoundRig
 
 ## TEST audio player. Music sits at -6 dB and SFX at -12 dB so the loop is
 ## above the stings. The slime shot is another -10 dB and at most about 4/s.
-## Web builds wait for a user gesture before the first play. iOS Safari ignores
-## audio that starts before that tap, and it will not play the ogg as a stream.
-## See audio/README.md.
+## The web export plays the loop as a sample. Godot 4.7 does not put GodotAudio
+## on the page, so iOS Safari can be running for WAV shots while this rig still
+## thinks the context is missing and never starts the loop. The shell publishes
+## the real context. See audio/README.md.
 
 var settings_path := AudioCues.SETTINGS_PATH
 var enabled := true
@@ -15,6 +16,11 @@ var _music_wanted := false
 var _unlocked := false
 var _shot_lockout := 0.0
 var last_gain_db := 0.0
+## True while the web context is locked, or the loop was asked for and did not start.
+var output_blocked := false
+var _web_state := ""
+var _music_silent_for := 0.0
+var _music_sources := 0
 var _music: AudioStreamPlayer
 var _pools: Dictionary = {}
 var _cursors: Dictionary = {}
@@ -47,23 +53,80 @@ func unlock_from_gesture() -> void:
 	_unlocked = true
 	_ensure_music()
 
-func poll_web_gesture() -> void:
+func poll_web_gesture(delta: float = 0.0) -> void:
 	if not OS.has_feature("web"):
+		output_blocked = false
 		return
-	var flagged: Variant = JavaScriptBridge.eval(
-		"(function(){if(!window.__godotAudioGesture)return 0;window.__godotAudioGesture=false;return 1;})()",
+	# One read: gesture, visibility restart, context state, live music sources.
+	var packed := str(JavaScriptBridge.eval(
+		"(function(){var g=window.__godotAudioGesture?1:0;window.__godotAudioGesture=false;var r=window.__godotAudioRestartMusic?1:0;window.__godotAudioRestartMusic=false;var state=window.__godotAudioState||(window.__godotAudioCtx&&window.__godotAudioCtx.state)||(typeof GodotAudio!=='undefined'&&GodotAudio.ctx&&GodotAudio.ctx.state)||'missing';var n=window.__godotMusicSources||0;return g+'|'+r+'|'+state+'|'+n;})()",
 		true
-	)
-	if int(flagged) == 1:
+	))
+	var gesture := 0
+	var restart := 0
+	var parts := packed.split("|")
+	if parts.size() >= 4:
+		gesture = int(parts[0])
+		restart = int(parts[1])
+		_web_state = parts[2]
+		_music_sources = int(parts[3])
+	else:
+		_web_state = "missing"
+		_music_sources = 0
+	# A running context is the unlock. iOS stays suspended until a tap, and
+	# that tap is what moves the context to running.
+	if _web_state == "running":
+		_unlocked = true
+	if gesture == 1:
 		_unlocked = true
 		_resume_web_audio()
-	if _unlocked:
+	if restart == 1 and _unlocked:
+		_restart_music_from_web()
+	elif _unlocked:
 		_ensure_music()
+	_update_output_blocked(delta)
+
+func _restart_music_from_web() -> void:
+	_music_silent_for = 0.0
+	if not _music_wanted or not enabled or _music == null:
+		return
+	# Pause already owns the player. Coming back to the tab must not unpause it.
+	if _music.stream_paused:
+		return
+	# The buffer source is still connected. Resuming the context is enough,
+	# and a second play() would stack another loop on top.
+	if _music_sources > 0 and _web_audio_state() == "running" and _music.playing:
+		return
+	if _music.playing:
+		_music.stop()
+	_ensure_music()
+
+func _update_output_blocked(delta: float) -> void:
+	if not enabled:
+		output_blocked = false
+		_music_silent_for = 0.0
+		return
+	if _web_audio_state() != "running":
+		output_blocked = true
+		_music_silent_for = 0.0
+		return
+	if _music != null and _music.stream_paused:
+		output_blocked = false
+		_music_silent_for = 0.0
+		return
+	var music_live := _music_wanted and _music != null and _music.playing and _music_sources > 0
+	if music_live:
+		_music_silent_for = 0.0
+		output_blocked = false
+		return
+	_music_silent_for += delta
+	# The worklet starts the buffer a moment after play(). Don't flash the mark.
+	output_blocked = _music_silent_for >= 0.6
 
 func _process(delta: float) -> void:
 	if _shot_lockout > 0.0:
 		_shot_lockout = maxf(_shot_lockout - delta, 0.0)
-	poll_web_gesture()
+	poll_web_gesture(delta)
 
 func play_title_card(card: String) -> void:
 	var event := AudioCues.reveal_event_for_card(card)
@@ -160,9 +223,8 @@ func _build_players() -> void:
 		AudioCues.prepare_stream(stream, event)
 		if event == "gameplay_music":
 			_music = _make_player(event, stream)
-			# Desktop can stream the ogg. iOS Safari plays the wav shots and
-			# stays silent for a streamed ogg, so the web build uses a sample.
-			# The loop flag is on the stream either way, with loop_offset 0.
+			# Desktop streams the ogg. The web build uses a sample so the
+			# single-threaded export does not garble the loop. loop_offset stays 0.
 			_music.playback_type = AudioCues.music_playback_type(OS.has_feature("web"))
 			_music.max_polyphony = 1
 			continue
@@ -251,26 +313,30 @@ func _resume_web_audio() -> void:
 	JavaScriptBridge.eval("if (window.unlockGodotAudio) window.unlockGodotAudio();", true)
 
 func _web_audio_ready() -> bool:
-	var state := _web_audio_state()
-	if state == "running":
+	if _web_audio_state() == "running":
 		return true
 	_resume_web_audio()
-	return _web_audio_state() == "running"
+	_web_state = str(JavaScriptBridge.eval(
+		"(function(){return window.__godotAudioState||(window.__godotAudioCtx&&window.__godotAudioCtx.state)||(typeof GodotAudio!=='undefined'&&GodotAudio.ctx&&GodotAudio.ctx.state)||'missing';})()",
+		true
+	))
+	return _web_state == "running"
 
 func _web_audio_state() -> String:
 	if not OS.has_feature("web"):
 		return "running"
-	var value: Variant = JavaScriptBridge.eval(
-		"(function(){if(typeof GodotAudio==='undefined'||!GodotAudio.ctx)return 'missing';return GodotAudio.ctx.state;})()",
-		true
-	)
-	return str(value)
+	if _web_state == "":
+		_web_state = str(JavaScriptBridge.eval(
+			"(function(){return window.__godotAudioState||(window.__godotAudioCtx&&window.__godotAudioCtx.state)||(typeof GodotAudio!=='undefined'&&GodotAudio.ctx&&GodotAudio.ctx.state)||'missing';})()",
+			true
+		))
+	return _web_state
 
 func _web_already_unlocked() -> bool:
 	if not OS.has_feature("web"):
 		return true
 	var value: Variant = JavaScriptBridge.eval(
-		"(function(){if(window.__godotAudioPrimed)return 1;if(typeof GodotAudio!=='undefined'&&GodotAudio.ctx&&GodotAudio.ctx.state==='running')return 1;return 0;})()",
+		"(function(){if(window.__godotAudioPrimed)return 1;var state=window.__godotAudioState||(window.__godotAudioCtx&&window.__godotAudioCtx.state)||(typeof GodotAudio!=='undefined'&&GodotAudio.ctx&&GodotAudio.ctx.state)||'';if(state==='running')return 1;return 0;})()",
 		true
 	)
 	return int(value) == 1
