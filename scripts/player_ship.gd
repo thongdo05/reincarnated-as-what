@@ -117,18 +117,18 @@ func _move_slime(delta: float) -> void:
 	position += velocity * delta
 
 func _move_goblin(delta: float) -> void:
-	stride = fmod(stride + delta, FormCatalog.GOBLIN_STRIDE)
-	sprinting = stride < FormCatalog.GOBLIN_STRIDE * FormCatalog.GOBLIN_SPRINT_FRACTION
+	stride = fmod(stride + delta, FormCatalog.goblin_f("stride"))
+	sprinting = stride < FormCatalog.goblin_f("stride") * FormCatalog.goblin_f("sprint_fraction")
 	var to_aim := aim - position
 	var dist := to_aim.length()
 	var desired := Vector2.ZERO
-	var accel := FormCatalog.GOBLIN_ACCEL
+	var accel := FormCatalog.goblin_f("accel")
 	if dist > 0.6:
-		var cap := FormCatalog.GOBLIN_MAX_SPEED
+		var cap := FormCatalog.goblin_f("max_speed")
 		if not sprinting:
-			cap *= FormCatalog.GOBLIN_PLANT_SPEED_SCALE
+			cap *= FormCatalog.goblin_f("plant_speed_scale")
 			accel *= 0.35
-		var speed := minf(cap, dist * FormCatalog.GOBLIN_ARRIVE)
+		var speed := minf(cap, dist * FormCatalog.goblin_f("arrive"))
 		desired = to_aim / dist * speed
 	velocity = velocity.move_toward(desired, accel * delta)
 	position += velocity * delta

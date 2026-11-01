@@ -72,6 +72,7 @@ var _shake_rng := RandomNumberGenerator.new()
 var _pause_button: Button
 var _pause_icon: TextureRect
 var _pause_overlay: Control
+var _pause_card: PauseCard
 var _sound: SoundRig
 var _sound_button: Button
 var _sound_label: Label
@@ -305,12 +306,10 @@ func _build_hud() -> void:
 	pause_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	pause_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pause_overlay.add_child(pause_dim)
-	var pause_label := _make_label(18, Color("f2fbff"))
-	pause_label.text = "PAUSED"
-	pause_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pause_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	pause_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_pause_overlay.add_child(pause_label)
+	_pause_card = PauseCard.new()
+	_pause_card.setup(_font_outlined)
+	_pause_overlay.add_child(_pause_card)
+	_refresh_pause_card()
 
 	_pause_button = Button.new()
 	_pause_button.focus_mode = Control.FOCUS_NONE
@@ -645,12 +644,15 @@ func _collide() -> void:
 		for enemy in _enemies:
 			if not enemy.alive:
 				continue
+			if shot.hit_ids.has(enemy.id):
+				continue
 			if shot.ignore_id == enemy.id and shot.age < 0.1:
 				continue
 			var enemy_file := SpawnDirector.sprite_for(enemy.kind)
 			if not HitLibrary.overlaps(shot.position, shot.sprite_name, "body", enemy.position, enemy_file, "body"):
 				continue
 			enemy.hurt(shot.damage)
+			shot.hit_ids.append(enemy.id)
 			if shot.splits > 0:
 				for spec in FormCatalog.split_shots(shot.velocity, shot.position):
 					spec["ignore_id"] = enemy.id
@@ -660,6 +662,9 @@ func _collide() -> void:
 				_spawn_fx("death_puff.png", enemy.position, 0.42, 0.45, 1.55)
 			else:
 				_spawn_fx("hit_flash.png", shot.position, 0.16, 0.75, 1.35)
+			if shot.pierce > 0:
+				shot.pierce -= 1
+				continue
 			spent.append(shot)
 			break
 	for shot in spent:
@@ -737,12 +742,22 @@ func _spawn_loot(at: Vector2) -> void:
 	_loot.append(gem)
 
 func _tick_loot(delta: float) -> void:
+	var magnet := 0.0
+	var magnet_speed := 0.0
+	if form_id == FormCatalog.Id.GOBLIN:
+		magnet = FormCatalog.goblin_f("loot_magnet")
+		magnet_speed = FormCatalog.goblin_f("loot_magnet_speed")
 	var keep: Array[LootGem] = []
 	for gem in _loot:
 		if not is_instance_valid(gem):
 			continue
 		gem.tick(delta)
-		if _player.alive and _overlaps(_player.position, _player.radius, gem.position, gem.radius):
+		if _player.alive and magnet > 0.0:
+			var offset := _player.position - gem.position
+			var dist := offset.length()
+			if dist <= magnet and dist > 0.5:
+				gem.position += offset / dist * magnet_speed * delta
+		if _player.alive and _loot_reached(gem, magnet):
 			_collect_gem(gem)
 			continue
 		if gem.position.x < -40.0:
@@ -754,8 +769,14 @@ func _tick_loot(delta: float) -> void:
 func _collect_gem(gem: LootGem) -> void:
 	gem.queue_free()
 	loot_count += 1
-	_gain_skill(FormCatalog.LOOT_POINTS)
-	_combat.push("+%d" % FormCatalog.LOOT_POINTS, gem.position + Vector2(-8, -14), Color("8a4b12"))
+	var picked := FormCatalog.loot_points()
+	_gain_skill(picked)
+	_combat.push("+%d" % picked, gem.position + Vector2(-8, -14), Color("8a4b12"))
+
+func _loot_reached(gem: LootGem, magnet: float) -> bool:
+	if _overlaps(_player.position, _player.radius, gem.position, gem.radius):
+		return true
+	return magnet > 0.0 and form_id == FormCatalog.Id.GOBLIN and _player.position.distance_to(gem.position) <= magnet
 
 func _gain_skill(points: int) -> void:
 	if points <= 0:
@@ -1071,6 +1092,7 @@ func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float)
 	icon_pos.x = clampf(icon_pos.x, 0.0, maxf(hit - PAUSE_ART_PX, 0.0))
 	icon_pos.y = clampf(icon_pos.y, 0.0, maxf(hit - PAUSE_ART_PX, 0.0))
 	_pause_icon.position = icon_pos
+	_layout_pause_card(viewport)
 	var show := phase == PHASE_PLAY or _paused
 	_pause_button.visible = show
 	if _pause_overlay != null:
@@ -1098,6 +1120,29 @@ func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float)
 			var show_blocked := _sound != null and _sound.output_blocked
 			show_blocked = show_blocked and (phase == PHASE_REVEAL or phase == PHASE_PLAY or _paused)
 			_audio_blocked_button.visible = show_blocked
+
+func _layout_pause_card(viewport: Vector2) -> void:
+	if _pause_card == null:
+		return
+	# The pause glyph and the SND control share a column on the right.
+	var reserved := 56.0
+	if _pause_button != null:
+		reserved = maxf(viewport.x - _pause_button.position.x + 8.0, 56.0)
+	var margin := 8.0
+	var width := clampf(viewport.x - margin - reserved, 160.0, 400.0)
+	_pause_card.set_card_width(width)
+	_refresh_pause_card()
+	var height := _pause_card.get_combined_minimum_size().y
+	var y := clampf((viewport.y - height) * 0.5, 66.0, maxf(viewport.y - height - 4.0, 66.0))
+	_pause_card.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_pause_card.position = Vector2(margin, y)
+	_pause_card.size = Vector2(width, height)
+
+func _refresh_pause_card() -> void:
+	if _pause_card == null or _player == null:
+		return
+	var split_ready := form_id != FormCatalog.Id.SLIME or not _player.small
+	_pause_card.show_form(form_id, rank_index, evo_points, split_ready)
 
 func _layout_pause(viewport: Vector2) -> void:
 	var window := DisplayServer.window_get_size()

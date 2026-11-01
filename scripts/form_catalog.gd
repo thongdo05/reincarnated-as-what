@@ -7,10 +7,11 @@ class_name FormCatalog
 ## The vending machine title card is already mapped to its reveal sting. It stays
 ## silent until that form is added to IDS. Goblin shots stay silent too.
 ## Vending Machine's weapon has no random WINNER! burst. WINNER! is only the meter clear.
-## Slime and Goblin are tuned to the same close-range hit rate.
 ## Slime pays for a reliable forward stream with a big body and a long slide.
 ## Goblin pays for a small body with stones that lob forward and only fully connect up close,
 ## plus a stride that plants his feet for a moment each step.
+## Goblin's rocks hit harder than that stream because most of the arc misses.
+## Every Goblin balance number lives in GOBLIN. Slime's numbers are unchanged.
 
 enum Id { SLIME, GOBLIN }
 
@@ -22,28 +23,74 @@ const SLIME_ACCEL := 1550.0
 const SLIME_MAX_SPEED := 430.0
 const SLIME_ARRIVE := 4.8
 
-const GOBLIN_FIRE_INTERVAL := 0.48
-const GOBLIN_SHOT_SPEED := 780.0
-const GOBLIN_GRAVITY := 170.0
-const GOBLIN_SPREAD := 110.0
-const GOBLIN_ACCEL := 3800.0
-const GOBLIN_MAX_SPEED := 560.0
-const GOBLIN_ARRIVE := 11.0
-const GOBLIN_STRIDE := 0.32
-const GOBLIN_SPRINT_FRACTION := 0.70
-const GOBLIN_PLANT_SPEED_SCALE := 0.16
+## Every Goblin balance number. Rank arrays are rank 1, rank 2, rank 3.
+## Movement, stones, and loot all read this table.
+## Before this pass: fire_interval [0.48, 0.36, 0.28], shot_speed 780, gravity 170,
+## spread [±110], [±150, ±50], [±180, ±90, 0], damage 1, pierce 0,
+## loot_points 40, loot_magnet 0, loot_magnet_speed 0.
+## Movement (accel, max_speed, arrive, stride, sprint, plant) is unchanged.
+## Loot points stay 40. A magnet was measured and left at 0: it inflated score
+## past the bot band without being what closed the survival gap.
+const GOBLIN := {
+	"fire_interval": [0.30, 0.24, 0.20],
+	"shot_speed": 780.0,
+	"gravity": 170.0,
+	"spread": [
+		[-110.0, 0.0, 110.0],
+		[-170.0, -56.0, 56.0, 170.0],
+		[-200.0, -100.0, 0.0, 100.0, 200.0],
+	],
+	"damage": 2,
+	"pierce": 1,
+	"accel": 3800.0,
+	"max_speed": 560.0,
+	"arrive": 11.0,
+	"stride": 0.32,
+	"sprint_fraction": 0.70,
+	"plant_speed_scale": 0.16,
+	"loot_points": 40,
+	"loot_magnet": 0.0,
+	"loot_magnet_speed": 0.0,
+}
+
+## Kept so older shot-size checks can still name the previous circle fraction.
+## Live shots use the shapes in res://art/hitboxes.json.
+const SHOT_PCT := 0.62
+
+## Pause-card sentences. A new form adds one entry. Weapon text is not copied
+## here; weapon_line() builds it from the rank's real shot data.
+const FORM_CARD := {
+	Id.SLIME: {
+		"trait": "Once per run, splits into a small slime instead of dying; regrows in 15s.",
+		"ready": "Split ready.",
+		"used": "Split used.",
+	},
+	Id.GOBLIN: {
+		"trait": "Kills drop loot. Picking it up adds score and evolution points.",
+		"ready": "",
+		"used": "",
+	},
+}
 
 ## Cumulative skill points to reach rank 2, then rank 3. Rank 1 is the start.
 ## The numbers live in Difficulty so the bot and the meter share one pair.
 static func rank_gates() -> Array[int]:
 	return Difficulty.gates()
 
-## A Goblin pickup. Added to the score and to the evolution meter. Not a weapon upgrade.
-const LOOT_POINTS := 40
+static func goblin_f(key: String) -> float:
+	return float(GOBLIN[key])
 
-## Kept so older shot-size checks can still name the previous circle fraction.
-## Live shots use the shapes in res://art/hitboxes.json.
-const SHOT_PCT := 0.62
+static func goblin_rank_f(key: String, rank_index: int) -> float:
+	var values: Array = GOBLIN[key]
+	return float(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func goblin_spread(rank_index: int) -> Array:
+	var rows: Array = GOBLIN["spread"]
+	return (rows[clampi(rank_index, 0, rows.size() - 1)] as Array).duplicate()
+
+## A Goblin pickup. Added to the score and to the evolution meter. Not a weapon upgrade.
+static func loot_points() -> int:
+	return int(GOBLIN["loot_points"])
 
 static func display_name(id: int) -> String:
 	match id:
@@ -98,12 +145,12 @@ static func core_radius(id: int, rank_index: int, small: bool) -> float:
 static func max_speed(id: int) -> float:
 	if id == Id.SLIME:
 		return SLIME_MAX_SPEED
-	return GOBLIN_MAX_SPEED
+	return goblin_f("max_speed")
 
 static func fire_interval(id: int) -> float:
 	if id == Id.SLIME:
 		return SLIME_FIRE_INTERVAL
-	return GOBLIN_FIRE_INTERVAL
+	return goblin_rank_f("fire_interval", 0)
 
 ## Daily order: shuffle the roster once with the UTC date seed, then cycle.
 ## Run 0 and run 1 are the two forms in that day's order. Run 2 repeats run 0.
@@ -157,35 +204,22 @@ static func rank_table(id: int) -> Array[Dictionary]:
 				"spread": [],
 			},
 		]
-	return [
-		{
-			"name": "Goblin",
-			"sprite": "goblin_r1.png",
-			"fire_interval": GOBLIN_FIRE_INTERVAL,
-			"shot_sprite": "slingshot_stone.png",
-			"shot_color": Color("f0c36a"),
+	var names := ["Goblin", "Goblin Chief", "Goblin King"]
+	var sprites := ["goblin_r1.png", "goblin_r2.png", "goblin_r3.png"]
+	var stones := ["slingshot_stone.png", "slingshot_stone_l2.png", "slingshot_stone_l3.png"]
+	var colors: Array[Color] = [Color("f0c36a"), Color("ffe08a"), Color("fff3c4")]
+	var rows: Array[Dictionary] = []
+	for i in names.size():
+		rows.append({
+			"name": names[i],
+			"sprite": sprites[i],
+			"fire_interval": goblin_rank_f("fire_interval", i),
+			"shot_sprite": stones[i],
+			"shot_color": colors[i],
 			"lanes": [],
-			"spread": [-GOBLIN_SPREAD, 0.0, GOBLIN_SPREAD],
-		},
-		{
-			"name": "Goblin Chief",
-			"sprite": "goblin_r2.png",
-			"fire_interval": 0.36,
-			"shot_sprite": "slingshot_stone_l2.png",
-			"shot_color": Color("ffe08a"),
-			"lanes": [],
-			"spread": [-150.0, -50.0, 50.0, 150.0],
-		},
-		{
-			"name": "Goblin King",
-			"sprite": "goblin_r3.png",
-			"fire_interval": 0.28,
-			"shot_sprite": "slingshot_stone_l3.png",
-			"shot_color": Color("fff3c4"),
-			"lanes": [],
-			"spread": [-180.0, -90.0, 0.0, 90.0, 180.0],
-		},
-	]
+			"spread": goblin_spread(i),
+		})
+	return rows
 
 static func rank_spec(id: int, rank_index: int) -> Dictionary:
 	var table := rank_table(id)
@@ -220,9 +254,12 @@ static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array
 			shots.append(_blob(origin + Vector2(muzzle, float(lane)), Vector2(SLIME_SHOT_SPEED, 0), 1, shot_color, shot_sprite))
 	else:
 		var spread: Array = spec["spread"]
+		var damage := int(goblin_f("damage"))
+		var pierce := int(goblin_f("pierce"))
 		for vy in spread:
-			var stone := _blob(origin + Vector2(muzzle, -2), Vector2(GOBLIN_SHOT_SPEED, float(vy)), 0, shot_color, shot_sprite)
-			stone["gravity"] = GOBLIN_GRAVITY
+			var stone := _blob(origin + Vector2(muzzle, -2), Vector2(goblin_f("shot_speed"), float(vy)), 0, shot_color, shot_sprite, damage)
+			stone["gravity"] = goblin_f("gravity")
+			stone["pierce"] = pierce
 			stone["style"] = "stone"
 			shots.append(stone)
 	return shots
@@ -237,12 +274,13 @@ static func split_shots(velocity: Vector2, origin: Vector2) -> Array[Dictionary]
 		shots.append(spec)
 	return shots
 
-static func _blob(pos: Vector2, velocity: Vector2, splits: int, color: Color, sprite: String) -> Dictionary:
+static func _blob(pos: Vector2, velocity: Vector2, splits: int, color: Color, sprite: String, damage: int = 1) -> Dictionary:
 	return {
 		"position": pos,
 		"velocity": velocity,
 		"gravity": 0.0,
-		"damage": 1,
+		"damage": damage,
+		"pierce": 0,
 		"radius": HitLibrary.bounds_radius(sprite, "body"),
 		"splits": splits,
 		"color": color,
@@ -250,3 +288,63 @@ static func _blob(pos: Vector2, velocity: Vector2, splits: int, color: Color, sp
 		"sprite": sprite,
 		"killer_name": "",
 	}
+
+static func card_heading(id: int, rank_index: int) -> String:
+	var total := rank_table(id).size()
+	return "%s, %s (rank %d/%d)" % [
+		display_name(id),
+		rank_name(id, rank_index),
+		rank_index + 1,
+		total,
+	]
+
+## One short line from this rank's shot count, interval, arc, split, pierce, and damage.
+static func weapon_line(id: int, rank_index: int) -> String:
+	var spec := rank_spec(id, rank_index)
+	var shots := player_shots(id, Vector2.ZERO, rank_index)
+	if shots.is_empty():
+		return "No weapon."
+	var first: Dictionary = shots[0]
+	var every := "%.2fs" % float(spec["fire_interval"])
+	var count := shots.size()
+	if id == Id.SLIME:
+		var head := "Straight shot every %s." % every
+		if count > 1:
+			head = "%d shots every %s." % [count, every]
+		if int(first.get("splits", 0)) > 0:
+			return "%s Splits on hit." % head
+		return head
+	var arc := 0.0
+	for vy in spec["spread"]:
+		arc = maxf(arc, absf(float(vy)))
+	var line := "%d rocks every %s. Arc %d." % [count, every, int(round(arc))]
+	var pierce := int(first.get("pierce", 0))
+	if pierce > 0:
+		line += " Pierce %d." % pierce
+	var damage := int(first.get("damage", 1))
+	if damage != 1:
+		line += " Dmg %d." % damage
+	return line
+
+## Trait copy from FORM_CARD, plus the live split state or the magnet radius.
+static func trait_line(id: int, split_ready: bool) -> String:
+	var row: Dictionary = FORM_CARD.get(id, {})
+	var body := str(row.get("trait", ""))
+	if id == Id.SLIME:
+		var state_key := "used"
+		if split_ready:
+			state_key = "ready"
+		var flag := str(row.get(state_key, ""))
+		if flag != "":
+			return "%s %s" % [flag, body]
+		return body
+	if id == Id.GOBLIN and goblin_f("loot_magnet") > 0.0:
+		return "%s Pulls in within %dpx." % [body, int(round(goblin_f("loot_magnet")))]
+	return body
+
+## Absolute points against the next gate, or FINAL FORM at the last rank.
+static func next_rank_text(rank_index: int, points: int) -> String:
+	var gate := gate_for_next_rank(rank_index)
+	if gate < 0:
+		return "FINAL FORM"
+	return "%d/%d" % [maxi(points, 0), gate]

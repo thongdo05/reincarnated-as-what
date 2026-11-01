@@ -16,7 +16,10 @@ func _process(_delta: float) -> bool:
 	if _done:
 		return false
 	_done = true
-	_measure()
+	if OS.get_cmdline_user_args().has("--balance"):
+		_measure_balance()
+	else:
+		_measure()
 	return true
 
 func _measure() -> void:
@@ -99,6 +102,7 @@ func _run(seed_value: int, form: int, style: String) -> Dictionary:
 		"rank2": rank2,
 		"rank3": rank3,
 		"points": int(game.evo_points),
+		"score": int(game.score),
 		"killer": str(game.killer_name),
 	}
 	root.remove_child(game)
@@ -204,6 +208,71 @@ func _safest_y(game, where: Vector2) -> float:
 			best = safety
 			best_y = y
 	return best_y
+
+## Same seeds and the same steer policies as _measure. 24 runs per form.
+## Prints median and p75 survival, median and best score, and rank rates.
+## godot --headless -s res://tests/dodge_bot.gd -- --balance
+func _measure_balance() -> void:
+	var seeds: Array[int] = [
+		20261101, 20261102, 20261103, 20261104, 20261108, 20261115,
+		20261116, 20261122, 20261129, 20261206, 20261213, 20261220,
+		20261227, 20270103, 20270110, 20270117, 20270124, 20270131,
+		20270207, 20270214, 20270221, 20270228, 20270307, 20270314,
+	]
+	var styles: Array[String] = ["dodge", "naive"]
+	var args := OS.get_cmdline_user_args()
+	var style_at := args.find("--style")
+	if style_at >= 0 and style_at + 1 < args.size():
+		styles = [str(args[style_at + 1])]
+	var limit_at := args.find("--limit")
+	if limit_at >= 0 and limit_at + 1 < args.size():
+		seeds = seeds.slice(0, int(args[limit_at + 1]))
+	for style in styles:
+		for form in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
+			var deaths: Array[float] = []
+			var scores: Array[float] = []
+			var reached2 := 0
+			var reached3 := 0
+			for seed_value in seeds:
+				print("RUN %s %s %d" % [style, FormCatalog.display_name(form), seed_value])
+				var result := _run(seed_value, form, style)
+				deaths.append(float(result["death"]))
+				scores.append(float(result["score"]))
+				if float(result["rank2"]) >= 0.0:
+					reached2 += 1
+				if float(result["rank3"]) >= 0.0:
+					reached3 += 1
+				print("ROW %s %s seed %d death %.2f score %d rank2 %s rank3 %s" % [
+					style,
+					FormCatalog.display_name(form),
+					seed_value,
+					float(result["death"]),
+					int(result["score"]),
+					"yes" if float(result["rank2"]) >= 0.0 else "no",
+					"yes" if float(result["rank3"]) >= 0.0 else "no",
+				])
+			var n := seeds.size()
+			print("BALANCE %s %s n %d death_med %.2f death_p75 %.2f score_med %.0f score_best %.0f rank2_pct %.1f rank3_pct %.1f" % [
+				style,
+				FormCatalog.display_name(form),
+				n,
+				_median(deaths),
+				_percentile(deaths, 0.75),
+				_median(scores),
+				_max(scores),
+				100.0 * float(reached2) / float(n),
+				100.0 * float(reached3) / float(n),
+			])
+	print("BOT_OK")
+	quit(0)
+
+func _percentile(values: Array[float], fraction: float) -> float:
+	if values.is_empty():
+		return -1.0
+	var copy := values.duplicate()
+	copy.sort()
+	var index := clampi(int(ceil(fraction * float(copy.size()))) - 1, 0, copy.size() - 1)
+	return float(copy[index])
 
 func _median(values: Array[float]) -> float:
 	if values.is_empty():
