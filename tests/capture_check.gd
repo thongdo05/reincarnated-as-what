@@ -119,11 +119,10 @@ func _check_rank_and_clean() -> int:
 
 func _check_unplayable() -> int:
 	var failed := 0
-	CaptureMode.reset_for_test(PackedStringArray(["--form=cat"]))
+	CaptureMode.reset_for_test(PackedStringArray(["--form=cat", "--seed=3"]))
 	var game := _game()
-	var card := FormCatalog.title_card(FormCatalog.Id.SLIME)
-	if game._title_card.texture == ArtLibrary.texture(card):
-		push_error("the cat reveal should not use the slime card")
+	if int(game.form_id) != FormCatalog.Id.CAT:
+		push_error("cat should boot as a playable form")
 		failed += 1
 	if game._title_card.texture != ArtLibrary.texture("title_cards/title_cat.png"):
 		push_error("the cat reveal should use the cat title card")
@@ -133,22 +132,22 @@ func _check_unplayable() -> int:
 		failed += 1
 	for _i in 120:
 		game._process(1.0 / 60.0)
-	if not CaptureMode.holding() or int(game.phase) != game.PHASE_REVEAL:
-		push_error("an unplayable form should hold after the reveal")
+	if CaptureMode.holding() or int(game.phase) == game.PHASE_REVEAL:
+		push_error("cat should leave the title card and play")
 		failed += 1
-	if float(game.elapsed) > 0.0 or game._enemies.size() > 0:
-		push_error("an unplayable form should not start gameplay")
+	if float(game.elapsed) <= 0.0:
+		push_error("cat should start gameplay")
 		failed += 1
-	var found := false
 	for child in game._hud.get_children():
-		if child is Label and str(child.text).find("NOT PLAYABLE YET") >= 0 and str(child.text).find("CAT") >= 0:
-			found = true
-	if not found:
-		push_error("the fallback should say the form is not playable yet")
-		failed += 1
+		if child is Label and str(child.text).find("NOT PLAYABLE YET") >= 0:
+			push_error("cat should not show the locked card")
+			failed += 1
 	_free(game)
 	CaptureMode.reset_for_test(PackedStringArray(["--form=vending_machine"]))
 	var vending := _game()
+	if int(vending.form_id) != FormCatalog.Id.VENDING:
+		push_error("vending machine should boot playable")
+		failed += 1
 	if vending._sound.played.find("reveal_vending_machine") < 0:
 		push_error("the vending machine reveal should play its sting")
 		failed += 1
@@ -156,6 +155,13 @@ func _check_unplayable() -> int:
 		push_error("the vending machine reveal should use its title card")
 		failed += 1
 	_free(vending)
+	CaptureMode.reset_for_test(PackedStringArray(["--form=demon_lord", "--seed=5"]))
+	var demon := _game()
+	if int(demon.form_id) != FormCatalog.Id.DEMON or demon._player.sprite_name() != "demon_lord_r1.png":
+		push_error("demon lord should boot on its rank 1 sprite")
+		failed += 1
+	_free(demon)
+	CaptureMode.reset_for_test(PackedStringArray())
 	return failed
 
 func _check_evo() -> int:

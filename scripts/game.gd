@@ -47,6 +47,11 @@ var _effects: Array[PixelEffect] = []
 var pattern_shots: Array[Dictionary] = []
 var power_spawned := 0
 var overdrive := 0
+var winner := 0
+var winner_pops := 0
+var _graze_streak := 0
+var _graze_left := 0.0
+var _winner_busy := false
 var rapid_left := 0.0
 var magnet_left := 0.0
 var _next_rake := Difficulty.RAKE_FIRST
@@ -743,7 +748,13 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		var shot_event := AudioCues.shot_event_for_form(form_id)
 		if _sound != null and shot_event != "":
 			_sound.play_event(shot_event)
+		var crowd := _crowd_size()
 		for spec in FormCatalog.player_shots(form_id, _player.position, rank_index):
+			if form_id == FormCatalog.Id.DEMON and not FlappyMode.is_active():
+				var speed := FormCatalog.demon_speed(rank_index, crowd)
+				spec["velocity"] = Vector2(speed, 0.0)
+				spec["homing"] = FormCatalog.demon_homing(rank_index, crowd)
+				spec["damage"] = FormCatalog.demon_damage(rank_index, crowd)
 			_spawn_shot(spec, true)
 		_player.did_fire(interval)
 	CaptureMode.tick_play(self, delta)
@@ -761,6 +772,8 @@ func _play_frame(delta: float, size: Vector2) -> void:
 			continue
 		for spec in enemy.tick(delta, player_pos, elapsed, Difficulty.speed_scale(elapsed)):
 			_spawn_shot(spec, false)
+	_tick_charm(delta)
+	_guide_orbs(delta)
 	for shot in _shots:
 		shot.tick(delta)
 	_tick_patterns(delta, size)
@@ -828,10 +841,14 @@ func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
 	return shot
 
 func _collide() -> void:
+	_reflect_swipes()
 	var spent: Array[Shot] = []
 	var splits: Array[Dictionary] = []
 	for shot in _shots:
 		if not shot.from_player or not is_instance_valid(shot):
+			continue
+		# A zero-damage swipe only reflects. Touching a body must not erase it.
+		if int(shot.damage) <= 0:
 			continue
 		for enemy in _enemies:
 			if not enemy.alive:
@@ -870,7 +887,7 @@ func _collide() -> void:
 		return
 	var player_file := _player.sprite_name()
 	for enemy in _enemies:
-		if not enemy.alive:
+		if not enemy.alive or enemy.charmed > 0.0:
 			continue
 		var enemy_file := SpawnDirector.sprite_for(enemy.kind)
 		# Every hurt part, not the movement bounds radius.
@@ -906,6 +923,8 @@ func _award_kill(enemy: EnemyActor, drop_loot: bool = true) -> void:
 			_roll_drops(enemy.position)
 	if _sound != null:
 		_sound.play_event("enemy_killed")
+	if drop_loot and not _winner_busy and not FlappyMode.is_active() and form_id == FormCatalog.Id.VENDING:
+		_charge_winner()
 	if not FlappyMode.is_active() and enemy.max_hp >= 3:
 		_request_hit_stop(3)
 		_bump_shake()
@@ -924,6 +943,8 @@ func _graze_gap(hazard: Object, separation: float) -> void:
 		_spawn_fx("graze_sparkle.png", at, 0.34, 0.45, 1.45)
 	else:
 		score += grazed
+		if form_id == FormCatalog.Id.CAT:
+			_note_cat_graze()
 
 func _hurt_player(killer: String) -> void:
 	if CaptureMode.ignore_hit(self, killer):
@@ -1149,14 +1170,188 @@ func _overdrive_blast() -> void:
 	_spawn_fx("evolved_burst.png", _player.position + Vector2(40, -8), 0.45, 0.6, 1.4)
 	_request_hit_stop(4)
 	_bump_shake()
-	_queue_chain(0.1, "winner_burst.png", Vector2(0, -18), "")
-	_queue_chain(0.18, "", Vector2(-8, -36), "WINNER!")
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
 		enemy.hurt(99)
 		if not enemy.alive:
 			_award_kill(enemy, false)
+
+func _charge_winner() -> void:
+	winner += 1
+	if winner < FormCatalog.vending_winner_kills():
+		return
+	winner = 0
+	_winner_clear()
+
+## The only WINNER! in the game. Kills fill it. Coins do not.
+func _winner_clear() -> void:
+	if _winner_busy:
+		return
+	_winner_busy = true
+	winner_pops += 1
+	_clear_enemy_shots()
+	_overdrive_flash = 0.28
+	_combat.push("WINNER!", _player.position + Vector2(-28, -28), Color("ffe56a"), 0.5)
+	var field := _viewport_size()
+	_spawn_fx("winner_burst.png", field * 0.5, 0.55, 1.2, 2.4)
+	_request_hit_stop(4)
+	_bump_shake()
+	for enemy in _enemies:
+		if not enemy.alive:
+			continue
+		enemy.hurt(99)
+		if not enemy.alive:
+			_award_kill(enemy, false)
+			_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
+	_winner_busy = false
+
+func _note_cat_graze() -> void:
+	if FlappyMode.is_active():
+		return
+	_graze_left = FormCatalog.CAT_GRAZE_WINDOW
+	_graze_streak += 1
+	if _graze_streak < FormCatalog.CAT_GRAZE_NEED:
+		return
+	_graze_streak = 0
+	_charm_nearby()
+
+func _charm_nearby() -> void:
+	var ranked: Array[EnemyActor] = []
+	for enemy in _enemies:
+		if not enemy.alive or enemy.charmed > 0.0:
+			continue
+		if enemy.kind == SpawnDirector.ANVIL or enemy.kind == SpawnDirector.PIANO:
+			continue
+		if enemy.position.distance_to(_player.position) > FormCatalog.CAT_CHARM_RADIUS:
+			continue
+		ranked.append(enemy)
+	ranked.sort_custom(func(a: EnemyActor, b: EnemyActor) -> bool:
+		return a.position.distance_squared_to(_player.position) < b.position.distance_squared_to(_player.position)
+	)
+	var turned := 0
+	for enemy in ranked:
+		enemy.charmed = FormCatalog.CAT_CHARM_TIME
+		enemy.charm_cd = 0.12
+		turned += 1
+		if turned >= FormCatalog.CAT_CHARM_MAX:
+			break
+	if turned > 0 and _combat != null:
+		_combat.push("TAKEOVER!", _player.position + Vector2(-36, -26), Color("ff9ad8"), 0.4)
+
+func _tick_charm(delta: float) -> void:
+	if _graze_left > 0.0:
+		_graze_left = maxf(_graze_left - delta, 0.0)
+		if _graze_left <= 0.0:
+			_graze_streak = 0
+	if form_id != FormCatalog.Id.CAT or FlappyMode.is_active():
+		return
+	for enemy in _enemies:
+		if not is_instance_valid(enemy) or enemy.charmed <= 0.0:
+			continue
+		enemy.charmed = maxf(enemy.charmed - delta, 0.0)
+		if enemy.charmed <= 0.0:
+			enemy.modulate = Color.WHITE
+			continue
+		enemy.charm_cd -= delta
+		if enemy.charm_cd > 0.0:
+			continue
+		var foe: EnemyActor = null
+		var best := 999999.0
+		for other in _enemies:
+			if other == enemy or not other.alive or other.charmed > 0.0:
+				continue
+			if other.kind == SpawnDirector.ANVIL or other.kind == SpawnDirector.PIANO:
+				continue
+			var dist := enemy.position.distance_squared_to(other.position)
+			if dist < best:
+				best = dist
+				foe = other
+		if foe == null:
+			continue
+		var aim := foe.position - enemy.position
+		if aim.length() < 1.0:
+			continue
+		enemy.charm_cd = 0.55
+		_spawn_shot({
+			"position": enemy.position,
+			"velocity": aim.normalized() * 240.0,
+			"sprite": "reflected_bullet.png",
+			"damage": 1,
+			"radius": HitLibrary.bounds_radius("reflected_bullet.png", "body"),
+			"color": Color("8ecbff"),
+		}, true)
+
+func _guide_orbs(delta: float) -> void:
+	var foes: Array[EnemyActor] = []
+	for enemy in _enemies:
+		if enemy.alive and enemy.charmed <= 0.0:
+			foes.append(enemy)
+	if foes.is_empty():
+		return
+	for shot in _shots:
+		if not is_instance_valid(shot) or shot.homing <= 0.0 or not shot.from_player:
+			continue
+		var best: EnemyActor = null
+		var best_d := 99999999.0
+		for enemy in foes:
+			var dist := shot.position.distance_squared_to(enemy.position)
+			if dist < best_d:
+				best_d = dist
+				best = enemy
+		if best == null:
+			continue
+		var cruise := shot.cruise if shot.cruise > 1.0 else shot.velocity.length()
+		var desired := best.position - shot.position
+		if desired.length() < 1.0:
+			continue
+		shot.velocity = shot.velocity.move_toward(desired.normalized() * cruise, shot.homing * delta)
+
+func _reflect_swipes() -> void:
+	for swipe in _shots:
+		if not is_instance_valid(swipe) or not swipe.from_player or str(swipe.style) != "swipe":
+			continue
+		for bullet in _shots:
+			if bullet == swipe or not is_instance_valid(bullet) or bullet.from_player:
+				continue
+			if swipe.position.distance_squared_to(bullet.position) > 64.0 * 64.0:
+				continue
+			if not HitLibrary.overlaps(swipe.position, swipe.sprite_name, "body", bullet.position, bullet.sprite_name, "threat"):
+				continue
+			_reflect_bullet(bullet)
+
+func _reflect_bullet(bullet: Shot) -> void:
+	var speed := maxf(bullet.velocity.length(), 220.0)
+	var dir := Vector2(1, 0)
+	if bullet.velocity.length() > 1.0:
+		dir = Vector2(-bullet.velocity.x, -bullet.velocity.y * 0.35)
+		if dir.length() < 0.01:
+			dir = Vector2(1, 0)
+		else:
+			dir = dir.normalized()
+		if dir.x < 0.35:
+			dir.x = 0.35
+			dir = dir.normalized()
+	bullet.velocity = dir * speed
+	bullet.from_player = true
+	bullet.sprite_name = "reflected_bullet.png"
+	bullet.damage = 1
+	bullet.pierce = 0
+	bullet.radius = HitLibrary.bounds_radius("reflected_bullet.png", "body")
+	bullet.style = "blob"
+	bullet.killer_name = ""
+	bullet.homing = 0.0
+	bullet.expires = false
+	bullet.z_index = 3
+	bullet.grazed = true
+	bullet.hit_ids.clear()
+
+func _crowd_size() -> int:
+	var count := 0
+	for enemy in _enemies:
+		if enemy.alive:
+			count += 1
+	return count
 
 func _clear_enemy_shots() -> void:
 	var write := 0
@@ -1493,7 +1688,7 @@ func _sweep(size: Vector2) -> void:
 	var shot_write := 0
 	var wide := field.grow(20)
 	for shot in _shots:
-		if not is_instance_valid(shot) or not wide.has_point(shot.position):
+		if not is_instance_valid(shot) or not wide.has_point(shot.position) or (shot.expires and shot.life <= 0.0):
 			_release_shot(shot)
 			continue
 		_shots[shot_write] = shot
@@ -1562,6 +1757,10 @@ func _refresh_hud() -> void:
 	var overdrive_px := -1
 	if not FlappyMode.is_active() and FormCatalog.gate_for_next_rank(rank_index) < 0:
 		overdrive_px = int(round(float(HudLayout.FILL_FULL) * clampf(float(overdrive) / float(Difficulty.OVERDRIVE_GEMS), 0.0, 1.0)))
+	var winner_px := -1
+	if not FlappyMode.is_active() and form_id == FormCatalog.Id.VENDING:
+		var need := float(FormCatalog.vending_winner_kills())
+		winner_px = int(round(float(HudLayout.FILL_FULL) * clampf(float(winner) / need, 0.0, 1.0)))
 	_hud_view.set_run(
 		ScoreRules.format_score(score),
 		ScoreRules.format_time(elapsed),
@@ -1573,7 +1772,8 @@ func _refresh_hud() -> void:
 		_player != null and _player.shield_hits > 0,
 		int(ceil(rapid_left)) if rapid_left > 0.0 else 0,
 		int(ceil(magnet_left)) if magnet_left > 0.0 else 0,
-		overdrive_px
+		overdrive_px,
+		winner_px
 	)
 
 func share_run() -> Dictionary:
@@ -1610,6 +1810,10 @@ func _on_share() -> void:
 
 func _on_restart() -> void:
 	if FlappyMode.is_active() or CaptureMode.is_active():
+		# Flappy keeps its own form rules. A challenged form sticks for that
+		# one run; the retry rolls, and does not repeat the form you died as.
+		if CaptureMode.is_active() and not FlappyMode.is_active():
+			CaptureMode.note_player_retry(form_id)
 		get_tree().reload_current_scene()
 		return
 	if phase != PHASE_DEAD or not game_over_visible:
@@ -1870,10 +2074,10 @@ func _prewarm() -> void:
 	PixelFont.outlined_texture("NEW BEST!", Color("ffe56a"))
 	PixelFont.outlined_texture("BOMB", Color("ffe56a"))
 	PixelFont.outlined_texture("OD", Color("ffe56a"))
-	for file_name in ["fx/fx_evolve_glow.png", "fx/fx_evolve_flash.png", "fx/fx_evolved_pop.png", "evolved_burst.png", "winner_burst.png", "graze_sparkle.png", "hit_flash.png", "anvil.png", "slime_shot.png", "ui/hud_coin_icon.png", "gem.png", "floating_eye_bolt.png", "arrow.png", "wyvern_shot.png"]:
+	for file_name in ["fx/fx_evolve_glow.png", "fx/fx_evolve_flash.png", "fx/fx_evolved_pop.png", "evolved_burst.png", "winner_burst.png", "graze_sparkle.png", "hit_flash.png", "anvil.png", "slime_shot.png", "ui/hud_coin_icon.png", "gem.png", "floating_eye_bolt.png", "arrow.png", "wyvern_shot.png", "vending_can.png", "cat_swipe.png", "reflected_bullet.png", "demon_orb_r1.png", "demon_orb_r2.png", "demon_orb_r3.png"]:
 		ArtLibrary.texture(file_name)
 	for rank in 3:
-		for id in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
+		for id in FormCatalog.IDS:
 			var spec := FormCatalog.rank_spec(id, rank)
 			ArtLibrary.texture("fx/forms/%s_flash.png" % str(spec["sprite"]).trim_suffix(".png"))
 			ArtLibrary.texture("fx/forms/%s_rim.png" % str(spec["sprite"]).trim_suffix(".png"))
@@ -1938,8 +2142,11 @@ func _finish_tutorial() -> void:
 func _reincarnate() -> void:
 	_silence_death()
 	_clear_field()
+	var died_as := form_id
 	run_index = DailyRun.consume_run_index()
 	form_id = FormCatalog.id_for_run(day_seed, run_index)
+	if form_id == died_as:
+		form_id = FormCatalog.id_for_run_avoiding(day_seed, run_index, died_as)
 	score = 0
 	combo = 0
 	combo_left = 0.0
@@ -1950,6 +2157,10 @@ func _reincarnate() -> void:
 	evo_points = 0
 	rank_index = 0
 	overdrive = 0
+	winner = 0
+	_graze_streak = 0
+	_graze_left = 0.0
+	_winner_busy = false
 	rapid_left = 0.0
 	magnet_left = 0.0
 	power_spawned = 0

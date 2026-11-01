@@ -321,12 +321,20 @@
     ]
   },
   "floating_eye.png": {
-    "body": [{ "type": "circle", "center": [0, -1], "r": 8.5 }],
-    "threat": [{ "type": "circle", "center": [0, -1], "r": 6 }]
+    "body": [
+      { "type": "circle", "center": [0, -1], "r": 8.5 }
+    ],
+    "threat": [
+      { "type": "circle", "center": [0, -1], "r": 6 }
+    ]
   },
   "skeleton_archer.png": {
-    "body": [{ "type": "capsule", "a": [-3, -38], "b": [-3, -8], "r": 9 }],
-    "threat": [{ "type": "capsule", "a": [-2, -32], "b": [-2, -14], "r": 6 }]
+    "body": [
+      { "type": "capsule", "a": [-3, -38], "b": [-3, -8], "r": 9 }
+    ],
+    "threat": [
+      { "type": "capsule", "a": [-2, -32], "b": [-2, -14], "r": 6 }
+    ]
   },
   "wyvern.png": {
     "body": [
@@ -348,44 +356,428 @@
     ]
   },
   "piano.png": {
-    "body": [{ "type": "rect", "center": [0, -1], "half": [27, 20] }],
-    "threat": [{ "type": "rect", "center": [0, -1], "half": [22, 16] }]
+    "body": [
+      { "type": "rect", "center": [0, -1], "half": [27, 20] }
+    ],
+    "threat": [
+      { "type": "rect", "center": [0, -1], "half": [22, 16] }
+    ]
   },
   "slime_shot.png": {
-    "body": [{ "type": "capsule", "a": [-3, 0], "b": [2, 0], "r": 2 }]
+    "body": [
+      { "type": "capsule", "a": [-3, 0], "b": [2, 0], "r": 2 }
+    ]
   },
   "slingshot_stone.png": {
-    "body": [{ "type": "circle", "center": [0, 0], "r": 2.5 }]
+    "body": [
+      { "type": "circle", "center": [0, 0], "r": 2.5 }
+    ]
   },
   "slingshot_stone_l2.png": {
-    "body": [{ "type": "circle", "center": [0, 0], "r": 3 }]
+    "body": [
+      { "type": "circle", "center": [0, 0], "r": 3 }
+    ]
   },
   "slingshot_stone_l3.png": {
-    "body": [{ "type": "circle", "center": [0, 0], "r": 4 }]
+    "body": [
+      { "type": "circle", "center": [0, 0], "r": 4 }
+    ]
   },
   "demon_orb_r1.png": {
-    "body": [{ "type": "circle", "center": [0, 0], "r": 5 }]
+    "body": [
+      { "type": "circle", "center": [0, 0], "r": 5 }
+    ]
   },
   "demon_orb_r2.png": {
-    "body": [{ "type": "circle", "center": [0, 0], "r": 6 }]
+    "body": [
+      { "type": "circle", "center": [0, 0], "r": 6 }
+    ]
   },
   "demon_orb_r3.png": {
-    "body": [{ "type": "circle", "center": [0, 0], "r": 8 }]
+    "body": [
+      { "type": "circle", "center": [0, 0], "r": 8 }
+    ]
   },
   "reflected_bullet.png": {
-    "body": [{ "type": "capsule", "a": [-3, 0], "b": [2, 0], "r": 2 }]
+    "body": [
+      { "type": "capsule", "a": [-3, 0], "b": [2, 0], "r": 2 }
+    ]
   },
   "arrow.png": {
-    "threat": [{ "type": "capsule", "a": [-5, 0], "b": [5, 0], "r": 1.25 }]
+    "threat": [
+      { "type": "capsule", "a": [-5, 0], "b": [5, 0], "r": 1.25 }
+    ]
   },
   "floating_eye_bolt.png": {
-    "threat": [{ "type": "capsule", "a": [-3, 0], "b": [2, 0], "r": 1.5 }]
+    "threat": [
+      { "type": "capsule", "a": [-3, 0], "b": [2, 0], "r": 1.5 }
+    ]
   },
   "wyvern_shot.png": {
-    "threat": [{ "type": "circle", "center": [0, 0], "r": 2.5 }]
+    "threat": [
+      { "type": "circle", "center": [0, 0], "r": 2.5 }
+    ]
   },
   "vending_can.png": {
-    "body": [{ "type": "capsule", "a": [-3, 0], "b": [3, 0], "r": 2.4 }],
-    "threat": [{ "type": "capsule", "a": [-2, 0], "b": [2, 0], "r": 1.6 }]
+    "body": [
+      { "type": "capsule", "a": [-3, 0], "b": [3, 0], "r": 2.4 }
+    ],
+    "threat": [
+      { "type": "capsule", "a": [-2, 0], "b": [2, 0], "r": 1.6 }
+    ]
+  },
+  "vending_machine_r1.png": {
+    "hurt": [
+      { "type": "circle", "center": [-9.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [-8.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [-7.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [-6.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [-5.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [-4.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [-3.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [-2.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [-1.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [-0.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [0.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [1.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [2.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [3.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [4.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [5.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [6.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [7.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [8.5, -18.5], "r": 1.55 },
+      { "type": "circle", "center": [-10.5, 18.5], "r": 1.55 },
+      { "type": "circle", "center": [-9.5, 18.5], "r": 1.55 },
+      { "type": "circle", "center": [-8.5, 18.5], "r": 1.55 },
+      { "type": "circle", "center": [7.5, 18.5], "r": 1.55 },
+      { "type": "circle", "center": [8.5, 18.5], "r": 1.55 },
+      { "type": "circle", "center": [9.5, 18.5], "r": 1.55 },
+      { "type": "circle", "center": [-3.5, -8.5], "r": 6.4 },
+      { "type": "circle", "center": [2.5, 4.5], "r": 6.4 },
+      { "type": "circle", "center": [-4.5, 11.5], "r": 6.4 },
+      { "type": "circle", "center": [6.5, -9.5], "r": 6.4 },
+      { "type": "circle", "center": [-10.5, -0.5], "r": 6.4 },
+      { "type": "circle", "center": [5.5, 11.5], "r": 6.4 },
+      { "type": "circle", "center": [-5.5, -15.5], "r": 6.4 },
+      { "type": "circle", "center": [8.5, -1.5], "r": 3.4 },
+      { "type": "circle", "center": [0.5, 17.5], "r": 1.6 }
+    ]
+  },
+  "vending_machine_r2.png": {
+    "hurt": [
+      { "type": "circle", "center": [-12.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-11.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-10.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-9.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-8.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-7.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-6.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-5.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-4.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-3.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-2.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-1.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-0.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [0.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [1.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [2.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [3.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [4.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [5.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [6.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [7.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [8.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [9.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [10.5, -20.5], "r": 1.55 },
+      { "type": "circle", "center": [-11.5, 20.5], "r": 1.55 },
+      { "type": "circle", "center": [-10.5, 20.5], "r": 1.55 },
+      { "type": "circle", "center": [-9.5, 20.5], "r": 1.55 },
+      { "type": "circle", "center": [7.5, 20.5], "r": 1.55 },
+      { "type": "circle", "center": [8.5, 20.5], "r": 1.55 },
+      { "type": "circle", "center": [9.5, 20.5], "r": 1.55 },
+      { "type": "circle", "center": [-3.5, -10.5], "r": 6.4 },
+      { "type": "circle", "center": [-0.5, 3.5], "r": 6.4 },
+      { "type": "circle", "center": [-3.5, 13.5], "r": 6.4 },
+      { "type": "circle", "center": [5.5, -9.5], "r": 6.4 },
+      { "type": "circle", "center": [5.5, 11.5], "r": 6.4 },
+      { "type": "circle", "center": [-10.5, 1.5], "r": 6.4 },
+      { "type": "circle", "center": [-10.5, -13.5], "r": 6.4 },
+      { "type": "circle", "center": [8.5, 0.5], "r": 3.4 },
+      { "type": "circle", "center": [3.5, -17.5], "r": 6.4 },
+      { "type": "circle", "center": [-11.5, 13.5], "r": 3.4 },
+      { "type": "circle", "center": [2.5, 18.5], "r": 1.6 }
+    ]
+  },
+  "vending_machine_r3.png": {
+    "hurt": [
+      { "type": "circle", "center": [-15.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-14.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-12.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-11.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-9.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-8.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-6.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-5.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-3.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-2.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-0.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [0.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [2.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [3.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [5.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [6.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-14.5, 22.5], "r": 1.55 },
+      { "type": "circle", "center": [-13.5, 22.5], "r": 1.55 },
+      { "type": "circle", "center": [-12.5, 22.5], "r": 1.55 },
+      { "type": "circle", "center": [5.5, 22.5], "r": 1.55 },
+      { "type": "circle", "center": [6.5, 22.5], "r": 1.55 },
+      { "type": "circle", "center": [7.5, 22.5], "r": 1.55 },
+      { "type": "circle", "center": [-6.5, -11.5], "r": 6.4 },
+      { "type": "circle", "center": [0.5, 1.5], "r": 6.4 },
+      { "type": "circle", "center": [-5.5, 14.5], "r": 6.4 },
+      { "type": "circle", "center": [-10.5, 1.5], "r": 6.4 },
+      { "type": "circle", "center": [3.5, -12.5], "r": 6.4 },
+      { "type": "circle", "center": [2.5, 14.5], "r": 6.4 },
+      { "type": "circle", "center": [9.5, 1.5], "r": 6.4 },
+      { "type": "circle", "center": [-13.5, 15.5], "r": 6.4 },
+      { "type": "circle", "center": [-13.5, -13.5], "r": 6.4 },
+      { "type": "circle", "center": [-3.5, 21.5], "r": 4.8 },
+      { "type": "circle", "center": [-3.5, -18.5], "r": 1.6 },
+      { "type": "circle", "center": [5.5, -5.5], "r": 6.4 },
+      { "type": "circle", "center": [-14.5, -5.5], "r": 1.6 },
+      { "type": "circle", "center": [8.5, -19.5], "r": 1.6 },
+      { "type": "circle", "center": [-4.5, -4.5], "r": 1.6 },
+      { "type": "circle", "center": [7.5, 8.5], "r": 1.6 }
+    ]
+  },
+  "cat_r1.png": {
+    "hurt": [
+      { "type": "circle", "center": [3.5, -9.5], "r": 1.55 },
+      { "type": "circle", "center": [8.5, -9.5], "r": 1.55 },
+      { "type": "circle", "center": [-5.5, 4.5], "r": 1.55 },
+      { "type": "circle", "center": [-4.5, 4.5], "r": 1.55 },
+      { "type": "circle", "center": [-3.5, 4.5], "r": 1.55 },
+      { "type": "circle", "center": [-2.5, 4.5], "r": 1.55 },
+      { "type": "circle", "center": [-1.5, 4.5], "r": 1.55 },
+      { "type": "circle", "center": [-0.5, 4.5], "r": 1.55 },
+      { "type": "circle", "center": [0.5, 4.5], "r": 1.55 },
+      { "type": "circle", "center": [1.5, 4.5], "r": 1.55 },
+      { "type": "circle", "center": [2.5, 4.5], "r": 1.55 },
+      { "type": "circle", "center": [3.5, 4.5], "r": 1.55 },
+      { "type": "circle", "center": [4.5, -1.5], "r": 6.4 },
+      { "type": "circle", "center": [-8.5, -1.5], "r": 6.4 }
+    ]
+  },
+  "cat_r2.png": {
+    "hurt": [
+      { "type": "circle", "center": [3.5, -10.5], "r": 1.55 },
+      { "type": "circle", "center": [8.5, -10.5], "r": 1.55 },
+      { "type": "circle", "center": [-6.5, 5.5], "r": 1.55 },
+      { "type": "circle", "center": [-5.5, 5.5], "r": 1.55 },
+      { "type": "circle", "center": [-4.5, 5.5], "r": 1.55 },
+      { "type": "circle", "center": [-3.5, 5.5], "r": 1.55 },
+      { "type": "circle", "center": [-2.5, 5.5], "r": 1.55 },
+      { "type": "circle", "center": [-1.5, 5.5], "r": 1.55 },
+      { "type": "circle", "center": [-0.5, 5.5], "r": 1.55 },
+      { "type": "circle", "center": [0.5, 5.5], "r": 1.55 },
+      { "type": "circle", "center": [1.5, 5.5], "r": 1.55 },
+      { "type": "circle", "center": [2.5, 5.5], "r": 1.55 },
+      { "type": "circle", "center": [3.5, 5.5], "r": 1.55 },
+      { "type": "circle", "center": [5.5, -1.5], "r": 6.4 },
+      { "type": "circle", "center": [-7.5, -0.5], "r": 6.4 },
+      { "type": "circle", "center": [-11.5, -8.5], "r": 1.6 },
+      { "type": "circle", "center": [11.5, 3.5], "r": 1.6 }
+    ]
+  },
+  "cat_r3.png": {
+    "hurt": [
+      { "type": "circle", "center": [1.5, -13.5], "r": 1.55 },
+      { "type": "circle", "center": [2.5, -13.5], "r": 1.55 },
+      { "type": "circle", "center": [3.5, -13.5], "r": 1.55 },
+      { "type": "circle", "center": [4.5, -13.5], "r": 1.55 },
+      { "type": "circle", "center": [5.5, -13.5], "r": 1.55 },
+      { "type": "circle", "center": [6.5, -13.5], "r": 1.55 },
+      { "type": "circle", "center": [7.5, -13.5], "r": 1.55 },
+      { "type": "circle", "center": [-7.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [-6.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [-5.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [-4.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [-3.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [-2.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [-1.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [-0.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [0.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [1.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [2.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [3.5, 9.5], "r": 1.55 },
+      { "type": "circle", "center": [3.5, -0.5], "r": 6.4 },
+      { "type": "circle", "center": [-9.5, 1.5], "r": 6.4 },
+      { "type": "circle", "center": [5.5, -8.5], "r": 6.4 },
+      { "type": "circle", "center": [10.5, 1.5], "r": 6.4 },
+      { "type": "circle", "center": [-10.5, -6.5], "r": 6.4 },
+      { "type": "circle", "center": [0.5, 6.5], "r": 4.8 },
+      { "type": "circle", "center": [-2.5, -7.5], "r": 1.6 },
+      { "type": "circle", "center": [-12.5, 8.5], "r": 1.6 },
+      { "type": "circle", "center": [12.5, -5.5], "r": 1.6 }
+    ]
+  },
+  "demon_lord_r1.png": {
+    "hurt": [
+      { "type": "circle", "center": [-9.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [4.5, -21.5], "r": 1.55 },
+      { "type": "circle", "center": [-16.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-15.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-14.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-13.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-12.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-11.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-10.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-9.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-8.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-7.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-6.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-5.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-4.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-3.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-2.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-1.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-0.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [0.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [1.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [2.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [3.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [4.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [5.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [6.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [7.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [8.5, 21.5], "r": 1.55 },
+      { "type": "circle", "center": [-1.5, -4.5], "r": 6.4 },
+      { "type": "circle", "center": [-6.5, 9.5], "r": 6.4 },
+      { "type": "circle", "center": [3.5, 12.5], "r": 6.4 },
+      { "type": "circle", "center": [0.5, -13.5], "r": 6.4 },
+      { "type": "circle", "center": [11.5, -6.5], "r": 6.4 },
+      { "type": "circle", "center": [-9.5, 17.5], "r": 6.4 },
+      { "type": "circle", "center": [3.5, 2.5], "r": 6.4 },
+      { "type": "circle", "center": [-9.5, -1.5], "r": 6.4 },
+      { "type": "circle", "center": [-7.5, -15.5], "r": 4.8 },
+      { "type": "circle", "center": [9.5, 17.5], "r": 1.6 },
+      { "type": "circle", "center": [-13.5, 7.5], "r": 3.4 },
+      { "type": "circle", "center": [18.5, -8.5], "r": 1.6 },
+      { "type": "circle", "center": [6.5, -18.5], "r": 1.6 },
+      { "type": "circle", "center": [-1.5, 18.5], "r": 1.6 }
+    ]
+  },
+  "demon_lord_r2.png": {
+    "hurt": [
+      { "type": "circle", "center": [-9.5, -22.5], "r": 1.55 },
+      { "type": "circle", "center": [5.5, -22.5], "r": 1.55 },
+      { "type": "circle", "center": [-17.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-16.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-15.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-14.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-13.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-12.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-11.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-10.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-9.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-8.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-7.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-6.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-5.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-4.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-3.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-2.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-1.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [-0.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [0.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [1.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [2.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [3.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [4.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [5.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [6.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [7.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [8.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [9.5, 23.5], "r": 1.55 },
+      { "type": "circle", "center": [1.5, -11.5], "r": 6.4 },
+      { "type": "circle", "center": [-2.5, 2.5], "r": 6.4 },
+      { "type": "circle", "center": [-7.5, 14.5], "r": 6.4 },
+      { "type": "circle", "center": [4.5, 14.5], "r": 6.4 },
+      { "type": "circle", "center": [10.5, -3.5], "r": 6.4 },
+      { "type": "circle", "center": [-5.5, -13.5], "r": 6.4 },
+      { "type": "circle", "center": [-10.5, -0.5], "r": 6.4 },
+      { "type": "circle", "center": [-15.5, 14.5], "r": 6.4 },
+      { "type": "circle", "center": [17.5, -8.5], "r": 3.4 },
+      { "type": "circle", "center": [5.5, 2.5], "r": 6.4 },
+      { "type": "circle", "center": [4.5, -19.5], "r": 6.4 },
+      { "type": "circle", "center": [-11.5, 7.5], "r": 1.6 },
+      { "type": "circle", "center": [-1.5, 19.5], "r": 1.6 },
+      { "type": "circle", "center": [10.5, 19.5], "r": 1.6 },
+      { "type": "circle", "center": [-4.5, -5.5], "r": 3.4 },
+      { "type": "circle", "center": [-7.5, -20.5], "r": 1.6 }
+    ]
+  },
+  "demon_lord_r3.png": {
+    "hurt": [
+      { "type": "circle", "center": [-9.5, -25.5], "r": 1.55 },
+      { "type": "circle", "center": [-8.5, -25.5], "r": 1.55 },
+      { "type": "circle", "center": [7.5, -25.5], "r": 1.55 },
+      { "type": "circle", "center": [-15.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-14.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-13.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-12.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-11.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-10.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-9.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-8.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-7.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-6.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-5.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-4.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-3.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-2.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-1.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-0.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [0.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [1.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [2.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [3.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [4.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [5.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [6.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [7.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [8.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [9.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [10.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [11.5, 25.5], "r": 1.55 },
+      { "type": "circle", "center": [-8.5, -15.5], "r": 6.4 },
+      { "type": "circle", "center": [3.5, -6.5], "r": 6.4 },
+      { "type": "circle", "center": [-4.5, 6.5], "r": 6.4 },
+      { "type": "circle", "center": [-16.5, -3.5], "r": 6.4 },
+      { "type": "circle", "center": [5.5, 15.5], "r": 6.4 },
+      { "type": "circle", "center": [17.5, -6.5], "r": 6.4 },
+      { "type": "circle", "center": [-8.5, 17.5], "r": 6.4 },
+      { "type": "circle", "center": [5.5, -17.5], "r": 6.4 },
+      { "type": "circle", "center": [7.5, 3.5], "r": 6.4 },
+      { "type": "circle", "center": [-20.5, -14.5], "r": 6.4 },
+      { "type": "circle", "center": [-7.5, -2.5], "r": 6.4 },
+      { "type": "circle", "center": [-12.5, 7.5], "r": 6.4 },
+      { "type": "circle", "center": [7.5, 22.5], "r": 6.4 },
+      { "type": "circle", "center": [-10.5, -22.5], "r": 6.4 },
+      { "type": "circle", "center": [25.5, -8.5], "r": 3.4 },
+      { "type": "circle", "center": [-23.5, -5.5], "r": 6.4 },
+      { "type": "circle", "center": [-16.5, 19.5], "r": 3.4 },
+      { "type": "circle", "center": [10.5, -4.5], "r": 6.4 },
+      { "type": "circle", "center": [-1.5, 19.5], "r": 6.4 },
+      { "type": "circle", "center": [-1.5, -13.5], "r": 6.4 },
+      { "type": "circle", "center": [12.5, 12.5], "r": 1.6 },
+      { "type": "circle", "center": [11.5, -12.5], "r": 1.6 },
+      { "type": "circle", "center": [0.5, 0.5], "r": 1.6 },
+      { "type": "circle", "center": [15.5, 1.5], "r": 1.6 }
+    ]
+  },
+  "cat_swipe.png": {
+    "body": [{ "type": "capsule", "a": [0, -8], "b": [8, 8], "r": 8 }]
   }
 }

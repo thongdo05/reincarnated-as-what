@@ -1,38 +1,59 @@
 extends RefCounted
 class_name FormCatalog
 
-## Launch roster entries that exist in this prototype.
-## The Slime split is that form's trait. It is not an extra life. One life per run still holds.
-## Vending Machine, Cat, and Demon Lord art is in res://art/ and is not played yet.
-## The vending machine title card is already mapped to its reveal sting. It stays
-## silent until that form is added to IDS. Goblin shots stay silent too.
-## Vending Machine's weapon has no random WINNER! burst. WINNER! is only the meter clear.
+## Launch roster. One life per run still holds. The Slime split is that form's
+## trait, not an extra life.
+## Vending Machine, Cat, and Demon Lord play with the art already in res://art/.
+## The vending machine title card plays its reveal sting. Goblin, Cat, and
+## Demon Lord shots stay silent. WINNER! is only the vending meter clear.
 ## Slime pays for a reliable forward stream with a big body.
 ## Goblin pays for stones that lob forward and only fully connect up close.
-## Both bodies snap to the finger's aim. A squash or a sprint lean is cosmetic.
-## Goblin's rocks hit harder than that stream because most of the arc misses.
-## Every Goblin balance number lives in GOBLIN.
+## Vending Machine trails the finger (heavier, still a flick, not a slog).
+## Cat blinks a short dash on a hard flick. Demon Lord is the large body.
+## Slime, Goblin, Cat, and Demon Lord snap to the aim. A squash or a sprint
+## lean is cosmetic.
+## Goblin's rocks hit harder than the slime stream because most of the arc misses.
+## Every Goblin balance number lives in GOBLIN. The three new forms live in
+## VENDING, CAT, and DEMON.
 
-enum Id { SLIME, GOBLIN }
+enum Id { SLIME, GOBLIN, VENDING, CAT, DEMON }
 
-const IDS: Array[int] = [Id.SLIME, Id.GOBLIN]
+const IDS: Array[int] = [Id.SLIME, Id.GOBLIN, Id.VENDING, Id.CAT, Id.DEMON]
+## Flappy and hop stay on this pair. The default game uses IDS.
+const SIDE_IDS: Array[int] = [Id.SLIME, Id.GOBLIN]
 
 const SLIME_FIRE_INTERVAL := 0.16
 const SLIME_SHOT_SPEED := 700.0
-## Keyboard aim rate. The body does not lag behind this aim.
+## Keyboard aim rate. The body does not lag behind this aim, except Vending.
 const SLIME_MAX_SPEED := 430.0
-## Shared by both forms. At 60 fps, about 84% of the remaining gap closes
+## Shared by the snap forms. At 60 fps, about 84% of the remaining gap closes
 ## each frame, so a flick lands inside 1-3 frames. The cap stays above a
 ## full-screen drag so it does not add a slide.
 const SNAP_ARRIVE := 110.0
 const SNAP_MAX_SPEED := 22000.0
+## Vending closes about 45% of the gap per frame. A flick still lands inside
+## 8 frames, and the first frame of a drag already moves. No overshoot.
+const VENDING_ARRIVE := 68.0
+const VENDING_MAX_SPEED := 400.0
+## Kills, not coins. A full meter is the only WINNER! in the game.
+const VENDING_WINNER_KILLS := 6
+
+## Short dash when the aim jumps. Fine corrections still use the snap.
+const CAT_BLINK_DIST := 34.0
+const CAT_BLINK_MIN := 26.0
+const CAT_BLINK_CD := 0.18
+const CAT_GRAZE_NEED := 5
+const CAT_GRAZE_WINDOW := 1.6
+const CAT_CHARM_TIME := 1.05
+const CAT_CHARM_RADIUS := 92.0
+const CAT_CHARM_MAX := 2
 
 ## Every Goblin balance number. Rank arrays are rank 1, rank 2, rank 3.
 ## Movement, stones, and loot all read this table.
 ## Before this pass: fire_interval [0.48, 0.36, 0.28], shot_speed 780, gravity 170,
 ## spread [±110], [±150, ±50], [±180, ±90, 0], damage 1, pierce 0,
 ## loot_points 40, loot_magnet 0, loot_magnet_speed 0.
-## Movement used to sprint and then plant. Both forms now use SNAP_ARRIVE.
+## Movement used to sprint and then plant. Snap forms now use SNAP_ARRIVE.
 ## Stride only drives the cosmetic lean. Loot points stay 40. A magnet was
 ## measured and left at 0: it inflated score past the bot band without being
 ## what closed the survival gap.
@@ -55,6 +76,34 @@ const GOBLIN := {
 	"loot_magnet_speed": 0.0,
 }
 
+## Three forward cans. Spread is degrees off the forward axis, +y down.
+## Rank 1 is slow enough that the heavy body is the tax. Rank 3 hits harder.
+const VENDING := {
+	"fire_interval": [0.24, 0.20, 0.16],
+	"shot_speed": [520.0, 580.0, 640.0],
+	"damage": [1, 1, 2],
+	"spread_deg": [16.0, 18.0, 20.0],
+}
+
+## The swipe is short. Reflecting bullets is the defense, not a long stream.
+const CAT := {
+	"fire_interval": [0.28, 0.24, 0.20],
+	"shot_speed": 420.0,
+	"life": 0.42,
+	"damage": [1, 1, 2],
+	"pierce": 2,
+}
+
+## Slow homing orbs. Damage, speed, and turn rate climb with the crowd.
+const DEMON := {
+	"fire_interval": [0.34, 0.28, 0.22],
+	"shot_speed": [200.0, 240.0, 280.0],
+	"damage": [2, 3, 3],
+	"homing": [240.0, 300.0, 360.0],
+	"per_enemy": 0.5,
+	"enemy_cap": 6,
+}
+
 ## Kept so older shot-size checks can still name the previous circle fraction.
 ## Live shots use the shapes in res://art/hitboxes.json.
 const SHOT_PCT := 0.62
@@ -69,6 +118,21 @@ const FORM_CARD := {
 	},
 	Id.GOBLIN: {
 		"trait": "Kills can drop gems. Picking one up adds score and evolution points. A small magnet pulls nearby gems.",
+		"ready": "",
+		"used": "",
+	},
+	Id.VENDING: {
+		"trait": "Heavy drift. Kills fill a WINNER! meter. A full meter clears the screen.",
+		"ready": "",
+		"used": "",
+	},
+	Id.CAT: {
+		"trait": "A hard flick blinks a short dash. A graze streak makes nearby enemies fight for you.",
+		"ready": "",
+		"used": "",
+	},
+	Id.DEMON: {
+		"trait": "Big slow orbs home in. They hit harder the more enemies are on screen.",
 		"ready": "",
 		"used": "",
 	},
@@ -90,9 +154,68 @@ static func goblin_spread(rank_index: int) -> Array:
 	var rows: Array = GOBLIN["spread"]
 	return (rows[clampi(rank_index, 0, rows.size() - 1)] as Array).duplicate()
 
+static func vending_rank_f(key: String, rank_index: int) -> float:
+	var values: Array = VENDING[key]
+	return float(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func cat_rank_f(key: String, rank_index: int) -> float:
+	var values: Array = CAT[key]
+	return float(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func cat_f(key: String) -> float:
+	return float(CAT[key])
+
+static func demon_rank_f(key: String, rank_index: int) -> float:
+	var values: Array = DEMON[key]
+	return float(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func demon_damage(rank_index: int, enemies: int) -> int:
+	var base := int(demon_rank_f("damage", rank_index))
+	var capped := clampi(enemies, 0, int(DEMON["enemy_cap"]))
+	return base + int(floor(float(capped) * float(DEMON["per_enemy"])))
+
+static func demon_speed(rank_index: int, enemies: int) -> float:
+	var extra := float(clampi(enemies, 0, int(DEMON["enemy_cap"]))) * 8.0
+	return demon_rank_f("shot_speed", rank_index) + extra
+
+static func demon_homing(rank_index: int, enemies: int) -> float:
+	var extra := float(clampi(enemies, 0, int(DEMON["enemy_cap"]))) * 12.0
+	return demon_rank_f("homing", rank_index) + extra
+
+static func vending_winner_kills() -> int:
+	return VENDING_WINNER_KILLS
+
 ## A Goblin pickup. Added to the score and to the evolution meter. Not a weapon upgrade.
 static func loot_points() -> int:
 	return int(GOBLIN["loot_points"])
+
+static func id_from_key(key: String) -> int:
+	match key:
+		"slime":
+			return Id.SLIME
+		"goblin":
+			return Id.GOBLIN
+		"vending_machine":
+			return Id.VENDING
+		"cat":
+			return Id.CAT
+		"demon_lord":
+			return Id.DEMON
+		_:
+			return -1
+
+static func key_for(id: int) -> String:
+	match id:
+		Id.GOBLIN:
+			return "goblin"
+		Id.VENDING:
+			return "vending_machine"
+		Id.CAT:
+			return "cat"
+		Id.DEMON:
+			return "demon_lord"
+		_:
+			return "slime"
 
 static func display_name(id: int) -> String:
 	match id:
@@ -100,6 +223,12 @@ static func display_name(id: int) -> String:
 			return "SLIME"
 		Id.GOBLIN:
 			return "GOBLIN"
+		Id.VENDING:
+			return "VENDING MACHINE"
+		Id.CAT:
+			return "CAT"
+		Id.DEMON:
+			return "DEMON LORD"
 		_:
 			return "UNKNOWN"
 
@@ -109,6 +238,12 @@ static func gag(id: int) -> String:
 			return "You leave a trail. Mostly of yourself."
 		Id.GOBLIN:
 			return "The crown is heavy. The plan is not."
+		Id.VENDING:
+			return "Sold out at the worst time."
+		Id.CAT:
+			return "The board voted to pounce."
+		Id.DEMON:
+			return "The crown was already on fire."
 		_:
 			return ""
 
@@ -119,13 +254,29 @@ static func title_card(id: int) -> String:
 			return "title_cards/title_slime.png"
 		Id.GOBLIN:
 			return "title_cards/title_goblin.png"
+		Id.VENDING:
+			return "title_cards/title_vending_machine.png"
+		Id.CAT:
+			return "title_cards/title_cat.png"
+		Id.DEMON:
+			return "title_cards/title_demon_lord.png"
 		_:
 			return "title_cards/title_slime.png"
 
 static func title_color(id: int) -> Color:
-	if id == Id.SLIME:
-		return Color("8ecbff")
-	return Color("ffd56a")
+	match id:
+		Id.SLIME:
+			return Color("8ecbff")
+		Id.GOBLIN:
+			return Color("ffd56a")
+		Id.VENDING:
+			return Color("ffb84a")
+		Id.CAT:
+			return Color("ff9ad8")
+		Id.DEMON:
+			return Color("ff6b8a")
+		_:
+			return Color("ffd56a")
 
 static func hit_radius(id: int) -> float:
 	return hit_radius_for(id, 0, false)
@@ -145,22 +296,42 @@ static func core_radius(id: int, rank_index: int, small: bool) -> float:
 	return HitLibrary.max_part_radius(_sprite_file(id, rank_index, small), "hurt")
 
 static func max_speed(id: int) -> float:
-	if id == Id.SLIME:
+	if id == Id.SLIME or id == Id.CAT or id == Id.DEMON:
 		return SLIME_MAX_SPEED
+	if id == Id.VENDING:
+		return VENDING_MAX_SPEED
 	return goblin_f("max_speed")
+
+static func arrive_rate(id: int) -> float:
+	if id == Id.VENDING:
+		return VENDING_ARRIVE
+	return SNAP_ARRIVE
 
 static func fire_interval(id: int) -> float:
 	if id == Id.SLIME:
 		return SLIME_FIRE_INTERVAL
-	return goblin_rank_f("fire_interval", 0)
+	return float(rank_spec(id, 0)["fire_interval"])
 
-## Daily order: shuffle the roster once with the UTC date seed, then cycle.
-## Run 0 and run 1 are the two forms in that day's order. Run 2 repeats run 0.
+## Daily order for the default game. Run 0 is uniform over the roster.
+## Each later run is uniform over the other forms, so it never repeats the
+## form the chain just rolled. Seeded only by the UTC day.
 static func id_for_run(day_seed: int, run_index: int) -> int:
+	return _pick(day_seed, run_index, -1, IDS)
+
+## Same chain, but the last step refuses `avoid` when the natural roll landed on it.
+## Used when a challenged run was a fixed form the chain did not play.
+static func id_for_run_avoiding(day_seed: int, run_index: int, avoid: int) -> int:
+	var natural := _pick(day_seed, run_index, -1, IDS)
+	if natural != avoid:
+		return natural
+	return _pick(day_seed, run_index, avoid, IDS)
+
+## Slime/Goblin cycle used by flappy. Run 2 repeats run 0. Hop rolls this pair too.
+static func id_for_side_run(day_seed: int, run_index: int) -> int:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = day_seed
 	var forms: Array[int] = []
-	forms.assign(IDS)
+	forms.assign(SIDE_IDS)
 	for i in range(forms.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var swap := forms[i]
@@ -170,6 +341,26 @@ static func id_for_run(day_seed: int, run_index: int) -> int:
 	if index < 0:
 		index += forms.size()
 	return forms[index]
+
+static func _pick(day_seed: int, run_index: int, force_avoid: int, roster: Array[int]) -> int:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = day_seed
+	var previous := -1
+	var chosen := roster[0]
+	var steps := maxi(run_index, 0) + 1
+	for step in steps:
+		var skip := previous
+		if force_avoid >= 0 and step == steps - 1:
+			skip = force_avoid
+		var pool: Array[int] = []
+		for id in roster:
+			if id != skip:
+				pool.append(id)
+		if pool.is_empty():
+			pool.assign(roster)
+		chosen = pool[rng.randi_range(0, pool.size() - 1)]
+		previous = chosen
+	return chosen
 
 ## Three ranks per form. Hurt, body, and threat shapes live in res://art/hitboxes.json.
 static func rank_table(id: int) -> Array[Dictionary]:
@@ -206,20 +397,70 @@ static func rank_table(id: int) -> Array[Dictionary]:
 				"spread": [],
 			},
 		]
-	var names := ["Goblin", "Goblin Chief", "Goblin King"]
-	var sprites := ["goblin_r1.png", "goblin_r2.png", "goblin_r3.png"]
-	var stones := ["slingshot_stone.png", "slingshot_stone_l2.png", "slingshot_stone_l3.png"]
-	var colors: Array[Color] = [Color("f0c36a"), Color("ffe08a"), Color("fff3c4")]
+	if id == Id.GOBLIN:
+		var names := ["Goblin", "Goblin Chief", "Goblin King"]
+		var sprites := ["goblin_r1.png", "goblin_r2.png", "goblin_r3.png"]
+		var stones := ["slingshot_stone.png", "slingshot_stone_l2.png", "slingshot_stone_l3.png"]
+		var colors: Array[Color] = [Color("f0c36a"), Color("ffe08a"), Color("fff3c4")]
+		var rows: Array[Dictionary] = []
+		for i in names.size():
+			rows.append({
+				"name": names[i],
+				"sprite": sprites[i],
+				"fire_interval": goblin_rank_f("fire_interval", i),
+				"shot_sprite": stones[i],
+				"shot_color": colors[i],
+				"lanes": [],
+				"spread": goblin_spread(i),
+			})
+		return rows
+	if id == Id.VENDING:
+		var names := ["Vending Machine", "Mega Vendor", "Vending Fortress"]
+		var sprites := ["vending_machine_r1.png", "vending_machine_r2.png", "vending_machine_r3.png"]
+		var colors: Array[Color] = [Color("ffd56a"), Color("ffe08a"), Color("fff3c4")]
+		var rows: Array[Dictionary] = []
+		for i in names.size():
+			rows.append({
+				"name": names[i],
+				"sprite": sprites[i],
+				"fire_interval": vending_rank_f("fire_interval", i),
+				"shot_sprite": "vending_can.png",
+				"shot_color": colors[i],
+				"lanes": [],
+				"spread": [],
+				"spread_deg": vending_rank_f("spread_deg", i),
+			})
+		return rows
+	if id == Id.CAT:
+		var names := ["Cat (ex-CEO)", "Cat Chairman", "Cat Overlord"]
+		var sprites := ["cat_r1.png", "cat_r2.png", "cat_r3.png"]
+		var colors: Array[Color] = [Color("ffb7ea"), Color("ffd0f2"), Color("fff0fb")]
+		var rows: Array[Dictionary] = []
+		for i in names.size():
+			rows.append({
+				"name": names[i],
+				"sprite": sprites[i],
+				"fire_interval": cat_rank_f("fire_interval", i),
+				"shot_sprite": "cat_swipe.png",
+				"shot_color": colors[i],
+				"lanes": [],
+				"spread": [],
+			})
+		return rows
+	var names := ["Demon Lord", "Demon Emperor", "True Demon King"]
+	var sprites := ["demon_lord_r1.png", "demon_lord_r2.png", "demon_lord_r3.png"]
+	var orbs := ["demon_orb_r1.png", "demon_orb_r2.png", "demon_orb_r3.png"]
+	var colors: Array[Color] = [Color("ff4d6a"), Color("ff6b8a"), Color("ffd0dc")]
 	var rows: Array[Dictionary] = []
 	for i in names.size():
 		rows.append({
 			"name": names[i],
 			"sprite": sprites[i],
-			"fire_interval": goblin_rank_f("fire_interval", i),
-			"shot_sprite": stones[i],
+			"fire_interval": demon_rank_f("fire_interval", i),
+			"shot_sprite": orbs[i],
 			"shot_color": colors[i],
 			"lanes": [],
-			"spread": goblin_spread(i),
+			"spread": [],
 		})
 	return rows
 
@@ -254,7 +495,7 @@ static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array
 		var lanes: Array = spec["lanes"]
 		for lane in lanes:
 			shots.append(_blob(origin + Vector2(muzzle, float(lane)), Vector2(SLIME_SHOT_SPEED, 0), 1, shot_color, shot_sprite))
-	else:
+	elif id == Id.GOBLIN:
 		var spread: Array = spec["spread"]
 		var damage := int(goblin_f("damage"))
 		var pierce := int(goblin_f("pierce"))
@@ -264,6 +505,31 @@ static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array
 			stone["pierce"] = pierce
 			stone["style"] = "stone"
 			shots.append(stone)
+	elif id == Id.VENDING:
+		var deg := float(spec["spread_deg"])
+		var speed := vending_rank_f("shot_speed", rank_index)
+		var damage := int(vending_rank_f("damage", rank_index))
+		for sign in [-1.0, 0.0, 1.0]:
+			var angle := deg_to_rad(sign * deg)
+			var vel := Vector2(cos(angle), sin(angle)) * speed
+			var can := _blob(origin + Vector2(muzzle, 0), vel, 0, shot_color, shot_sprite, damage)
+			can["style"] = "can"
+			shots.append(can)
+	elif id == Id.CAT:
+		var damage := int(cat_rank_f("damage", rank_index))
+		var swipe := _blob(origin + Vector2(muzzle, -2), Vector2(cat_f("shot_speed"), 0), 0, shot_color, shot_sprite, damage)
+		swipe["style"] = "swipe"
+		swipe["expires"] = true
+		swipe["life"] = cat_f("life")
+		swipe["pierce"] = int(CAT["pierce"])
+		shots.append(swipe)
+	else:
+		var damage := int(demon_rank_f("damage", rank_index))
+		var speed := demon_rank_f("shot_speed", rank_index)
+		var orb := _blob(origin + Vector2(muzzle, 0), Vector2(speed, 0), 0, shot_color, shot_sprite, damage)
+		orb["style"] = "orb"
+		orb["homing"] = demon_rank_f("homing", rank_index)
+		shots.append(orb)
 	return shots
 
 static func split_shots(velocity: Vector2, origin: Vector2) -> Array[Dictionary]:
@@ -316,6 +582,20 @@ static func weapon_line(id: int, rank_index: int) -> String:
 		if int(first.get("splits", 0)) > 0:
 			return "%s Splits on hit." % head
 		return head
+	if id == Id.VENDING:
+		return "%d cans every %s. Spread %d. No burst." % [count, every, int(round(float(spec["spread_deg"])))]
+	if id == Id.CAT:
+		var line := "Swipe every %s. Reflects shots." % every
+		var damage := int(first.get("damage", 1))
+		if damage != 1:
+			line += " Dmg %d." % damage
+		return line
+	if id == Id.DEMON:
+		var line := "Homing orb every %s." % every
+		var damage := int(first.get("damage", 1))
+		if damage != 1:
+			line += " Dmg %d." % damage
+		return line
 	var arc := 0.0
 	for vy in spec["spread"]:
 		arc = maxf(arc, absf(float(vy)))

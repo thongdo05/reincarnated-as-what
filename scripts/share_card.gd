@@ -45,9 +45,7 @@ static func _ensure() -> void:
 	_config = JSON.parse_string(FileAccess.get_file_as_string("res://share/share_cards_config.json"))
 
 static func form_key(form_id: int) -> String:
-	if form_id == FormCatalog.Id.GOBLIN:
-		return "goblin"
-	return "slime"
+	return FormCatalog.key_for(form_id)
 
 static func killer_id(killer_name: String) -> String:
 	return str(NAME_TO_KILLER.get(killer_name, "floating_eye"))

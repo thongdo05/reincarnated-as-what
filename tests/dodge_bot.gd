@@ -30,7 +30,7 @@ func _measure() -> void:
 	var seeds := [20261101, 20261102, 20261103, 20261104, 20261108, 20261115]
 	var rows: Array[String] = []
 	for style in ["naive", "dodge", "strong"]:
-		for form in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
+		for form in FormCatalog.IDS:
 			var deaths: Array[float] = []
 			var r2: Array[float] = []
 			var r3: Array[float] = []
@@ -127,8 +127,15 @@ func _steer(game, style: String, start: Vector2) -> void:
 	var y := _jukes(game, ship.position)
 	var id: int = game.get_instance_id()
 	var held := float(_held_y.get(id, y))
-	# Goblin plants his feet, so retarget in steps. Slime can slide.
-	var follow := 0.22 if int(game.form_id) == FormCatalog.Id.SLIME else 0.08
+	# Goblin's dodge aim stays the slower step this harness was tuned with.
+	# Vending's aim is the finger; the body lag is the ship's, not the bot's.
+	var follow := 0.22
+	if int(game.form_id) == FormCatalog.Id.GOBLIN:
+		follow = 0.08
+	elif int(game.form_id) == FormCatalog.Id.VENDING:
+		follow = 0.55
+	elif int(game.form_id) == FormCatalog.Id.CAT:
+		follow = 0.34
 	if absf(y - held) > 48.0:
 		follow = 0.45
 	held = lerpf(held, y, follow)
@@ -345,7 +352,7 @@ func _measure_balance() -> void:
 	if limit_at >= 0 and limit_at + 1 < args.size():
 		seeds = seeds.slice(0, int(args[limit_at + 1]))
 	for style in styles:
-		for form in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
+		for form in FormCatalog.IDS:
 			var deaths: Array[float] = []
 			var scores: Array[float] = []
 			var reached2 := 0
@@ -399,7 +406,7 @@ func _report() -> void:
 	for i in count:
 		seeds.append(20261101 + i * 7)
 	for style in styles:
-		for form in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
+		for form in FormCatalog.IDS:
 			var deaths: Array[float] = []
 			var r2: Array[float] = []
 			var r3: Array[float] = []

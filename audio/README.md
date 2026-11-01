@@ -14,7 +14,7 @@ The reborn tease ships as `sting_reborn_tease.ogg` (about 15 KB). The same sting
 | `sfx_death.wav` | Death FX frame 0. The file is cut to the 0.92 s timeline. |
 | `sting_reborn_tease.ogg` | Death frame 11 (0.92 s), as `REBORN AS...?` starts. |
 | `sfx_evolve.wav` | Evolve frame 0. The fanfare hit is at 0.42 s, on the `EVOLVED!` pop (frame 5). |
-| `sting_reveal_vending_machine.wav` | Only the Vending Machine title card. That form is not in the roster, so a normal run does not play it. `SoundRig.debug_play_vending_reveal()` plays it anyway. |
+| `sting_reveal_vending_machine.wav` | The Vending Machine title card. A run that opens as that form plays it. `SoundRig.debug_play_vending_reveal()` plays it anyway. |
 
 The Goblin has no shot file. Those stones stay silent. The slime bloop is not reused.
 

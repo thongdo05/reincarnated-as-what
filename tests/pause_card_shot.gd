@@ -37,6 +37,30 @@ func _initialize() -> void:
 			"heading": "GOBLIN, Goblin Chief (rank 2/3)",
 			"need": "WEAPON",
 		},
+		{
+			"form": FormCatalog.Id.VENDING,
+			"rank": 0,
+			"points": 200,
+			"file": "pause_vending_r1.png",
+			"heading": "VENDING MACHINE, Vending Machine (rank 1/3)",
+			"need": "WINNER!",
+		},
+		{
+			"form": FormCatalog.Id.CAT,
+			"rank": 1,
+			"points": Difficulty.GATE_RANK2 + 400,
+			"file": "pause_cat_r2.png",
+			"heading": "CAT, Cat Chairman (rank 2/3)",
+			"need": "Reflects",
+		},
+		{
+			"form": FormCatalog.Id.DEMON,
+			"rank": 2,
+			"points": Difficulty.GATE_RANK3,
+			"file": "pause_demon_r3.png",
+			"heading": "DEMON LORD, True Demon King (rank 3/3)",
+			"need": "enemies",
+		},
 	]
 
 func _process(_delta: float) -> bool:

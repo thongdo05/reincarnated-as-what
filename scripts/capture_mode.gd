@@ -8,8 +8,8 @@ class_name CaptureMode
 ## (`--form=slime`). When both are present the query string wins.
 
 const DEFAULT_HAZARD_T := 6.0
-const _PLAYABLE := ["slime", "goblin"]
-const _UNPLAYABLE := ["vending_machine", "cat", "demon_lord"]
+const _PLAYABLE := ["slime", "goblin", "vending_machine", "cat", "demon_lord"]
+const _UNPLAYABLE: Array[String] = []
 const _CARDS := {
 	"vending_machine": "title_cards/title_vending_machine.png",
 	"cat": "title_cards/title_cat.png",
@@ -34,6 +34,8 @@ static var _hazard_t := DEFAULT_HAZARD_T
 static var _invuln := false
 static var _hitbox := false
 static var _run_offset := 0
+static var _forced_spent := false
+static var _died_as := -1
 static var _hazard_spent := false
 static var _spawn_at := -1.0
 static var _piano_spawned := false
@@ -99,6 +101,8 @@ static func reset_for_test(argv: PackedStringArray, web: String = "") -> void:
 	_invuln = false
 	_hitbox = false
 	_run_offset = 0
+	_forced_spent = false
+	_died_as = -1
 	_hazard_spent = false
 	_use_test = true
 	_test_web = web
@@ -110,6 +114,9 @@ static func boot(game: Node) -> void:
 	_piano_connected = false
 	_holding = false
 	_spawn_at = -1.0
+	if FlappyMode.is_active():
+		_boot_side(game)
+		return
 	if not _active:
 		game.day_seed = DailyRun.date_seed()
 		game.run_index = DailyRun.consume_run_index()
@@ -118,6 +125,35 @@ static func boot(game: Node) -> void:
 	var seed := _seed_value if _has_seed else DailyRun.date_seed()
 	var run := DailyRun.peek_run_index() + _run_offset
 	var form := FormCatalog.id_for_run(seed, run)
+	var forced := FormCatalog.id_from_key(_form_key)
+	if forced >= 0 and not _forced_spent:
+		form = forced
+	elif _died_as >= 0 and form == _died_as:
+		form = FormCatalog.id_for_run_avoiding(seed, run, _died_as)
+	_died_as = -1
+	game.day_seed = seed
+	game.run_index = run
+	game.form_id = form
+
+## A challenged form is fixed for the run that opened the link. The retry
+## rolls with the daily seed and does not repeat the form just played.
+static func note_player_retry(form_played: int) -> void:
+	_ensure_parsed()
+	_died_as = form_played
+	if _form_key != "":
+		_forced_spent = true
+		_run_offset += 1
+
+## Flappy stays on Slime and Goblin, including the old two-form cycle.
+static func _boot_side(game: Node) -> void:
+	if not _active:
+		game.day_seed = DailyRun.date_seed()
+		game.run_index = DailyRun.consume_run_index()
+		game.form_id = FormCatalog.id_for_side_run(game.day_seed, game.run_index)
+		return
+	var seed := _seed_value if _has_seed else DailyRun.date_seed()
+	var run := DailyRun.peek_run_index() + _run_offset
+	var form := FormCatalog.id_for_side_run(seed, run)
 	if _form_key == "slime":
 		form = FormCatalog.Id.SLIME
 	elif _form_key == "goblin":

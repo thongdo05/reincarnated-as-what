@@ -16,6 +16,10 @@ var killer_name := ""
 var grazed := false
 var ignore_id := -1
 var age := 0.0
+var homing := 0.0
+var cruise := 0.0
+var expires := false
+var life := 0.0
 
 func setup(data: Dictionary, player_owned: bool) -> void:
 	position = data["position"]
@@ -34,12 +38,18 @@ func setup(data: Dictionary, player_owned: bool) -> void:
 	grazed = false
 	age = 0.0
 	ignore_id = int(data.get("ignore_id", -1))
+	homing = float(data.get("homing", 0.0))
+	cruise = velocity.length()
+	expires = bool(data.get("expires", false))
+	life = float(data.get("life", 0.0))
 	visible = true
 	modulate = Color.WHITE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 func tick(delta: float) -> void:
 	age += delta
+	if expires:
+		life -= delta
 	velocity.y += gravity * delta
 	position += velocity * delta
 	if visible and is_inside_tree():
