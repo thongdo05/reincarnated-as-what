@@ -1096,10 +1096,30 @@ func _check_hud() -> int:
 	if score == null or score.get_width() != 64 or score.get_height() != 30 or PixelFont.checksum(score) != 1233492:
 		push_error("score digits should be the 2x gold Kaito render (got %s checksum %s)" % [score.get_size() if score != null else "null", PixelFont.checksum(score) if score != null else -1])
 		failed += 1
+	if PixelFont.is_solid_block(score) or PixelFont.interior_holes(score) < 8:
+		push_error("score glyphs rendered as one solid rectangle (holes %d)" % PixelFont.interior_holes(score))
+		failed += 1
+	# The clock, the rank line, and the +points pop are the HUD labels that
+	# showed up as filled bars on the web build.
+	var clock := PixelFont.outlined_image("0:12", Color("f2fbff"))
+	var points := PixelFont.outlined_image("+100", Color("241428"))
+	if PixelFont.is_solid_block(clock) or PixelFont.is_solid_block(points):
+		push_error("HUD label rendered as one solid rectangle (clock holes %d points holes %d)" % [PixelFont.interior_holes(clock), PixelFont.interior_holes(points)])
+		failed += 1
+	var empty := Image.new()
+	if PixelFont.sample_alpha(empty, 0, 0) > 0.5 or PixelFont.sample_alpha(empty, 7, 1) > 0.5:
+		push_error("a missing atlas page must not count as ink")
+		failed += 1
+	if PixelFont.is_solid_block(PixelFont.plain_atlas()):
+		push_error("Kaito atlas page is a solid rectangle")
+		failed += 1
 	var rank := PixelFont.outlined_image("GEL KNIGHT", Color("ffbcea"))
 	var used := rank.get_used_rect()
 	if int(used.size.x) != 59 or int(used.size.y) != 9:
 		push_error("rank name should be 1x outlined Kaito, got %s" % used)
+		failed += 1
+	if PixelFont.is_solid_block(rank):
+		push_error("rank name rendered as one solid rectangle")
 		failed += 1
 	var outlined := load("res://ui/font_kaito5x7_outlined.fnt") as Font
 	var plain := load("res://ui/font_kaito5x7.fnt") as Font
