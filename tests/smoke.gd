@@ -30,7 +30,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_play() + _check_death_card() + _check_pause() + _check_death_play()
+	var failed := _unit_failed + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -1162,6 +1162,22 @@ func _check_death_sequence() -> int:
 	if held.position != third.position:
 		push_error("a finished pop should hold its last frame")
 		failed += 1
+	var evolve_samples := [
+		[0.0, "glow", true],
+		[1.0 / 12.0, "glow", false],
+		[2.0 / 12.0, "glow", true],
+		[3.0 / 12.0, "flash", false],
+		[4.0 / 12.0, "flash", false],
+		[5.0 / 12.0, "pop", false],
+		[7.0 / 12.0, "pop", false],
+		[8.0 / 12.0 + 0.5, "pop", false],
+		[8.0 / 12.0 + 1.0, "done", false],
+	]
+	for sample in evolve_samples:
+		var stage := FxTimeline.evolve_stage(float(sample[0]))
+		if stage != str(sample[1]) or FxTimeline.evolve_shows_rim(float(sample[0])) != bool(sample[2]):
+			push_error("evolve t=%.3f should be %s rim %s, got %s rim %s" % [float(sample[0]), sample[1], sample[2], stage, FxTimeline.evolve_shows_rim(float(sample[0]))])
+			failed += 1
 	return failed
 
 func _check_death_play() -> int:
@@ -1196,6 +1212,47 @@ func _check_death_play() -> int:
 	if not game.game_over_visible or (game._tease != null and game._tease.visible):
 		push_error("the tease should give way to the death card")
 		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
+func _check_evolve_play() -> int:
+	var failed := 0
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game._begin_play()
+	var before := float(game.elapsed)
+	game.evo_points = int(FormCatalog.RANK_GATES[0]) - 1
+	game._gain_skill(1)
+	if int(game.rank_index) != 1 or game._player.fx_mode != "glow" or not game._player.fx_show_rim:
+		push_error("ranking up should open on the gold rim glow")
+		failed += 1
+	if game._player.evolve_old == game._player.evolve_new:
+		push_error("the glow should still show the previous sprite")
+		failed += 1
+	var saw_flash := false
+	var saw_pop := false
+	for _i in 200:
+		game._process(1.0 / 60.0)
+		if game._player.fx_mode == "flash":
+			saw_flash = true
+		if game._player._evolve_fx != null and game._player._evolve_fx.sheet == "fx/fx_evolved_pop.png" and game._player._evolve_fx.playing:
+			saw_pop = true
+		if game._player.evolve_t < 0.0 and saw_pop:
+			break
+	if not saw_flash or not saw_pop:
+		push_error("evolve should flash the new silhouette and then hold EVOLVED!")
+		failed += 1
+	if int(game.phase) != 1 or float(game.elapsed) <= before:
+		push_error("an evolve should leave the run running")
+		failed += 1
+	for item in game._combat.items:
+		if str(item["text"]).find("EVOLVED") >= 0:
+			push_error("the old EVOLVED! text should be gone")
+			failed += 1
+			break
 	root.remove_child(game)
 	game.free()
 	return failed

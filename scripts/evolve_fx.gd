@@ -1,0 +1,36 @@
+extends Node2D
+class_name EvolveFx
+
+## Sheets that ride on the form. The pop's anchor sits 34 px above the form.
+
+var sheet := ""
+var sheet_time := 0.0
+var anchor_at := Vector2.ZERO
+var playing := false
+
+func play(t: float) -> void:
+	var stage := FxTimeline.evolve_stage(t)
+	playing = stage != "done" and stage != "none"
+	visible = playing
+	if not playing:
+		queue_redraw()
+		return
+	var frame := int(floor(t * FxTimeline.FPS + 0.0001))
+	anchor_at = Vector2.ZERO
+	if stage == "glow":
+		sheet = "fx/fx_evolve_glow.png"
+		sheet_time = float(frame) / FxTimeline.FPS
+	elif stage == "flash":
+		sheet = "fx/fx_evolve_flash.png"
+		sheet_time = float(frame - 3) / FxTimeline.FPS
+	else:
+		sheet = "fx/fx_evolved_pop.png"
+		sheet_time = maxf(t - 5.0 / FxTimeline.FPS, 0.0)
+		anchor_at = Vector2(0, -34)
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	queue_redraw()
+
+func _draw() -> void:
+	if not playing or sheet.is_empty():
+		return
+	ArtLibrary.draw_loop(self, sheet, sheet_time, anchor_at)

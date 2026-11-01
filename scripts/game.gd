@@ -638,11 +638,10 @@ func _gain_skill(points: int) -> void:
 	evo_points += points
 	var reached := FormCatalog.rank_for_points(evo_points)
 	if reached > rank_index:
+		var old_sprite := _player.sprite_name()
 		rank_index = reached
 		_player.set_rank(rank_index)
-		var evolved := FormCatalog.rank_name(form_id, rank_index)
-		_combat.push("EVOLVED! %s" % evolved, _player.position + Vector2(-52, -30), Color("fff6c8"))
-		_spawn_fx("evolved_burst.png", _player.position + Vector2(0, -8), 0.72, 0.55, 1.2)
+		_player.begin_evolve(old_sprite, _player.sprite_name())
 	_refresh_hud()
 
 func _kill_player(name: String) -> void:
