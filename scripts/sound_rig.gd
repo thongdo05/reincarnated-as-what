@@ -1,9 +1,11 @@
 extends Node
 class_name SoundRig
 
-## TEST audio player. Buses sit at 0 dB (the files already match the manifest).
+## TEST audio player. Music sits at -6 dB and SFX at -12 dB so the loop is
+## above the stings. The slime shot is another -10 dB and at most about 4/s.
 ## Web builds wait for a user gesture before the first play. iOS Safari ignores
-## audio that starts before that tap. See audio/README.md.
+## audio that starts before that tap, and it will not play the ogg as a stream.
+## See audio/README.md.
 
 var settings_path := AudioCues.SETTINGS_PATH
 var enabled := true
@@ -11,6 +13,8 @@ var played: Array[String] = []
 
 var _music_wanted := false
 var _unlocked := false
+var _shot_lockout := 0.0
+var last_gain_db := 0.0
 var _music: AudioStreamPlayer
 var _pools: Dictionary = {}
 var _cursors: Dictionary = {}
@@ -56,7 +60,9 @@ func poll_web_gesture() -> void:
 	if _unlocked:
 		_ensure_music()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	if _shot_lockout > 0.0:
+		_shot_lockout = maxf(_shot_lockout - delta, 0.0)
 	poll_web_gesture()
 
 func play_title_card(card: String) -> void:
@@ -69,10 +75,13 @@ func play_title_card(card: String) -> void:
 func debug_play_vending_reveal() -> void:
 	play_event("reveal_vending_machine")
 
-func play_event(event: String) -> void:
+func play_event(event: String, gain_db: float = 0.0) -> void:
 	if AudioCues.spec(event).is_empty():
 		return
+	if event == "slime_shot" and not _claim_shot():
+		return
 	played.append(event)
+	last_gain_db = gain_db
 	if not enabled:
 		return
 	# Same reason as the music player: a stream left running at process
@@ -83,6 +92,8 @@ func play_event(event: String) -> void:
 	if player == null:
 		return
 	player.pitch_scale = _pitch_for(event)
+	var base_db := float(AudioCues.spec(event).get("volume_db", 0.0))
+	player.volume_db = base_db + gain_db
 	player.play()
 
 func stop_event(event: String) -> void:
@@ -149,9 +160,10 @@ func _build_players() -> void:
 		AudioCues.prepare_stream(stream, event)
 		if event == "gameplay_music":
 			_music = _make_player(event, stream)
-			# Stream playback loops the ogg in the mix. Sample playback would
-			# restart on the ended event and tick the seam.
-			_music.playback_type = AudioServer.PLAYBACK_TYPE_STREAM
+			# Desktop can stream the ogg. iOS Safari plays the wav shots and
+			# stays silent for a streamed ogg, so the web build uses a sample.
+			# The loop flag is on the stream either way, with loop_offset 0.
+			_music.playback_type = AudioCues.music_playback_type(OS.has_feature("web"))
 			_music.max_polyphony = 1
 			continue
 		var voices := 1
@@ -173,7 +185,7 @@ func _make_player(event: String, stream: AudioStream) -> AudioStreamPlayer:
 	player.name = event
 	player.stream = stream
 	player.bus = StringName(str(data["bus"]))
-	player.volume_db = 0.0
+	player.volume_db = float(data.get("volume_db", 0.0))
 	player.pitch_scale = 1.0
 	player.process_mode = Node.PROCESS_MODE_ALWAYS
 	player.tree_exiting.connect(_silence_player.bind(player))
@@ -197,10 +209,19 @@ func _take_player(event: String) -> AudioStreamPlayer:
 	return stolen
 
 func _pitch_for(event: String) -> float:
+	var ratio := float(AudioCues.spec(event).get("pitch_ratio", 0.0))
+	if ratio > 0.0:
+		return AudioCues.shot_pitch_scale(randf())
 	var span := float(AudioCues.spec(event).get("pitch_semitones", 0.0))
 	if span <= 0.0:
 		return 1.0
 	return AudioCues.semitone_to_pitch(AudioCues.pop_semitones(randf(), randf()))
+
+func _claim_shot() -> bool:
+	if _shot_lockout > 0.0:
+		return false
+	_shot_lockout = float(AudioCues.spec("slime_shot").get("min_interval", AudioCues.SHOT_MIN_INTERVAL))
+	return true
 
 func _ensure_music() -> void:
 	if not _music_wanted or _music == null:

@@ -7,15 +7,21 @@ const SURVIVAL_PER_SECOND := 10
 const COMBO_WINDOW := 1.55
 const COMBO_CAP := 8
 
-static func on_kill(base: int, combo: int, combo_left: float) -> Dictionary:
+## rank_index 0 is the opening form. Rank 2 (index 1) and rank 3 weigh combo
+## steps above x1 by Difficulty.RANK2_COMBO_WEIGHT. A lone kill stays x1.
+static func on_kill(base: int, combo: int, combo_left: float, rank_index: int = 0) -> Dictionary:
 	var next_combo := 1
 	if combo_left > 0.0:
 		next_combo = mini(combo + 1, COMBO_CAP)
+	var multiplier := Difficulty.kill_multiplier(next_combo, rank_index)
 	return {
-		"points": base * next_combo,
+		"points": int(round(float(base) * multiplier)),
 		"combo": next_combo,
 		"combo_left": COMBO_WINDOW,
 	}
+
+static func graze_points(rank_index: int) -> int:
+	return Difficulty.graze_points(rank_index)
 
 static func format_time(seconds: float) -> String:
 	var total := maxi(int(floor(seconds)), 0)

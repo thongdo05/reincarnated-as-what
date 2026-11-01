@@ -63,6 +63,12 @@ var _restart_button: Button
 var _share_button: Button
 var _rotate: Control
 var _paused := false
+var _debug_on := false
+var _debug_label: Label
+var _final_evolve := false
+var _slow_left := 0.0
+var _shake_left := 0.0
+var _shake_rng := RandomNumberGenerator.new()
 var _pause_button: Button
 var _pause_icon: TextureRect
 var _pause_overlay: Control
@@ -344,6 +350,11 @@ func _build_hud() -> void:
 	_pause_icon.custom_minimum_size = Vector2(PAUSE_ART_PX, PAUSE_ART_PX)
 	_pause_button.add_child(_pause_icon)
 	_layout_pause(_viewport_size())
+	_debug_label = _make_label(9, Color("ffe56a"))
+	_debug_label.position = Vector2(8, 78)
+	_debug_label.visible = false
+	_debug_label.z_index = 4
+	_hud.add_child(_debug_label)
 	_refresh_hud()
 
 func _load_fonts() -> void:
@@ -382,6 +393,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode == KEY_H:
 			HitLibrary.show = not HitLibrary.show
 			_redraw_hitboxes()
+			return
+		if event.keycode == KEY_D:
+			_debug_on = not _debug_on
+			_refresh_debug()
 			return
 		if event.keycode == KEY_ESCAPE or event.keycode == KEY_P:
 			_toggle_pause()
@@ -472,10 +487,15 @@ func _process(delta: float) -> void:
 	if _rotate != null:
 		_rotate.visible = false
 	_layout_pause(size)
+	_apply_shake(delta)
 	if _paused:
 		return
 	delta = clampf(delta, 0.0, 0.033)
-	_background.tick(delta, size)
+	var world_delta := delta
+	if phase == PHASE_PLAY and _slow_left > 0.0:
+		_slow_left = maxf(_slow_left - delta, 0.0)
+		world_delta = delta * Difficulty.FINAL_SLOWMO_SCALE
+	_background.tick(world_delta if phase == PHASE_PLAY else delta, size, Difficulty.scroll_scale(elapsed))
 	_combat.tick(delta)
 	_tick_effects(delta)
 	if phase == PHASE_REVEAL:
@@ -489,7 +509,7 @@ func _process(delta: float) -> void:
 		death_elapsed += delta
 		_present_death()
 		return
-	_play_frame(delta, size)
+	_play_frame(world_delta, size)
 
 func _animate_title_card() -> void:
 	if _title_card == null:
@@ -538,7 +558,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
-		for spec in enemy.tick(delta, player_pos):
+		for spec in enemy.tick(delta, player_pos, elapsed, Difficulty.speed_scale(elapsed)):
 			_spawn_shot(spec, false)
 	for shot in _shots:
 		shot.tick(delta)
@@ -552,6 +572,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	if elapsed > 3.2:
 		_hint_label.visible = false
 	_refresh_hud()
+	_refresh_debug()
 
 func _play_bounds(size: Vector2) -> Rect2:
 	var floor_y := minf(FieldBackground.GROUND_FEET - 2.0, size.y - 8.0)
@@ -640,7 +661,7 @@ func _collide() -> void:
 		_graze_gap(shot, shot_gap)
 
 func _award_kill(enemy: EnemyActor) -> void:
-	var result := ScoreRules.on_kill(enemy.score_value, combo, combo_left)
+	var result := ScoreRules.on_kill(enemy.score_value, combo, combo_left, rank_index)
 	combo = int(result["combo"])
 	combo_left = float(result["combo_left"])
 	var points := int(result["points"])
@@ -657,7 +678,7 @@ func _graze_gap(hazard: Object, separation: float) -> void:
 	if separation <= 0.0 or separation > GRAZE_PAD:
 		return
 	hazard.grazed = true
-	_gain_skill(ScoreRules.GRAZE)
+	_gain_skill(ScoreRules.graze_points(rank_index))
 	var at: Vector2 = hazard.position
 	_combat.push("+%d" % ScoreRules.GRAZE, at + Vector2(6, -8), Color("ffe08a"))
 	_spawn_fx("graze_sparkle.png", at, 0.34, 0.45, 1.45)
@@ -712,13 +733,19 @@ func _gain_skill(points: int) -> void:
 	evo_points += points
 	var reached := FormCatalog.rank_for_points(evo_points)
 	if reached > rank_index:
+		var final := reached >= FormCatalog.rank_gates().size()
 		var old_sprite := _player.sprite_name()
 		rank_index = reached
 		_player.set_rank(rank_index)
-		_player.begin_evolve(old_sprite, _player.sprite_name())
+		_player.begin_evolve(old_sprite, _player.sprite_name(), final)
+		_final_evolve = final
+		if final:
+			_slow_left = Difficulty.FINAL_SLOWMO_SECONDS
+			_shake_left = Difficulty.FINAL_SHAKE_SECONDS
 		if _sound != null:
-			_sound.play_event("evolve")
+			_sound.play_event("evolve", Difficulty.FINAL_STING_DB if final else 0.0)
 	_refresh_hud()
+	_refresh_debug()
 
 func _kill_player(name: String) -> void:
 	if phase != PHASE_PLAY:
@@ -877,6 +904,30 @@ func _bank_survival(delta: float) -> void:
 		survival_bank -= 1.0
 		score += ScoreRules.SURVIVAL_PER_SECOND
 
+func _refresh_debug() -> void:
+	if _debug_label == null:
+		return
+	_debug_label.visible = _debug_on
+	if not _debug_on:
+		return
+	_debug_label.text = "t %.1fs\nspawn %.2fs\nspd x%.2f" % [
+		elapsed,
+		Difficulty.spawn_interval(elapsed),
+		Difficulty.speed_scale(elapsed),
+	]
+
+func _apply_shake(delta: float) -> void:
+	if _shake_left <= 0.0:
+		if position != Vector2.ZERO:
+			position = Vector2.ZERO
+		return
+	_shake_left = maxf(_shake_left - delta, 0.0)
+	var mag := Difficulty.FINAL_SHAKE_PX * clampf(_shake_left / Difficulty.FINAL_SHAKE_SECONDS, 0.0, 1.0)
+	position = Vector2(
+		round(_shake_rng.randf_range(-mag, mag)),
+		round(_shake_rng.randf_range(-mag, mag))
+	)
+
 func _refresh_hud() -> void:
 	if _hud_view == null:
 		return
@@ -886,7 +937,8 @@ func _refresh_hud() -> void:
 		loot_count,
 		FormCatalog.rank_name(form_id, rank_index).to_upper(),
 		rank_index,
-		HudLayout.fill_px(evo_points, rank_index)
+		HudLayout.fill_px(evo_points, rank_index),
+		form_id == FormCatalog.Id.GOBLIN
 	)
 
 func share_run() -> Dictionary:

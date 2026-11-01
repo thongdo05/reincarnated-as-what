@@ -18,7 +18,7 @@ const PIANO := 5
 const HEAVY_CAP := 2
 
 var _rng := RandomNumberGenerator.new()
-var _next_time := 1.45
+var _next_time := Difficulty.FIRST_SPAWN
 var _heavy_until: Array[float] = []
 var max_heavies := 0
 
@@ -29,44 +29,41 @@ func pop_due(elapsed: float) -> Array[Dictionary]:
 	var due: Array[Dictionary] = []
 	while _next_time <= elapsed:
 		var at := _next_time
-		due.append(_make(at))
-		var diff := clampf(at / 80.0, 0.0, 1.0)
-		if diff > 0.55 and _rng.randf() < lerpf(0.0, 0.28, diff):
-			due.append(_make(at + 0.18))
-		# Wider gaps than the old 780-wide field. The sprites are bigger and slower.
-		var gap := lerpf(1.85, 1.05, diff) * _rng.randf_range(0.90, 1.14)
+		var burst := Difficulty.burst_count(at, _rng.randf())
+		for _i in burst:
+			due.append(_make(at))
+		var gap := Difficulty.spawn_interval(at) * _rng.randf_range(Difficulty.SPAWN_JITTER_MIN, Difficulty.SPAWN_JITTER_MAX)
 		_next_time = at + gap
 	return due
 
 func _make(at: float) -> Dictionary:
 	_cull_heavies(at)
-	var diff := clampf(at / 80.0, 0.0, 1.0)
-	var kind := _pick(diff)
+	var kind := _pick(at)
 	if _is_heavy(kind) and _heavy_until.size() >= HEAVY_CAP:
 		kind = EYE if kind == WOLF else ARCHER
 	if _is_heavy(kind):
-		_heavy_until.append(at + _heavy_life(kind))
+		_heavy_until.append(at + _heavy_life(kind, at))
 		max_heavies = maxi(max_heavies, _heavy_until.size())
+	var y_bias := 0.0
+	var wave_amp := 8.0
+	if kind == WYVERN:
+		y_bias = _rng.randf_range(-46.0, 46.0)
+		wave_amp = _rng.randf_range(8.0, 32.0)
+	elif kind == EYE:
+		y_bias = _rng.randf_range(-16.0, 16.0)
+		wave_amp = _rng.randf_range(5.0, 14.0)
 	return {
 		"t": at,
 		"kind": kind,
 		"x_ratio": _rng.randf_range(0.16, 0.84),
 		"phase": _rng.randf() * TAU,
 		"stop_ratio": _rng.randf_range(0.20, 0.36),
+		"y_bias": y_bias,
+		"wave_amp": wave_amp,
 	}
 
 func _pick(diff: float) -> int:
-	# Hazards stay out of the opening so the first seconds are the four creatures.
-	var late := clampf((diff - 0.12) / 0.88, 0.0, 1.0)
-	var wyvern_in := clampf((diff - 0.08) / 0.25, 0.0, 1.0)
-	var weights: Array[float] = [
-		lerpf(0.64, 0.20, diff),
-		lerpf(0.24, 0.20, diff),
-		lerpf(0.12, 0.22, diff),
-		lerpf(0.00, 0.18, diff) * wyvern_in,
-		lerpf(0.00, 0.12, late),
-		lerpf(0.00, 0.08, late),
-	]
+	var weights := Difficulty.kind_weights(diff)
 	var total := 0.0
 	for weight in weights:
 		total += weight
@@ -88,10 +85,11 @@ func _cull_heavies(now: float) -> void:
 func _is_heavy(kind: int) -> bool:
 	return kind == WOLF or kind == WYVERN
 
-func _heavy_life(kind: int) -> float:
+func _heavy_life(kind: int, at: float) -> float:
 	# Spawn pad + field + the margin where the sweeper drops them.
+	# Faster runs clear the cap sooner, so a cleared wolf does not hold a slot.
 	var travel := 480.0 + body_radius(kind) + 20.0 + 80.0
-	return travel / cruise_speed(kind)
+	return travel / (cruise_speed(kind) * Difficulty.speed_scale(at))
 
 static func sprite_for(kind: int) -> String:
 	match kind:

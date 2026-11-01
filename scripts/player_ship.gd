@@ -23,6 +23,8 @@ var regrew := false
 var rank_index := 0
 var evolve_flash := 0.0
 var evolve_t := -1.0
+var evolve_hold := 1.0
+var evolve_final := false
 var evolve_old := ""
 var evolve_new := ""
 var fx_mode := ""
@@ -148,14 +150,16 @@ func set_rank(index: int) -> void:
 	evolve_flash = 0.4
 	_apply_radius()
 
-func begin_evolve(old_sprite: String, new_sprite: String) -> void:
+func begin_evolve(old_sprite: String, new_sprite: String, final: bool = false) -> void:
 	evolve_old = old_sprite
 	evolve_new = new_sprite
+	evolve_final = final
+	evolve_hold = Difficulty.FINAL_HOLD if final else FxTimeline.EVOLVE_HOLD
 	evolve_t = 0.0
 	_apply_evolve_visual()
 
 func _apply_evolve_visual() -> void:
-	var stage := FxTimeline.evolve_stage(evolve_t)
+	var stage := FxTimeline.evolve_stage(evolve_t, evolve_hold)
 	if stage == "glow":
 		fx_mode = "glow"
 		fx_sprite = evolve_old
@@ -185,8 +189,18 @@ func _draw() -> void:
 			ArtLibrary.draw_anchored(self, FxTimeline.rim_file(fx_sprite))
 	else:
 		_draw_body(sprite_name())
+		_draw_final_banner()
 	if HitLibrary.show:
 		HitLibrary.draw(self, sprite_name(), "hurt", Color(0.35, 1.0, 0.55, 0.95))
+
+func _draw_final_banner() -> void:
+	if not evolve_final or evolve_t < 0.0:
+		return
+	if FxTimeline.evolve_stage(evolve_t, evolve_hold) != "pop":
+		return
+	var tex := PixelFont.outlined_texture("FINAL FORM!", Color("ffe56a"))
+	var size := tex.get_size() * 2.0
+	draw_texture_rect(tex, Rect2(Vector2(-size.x * 0.5, -60.0), size), false)
 
 func _draw_body(file: String) -> void:
 	if form_id == FormCatalog.Id.SLIME:

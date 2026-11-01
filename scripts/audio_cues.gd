@@ -2,17 +2,26 @@ extends RefCounted
 class_name AudioCues
 
 ## TEST audio from Hibiki, 1 Nov 2026 (ElevenLabs sample, not the final mix).
-## Files are already at the loudness in audio/manifest.json, including the shot
-## sitting 3 LU under the pop. Music and SFX buses stay at 0 dB so that mix
-## is what plays. See audio/README.md.
+## Files are already at the loudness in audio/manifest.json. The buses pull
+## the loop above the stings: Music at -6 dB, SFX at -12 dB. The slime shot
+## is another -10 dB on its player, and it is capped at about 4 plays a second.
+## See audio/README.md.
 
 const MUSIC_BUS := "Music"
 const SFX_BUS := "SFX"
-const BUS_VOLUME_DB := 0.0
+const MUSIC_BUS_DB := -6.0
+const SFX_BUS_DB := -12.0
 const SETTINGS_PATH := "user://audio.cfg"
 
-## 8 shots/s of a 0.22 s bloop is under 2 voices. Slime rank 3 fires every
-## 0.10 s, about 2.2 voices. Three voices cover both without a pile-up.
+## Heard cap. Rank 3 fires every 0.10 s, which used to retrigger the bloop
+## on every volley and turned the run into one beep. One sound per volley
+## still holds; this drops the ones that arrive sooner than 0.25 s.
+const SHOT_MIN_INTERVAL := 0.25
+const SHOT_VOLUME_DB := -10.0
+## +/- 8% around the recorded pitch. Not a semitone jump.
+const SHOT_PITCH_RATIO := 0.08
+## 8 shots/s of a 0.22 s bloop is under 2 voices. The heard cap is 4/s,
+## so three voices stay a small ceiling rather than a stack.
 const SHOT_POLYPHONY := 3
 const SHOT_STRESS_RATE := 8.0
 const SHOT_DURATION := 0.22
@@ -46,6 +55,9 @@ static func spec(event: String) -> Dictionary:
 				"lufs": -20.0,
 				"polyphony": SHOT_POLYPHONY,
 				"pitch_semitones": 0.0,
+				"pitch_ratio": SHOT_PITCH_RATIO,
+				"volume_db": SHOT_VOLUME_DB,
+				"min_interval": SHOT_MIN_INTERVAL,
 				"duration": SHOT_DURATION,
 			}
 		"enemy_killed":
@@ -138,6 +150,17 @@ static func death_event_seconds(event: String) -> float:
 static func semitone_to_pitch(semitones: float) -> float:
 	return pow(2.0, semitones / 12.0)
 
+## unit is 0..1. 0 is -8%, 1 is +8%, 0.5 is the recorded pitch.
+static func shot_pitch_scale(unit: float) -> float:
+	return lerpf(1.0 - SHOT_PITCH_RATIO, 1.0 + SHOT_PITCH_RATIO, clampf(unit, 0.0, 1.0))
+
+## Web plays the loop from a decoded sample. Stream playback of the ogg stays
+## silent on iOS Safari while the wav shots still come through.
+static func music_playback_type(web: bool) -> AudioServer.PlaybackType:
+	if web:
+		return AudioServer.PLAYBACK_TYPE_SAMPLE
+	return AudioServer.PLAYBACK_TYPE_STREAM
+
 ## unit_magnitude and unit_sign are each 0..1. Magnitude stays in 1..2 semitones.
 static func pop_semitones(unit_magnitude: float, unit_sign: float) -> float:
 	var magnitude := lerpf(POP_SEMITONE_MIN, POP_SEMITONE_MAX, clampf(unit_magnitude, 0.0, 1.0))
@@ -205,8 +228,8 @@ static func ensure_bus(bus_name: String) -> int:
 static func apply_bus_levels() -> void:
 	var music := ensure_bus(MUSIC_BUS)
 	var sfx := ensure_bus(SFX_BUS)
-	AudioServer.set_bus_volume_db(music, BUS_VOLUME_DB)
-	AudioServer.set_bus_volume_db(sfx, BUS_VOLUME_DB)
+	AudioServer.set_bus_volume_db(music, MUSIC_BUS_DB)
+	AudioServer.set_bus_volume_db(sfx, SFX_BUS_DB)
 	AudioServer.set_bus_send(music, "Master")
 	AudioServer.set_bus_send(sfx, "Master")
 

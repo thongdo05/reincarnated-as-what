@@ -9,6 +9,7 @@ const DEATH_FRAMES := 11
 const TEASE_SECONDS := 1.0
 const EVOLVE_FRAMES := 8
 const EVOLVE_HOLD := 1.0
+const EVOLVE_HOLD_FINAL := 1.85
 
 static func _frame(t: float) -> int:
 	return int(floor(t * FPS + 0.0001))
@@ -48,7 +49,7 @@ static func flash_file(sprite_name: String) -> String:
 static func rim_file(sprite_name: String) -> String:
 	return "fx/forms/%s_rim.png" % sprite_name.get_file().trim_suffix(".png")
 
-static func evolve_stage(t: float) -> String:
+static func evolve_stage(t: float, hold: float = EVOLVE_HOLD) -> String:
 	if t < 0.0:
 		return "none"
 	var frame := _frame(t)
@@ -56,7 +57,7 @@ static func evolve_stage(t: float) -> String:
 		return "glow"
 	if frame <= 4:
 		return "flash"
-	if t < float(EVOLVE_FRAMES) / FPS + EVOLVE_HOLD - 0.0001:
+	if t < float(EVOLVE_FRAMES) / FPS + hold - 0.0001:
 		return "pop"
 	return "done"
 
