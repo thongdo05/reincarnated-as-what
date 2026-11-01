@@ -19,8 +19,17 @@ static func _ensure() -> void:
 		return
 	_plain = JSON.parse_string(FileAccess.get_file_as_string("res://ui/font_kaito5x7.json"))
 	_out = JSON.parse_string(FileAccess.get_file_as_string("res://ui/font_kaito5x7_outlined.json"))
-	_plain_img = (load("res://ui/font_kaito5x7.png") as Texture2D).get_image()
-	_out_img = (load("res://ui/font_kaito5x7_outlined.png") as Texture2D).get_image()
+	# These PNGs are the BMFont pages. A fresh Godot 4.7 import marks that
+	# importer as skip, so load() as a Texture2D fails in CI. Read the bytes.
+	_plain_img = _png("res://ui/font_kaito5x7.png")
+	_out_img = _png("res://ui/font_kaito5x7_outlined.png")
+
+static func _png(path: String) -> Image:
+	var image := Image.new()
+	var err := image.load_png_from_buffer(FileAccess.get_file_as_bytes(path))
+	if err != OK:
+		push_error("could not read %s" % path)
+	return image
 
 static func score_image(text: String) -> Image:
 	_ensure()
