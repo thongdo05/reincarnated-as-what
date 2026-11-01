@@ -20,6 +20,7 @@ func _initialize() -> void:
 	_unit_failed += _check_polish()
 	_unit_failed += _check_shapes()
 	_unit_failed += _check_loot()
+	_unit_failed += _check_hud()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -163,8 +164,8 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 
 func _check_art() -> int:
 	var failed := 0
-	if ArtLibrary.file_count() != 75:
-		push_error("art manifest should have 75 entries, found %d" % ArtLibrary.file_count())
+	if ArtLibrary.file_count() != 82:
+		push_error("art manifest should have 82 entries, found %d" % ArtLibrary.file_count())
 		failed += 1
 	var text := FileAccess.get_file_as_string("res://art/manifest.json")
 	var parsed: Variant = JSON.parse_string(text)
@@ -1071,6 +1072,43 @@ func _check_loot() -> int:
 		push_error("the 1px bob should sit on top of the drift")
 		failed += 1
 	pickup.free()
+	return failed
+
+func _check_hud() -> int:
+	var failed := 0
+	if HudLayout.fill_px(0, 0) != 0 or HudLayout.fill_px(250, 0) != 32:
+		push_error("rank 1 meter should be empty at 0 and half full at 250, got %d %d" % [HudLayout.fill_px(0, 0), HudLayout.fill_px(250, 0)])
+		failed += 1
+	if HudLayout.fill_px(500, 1) != 0 or HudLayout.fill_px(1000, 1) != 32:
+		push_error("rank 2 meter should reset at the gate and reach half at 1000, got %d %d" % [HudLayout.fill_px(500, 1), HudLayout.fill_px(1000, 1)])
+		failed += 1
+	if HudLayout.fill_px(1500, 2) != 64 or HudLayout.fill_px(9000, 2) != 64:
+		push_error("rank 3 meter should stay full")
+		failed += 1
+	if HudLayout.meter_file(0) != "ui/hud_evo_meter_rank1_empty.png" or HudLayout.meter_file(2) != "ui/hud_evo_meter_rank3_empty.png":
+		push_error("meter frame should follow the rank")
+		failed += 1
+	var score := PixelFont.score_image("4,210")
+	if score == null or score.get_width() != 64 or score.get_height() != 30 or PixelFont.checksum(score) != 1233492:
+		push_error("score digits should be the 2x gold Kaito render (got %s checksum %s)" % [score.get_size() if score != null else "null", PixelFont.checksum(score) if score != null else -1])
+		failed += 1
+	var rank := PixelFont.outlined_image("GEL KNIGHT", Color("ffbcea"))
+	var used := rank.get_used_rect()
+	if int(used.size.x) != 59 or int(used.size.y) != 9:
+		push_error("rank name should be 1x outlined Kaito, got %s" % used)
+		failed += 1
+	var outlined := load("res://ui/font_kaito5x7_outlined.fnt") as Font
+	var plain := load("res://ui/font_kaito5x7.fnt") as Font
+	if outlined == null or plain == null:
+		push_error("Kaito BMFont should import as a FontFile")
+		failed += 1
+	elif outlined.get_string_size("A", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x <= 0.0:
+		push_error("outlined Kaito did not measure a glyph")
+		failed += 1
+	for file_name in ["ui/hud_clock_icon.png", "ui/hud_pause_button.png", "ui/hud_evo_meter_fill_64x6.png", "ui/hud_coin_icon.png"]:
+		if not ArtLibrary.has_file(file_name):
+			push_error("HUD piece missing from the manifest: %s" % file_name)
+			failed += 1
 	return failed
 
 func _sample(id: int, drag: Vector2, bounds: Rect2, frames: int) -> Vector2:

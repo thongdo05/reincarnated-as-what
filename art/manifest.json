@@ -1566,5 +1566,117 @@
     "anchor_type": "top_left",
     "facing": "none",
     "note": "contrast fix: crimson/gold burst instead of purple on purple; plate edge gold"
+  },
+  {
+    "file": "ui/hud_coin_icon.png",
+    "size": [
+      10,
+      10
+    ],
+    "frames": 1,
+    "anchor": [
+      5,
+      5
+    ],
+    "anchor_type": "center",
+    "category": "ui",
+    "facing": "none",
+    "note": "HUD coin rebuilt from the loot-fix coin, plus a 1 px ink ring."
+  },
+  {
+    "file": "ui/hud_clock_icon.png",
+    "size": [
+      9,
+      9
+    ],
+    "frames": 1,
+    "anchor": [
+      4,
+      4
+    ],
+    "anchor_type": "center",
+    "category": "ui",
+    "facing": "none",
+    "note": "HUD clock beside the run time."
+  },
+  {
+    "file": "ui/hud_pause_button.png",
+    "size": [
+      18,
+      18
+    ],
+    "frames": 1,
+    "anchor": [
+      9,
+      9
+    ],
+    "anchor_type": "center",
+    "category": "ui",
+    "facing": "none",
+    "note": "18 px pause mark. The touch target around it stays at least 44 px."
+  },
+  {
+    "file": "ui/hud_evo_meter_rank1_empty.png",
+    "size": [
+      94,
+      12
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "ui",
+    "facing": "none",
+    "note": "Evolve meter frame, rank 1 pip lit. Fill sits at (28, 3) inside the frame."
+  },
+  {
+    "file": "ui/hud_evo_meter_rank2_empty.png",
+    "size": [
+      94,
+      12
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "ui",
+    "facing": "none",
+    "note": "Evolve meter frame, rank 2 pips lit."
+  },
+  {
+    "file": "ui/hud_evo_meter_rank3_empty.png",
+    "size": [
+      94,
+      12
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "ui",
+    "facing": "none",
+    "note": "Evolve meter frame, rank 3 pips lit."
+  },
+  {
+    "file": "ui/hud_evo_meter_fill_64x6.png",
+    "size": [
+      64,
+      6
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "ui",
+    "facing": "none",
+    "note": "Evolve meter fill. Clip its width by progress toward the next rank."
   }
 ]

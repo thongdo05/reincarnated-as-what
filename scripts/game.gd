@@ -46,10 +46,8 @@ var _primary_touch := -1
 var _mouse_down := false
 
 var _hud: Control
-var _score_label: Label
-var _time_label: Label
-var _combo_label: Label
-var _form_label: Label
+var _hud_view: HudView
+var _font_outlined: Font
 var _hint_label: Label
 var _reveal: Control
 var _title_card: TextureRect
@@ -60,7 +58,6 @@ var _best_label: Label
 var _seed_label: Label
 var _death_kicker: Label
 var _restart_button: Button
-var _loot_label: Label
 var _rotate: Control
 var _paused := false
 var _pause_button: Button
@@ -97,47 +94,20 @@ func _build_hud() -> void:
 	layer.layer = 10
 	add_child(layer)
 
+	_load_fonts()
 	_hud = Control.new()
 	_hud.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	layer.add_child(_hud)
 
-	_score_label = _make_label(20, Color("241428"))
-	_score_label.position = Vector2(40, 6)
-	_hud.add_child(_score_label)
+	_hud_view = HudView.new()
+	_hud_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hud_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud_view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_hud.add_child(_hud_view)
 
-	var form_ink := Color("1a4f9c") if form_id == FormCatalog.Id.SLIME else Color("8a4b12")
-	_form_label = _make_label(13, form_ink)
-	_form_label.position = Vector2(40, 28)
-	_form_label.text = FormCatalog.display_name(form_id)
-	_hud.add_child(_form_label)
-
-	_loot_label = _make_label(13, Color("8a4b12"))
-	_loot_label.position = Vector2(40, 46)
-	_loot_label.visible = true
-	_hud.add_child(_loot_label)
-
-	_time_label = _make_label(20, Color("241428"))
-	_time_label.anchor_left = 1.0
-	_time_label.anchor_right = 1.0
-	_time_label.offset_left = -160.0
-	_time_label.offset_right = -40.0
-	_time_label.offset_top = 6.0
-	_time_label.offset_bottom = 32.0
-	_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_hud.add_child(_time_label)
-
-	_combo_label = _make_label(18, Color("8a3a12"))
-	_combo_label.anchor_left = 0.5
-	_combo_label.anchor_right = 0.5
-	_combo_label.offset_left = -80.0
-	_combo_label.offset_right = 80.0
-	_combo_label.offset_top = 6.0
-	_combo_label.offset_bottom = 32.0
-	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hud.add_child(_combo_label)
-
-	_hint_label = _make_label(16, Color("241428"))
+	_hint_label = _make_label(9, Color("f2fbff"))
 	_hint_label.anchor_left = 0.5
 	_hint_label.anchor_right = 0.5
 	_hint_label.anchor_top = 1.0
@@ -150,8 +120,6 @@ func _build_hud() -> void:
 	_hint_label.text = "Drag anywhere to move"
 	_hint_label.visible = false
 	_hud.add_child(_hint_label)
-	for sky_label in [_score_label, _time_label, _combo_label, _form_label, _hint_label, _loot_label]:
-		sky_label.add_theme_color_override("font_shadow_color", Color(1, 1, 1, 0.8))
 
 	_reveal = Control.new()
 	_reveal.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -172,7 +140,7 @@ func _build_hud() -> void:
 	_title_card.pivot_offset = _viewport_size() * 0.5
 	_title_card.scale = Vector2(0.84, 0.84)
 	_reveal.add_child(_title_card)
-	_skip_label = _make_label(13, Color("f4efe4"))
+	_skip_label = _make_label(9, Color("f2fbff"))
 	_skip_label.text = ""
 	_skip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_skip_label.anchor_left = 0.5
@@ -195,19 +163,19 @@ func _build_hud() -> void:
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	_game_over.add_child(shade)
-	_death_kicker = _make_label(14, Color("c8bdd4"))
+	_death_kicker = _make_label(9, Color("f2fbff"))
 	_death_kicker.text = "RUN OVER"
 	_death_kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_game_over.add_child(_death_kicker)
-	_share_label = _make_label(18, Color("f4efe4"))
+	_share_label = _make_label(18, Color("f2fbff"))
 	_share_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_share_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_game_over.add_child(_share_label)
-	_best_label = _make_label(13, Color("f0d78c"))
+	_best_label = _make_label(9, Color("ffd84a"))
 	_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_best_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_game_over.add_child(_best_label)
-	_seed_label = _make_label(12, Color("8d8298"))
+	_seed_label = _make_label(9, Color("a49fcf"))
 	_seed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_game_over.add_child(_seed_label)
 	_restart_button = Button.new()
@@ -223,10 +191,11 @@ func _build_hud() -> void:
 	_restart_button.add_theme_stylebox_override("hover", style)
 	_restart_button.add_theme_stylebox_override("pressed", style)
 	_restart_button.add_theme_stylebox_override("focus", style)
-	_restart_button.add_theme_color_override("font_color", Color("24180a"))
-	_restart_button.add_theme_color_override("font_hover_color", Color("24180a"))
-	_restart_button.add_theme_color_override("font_pressed_color", Color("24180a"))
-	_restart_button.add_theme_font_size_override("font_size", 22)
+	_restart_button.add_theme_font_override("font", _font_outlined)
+	_restart_button.add_theme_color_override("font_color", Color("f2fbff"))
+	_restart_button.add_theme_color_override("font_hover_color", Color("f2fbff"))
+	_restart_button.add_theme_color_override("font_pressed_color", Color("f2fbff"))
+	_restart_button.add_theme_font_size_override("font_size", 18)
 	_restart_button.pressed.connect(_on_restart)
 	_game_over.add_child(_restart_button)
 	_layout_death_card()
@@ -249,11 +218,11 @@ func _build_hud() -> void:
 	rotate_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rotate_column.add_theme_constant_override("separation", 8)
 	rotate_center.add_child(rotate_column)
-	var rotate_title := _make_label(28, Color("f4efe4"))
+	var rotate_title := _make_label(18, Color("f2fbff"))
 	rotate_title.text = "Rotate your phone"
 	rotate_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rotate_column.add_child(rotate_title)
-	var rotate_body := _make_label(16, Color("c8bdd4"))
+	var rotate_body := _make_label(9, Color("f2fbff"))
 	rotate_body.text = "This run flies sideways."
 	rotate_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rotate_column.add_child(rotate_body)
@@ -268,7 +237,7 @@ func _build_hud() -> void:
 	pause_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	pause_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pause_overlay.add_child(pause_dim)
-	var pause_label := _make_label(22, Color("f4efe4"))
+	var pause_label := _make_label(18, Color("f2fbff"))
 	pause_label.text = "PAUSED"
 	pause_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pause_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -286,7 +255,7 @@ func _build_hud() -> void:
 	_pause_button.pressed.connect(_toggle_pause)
 	_hud.add_child(_pause_button)
 	_pause_icon = TextureRect.new()
-	_pause_icon.texture = _make_pause_icon()
+	_pause_icon.texture = load("res://art/ui/hud_pause_button.png")
 	_pause_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_pause_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pause_icon.stretch_mode = TextureRect.STRETCH_KEEP
@@ -297,14 +266,25 @@ func _build_hud() -> void:
 	_layout_pause(_viewport_size())
 	_refresh_hud()
 
+func _load_fonts() -> void:
+	_font_outlined = load("res://ui/font_kaito5x7_outlined.fnt")
+	var plain := load("res://ui/font_kaito5x7.fnt") as FontFile
+	if _font_outlined is FontFile:
+		var outlined := _font_outlined as FontFile
+		outlined.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+		outlined.hinting = TextServer.HINTING_NONE
+	if plain != null:
+		plain.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+		plain.hinting = TextServer.HINTING_NONE
+
 func _make_label(size: int, color: Color) -> Label:
 	var label := Label.new()
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if _font_outlined != null:
+		label.add_theme_font_override("font", _font_outlined)
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", color)
-	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
-	label.add_theme_constant_override("shadow_offset_x", 2)
-	label.add_theme_constant_override("shadow_offset_y", 2)
 	return label
 
 func wants_rotate(size: Vector2) -> bool:
@@ -677,8 +657,8 @@ func _layout_death_card() -> void:
 	var seed_h := 16.0
 	var gap := 4.0
 	var flexible := maxf(text_height - kicker_h - seed_h - gap * 3.0, 36.0)
-	_fit_wrapped_label(_share_label, text_width, flexible * 0.68, 18, 11)
-	_fit_wrapped_label(_best_label, text_width, flexible * 0.32, 13, 10)
+	_fit_wrapped_label(_share_label, text_width, flexible * 0.68, 18, 9)
+	_fit_wrapped_label(_best_label, text_width, flexible * 0.32, 9, 9)
 	var share_h := _wrapped_height(_share_label.text, text_width, _death_font_size(_share_label))
 	var best_h := _wrapped_height(_best_label.text, text_width, _death_font_size(_best_label))
 	var used := kicker_h + share_h + best_h + seed_h + gap * 3.0
@@ -703,15 +683,15 @@ func _death_font_size(label: Label) -> int:
 func _fit_wrapped_label(label: Label, width: float, max_height: float, start_size: int, min_size: int) -> void:
 	var size := start_size
 	while size > min_size and _wrapped_height(label.text, width, size) > max_height:
-		size -= 1
+		size = maxi(size - 9, min_size)
 	label.add_theme_font_size_override("font_size", size)
 
 func _wrapped_height(text: String, width: float, font_size: int) -> float:
 	if text.is_empty():
 		return 0.0
-	var box := ThemeDB.fallback_font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, width, font_size)
-	# Room for the label shadow so the glyphs are not clipped by the rect.
-	return box.y + 4.0
+	var font := _font_outlined if _font_outlined != null else ThemeDB.fallback_font
+	var box := font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, width, font_size)
+	return box.y + 2.0
 
 func _sweep(size: Vector2) -> void:
 	var field := Rect2(-80, -80, size.x + 160, size.y + 160)
@@ -745,18 +725,16 @@ func _bank_survival(delta: float) -> void:
 		score += ScoreRules.SURVIVAL_PER_SECOND
 
 func _refresh_hud() -> void:
-	_score_label.text = ScoreRules.format_score(score)
-	_time_label.text = ScoreRules.format_time(elapsed)
-	if combo_left > 0.0 and combo >= 2:
-		_combo_label.text = "x%d" % combo
-	else:
-		_combo_label.text = ""
-	var evolved_name := FormCatalog.rank_name(form_id, rank_index)
-	var next_gate := FormCatalog.gate_for_next_rank(rank_index)
-	if next_gate < 0:
-		_loot_label.text = evolved_name
-	else:
-		_loot_label.text = "%s  %d/%d" % [evolved_name, evo_points, next_gate]
+	if _hud_view == null:
+		return
+	_hud_view.set_run(
+		ScoreRules.format_score(score),
+		ScoreRules.format_time(elapsed),
+		loot_count,
+		FormCatalog.rank_name(form_id, rank_index).to_upper(),
+		rank_index,
+		HudLayout.fill_px(evo_points, rank_index)
+	)
 
 func _on_restart() -> void:
 	get_tree().reload_current_scene()
@@ -802,21 +780,22 @@ func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float)
 		return
 	var hit := pause_hit_px(viewport, window, screen_scale)
 	var control_size := Vector2(hit, hit)
-	_pause_button.position = Vector2(4, 4)
+	var art := Vector2(PAUSE_ART_PX, PAUSE_ART_PX)
+	# The 18px mark stays where the HUD mock puts it. The hit target grows left and down.
+	var art_pos := Vector2(viewport.x - 4.0 - PAUSE_ART_PX, 4.0)
+	var button_pos := art_pos - Vector2(hit - PAUSE_ART_PX, 0.0)
+	button_pos.x = clampf(button_pos.x, 0.0, maxf(viewport.x - hit, 0.0))
+	button_pos.y = clampf(button_pos.y, 0.0, maxf(viewport.y - hit, 0.0))
+	_pause_button.position = button_pos
 	_pause_button.size = control_size
 	_pause_button.custom_minimum_size = control_size
-	var art := Vector2(PAUSE_ART_PX, PAUSE_ART_PX)
 	_pause_icon.scale = Vector2.ONE
 	_pause_icon.size = art
 	_pause_icon.custom_minimum_size = art
-	_pause_icon.position = (control_size - art) * 0.5
-	var left := _pause_button.position.x + control_size.x + 6.0
-	if _score_label != null:
-		_score_label.position = Vector2(left, 6)
-	if _form_label != null:
-		_form_label.position = Vector2(left, 28)
-	if _loot_label != null:
-		_loot_label.position = Vector2(left, 46)
+	var icon_pos := art_pos - button_pos
+	icon_pos.x = clampf(icon_pos.x, 0.0, maxf(hit - PAUSE_ART_PX, 0.0))
+	icon_pos.y = clampf(icon_pos.y, 0.0, maxf(hit - PAUSE_ART_PX, 0.0))
+	_pause_icon.position = icon_pos
 	var show := phase == PHASE_PLAY or _paused
 	_pause_button.visible = show
 	if _pause_overlay != null:
@@ -839,19 +818,6 @@ func _toggle_pause() -> void:
 	_mouse_down = false
 	_primary_touch = -1
 	_layout_pause(_viewport_size())
-
-func _make_pause_icon() -> Texture2D:
-	var image := Image.create(int(PAUSE_ART_PX), int(PAUSE_ART_PX), false, Image.FORMAT_RGBA8)
-	image.fill(Color(0, 0, 0, 0))
-	var ink := Color("241428")
-	var paper := Color("f4efe4")
-	# Two 4px bars inside a 1px outline. The texture stays 18x18 and is never scaled.
-	for bar_x in [3, 10]:
-		for y in range(3, 15):
-			for x in range(bar_x, bar_x + 6):
-				var inside: bool = x >= bar_x + 1 and x < bar_x + 5 and y >= 4 and y < 14
-				image.set_pixel(x, y, paper if inside else ink)
-	return ImageTexture.create_from_image(image)
 
 func _overlaps(a: Vector2, a_radius: float, b: Vector2, b_radius: float) -> bool:
 	var reach := a_radius + b_radius
