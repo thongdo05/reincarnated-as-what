@@ -1219,7 +1219,7 @@ func _check_death_card() -> int:
 	for i in lines.size():
 		game._share_label.text = lines[i]
 		game._best_label.text = bests[i]
-		game._seed_label.text = "UTC seed 20261101 · run 99"
+		game._seed_label.text = "UTC seed 20261101 - run 99"
 		game._layout_death_card()
 		var field: Vector2 = game._viewport_size()
 		var button: Button = game._restart_button
@@ -1237,12 +1237,43 @@ func _check_death_card() -> int:
 			if rect.end.x > 480.5 or rect.end.y > 270.5:
 				push_error("Reincarnate left the 480x270 field (%s)" % rect)
 				failed += 1
+		for child in game._game_over.get_children():
+			if child is Button and str((child as Button).text) == "Text":
+				push_error("the death card should not have a Text button")
+				failed += 1
+		if game._beat_button == null or not game._beat_button.visible:
+			push_error("the death card should offer CHALLENGE A FRIEND")
+			failed += 1
+		else:
+			var challenge: Button = game._beat_button
+			var crect := Rect2(challenge.position, challenge.size)
+			if challenge.text != "CHALLENGE A FRIEND":
+				push_error("challenge button should say CHALLENGE A FRIEND, got %s" % challenge.text)
+				failed += 1
+			if crect.size.y < 44.0 or crect.size.y + 0.5 >= rect.size.y:
+				push_error("challenge button should be tappable and shorter than Reincarnate (%s vs %s)" % [crect.size, rect.size])
+				failed += 1
+			if crect.size.x + 0.5 >= rect.size.x:
+				push_error("challenge button should stay narrower than Reincarnate (%s vs %s)" % [crect.size, rect.size])
+				failed += 1
+			if crect.intersects(rect):
+				push_error("challenge button overlaps Reincarnate")
+				failed += 1
+			if int(challenge.get_theme_font_size("font_size")) < 18:
+				push_error("challenge label should be readable, font %s" % challenge.get_theme_font_size("font_size"))
+				failed += 1
 		for label in [game._share_label, game._best_label, game._seed_label, game._death_kicker]:
 			var label_rect := Rect2(label.position, label.size)
 			if label_rect.end.y > rect.position.y + 0.5:
 				push_error("death copy overlaps Reincarnate for '%s'" % lines[i])
 				failed += 1
 				break
+			if game._beat_button != null and game._beat_button.visible:
+				var challenge_rect := Rect2(game._beat_button.position, game._beat_button.size)
+				if label_rect.intersects(challenge_rect):
+					push_error("death copy overlaps the challenge button for '%s'" % lines[i])
+					failed += 1
+					break
 			if label_rect.position.y < -0.5 or label_rect.end.y > field.y + 0.5:
 				push_error("death copy left the field for '%s'" % lines[i])
 				failed += 1
@@ -2479,6 +2510,9 @@ func _check_flappy_run(packed: PackedScene, form: int) -> int:
 		if game._best_label.text.find("Flappy best") < 0 or game._best_label.text.find(shown) < 0:
 			push_error("death card should show the separate flappy best (%s)" % game._best_label.text)
 			failed += 1
+		if game._beat_button != null and game._beat_button.visible:
+			push_error("flappy death card should hide the challenge link")
+			failed += 1
 		if JSON.stringify(BestScores.read()) != main_before:
 			push_error("a flappy best should not write the main score file")
 			failed += 1
@@ -2669,6 +2703,25 @@ func _check_replay() -> int:
 		failed += 1
 	if game._new_best_label == null or game._new_best_label.text != "NEW BEST!":
 		push_error("beating the stored best should pop NEW BEST!")
+		failed += 1
+	if game._seed_label == null or game._seed_label.text.find("·") >= 0 or game._seed_label.text.find(" - ") < 0:
+		push_error("seed line should use a hyphen the pixel font can draw, got %s" % (game._seed_label.text if game._seed_label != null else "missing"))
+		failed += 1
+	else:
+		var glyphs: Dictionary = PixelFont.plain_glyphs()
+		var seed_text := str(game._seed_label.text)
+		for i in seed_text.length():
+			var ch := seed_text.substr(i, 1)
+			if ch != "\n" and not glyphs.has(ch):
+				push_error("seed line uses a glyph the pixel font lacks: %s" % ch)
+				failed += 1
+				break
+	if game._beat_button == null or game._beat_button.text != "CHALLENGE A FRIEND":
+		push_error("death card should challenge a friend, got %s" % (game._beat_button.text if game._beat_button != null else "missing"))
+		failed += 1
+	game._on_beat_link()
+	if game._beat_button.text != "LINK COPIED!":
+		push_error("the challenge button should confirm the link, got %s" % game._beat_button.text)
 		failed += 1
 	print("DEATH_TO_CONTROL %.3f guard %.3f flash %.3f" % [sim, guard_at, Replay.FLASH_REVEAL])
 	root.remove_child(game)

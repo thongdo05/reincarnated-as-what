@@ -8,6 +8,9 @@ const REGROW_IFRAMES := 0.45
 ## The pause glyph stays 18 viewport pixels. The control around it is the touch target.
 const PAUSE_ART_PX := 18.0
 const PAUSE_MIN_PT := 44.0
+const CHALLENGE_LABEL := "CHALLENGE A FRIEND"
+const CHALLENGE_COPIED := "LINK COPIED!"
+const COPY_FEEDBACK := 1.4
 
 const PHASE_REVEAL := 0
 const PHASE_PLAY := 1
@@ -97,7 +100,6 @@ var _short_reveal := false
 var _card_age := 0.0
 var _score_label: Label
 var _new_best_label: Label
-var _text_button: Button
 var _beat_button: Button
 var _form_flash: Label
 var _death_shade: ColorRect
@@ -342,14 +344,11 @@ func _build_hud() -> void:
 	_share_button.add_theme_font_size_override("font_size", 18)
 	_share_button.pressed.connect(_on_share)
 	_game_over.add_child(_share_button)
-	_text_button = _make_death_button("Text", Color("241428"))
-	_text_button.add_theme_font_size_override("font_size", 9)
-	_text_button.pressed.connect(_on_text_share)
-	_game_over.add_child(_text_button)
-	_beat_button = _make_death_button("Beat", Color("241428"))
-	_beat_button.add_theme_font_size_override("font_size", 9)
+	_beat_button = _make_death_button(CHALLENGE_LABEL, Color("14324f"))
+	_beat_button.add_theme_font_size_override("font_size", 18)
 	_beat_button.pressed.connect(_on_beat_link)
 	_game_over.add_child(_beat_button)
+	_style_challenge(false)
 	_layout_death_card()
 
 	_rotate = Control.new()
@@ -489,6 +488,10 @@ func _make_death_button(caption: String, bg: Color) -> Button:
 	style.set_border_width_all(2)
 	style.border_color = Color("f2fbff")
 	style.set_corner_radius_all(4)
+	style.content_margin_left = 6
+	style.content_margin_right = 6
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
 	button.add_theme_stylebox_override("normal", style)
 	button.add_theme_stylebox_override("hover", style)
 	button.add_theme_stylebox_override("pressed", style)
@@ -1341,9 +1344,7 @@ func _set_flappy_death(form_name: String, reached_rank: String) -> void:
 		ScoreRules.format_score(int(saved["form"])),
 		ScoreRules.format_score(int(saved["overall"])),
 	]
-	_seed_label.text = "UTC seed %d · run %d" % [day_seed, run_index + 1]
-	if _text_button != null:
-		_text_button.visible = false
+	_seed_label.text = _seed_line()
 	if _beat_button != null:
 		_beat_button.visible = false
 
@@ -1367,13 +1368,11 @@ func _set_default_death(form_name: String, reached_rank: String) -> void:
 		ScoreRules.format_score(int(saved["overall"])),
 	]
 	_share_label.text = "Reached %s" % reached_rank.to_upper()
-	_seed_label.text = "UTC seed %d · run %d" % [day_seed, run_index + 1]
-	if _text_button != null:
-		_text_button.visible = true
-		_text_button.text = "Text"
+	_seed_label.text = _seed_line()
 	if _beat_button != null:
 		_beat_button.visible = true
-		_beat_button.text = "Beat"
+		_beat_button.text = CHALLENGE_LABEL
+		_style_challenge(false)
 	if beaten and _sound != null:
 		_sound.play_event("enemy_killed")
 
@@ -1384,37 +1383,39 @@ func _layout_death_card() -> void:
 		return
 	var field := _viewport_size()
 	var margin := 10.0
-	var share_w := 120.0
+	var share_w := 112.0
 	var gap := 8.0
-	var reinc_w := minf(220.0, field.x - 24.0 - share_w - gap)
-	reinc_w = maxf(reinc_w, minf(200.0, field.x - 24.0))
+	var reinc_w := minf(252.0, field.x - 16.0 - share_w - gap)
+	reinc_w = maxf(reinc_w, minf(220.0, field.x - 16.0))
 	var button_h := 56.0
 	var row_w := share_w + gap + reinc_w
 	if row_w > field.x - 8.0:
 		share_w = 96.0
-		reinc_w = minf(200.0, field.x - 16.0 - share_w - gap)
+		reinc_w = minf(220.0, field.x - 16.0 - share_w - gap)
 		row_w = share_w + gap + reinc_w
 	var row_x := (field.x - row_w) * 0.5
 	var button_pos := Vector2(row_x + share_w + gap, field.y - margin - button_h)
 	_place_death_control(_restart_button, button_pos, Vector2(reinc_w, button_h))
 	if _share_button != null:
 		_place_death_control(_share_button, Vector2(row_x, button_pos.y), Vector2(share_w, button_h))
-	var utility := _text_button != null and _text_button.visible and _beat_button != null and _beat_button.visible
-	var utility_h := 28.0 if utility else 0.0
-	var utility_gap := 6.0 if utility else 0.0
-	if utility:
-		var beat_w := 88.0
-		var text_w := 88.0
-		var u_gap := 8.0
-		var u_w := text_w + u_gap + beat_w
-		var u_x := (field.x - u_w) * 0.5
-		var u_y := button_pos.y - utility_gap - utility_h
-		_place_death_control(_text_button, Vector2(u_x, u_y), Vector2(text_w, utility_h))
-		_place_death_control(_beat_button, Vector2(u_x + text_w + u_gap, u_y), Vector2(beat_w, utility_h))
+	# Challenge sits above the retry row. Shorter and narrower than Reincarnate,
+	# and a different color, so the gold button stays the retry target.
+	var challenge := _beat_button != null and _beat_button.visible
+	var challenge_h := 44.0 if challenge else 0.0
+	var challenge_gap := 6.0 if challenge else 0.0
+	if challenge:
+		var challenge_w := minf(240.0, reinc_w - 12.0)
+		if challenge_w < 160.0:
+			challenge_w = minf(240.0, field.x - 16.0)
+		var challenge_x := (field.x - challenge_w) * 0.5
+		var challenge_y := button_pos.y - challenge_gap - challenge_h
+		_place_death_control(_beat_button, Vector2(challenge_x, challenge_y), Vector2(challenge_w, challenge_h))
+		var label_px := 18 if challenge_w >= 224.0 else 9
+		_beat_button.add_theme_font_size_override("font_size", label_px)
 	var text_width := minf(448.0, field.x - 16.0)
 	var text_left := (field.x - text_width) * 0.5
 	var text_top := 6.0
-	var text_bottom := button_pos.y - utility_gap - utility_h - 6.0
+	var text_bottom := button_pos.y - challenge_gap - challenge_h - 6.0
 	var text_height := maxf(text_bottom - text_top, 48.0)
 	var kicker_h := 14.0
 	var seed_h := 14.0
@@ -1617,13 +1618,13 @@ func _on_restart() -> void:
 		return
 	_reincarnate()
 
-func _on_text_share() -> void:
-	_copy_text(Replay.daily_text(day_seed, form_id, score, FormCatalog.rank_name(form_id, rank_index)))
-	_flash_copy("text")
+## Kaito has no middle dot, so the seed line uses a hyphen.
+func _seed_line() -> String:
+	return "UTC seed %d - run %d" % [day_seed, run_index + 1]
 
 func _on_beat_link() -> void:
 	_copy_text(Replay.beat_url_for(day_seed, form_id))
-	_flash_copy("beat")
+	_flash_copy()
 
 func _copy_text(text: String) -> void:
 	print(text)
@@ -1634,12 +1635,24 @@ func _copy_text(text: String) -> void:
 		return
 	DisplayServer.clipboard_set(text)
 
-func _flash_copy(which: String) -> void:
-	_copy_left = 0.6
-	if which == "text" and _text_button != null:
-		_text_button.text = "OK"
-	elif which == "beat" and _beat_button != null:
-		_beat_button.text = "OK"
+func _style_challenge(copied: bool) -> void:
+	if _beat_button == null:
+		return
+	var bg := Color("145c32") if copied else Color("14324f")
+	var edge := Color("b6ffb0") if copied else Color("8ecbff")
+	for state in ["normal", "hover", "pressed", "focus"]:
+		var style := _beat_button.get_theme_stylebox(state) as StyleBoxFlat
+		if style == null:
+			continue
+		style.bg_color = bg
+		style.border_color = edge
+
+func _flash_copy() -> void:
+	_copy_left = COPY_FEEDBACK
+	if _beat_button == null:
+		return
+	_beat_button.text = CHALLENGE_COPIED
+	_style_challenge(true)
 
 func _tick_copy_flash(delta: float) -> void:
 	if _copy_left <= 0.0:
@@ -1647,10 +1660,9 @@ func _tick_copy_flash(delta: float) -> void:
 	_copy_left = maxf(_copy_left - delta, 0.0)
 	if _copy_left > 0.0:
 		return
-	if _text_button != null and _text_button.text == "OK":
-		_text_button.text = "Text"
-	if _beat_button != null and _beat_button.text == "OK":
-		_beat_button.text = "Beat"
+	if _beat_button != null and _beat_button.text == CHALLENGE_COPIED:
+		_beat_button.text = CHALLENGE_LABEL
+		_style_challenge(false)
 
 func _tick_new_best_pop() -> void:
 	if _new_best_label == null or not _new_best_label.visible:

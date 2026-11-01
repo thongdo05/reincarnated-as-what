@@ -2,6 +2,9 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8">
+		<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+		<meta http-equiv="Pragma" content="no-cache">
+		<meta http-equiv="Expires" content="0">
 		<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 		<meta name="apple-mobile-web-app-capable" content="yes">
 		<meta name="mobile-web-app-capable" content="yes">
@@ -351,6 +354,7 @@ body {
 		<script>
 const GODOT_CONFIG = $GODOT_CONFIG;
 const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+function __rawStartEngine() {
 const engine = new Engine(GODOT_CONFIG);
 
 (function () {
@@ -448,6 +452,10 @@ const engine = new Engine(GODOT_CONFIG);
 		}, displayFailureNotice);
 	}
 }());
+}
+if (!window.__rawDeferEngine) {
+	__rawStartEngine();
+}
 		</script>
 	</body>
 </html>
