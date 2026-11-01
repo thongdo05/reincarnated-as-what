@@ -1678,5 +1678,1017 @@
     "category": "ui",
     "facing": "none",
     "note": "Evolve meter fill. Clip its width by progress toward the next rank."
+  },
+  {
+    "file": "fx/forms/slime_r1_flash.png",
+    "size": [
+      26,
+      26
+    ],
+    "frames": 1,
+    "frame_size": [
+      26,
+      26
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      13,
+      13
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/slime_r1_rim.png",
+    "size": [
+      26,
+      26
+    ],
+    "frames": 1,
+    "frame_size": [
+      26,
+      26
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      13,
+      13
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/slime_r2_flash.png",
+    "size": [
+      30,
+      30
+    ],
+    "frames": 1,
+    "frame_size": [
+      30,
+      30
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      15,
+      15
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/slime_r2_rim.png",
+    "size": [
+      30,
+      30
+    ],
+    "frames": 1,
+    "frame_size": [
+      30,
+      30
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      15,
+      15
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/slime_r3_flash.png",
+    "size": [
+      34,
+      34
+    ],
+    "frames": 1,
+    "frame_size": [
+      34,
+      34
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      17,
+      17
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/slime_r3_rim.png",
+    "size": [
+      34,
+      34
+    ],
+    "frames": 1,
+    "frame_size": [
+      34,
+      34
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      17,
+      17
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/vending_machine_r1_flash.png",
+    "size": [
+      30,
+      42
+    ],
+    "frames": 1,
+    "frame_size": [
+      30,
+      42
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      15,
+      21
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/vending_machine_r1_rim.png",
+    "size": [
+      30,
+      42
+    ],
+    "frames": 1,
+    "frame_size": [
+      30,
+      42
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      15,
+      21
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/vending_machine_r2_flash.png",
+    "size": [
+      34,
+      46
+    ],
+    "frames": 1,
+    "frame_size": [
+      34,
+      46
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      17,
+      23
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/vending_machine_r2_rim.png",
+    "size": [
+      34,
+      46
+    ],
+    "frames": 1,
+    "frame_size": [
+      34,
+      46
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      17,
+      23
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/vending_machine_r3_flash.png",
+    "size": [
+      38,
+      50
+    ],
+    "frames": 1,
+    "frame_size": [
+      38,
+      50
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      19,
+      25
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/vending_machine_r3_rim.png",
+    "size": [
+      38,
+      50
+    ],
+    "frames": 1,
+    "frame_size": [
+      38,
+      50
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      19,
+      25
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/goblin_r1_flash.png",
+    "size": [
+      30,
+      34
+    ],
+    "frames": 1,
+    "frame_size": [
+      30,
+      34
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      15,
+      17
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/goblin_r1_rim.png",
+    "size": [
+      30,
+      34
+    ],
+    "frames": 1,
+    "frame_size": [
+      30,
+      34
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      15,
+      17
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/goblin_r2_flash.png",
+    "size": [
+      34,
+      38
+    ],
+    "frames": 1,
+    "frame_size": [
+      34,
+      38
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      17,
+      19
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/goblin_r2_rim.png",
+    "size": [
+      34,
+      38
+    ],
+    "frames": 1,
+    "frame_size": [
+      34,
+      38
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      17,
+      19
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/goblin_r3_flash.png",
+    "size": [
+      38,
+      42
+    ],
+    "frames": 1,
+    "frame_size": [
+      38,
+      42
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      19,
+      21
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/goblin_r3_rim.png",
+    "size": [
+      38,
+      42
+    ],
+    "frames": 1,
+    "frame_size": [
+      38,
+      42
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      19,
+      21
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/cat_r1_flash.png",
+    "size": [
+      26,
+      26
+    ],
+    "frames": 1,
+    "frame_size": [
+      26,
+      26
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      13,
+      13
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/cat_r1_rim.png",
+    "size": [
+      26,
+      26
+    ],
+    "frames": 1,
+    "frame_size": [
+      26,
+      26
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      13,
+      13
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/cat_r2_flash.png",
+    "size": [
+      30,
+      30
+    ],
+    "frames": 1,
+    "frame_size": [
+      30,
+      30
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      15,
+      15
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/cat_r2_rim.png",
+    "size": [
+      30,
+      30
+    ],
+    "frames": 1,
+    "frame_size": [
+      30,
+      30
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      15,
+      15
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/cat_r3_flash.png",
+    "size": [
+      34,
+      34
+    ],
+    "frames": 1,
+    "frame_size": [
+      34,
+      34
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      17,
+      17
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/cat_r3_rim.png",
+    "size": [
+      34,
+      34
+    ],
+    "frames": 1,
+    "frame_size": [
+      34,
+      34
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      17,
+      17
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/demon_lord_r1_flash.png",
+    "size": [
+      42,
+      46
+    ],
+    "frames": 1,
+    "frame_size": [
+      42,
+      46
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      21,
+      23
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/demon_lord_r1_rim.png",
+    "size": [
+      42,
+      46
+    ],
+    "frames": 1,
+    "frame_size": [
+      42,
+      46
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      21,
+      23
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/demon_lord_r2_flash.png",
+    "size": [
+      46,
+      50
+    ],
+    "frames": 1,
+    "frame_size": [
+      46,
+      50
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      23,
+      25
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/demon_lord_r2_rim.png",
+    "size": [
+      46,
+      50
+    ],
+    "frames": 1,
+    "frame_size": [
+      46,
+      50
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      23,
+      25
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/demon_lord_r3_flash.png",
+    "size": [
+      56,
+      54
+    ],
+    "frames": 1,
+    "frame_size": [
+      56,
+      54
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      28,
+      27
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/demon_lord_r3_rim.png",
+    "size": [
+      56,
+      54
+    ],
+    "frames": 1,
+    "frame_size": [
+      56,
+      54
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      28,
+      27
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/slime_small_r1_flash.png",
+    "size": [
+      18,
+      18
+    ],
+    "frames": 1,
+    "frame_size": [
+      18,
+      18
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      9,
+      9
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/slime_small_r1_rim.png",
+    "size": [
+      18,
+      18
+    ],
+    "frames": 1,
+    "frame_size": [
+      18,
+      18
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      9,
+      9
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/slime_small_r2_flash.png",
+    "size": [
+      18,
+      18
+    ],
+    "frames": 1,
+    "frame_size": [
+      18,
+      18
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      9,
+      9
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/slime_small_r2_rim.png",
+    "size": [
+      18,
+      18
+    ],
+    "frames": 1,
+    "frame_size": [
+      18,
+      18
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      9,
+      9
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/forms/slime_small_r3_flash.png",
+    "size": [
+      18,
+      18
+    ],
+    "frames": 1,
+    "frame_size": [
+      18,
+      18
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      9,
+      9
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+  },
+  {
+    "file": "fx/forms/slime_small_r3_rim.png",
+    "size": [
+      18,
+      18
+    ],
+    "frames": 1,
+    "frame_size": [
+      18,
+      18
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      9,
+      9
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+  },
+  {
+    "file": "fx/fx_death_hit.png",
+    "size": [
+      48,
+      24
+    ],
+    "frames": 2,
+    "frame_size": [
+      24,
+      24
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      12,
+      12
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "note": "death 1 HIT: on the impact point (or form centre), frames 0-1; form drawn as its _flash silhouette"
+  },
+  {
+    "file": "fx/fx_death_pop_s.png",
+    "size": [
+      120,
+      40
+    ],
+    "frames": 3,
+    "frame_size": [
+      40,
+      40
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      20,
+      20
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "note": "death 2 POP for forms up to 32 px: form centre, frames 2-4, form hidden"
+  },
+  {
+    "file": "fx/fx_death_pop_l.png",
+    "size": [
+      192,
+      64
+    ],
+    "frames": 3,
+    "frame_size": [
+      64,
+      64
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      32,
+      32
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "note": "death 2 POP for big forms (Vending Machine, Goblin r2-r3, Demon Lord): form centre, frames 2-4"
+  },
+  {
+    "file": "fx/fx_death_puff.png",
+    "size": [
+      128,
+      32
+    ],
+    "frames": 4,
+    "frame_size": [
+      32,
+      32
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      16,
+      16
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "note": "death 3 PUFF: form centre, frames 5-8"
+  },
+  {
+    "file": "fx/fx_crown_fly.png",
+    "size": [
+      144,
+      48
+    ],
+    "frames": 6,
+    "frame_size": [
+      24,
+      48
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      8,
+      43
+    ],
+    "anchor_type": "custom",
+    "category": "fx",
+    "facing": "none",
+    "note": "death 3 gag: crowned forms (Goblin all ranks; Cat r3, Demon Lord r3 have crowns too). Start with the anchor on the top of the head, frames 5-10"
+  },
+  {
+    "file": "fx/fx_evolve_glow.png",
+    "size": [
+      144,
+      48
+    ],
+    "frames": 3,
+    "frame_size": [
+      48,
+      48
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      24,
+      24
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "note": "evolve 1 GLOW: form centre, frames 0-2, with the form _rim overlay on frames 0 and 2"
+  },
+  {
+    "file": "fx/fx_evolve_flash.png",
+    "size": [
+      144,
+      72
+    ],
+    "frames": 2,
+    "frame_size": [
+      72,
+      72
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      36,
+      36
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "note": "evolve 2 FLASH: form centre, frames 3-4, form drawn as the NEW rank _flash silhouette"
+  },
+  {
+    "file": "fx/fx_evolved_pop.png",
+    "size": [
+      240,
+      48
+    ],
+    "frames": 3,
+    "frame_size": [
+      80,
+      48
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      40,
+      24
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "note": "evolve 3 EVOLVED!: centre about 34 px above the form centre, frames 5-7, then hold frame 3 for 1 s"
+  },
+  {
+    "file": "fx/fx_reborn_tease_overlay.png",
+    "size": [
+      480,
+      270
+    ],
+    "frames": 1,
+    "frame_size": [
+      480,
+      270
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "fx_screen_overlay",
+    "facing": "none",
+    "note": "death 4 TEASE: full-screen overlay (50% ordered ink dither dims the frozen game frame without alpha). Show after frame 10, hold 1 s, tap/timeout -> title card"
+  },
+  {
+    "file": "fx/fx_reborn_tease_card.png",
+    "size": [
+      480,
+      270
+    ],
+    "frames": 1,
+    "frame_size": [
+      480,
+      270
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "fx_screen_overlay",
+    "facing": "none",
+    "note": "same text + card without the dither, if Gon prefers to dim in-engine (CanvasModulate / ColorRect)"
   }
 ]

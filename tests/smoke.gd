@@ -21,6 +21,7 @@ func _initialize() -> void:
 	_unit_failed += _check_shapes()
 	_unit_failed += _check_loot()
 	_unit_failed += _check_hud()
+	_unit_failed += _check_death_sequence()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -29,7 +30,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_play() + _check_death_card() + _check_pause()
+	var failed := _unit_failed + _check_play() + _check_death_card() + _check_pause() + _check_death_play()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -164,8 +165,8 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 
 func _check_art() -> int:
 	var failed := 0
-	if ArtLibrary.file_count() != 82:
-		push_error("art manifest should have 82 entries, found %d" % ArtLibrary.file_count())
+	if ArtLibrary.file_count() != 128:
+		push_error("art manifest should have 128 entries, found %d" % ArtLibrary.file_count())
 		failed += 1
 	var text := FileAccess.get_file_as_string("res://art/manifest.json")
 	var parsed: Variant = JSON.parse_string(text)
@@ -1109,6 +1110,94 @@ func _check_hud() -> int:
 		if not ArtLibrary.has_file(file_name):
 			push_error("HUD piece missing from the manifest: %s" % file_name)
 			failed += 1
+	return failed
+
+func _check_death_sequence() -> int:
+	var failed := 0
+	var samples := [
+		[0.0, "hit"],
+		[1.0 / 12.0, "hit"],
+		[2.0 / 12.0, "pop"],
+		[4.0 / 12.0, "pop"],
+		[5.0 / 12.0, "puff"],
+		[8.0 / 12.0, "puff"],
+		[9.0 / 12.0, "hold"],
+		[10.0 / 12.0, "hold"],
+		[11.0 / 12.0, "tease"],
+		[11.0 / 12.0 + 0.5, "tease"],
+		[11.0 / 12.0 + 1.0, "card"],
+	]
+	for sample in samples:
+		var stage := FxTimeline.death_stage(float(sample[0]))
+		if stage != str(sample[1]):
+			push_error("death t=%.3f should be %s, got %s" % [float(sample[0]), sample[1], stage])
+			failed += 1
+	if FxTimeline.pop_file(Vector2(24, 24)) != "fx/fx_death_pop_s.png" or FxTimeline.pop_file(Vector2(32, 32)) != "fx/fx_death_pop_s.png":
+		push_error("forms up to 32 px should pop small")
+		failed += 1
+	if FxTimeline.pop_file(Vector2(32, 36)) != "fx/fx_death_pop_l.png" or FxTimeline.pop_file(Vector2(40, 48)) != "fx/fx_death_pop_l.png":
+		push_error("big forms should pop large")
+		failed += 1
+	for crowned in ["goblin_r1.png", "goblin_r2.png", "goblin_r3.png", "cat_r3.png", "demon_lord_r3.png", "slime_r3.png", "slime_small_r3.png"]:
+		if not FxTimeline.wears_crown(crowned):
+			push_error("%s should fly a crown" % crowned)
+			failed += 1
+	for plain in ["slime_r1.png", "slime_r2.png", "cat_r1.png", "cat_r2.png", "demon_lord_r1.png", "demon_lord_r2.png", "vending_machine_r2.png"]:
+		if FxTimeline.wears_crown(plain):
+			push_error("%s should not fly a crown" % plain)
+			failed += 1
+	for sprite_name in ["slime_r1.png", "slime_small_r2.png", "goblin_r3.png", "cat_r3.png", "demon_lord_r3.png", "vending_machine_r1.png"]:
+		var base := ArtLibrary.anchor(sprite_name)
+		var flash := ArtLibrary.anchor(FxTimeline.flash_file(sprite_name))
+		var rim := ArtLibrary.anchor(FxTimeline.rim_file(sprite_name))
+		if flash != base + Vector2(1, 1) or rim != base + Vector2(1, 1):
+			push_error("%s flash/rim anchor should be the sprite anchor + (1, 1)" % sprite_name)
+			failed += 1
+	var hit := ArtLibrary.entry("fx/fx_death_hit.png")
+	if int(hit.get("frames", 0)) != 2 or absf(float(hit.get("fps", 0)) - 12.0) > 0.01 or bool(hit.get("loop", true)):
+		push_error("death hit should be 2 frames at 12 fps, not looping")
+		failed += 1
+	var held := ArtLibrary.frame_source("fx/fx_death_pop_s.png", 10.0)
+	var third := ArtLibrary.frame_source("fx/fx_death_pop_s.png", 2.0 / 12.0)
+	if held.position != third.position:
+		push_error("a finished pop should hold its last frame")
+		failed += 1
+	return failed
+
+func _check_death_play() -> int:
+	var failed := 0
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game._begin_play()
+	game._player.form_id = FormCatalog.Id.GOBLIN
+	game._player.set_rank(2)
+	game._kill_player("Dire Wolf")
+	if game.game_over_visible or FxTimeline.death_stage(game.death_elapsed) != "hit":
+		push_error("death should open on the hit, not the card")
+		failed += 1
+	if game._death_fx == null or game._death_fx.pop_name != "fx/fx_death_pop_l.png" or not game._death_fx.crowned:
+		push_error("goblin rank 3 should pop large and fly the crown")
+		failed += 1
+	var order: Array[String] = []
+	var last := ""
+	for _i in 400:
+		var stage := FxTimeline.death_stage(float(game.death_elapsed))
+		if stage != last:
+			order.append(stage)
+			last = stage
+		if stage == "card":
+			break
+		game._process(1.0 / 60.0)
+	if order != ["hit", "pop", "puff", "hold", "tease", "card"]:
+		push_error("death order was %s" % str(order))
+		failed += 1
+	if not game.game_over_visible or (game._tease != null and game._tease.visible):
+		push_error("the tease should give way to the death card")
+		failed += 1
+	root.remove_child(game)
+	game.free()
 	return failed
 
 func _sample(id: int, drag: Vector2, bounds: Rect2, frames: int) -> Vector2:

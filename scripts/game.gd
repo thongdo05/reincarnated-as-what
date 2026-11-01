@@ -40,6 +40,8 @@ var _enemies: Array[EnemyActor] = []
 var _shots: Array[Shot] = []
 var _loot: Array[LootGem] = []
 var _effects: Array[PixelEffect] = []
+var _death_fx: DeathFx
+var _tease: Control
 var _loot_spawned := 0
 var _drag_accum := Vector2.ZERO
 var _primary_touch := -1
@@ -88,6 +90,11 @@ func _build_world() -> void:
 	_combat = CombatText.new()
 	_combat.z_index = 8
 	add_child(_combat)
+
+	_death_fx = DeathFx.new()
+	_death_fx.z_index = 9
+	_death_fx.visible = false
+	add_child(_death_fx)
 
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
@@ -152,6 +159,25 @@ func _build_hud() -> void:
 	_skip_label.offset_top = -22.0
 	_skip_label.offset_bottom = -6.0
 	_reveal.add_child(_skip_label)
+
+	_tease = Control.new()
+	_tease.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_tease.visible = false
+	_tease.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.add_child(_tease)
+	var tease_dim := ColorRect.new()
+	tease_dim.color = Color(0.078, 0.071, 0.122, 0.62)
+	tease_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tease_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tease.add_child(tease_dim)
+	var tease_card := TextureRect.new()
+	tease_card.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tease_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tease_card.texture = ArtLibrary.texture("fx/fx_reborn_tease_card.png")
+	tease_card.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	tease_card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tease_card.stretch_mode = TextureRect.STRETCH_SCALE
+	_tease.add_child(tease_card)
 
 	_game_over = Control.new()
 	_game_over.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -321,6 +347,8 @@ func _on_screen_touch(event: InputEventScreenTouch) -> void:
 			_primary_touch = -1
 		return
 	if event.pressed:
+		if _try_skip_tease():
+			return
 		if _primary_touch == -1:
 			_primary_touch = event.index
 			_try_skip_reveal()
@@ -341,6 +369,9 @@ func _on_mouse_button(event: InputEventMouseButton) -> void:
 		return
 	_mouse_down = event.pressed
 	if event.pressed:
+		if _try_skip_tease():
+			_mouse_down = false
+			return
 		_try_skip_reveal()
 
 func _on_mouse_motion(event: InputEventMouseMotion) -> void:
@@ -351,6 +382,14 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> void:
 func _try_skip_reveal() -> void:
 	if phase == PHASE_REVEAL and reveal_elapsed > 0.35:
 		_begin_play()
+
+func _try_skip_tease() -> bool:
+	if phase != PHASE_DEAD or game_over_visible:
+		return false
+	if FxTimeline.death_stage(death_elapsed) != "tease":
+		return false
+	_show_game_over()
+	return true
 
 func _process(delta: float) -> void:
 	if _background == null or _player == null or _combat == null:
@@ -379,8 +418,7 @@ func _process(delta: float) -> void:
 		return
 	if phase == PHASE_DEAD:
 		death_elapsed += delta
-		if death_elapsed >= 0.4 and not game_over_visible:
-			_show_game_over()
+		_present_death()
 		return
 	_play_frame(delta, size)
 
@@ -620,11 +658,28 @@ func _kill_player(name: String) -> void:
 	_player.alive = false
 	_player.visible = false
 	_hint_label.visible = false
-	_spawn_fx("death_puff.png", _player.position, 0.5, 0.55, 1.7)
+	if _death_fx != null:
+		_death_fx.start(_player.position, _player.sprite_name())
+	_present_death()
 	_refresh_hud()
+
+func _present_death() -> void:
+	var stage := FxTimeline.death_stage(death_elapsed)
+	if _death_fx != null:
+		_death_fx.elapsed = death_elapsed
+		_death_fx.visible = stage == "hit" or stage == "pop" or stage == "puff" or stage == "hold"
+		_death_fx.queue_redraw()
+	if _tease != null:
+		_tease.visible = stage == "tease" and not game_over_visible
+	if stage == "card" and not game_over_visible:
+		_show_game_over()
 
 func _show_game_over() -> void:
 	game_over_visible = true
+	if _tease != null:
+		_tease.visible = false
+	if _death_fx != null:
+		_death_fx.visible = false
 	var form_name := FormCatalog.display_name(form_id)
 	var reached_rank := FormCatalog.rank_name(form_id, rank_index)
 	_share_label.text = ScoreRules.share_line(form_name, reached_rank, elapsed, killer_name, score)
