@@ -154,8 +154,8 @@ static func semitone_to_pitch(semitones: float) -> float:
 static func shot_pitch_scale(unit: float) -> float:
 	return lerpf(1.0 - SHOT_PITCH_RATIO, 1.0 + SHOT_PITCH_RATIO, clampf(unit, 0.0, 1.0))
 
-## Web plays the loop from a decoded sample. Stream playback of the ogg stays
-## silent on iOS Safari while the wav shots still come through.
+## Web plays the loop as a sample so the single-threaded export does not garble it.
+## Desktop streams the same ogg. The page must report a running context first.
 static func music_playback_type(web: bool) -> AudioServer.PlaybackType:
 	if web:
 		return AudioServer.PLAYBACK_TYPE_SAMPLE

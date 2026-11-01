@@ -75,6 +75,8 @@ var _pause_overlay: Control
 var _sound: SoundRig
 var _sound_button: Button
 var _sound_label: Label
+var _audio_blocked_button: Button
+var _audio_blocked_icon: Control
 var _death_audio_stage := ""
 
 func _ready() -> void:
@@ -331,6 +333,22 @@ func _build_hud() -> void:
 	_sound_button.add_theme_font_size_override("font_size", 9)
 	_sound_button.pressed.connect(_toggle_sound)
 	_hud.add_child(_sound_button)
+	_audio_blocked_button = Button.new()
+	_audio_blocked_button.focus_mode = Control.FOCUS_NONE
+	_audio_blocked_button.flat = true
+	_audio_blocked_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	_audio_blocked_button.z_index = 4
+	_audio_blocked_button.visible = false
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		_audio_blocked_button.add_theme_stylebox_override(state, empty)
+	_audio_blocked_button.pressed.connect(_retry_web_audio)
+	_hud.add_child(_audio_blocked_button)
+	_audio_blocked_icon = SpeakerOffMark.new()
+	_audio_blocked_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_audio_blocked_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_audio_blocked_icon.size = Vector2(PAUSE_ART_PX, PAUSE_ART_PX)
+	_audio_blocked_icon.custom_minimum_size = Vector2(PAUSE_ART_PX, PAUSE_ART_PX)
+	_audio_blocked_button.add_child(_audio_blocked_icon)
 	_sound_label = _make_label(9, Color("f2fbff"))
 	_sound_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_sound_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
@@ -427,7 +445,7 @@ func _is_gesture(event: InputEvent) -> bool:
 	return false
 
 func _on_screen_touch(event: InputEventScreenTouch) -> void:
-	if _hits_pause(event.position) or _hits_sound(event.position):
+	if _hits_pause(event.position) or _hits_sound(event.position) or _hits_audio_blocked(event.position):
 		if not event.pressed and event.index == _primary_touch:
 			_primary_touch = -1
 		return
@@ -446,7 +464,7 @@ func _on_screen_drag(event: InputEventScreenDrag) -> void:
 	_drag_accum += event.relative
 
 func _on_mouse_button(event: InputEventMouseButton) -> void:
-	if _hits_pause(event.position) or _hits_sound(event.position):
+	if _hits_pause(event.position) or _hits_sound(event.position) or _hits_audio_blocked(event.position):
 		if not event.pressed:
 			_mouse_down = false
 		return
@@ -486,6 +504,8 @@ func _process(delta: float) -> void:
 			_pause_button.visible = false
 		if _sound_button != null:
 			_sound_button.visible = false
+		if _audio_blocked_button != null:
+			_audio_blocked_button.visible = false
 		return
 	if _rotate != null:
 		_rotate.visible = false
@@ -773,6 +793,8 @@ func _kill_player(name: String) -> void:
 		_pause_button.visible = false
 	if _sound_button != null:
 		_sound_button.visible = false
+	if _audio_blocked_button != null:
+		_audio_blocked_button.visible = false
 	_player.alive = false
 	_player.visible = false
 	_hint_label.visible = false
@@ -1062,6 +1084,20 @@ func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float)
 		_sound_button.size = control_size
 		_sound_button.custom_minimum_size = control_size
 		_sound_button.visible = phase == PHASE_REVEAL or phase == PHASE_PLAY or _paused
+		if _audio_blocked_button != null:
+			var blocked_pos := Vector2(sound_pos.x, sound_pos.y + hit + gap)
+			if blocked_pos.y + hit > viewport.y:
+				blocked_pos.y = maxf(viewport.y - hit, 0.0)
+			_audio_blocked_button.position = blocked_pos
+			_audio_blocked_button.size = control_size
+			_audio_blocked_button.custom_minimum_size = control_size
+			if _audio_blocked_icon != null:
+				_audio_blocked_icon.position = icon_pos
+				_audio_blocked_icon.size = art
+				_audio_blocked_icon.custom_minimum_size = art
+			var show_blocked := _sound != null and _sound.output_blocked
+			show_blocked = show_blocked and (phase == PHASE_REVEAL or phase == PHASE_PLAY or _paused)
+			_audio_blocked_button.visible = show_blocked
 
 func _layout_pause(viewport: Vector2) -> void:
 	var window := DisplayServer.window_get_size()
@@ -1076,6 +1112,16 @@ func _hits_sound(point: Vector2) -> bool:
 	if _sound_button == null or not _sound_button.visible:
 		return false
 	return Rect2(_sound_button.position, _sound_button.size).has_point(point)
+
+func _hits_audio_blocked(point: Vector2) -> bool:
+	if _audio_blocked_button == null or not _audio_blocked_button.visible:
+		return false
+	return Rect2(_audio_blocked_button.position, _audio_blocked_button.size).has_point(point)
+
+func _retry_web_audio() -> void:
+	if _sound == null:
+		return
+	_sound.unlock_from_gesture()
 
 func _toggle_pause() -> void:
 	if phase != PHASE_PLAY and not _paused:
@@ -1125,6 +1171,17 @@ func _tick_effects(delta: float) -> void:
 		if is_instance_valid(fx):
 			fx.queue_free()
 	_effects = keep
+
+class SpeakerOffMark extends Control:
+	func _draw() -> void:
+		var ink := Color("f2fbff")
+		var slash := Color("ff6b8a")
+		draw_rect(Rect2(1, 6, 3, 6), ink)
+		draw_rect(Rect2(4, 5, 2, 8), ink)
+		draw_rect(Rect2(6, 4, 2, 10), ink)
+		draw_rect(Rect2(8, 3, 2, 12), ink)
+		for i in 12:
+			draw_rect(Rect2(3 + i, 15 - i, 2, 2), slash)
 
 func _viewport_size() -> Vector2:
 	if not is_inside_tree():

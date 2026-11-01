@@ -209,22 +209,90 @@ body {
 			};
 		</script>
 		<script>
-			// iOS Safari only starts web audio from a user gesture, and the
-			// gesture is over by the time Godot reads the tap. Resume Godot's
-			// own AudioContext here, on the event, and poke a one-sample buffer
-			// so the output actually opens. TEST audio still waits for this.
+			// Godot 4.7 keeps GodotAudio inside the engine closure, so a page
+			// script cannot see GodotAudio.ctx. iOS Safari then stays suspended
+			// and the music player never starts, while WAV shots still play.
+			// Catch the AudioContext the engine constructs, and count long
+			// buffer sources so a loop that never actually started can be shown.
 			(function () {
+				window.__godotMusicSources = 0;
+				var NativeAudioContext = window.AudioContext || window.webkitAudioContext;
+				if (NativeAudioContext) {
+					function TrackingAudioContext(options) {
+						var ctx = new NativeAudioContext(options);
+						window.__godotAudioCtx = ctx;
+						window.__godotAudioState = ctx.state || "suspended";
+						ctx.addEventListener("statechange", function () {
+							window.__godotAudioState = ctx.state;
+							if (ctx.state === "running") {
+								window.__godotAudioPrimed = true;
+							}
+						});
+						return ctx;
+					}
+					TrackingAudioContext.prototype = NativeAudioContext.prototype;
+					if (window.AudioContext) {
+						window.AudioContext = TrackingAudioContext;
+					}
+					if (window.webkitAudioContext) {
+						window.webkitAudioContext = TrackingAudioContext;
+					}
+				}
+				if (window.AudioBufferSourceNode) {
+					var origStart = AudioBufferSourceNode.prototype.start;
+					AudioBufferSourceNode.prototype.start = function () {
+						try {
+							var node = this;
+							var buf = node.buffer;
+							if (buf && buf.duration >= 2 && !node.__godotMusicCounted) {
+								node.__godotMusicCounted = true;
+								window.__godotMusicSources = (window.__godotMusicSources || 0) + 1;
+								node.addEventListener("ended", function () {
+									if (!node.__godotMusicCounted) {
+										return;
+									}
+									node.__godotMusicCounted = false;
+									window.__godotMusicSources = Math.max(0, (window.__godotMusicSources || 1) - 1);
+								});
+							}
+						} catch (err) {}
+						return origStart.apply(this, arguments);
+					};
+				}
+				function audioCtx() {
+					if (window.__godotAudioCtx) {
+						return window.__godotAudioCtx;
+					}
+					if (typeof GodotAudio !== "undefined" && GodotAudio.ctx) {
+						return GodotAudio.ctx;
+					}
+					return null;
+				}
 				function unlockGodotAudio() {
+					// Remember the tap even if the engine has not built the
+					// context yet. The music rig polls this flag.
+					window.__godotAudioGesture = true;
 					try {
-						var ctx = (typeof GodotAudio !== "undefined") ? GodotAudio.ctx : null;
+						var ctx = audioCtx();
 						if (!ctx) {
 							return;
 						}
+						window.__godotAudioCtx = ctx;
 						if (ctx.state !== "running" && typeof ctx.resume === "function") {
 							var pending = ctx.resume();
-							if (pending && typeof pending.catch === "function") {
-								pending.catch(function () {});
+							if (pending && typeof pending.then === "function") {
+								pending.then(function () {
+									window.__godotAudioState = ctx.state;
+									if (ctx.state === "running") {
+										window.__godotAudioPrimed = true;
+										window.__godotAudioGesture = true;
+									}
+								}, function () {});
 							}
+						}
+						window.__godotAudioState = ctx.state;
+						if (ctx.state === "running") {
+							window.__godotAudioPrimed = true;
 						}
 						if (!window.__godotAudioPrimed) {
 							var rate = ctx.sampleRate || 48000;
@@ -237,7 +305,6 @@ body {
 							} catch (err) {}
 							window.__godotAudioPrimed = true;
 						}
-						window.__godotAudioGesture = true;
 					} catch (err) {}
 				}
 				window.unlockGodotAudio = unlockGodotAudio;
@@ -245,6 +312,13 @@ body {
 				for (var i = 0; i < names.length; i++) {
 					document.addEventListener(names[i], unlockGodotAudio, true);
 				}
+				document.addEventListener("visibilitychange", function () {
+					if (document.visibilityState !== "visible") {
+						return;
+					}
+					unlockGodotAudio();
+					window.__godotAudioRestartMusic = true;
+				});
 			}());
 		</script>
 		<script src="$GODOT_URL"></script>
