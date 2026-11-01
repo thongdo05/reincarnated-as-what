@@ -26,6 +26,7 @@ func _initialize() -> void:
 	_unit_failed += _check_icons()
 	_unit_failed += _check_pressure()
 	_unit_failed += _check_audio()
+	_unit_failed += _check_replay_rules()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -34,7 +35,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_flappy()
+	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_flappy()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -2528,6 +2529,213 @@ func _check_flappy_run(packed: PackedScene, form: int) -> int:
 	root.remove_child(game)
 	game.free()
 	return failed
+
+func _check_replay_rules() -> int:
+	var failed := 0
+	if Replay.FLASH_REVEAL > 0.5 or Replay.FLASH_REVEAL < 0.4:
+		push_error("retry flash should stay within 0.5s, got %s" % Replay.FLASH_REVEAL)
+		failed += 1
+	if absf(Replay.CARD_GUARD - 0.25) > 0.02:
+		push_error("death-card guard should be about 0.25s")
+		failed += 1
+	if Replay.bullet_z(false) <= 8 or Replay.bullet_z(true) != 6:
+		push_error("enemy bullets should sit above FX in the default mode only")
+		failed += 1
+	if absf(Replay.shake_cap() - Replay.JUICE_SHAKE_PX) > 0.001:
+		push_error("shake cap should stay at 2px")
+		failed += 1
+	Replay.force_reduced_motion_for_test(1)
+	if absf(Replay.shake_cap() - 1.0) > 0.001:
+		push_error("reduced motion should cap shake at 1px")
+		failed += 1
+	Replay.force_reduced_motion_for_test(-1)
+	var slime := Replay.daily_text(20261101, FormCatalog.Id.SLIME, 1240, "Gel Knight")
+	if slime.find("GOBLIN") >= 0 or slime.find("goblin") >= 0 or slime.find("next") >= 0:
+		push_error("daily share text leaked another form: %s" % slime)
+		failed += 1
+	if slime.find("Reincarnated as WHAT?!") < 0 or slime.find("2026-11-01") < 0 or slime.find("(S)") < 0 or slime.find("1,240") < 0 or slime.find("GEL KNIGHT") < 0:
+		push_error("daily share text missing a wordle field: %s" % slime)
+		failed += 1
+	var goblin := Replay.daily_text(20261101, FormCatalog.Id.GOBLIN, 80, "Goblin")
+	if goblin.find("SLIME") >= 0 or goblin.find("(S)") >= 0:
+		push_error("goblin share text should not name the slime")
+		failed += 1
+	var url := Replay.beat_url(20261101, "goblin")
+	if url.find("seed=20261101") < 0 or url.find("form=goblin") < 0:
+		push_error("beat link should carry the seed and the goblin, got %s" % url)
+		failed += 1
+	var fallen := Replay.beat_url(20261101, "cat")
+	if fallen.find("form=") >= 0 or fallen.find("seed=20261101") < 0:
+		push_error("an unplayable form should fall back to the daily seed, got %s" % fallen)
+		failed += 1
+	var shell := FileAccess.get_file_as_string("res://web/shell.html")
+	if shell.find("shareRunText") < 0 or shell.find("navigator.share") < 0 or shell.find("clipboard") < 0:
+		push_error("the web shell should share text and fall back to the clipboard")
+		failed += 1
+	return failed
+
+func _check_replay() -> int:
+	FlappyMode.clear_test_hook()
+	var failed := 0
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var daily_path := "user://daily_run.json"
+	var best_path := "user://best_scores.json"
+	var daily_backup := FileAccess.get_file_as_string(daily_path) if FileAccess.file_exists(daily_path) else ""
+	var best_backup := FileAccess.get_file_as_string(best_path) if FileAccess.file_exists(best_path) else ""
+	Replay.mark_seen()
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game._begin_play()
+	var shot = game._spawn_shot({
+		"position": Vector2(200, 120),
+		"velocity": Vector2(-40, 0),
+		"sprite": "floating_eye_bolt.png",
+		"radius": 4.0,
+		"damage": 1,
+		"killer_name": "Floating Eye",
+	}, false)
+	game._spawn_fx("hit_flash.png", Vector2(200, 120), 0.4, 1.0, 1.2)
+	var fx = game._effects[game._effects.size() - 1]
+	if shot.z_index <= game._combat.z_index or shot.z_index <= fx.z_index or shot.z_index <= game._death_fx.z_index:
+		push_error("enemy bullet z %s should clear combat %s fx %s death %s" % [shot.z_index, game._combat.z_index, fx.z_index, game._death_fx.z_index])
+		failed += 1
+	if game._pattern_layer.z_index >= shot.z_index:
+		push_error("the overdrive flash layer should stay under enemy bullets")
+		failed += 1
+	var evolve_z := int(game._player.z_index) + int(game._player._evolve_fx.z_index)
+	if evolve_z >= shot.z_index:
+		push_error("evolve art should stay under enemy bullets")
+		failed += 1
+	var prior_best := int(BestScores.read().get("overall", 0))
+	var shown_score := prior_best + 250
+	game.score = shown_score
+	game.rank_index = 1
+	game.killer_name = "Dire Wolf"
+	game._kill_player("Dire Wolf")
+	var tap := InputEventScreenTouch.new()
+	tap.pressed = true
+	tap.index = 0
+	tap.position = Vector2(180, 90)
+	game._unhandled_input(tap)
+	if not game.game_over_visible or int(game.phase) != game.PHASE_DEAD:
+		push_error("a tap should skip the death sting onto the card")
+		failed += 1
+	var click := InputEventMouseButton.new()
+	click.pressed = true
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.position = Vector2(30, 30)
+	game._on_death_pointer(click)
+	if int(game.phase) != game.PHASE_DEAD:
+		push_error("a tap inside the guard should not start the next run")
+		failed += 1
+	var step := 1.0 / 60.0
+	var sim := 0.0
+	while game._card_age < Replay.CARD_GUARD and sim < 1.0:
+		game._process(step)
+		sim += step
+	game._on_death_pointer(click)
+	if int(game.phase) != game.PHASE_REVEAL or not game._short_reveal:
+		push_error("the card tap should open the short reveal")
+		failed += 1
+	elif game._form_flash == null or not game._form_flash.visible or game._form_flash.text.is_empty():
+		push_error("the short reveal should name the form")
+		failed += 1
+	var guard_at := sim
+	while int(game.phase) == game.PHASE_REVEAL and sim < 1.2:
+		game._process(step)
+		sim += step
+	if int(game.phase) != game.PHASE_PLAY or sim >= 1.0:
+		push_error("death to control took %.3fs (guard %.3f)" % [sim, guard_at])
+		failed += 1
+	else:
+		var before: Vector2 = game._player.position
+		var touch := InputEventScreenTouch.new()
+		touch.pressed = true
+		touch.index = 3
+		touch.position = before
+		game._unhandled_input(touch)
+		var drag := InputEventScreenDrag.new()
+		drag.index = 3
+		drag.relative = Vector2(0, -36)
+		drag.position = before + drag.relative
+		game._input(drag)
+		if game._player.position.distance_to(before) < 10.0:
+			push_error("the next run should be draggable as soon as the flash ends")
+			failed += 1
+	var shown_text := ScoreRules.format_score(shown_score)
+	if game._score_label == null or game._score_label.text != shown_text:
+		push_error("the death card should show the score large, got %s" % (game._score_label.text if game._score_label != null else "missing"))
+		failed += 1
+	if game._new_best_label == null or game._new_best_label.text != "NEW BEST!":
+		push_error("beating the stored best should pop NEW BEST!")
+		failed += 1
+	print("DEATH_TO_CONTROL %.3f guard %.3f flash %.3f" % [sim, guard_at, Replay.FLASH_REVEAL])
+	root.remove_child(game)
+	game.free()
+	Replay.reset_seen_for_test()
+	var lesson := packed.instantiate()
+	lesson.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(lesson)
+	var saw_eye := false
+	var saw_gem := false
+	var saw_shot := false
+	var lesson_step := 1.0 / 60.0
+	for _i in 520:
+		lesson._process(lesson_step)
+		if int(lesson.phase) != lesson.PHASE_PLAY:
+			continue
+		for enemy in lesson._enemies:
+			if enemy.hold_fire:
+				saw_eye = true
+		if lesson._loot.size() > 0:
+			saw_gem = true
+		if lesson.pattern_shots.size() > 0:
+			saw_shot = true
+		for bullet in lesson._shots:
+			if not bullet.from_player and str(bullet.killer_name) == "Floating Eye":
+				saw_shot = true
+		if saw_eye and saw_gem and saw_shot:
+			break
+	if not saw_eye or not saw_gem or not saw_shot:
+		push_error("the first run should teach an eye, a gem, and one shot (eye %s gem %s shot %s t %.2f)" % [saw_eye, saw_gem, saw_shot, float(lesson.elapsed)])
+		failed += 1
+	if lesson._hint_label.visible:
+		push_error("the lesson should not use a text screen")
+		failed += 1
+	root.remove_child(lesson)
+	lesson.free()
+	if not Replay.seen():
+		push_error("the lesson should remember that it played")
+		failed += 1
+	var later := packed.instantiate()
+	later.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(later)
+	later._begin_play()
+	for _i in 80:
+		later._process(lesson_step)
+	var gentle := 0
+	for enemy in later._enemies:
+		if enemy.hold_fire:
+			gentle += 1
+	if later._tutorial_active or gentle > 0:
+		push_error("a later run should use the normal spawns")
+		failed += 1
+	root.remove_child(later)
+	later.free()
+	_restore_user_file(daily_path, daily_backup)
+	_restore_user_file(best_path, best_backup)
+	return failed
+
+func _restore_user_file(path: String, body: String) -> void:
+	if body.is_empty():
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+		return
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file != null:
+		file.store_string(body)
+		file.close()
 
 func _sample(id: int, drag: Vector2, bounds: Rect2, frames: int) -> Vector2:
 	var ship := PlayerShip.new()

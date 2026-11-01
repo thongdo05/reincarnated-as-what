@@ -171,6 +171,39 @@ func _record_trail(delta: float) -> void:
 	_trail.push_front(position)
 	_trim_trail()
 
+## Next run in the same visit. Does not add another evolve node.
+func respawn(id: int, start: Vector2) -> void:
+	form_id = id
+	position = start
+	aim = start
+	velocity = Vector2.ZERO
+	alive = true
+	visible = true
+	invulnerable = true
+	small = false
+	regrow_left = 0.0
+	regrew = false
+	rank_index = 0
+	evolve_flash = 0.0
+	evolve_t = -1.0
+	evolve_final = false
+	evolve_old = ""
+	evolve_new = ""
+	fx_mode = ""
+	fx_sprite = ""
+	fx_show_rim = false
+	shield_hits = 0
+	_cooldown = 0.12
+	_wobble = 0.0
+	_pose = 0.0
+	_trail.clear()
+	_trail_timer = 0.0
+	modulate = Color.WHITE
+	_apply_radius()
+	if _evolve_fx != null:
+		_evolve_fx.play(99.0)
+	queue_redraw()
+
 func set_rank(index: int) -> void:
 	rank_index = index
 	evolve_flash = 0.4

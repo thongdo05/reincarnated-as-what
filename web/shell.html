@@ -207,6 +207,32 @@ body {
 					download();
 				}
 			};
+			window.shareRunText = function (text) {
+				function fallback() {
+					var area = document.createElement("textarea");
+					area.value = text;
+					area.setAttribute("readonly", "");
+					area.style.position = "fixed";
+					area.style.left = "-9999px";
+					document.body.appendChild(area);
+					area.select();
+					try { document.execCommand("copy"); } catch (err) {}
+					area.remove();
+				}
+				function copy() {
+					if (navigator.clipboard && navigator.clipboard.writeText) {
+						navigator.clipboard.writeText(text).catch(function () { fallback(); });
+						return;
+					}
+					fallback();
+				}
+				var payload = { title: "Reincarnated as WHAT?!", text: text };
+				if (navigator.share) {
+					navigator.share(payload).catch(function () { copy(); });
+				} else {
+					copy();
+				}
+			};
 		</script>
 		<script>
 			// Godot 4.7 keeps GodotAudio inside the engine closure, so a page

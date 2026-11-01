@@ -10,7 +10,8 @@ var _done := false
 var _held_y := {}
 
 func _initialize() -> void:
-	pass
+	# The first-run lesson is not part of the difficulty sample.
+	Replay.mark_seen()
 
 func _process(_delta: float) -> bool:
 	if _done:

@@ -28,6 +28,7 @@ var wave_amp := 8.0
 var y_bias := 0.0
 var speed_scale := 1.0
 var move_velocity := Vector2.ZERO
+var hold_fire := false
 ## Shots promised by a telegraph. Each entry is left, velocity, offset, sprite.
 var telegraphs: Array[Dictionary] = []
 var _last_player := Vector2.ZERO
@@ -47,6 +48,7 @@ func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: Fi
 	background = field_background
 	wave_amp = float(data.get("wave_amp", 8.0))
 	y_bias = float(data.get("y_bias", 0.0))
+	hold_fire = bool(data.get("hold_fire", false))
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var lane := float(data["x_ratio"])
 	origin_y = clampf(lane * field.y + y_bias, 36.0, field.y - 96.0)
@@ -175,6 +177,8 @@ func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, p
 			_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.25, muzzle, "arrow.png")
 
 func _pattern_fire(fired: Array[Dictionary], delta: float, player_pos: Vector2, player_vel: Vector2, run_time: float, interval: float, offset: Vector2, sprite: String) -> void:
+	if hold_fire:
+		return
 	if not telegraphs.is_empty():
 		return
 	shot_cooldown -= delta
@@ -215,6 +219,8 @@ func _release_telegraphs(fired: Array[Dictionary], delta: float) -> void:
 	telegraphs = still
 
 func _try_fire(fired: Array[Dictionary], delta: float, interval: float, bolt_velocity: Vector2, sprite: String, offset: Vector2) -> void:
+	if hold_fire:
+		return
 	# shot_cooldown starts above zero, so a spawn on the right edge cannot snipe.
 	shot_cooldown -= delta
 	if shot_cooldown > 0.0:
