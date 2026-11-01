@@ -16,7 +16,10 @@ func _process(_delta: float) -> bool:
 	if _done:
 		return false
 	_done = true
-	if OS.get_cmdline_user_args().has("--balance"):
+	var args := OS.get_cmdline_user_args()
+	if args.has("--report"):
+		_report()
+	elif args.has("--balance"):
 		_measure_balance()
 	else:
 		_measure()
@@ -25,7 +28,7 @@ func _process(_delta: float) -> bool:
 func _measure() -> void:
 	var seeds := [20261101, 20261102, 20261103, 20261104, 20261108, 20261115]
 	var rows: Array[String] = []
-	for style in ["naive", "dodge"]:
+	for style in ["naive", "dodge", "strong"]:
 		for form in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
 			var deaths: Array[float] = []
 			var r2: Array[float] = []
@@ -104,6 +107,8 @@ func _run(seed_value: int, form: int, style: String) -> Dictionary:
 		"points": int(game.evo_points),
 		"score": int(game.score),
 		"killer": str(game.killer_name),
+		"powers": int(game.power_spawned),
+		"loot": int(game.loot_count),
 	}
 	root.remove_child(game)
 	game.free()
@@ -111,6 +116,9 @@ func _run(seed_value: int, form: int, style: String) -> Dictionary:
 
 func _steer(game, style: String, start: Vector2) -> void:
 	var ship: PlayerShip = game._player
+	if style == "strong":
+		_strong_steer(game, ship)
+		return
 	if style == "naive":
 		var y := start.y + sin(float(game.elapsed) * 0.65) * 18.0
 		ship.aim = Vector2(start.x, clampf(y, 36.0, 200.0))
@@ -209,6 +217,114 @@ func _safest_y(game, where: Vector2) -> float:
 			best_y = y
 	return best_y
 
+## Expert thumb on the 480x270 field. A full-height correction takes about a quarter second.
+const TOUCH_SPEED := 960.0
+const LOOKAHEAD := 0.95
+
+func _strong_steer(game, ship: PlayerShip) -> void:
+	var origin: Vector2 = ship.position
+	var radius := ship.radius
+	var bounds: Rect2 = game._play_bounds(game._viewport_size())
+	var threats := _strong_threats(game)
+	var best_target := origin
+	var best_score := -1000000.0
+	var candidates: Array[Vector2] = [origin]
+	var y := bounds.position.y + radius
+	while y <= bounds.end.y - radius:
+		candidates.append(Vector2(origin.x, y))
+		candidates.append(Vector2(origin.x + 48.0, y))
+		candidates.append(Vector2(origin.x - 36.0, y))
+		y += 14.0
+	for gem in game._loot:
+		if is_instance_valid(gem) and gem.visible:
+			candidates.append(gem.position)
+	for drop in game._powers:
+		if is_instance_valid(drop) and drop.visible:
+			candidates.append(drop.position)
+	for target in candidates:
+		var clamped := _clamp_point(target, bounds, radius)
+		var safety := _path_clearance(origin, clamped, radius, threats)
+		# Any spot that stays clear beats a hit. Among clear spots, step toward gems.
+		# A clearly safer lane beats a gem. Gems only matter when the lanes are close.
+		var score := safety * 4.0
+		if safety > 18.0:
+			score += _pickup_pull(origin, clamped, game) 
+		if score > best_score:
+			best_score = score
+			best_target = clamped
+	var step := TOUCH_SPEED * STEP
+	var delta := best_target - origin
+	if delta.length() > step:
+		delta = delta.normalized() * step
+	ship.aim = origin + delta
+
+func _strong_threats(game) -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	for shot in game._shots:
+		if not is_instance_valid(shot) or shot.from_player or not shot.visible:
+			continue
+		rows.append({
+			"pos": shot.position,
+			"vel": shot.velocity,
+			"delay": 0.0,
+			"pad": shot.radius,
+		})
+	for enemy in game._enemies:
+		if not enemy.alive:
+			continue
+		rows.append({
+			"pos": enemy.position,
+			"vel": enemy.move_velocity,
+			"delay": 0.0,
+			"pad": enemy.radius,
+		})
+		for item in enemy.telegraphs:
+			rows.append({
+				"pos": item["pos"],
+				"vel": item["velocity"],
+				"delay": float(item["left"]),
+				"pad": 4.0,
+			})
+	for item in game.pattern_shots:
+		rows.append({
+			"pos": item["pos"],
+			"vel": item["vel"],
+			"delay": float(item["left"]),
+			"pad": 4.0,
+		})
+	return rows
+
+func _path_clearance(origin: Vector2, target: Vector2, radius: float, threats: Array[Dictionary]) -> float:
+	var worst := 240.0
+	for step in 10:
+		var t := LOOKAHEAD * float(step) / 9.0
+		var pos := origin.move_toward(target, TOUCH_SPEED * t)
+		for threat in threats:
+			var delay := float(threat["delay"])
+			var flight := t - delay
+			if flight < 0.0:
+				continue
+			var at: Vector2 = threat["pos"] + threat["vel"] * flight
+			var gap := pos.distance_to(at) - radius - float(threat["pad"])
+			if gap < worst:
+				worst = gap
+	return worst
+
+func _pickup_pull(origin: Vector2, target: Vector2, game) -> float:
+	var best := 0.0
+	for gem in game._loot:
+		if not is_instance_valid(gem) or not gem.visible:
+			continue
+		var closer := origin.distance_to(gem.position) - target.distance_to(gem.position)
+		best = maxf(best, clampf(closer, 0.0, 40.0) * 0.35)
+	return best
+
+func _clamp_point(point: Vector2, bounds: Rect2, radius: float) -> Vector2:
+	return Vector2(
+		clampf(point.x, bounds.position.x + radius, bounds.end.x - radius),
+		clampf(point.y, bounds.position.y + radius, bounds.end.y - radius)
+	)
+
 ## Same seeds and the same steer policies as _measure. 24 runs per form.
 ## Prints median and p75 survival, median and best score, and rank rates.
 ## godot --headless -s res://tests/dodge_bot.gd -- --balance
@@ -219,7 +335,7 @@ func _measure_balance() -> void:
 		20261227, 20270103, 20270110, 20270117, 20270124, 20270131,
 		20270207, 20270214, 20270221, 20270228, 20270307, 20270314,
 	]
-	var styles: Array[String] = ["dodge", "naive"]
+	var styles: Array[String] = ["dodge", "strong", "naive"]
 	var args := OS.get_cmdline_user_args()
 	var style_at := args.find("--style")
 	if style_at >= 0 and style_at + 1 < args.size():
@@ -262,6 +378,84 @@ func _measure_balance() -> void:
 				_max(scores),
 				100.0 * float(reached2) / float(n),
 				100.0 * float(reached3) / float(n),
+			])
+	print("BOT_OK")
+	quit(0)
+
+## n=40 by default. godot --headless -s res://tests/dodge_bot.gd -- --report
+## Optional --style dodge|strong and --limit N.
+func _report() -> void:
+	var args := OS.get_cmdline_user_args()
+	var count := 40
+	var limit_at := args.find("--limit")
+	if limit_at >= 0 and limit_at + 1 < args.size():
+		count = int(args[limit_at + 1])
+	var styles: Array[String] = ["dodge", "strong"]
+	var style_at := args.find("--style")
+	if style_at >= 0 and style_at + 1 < args.size():
+		styles = [str(args[style_at + 1])]
+	var seeds: Array[int] = []
+	for i in count:
+		seeds.append(20261101 + i * 7)
+	for style in styles:
+		for form in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN]:
+			var deaths: Array[float] = []
+			var r2: Array[float] = []
+			var r3: Array[float] = []
+			var powers := 0
+			var dead10 := 0
+			var dead30 := 0
+			var reached2 := 0
+			var reached3 := 0
+			for seed_value in seeds:
+				print("RUN %s %s %d" % [style, FormCatalog.display_name(form), seed_value])
+				var result := _run(seed_value, form, style)
+				var death := float(result["death"])
+				deaths.append(death)
+				powers += int(result["powers"])
+				if death <= 10.0:
+					dead10 += 1
+				if death <= 30.0:
+					dead30 += 1
+				if float(result["rank2"]) >= 0.0:
+					reached2 += 1
+					r2.append(float(result["rank2"]))
+				if float(result["rank3"]) >= 0.0:
+					reached3 += 1
+					r3.append(float(result["rank3"]))
+				var rank2_text := "never"
+				var rank3_text := "never"
+				if float(result["rank2"]) >= 0.0:
+					rank2_text = "%.2f" % float(result["rank2"])
+				if float(result["rank3"]) >= 0.0:
+					rank3_text = "%.2f" % float(result["rank3"])
+				print("ROW %s %s seed %d death %.2f rank2 %s rank3 %s powers %d evo %d loot %d score %d killer %s" % [
+					style,
+					FormCatalog.display_name(form),
+					seed_value,
+					death,
+					rank2_text,
+					rank3_text,
+					int(result["powers"]),
+					int(result["points"]),
+					int(result["loot"]),
+					int(result["score"]),
+					str(result["killer"]),
+				])
+			var n := seeds.size()
+			print("REPORT %s %s n %d med %.2f p90 %.2f dead10 %.1f dead30 %.1f rank2 %.1f rank3 %.1f rank2_med %s rank3_med %s powers %.2f" % [
+				style,
+				FormCatalog.display_name(form),
+				n,
+				_median(deaths),
+				_percentile(deaths, 0.90),
+				100.0 * float(dead10) / float(n),
+				100.0 * float(dead30) / float(n),
+				100.0 * float(reached2) / float(n),
+				100.0 * float(reached3) / float(n),
+				"%.2f" % _median(r2) if not r2.is_empty() else "never",
+				"%.2f" % _median(r3) if not r3.is_empty() else "never",
+				float(powers) / float(n),
 			])
 	print("BOT_OK")
 	quit(0)

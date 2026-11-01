@@ -27,6 +27,9 @@ var warn_left := 0.0
 var wave_amp := 8.0
 var y_bias := 0.0
 var speed_scale := 1.0
+var move_velocity := Vector2.ZERO
+## Shots promised by a telegraph. Each entry is left, velocity, offset, sprite.
+var telegraphs: Array[Dictionary] = []
 var _last_player := Vector2.ZERO
 var _have_player := false
 
@@ -51,8 +54,8 @@ func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: Fi
 	stop_x = field.x * park
 	if kind == SpawnDirector.ANVIL or kind == SpawnDirector.PIANO:
 		var span := maxf(field.x - 80.0, 40.0)
-		# Straight down onto this column. The shadow is drawn here for HAZARD_WARN.
-		warn_left = Difficulty.HAZARD_WARN
+		# Straight down onto this column. The shadow is the telegraph.
+		warn_left = Difficulty.hazard_warn()
 		position = Vector2(40.0 + lane * span, -radius - 8.0)
 	elif kind == SpawnDirector.ARCHER:
 		on_island = lane < 0.45
@@ -63,6 +66,8 @@ func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: Fi
 			position = Vector2(field.x + radius + 20.0, FieldBackground.GROUND_FEET)
 	else:
 		position = Vector2(field.x + radius + 20.0, origin_y)
+	if not FlappyMode.is_active() and kind != SpawnDirector.ANVIL and kind != SpawnDirector.PIANO:
+		shot_cooldown = 0.5
 
 func hurt(amount: int) -> void:
 	if not alive:
@@ -80,6 +85,7 @@ func tick(delta: float, player_pos: Vector2, run_time: float = 0.0, scale: float
 		player_vel = (player_pos - _last_player) / delta
 	_last_player = player_pos
 	_have_player = true
+	var before := position
 	var fired: Array[Dictionary] = []
 	if warn_left > 0.0:
 		warn_left -= delta
@@ -93,7 +99,10 @@ func tick(delta: float, player_pos: Vector2, run_time: float = 0.0, scale: float
 		SpawnDirector.EYE:
 			position.x -= speed * delta
 			position.y = origin_y + sin(age * 1.5 + phase) * wave_amp
-			_try_fire(fired, delta, 2.8, _lead(position + Vector2(-12, 0), player_pos, player_vel, 88.0 * speed_scale, run_time), "floating_eye_bolt.png", Vector2(-12, 0))
+			if FlappyMode.is_active():
+				_try_fire(fired, delta, 2.8, _lead(position + Vector2(-12, 0), player_pos, player_vel, 88.0 * speed_scale, run_time), "floating_eye_bolt.png", Vector2(-12, 0))
+			else:
+				_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.15, Vector2(-12, 0), "floating_eye_bolt.png")
 		SpawnDirector.WOLF:
 			position.x -= speed * delta
 			var chase := Difficulty.wolf_chase(run_time) * speed
@@ -103,11 +112,17 @@ func tick(delta: float, player_pos: Vector2, run_time: float = 0.0, scale: float
 		SpawnDirector.WYVERN:
 			position.x -= speed * delta
 			position.y = origin_y + sin(age * 2.1 + phase) * wave_amp
-			_try_fire(fired, delta, 2.3, _lead(position + Vector2(-20, 4), player_pos, player_vel, 104.0 * speed_scale, run_time), "wyvern_shot.png", Vector2(-20, 4))
+			if FlappyMode.is_active():
+				_try_fire(fired, delta, 2.3, _lead(position + Vector2(-20, 4), player_pos, player_vel, 104.0 * speed_scale, run_time), "wyvern_shot.png", Vector2(-20, 4))
+			else:
+				_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.45, Vector2(-20, 4), "wyvern_shot.png")
 		SpawnDirector.ANVIL, SpawnDirector.PIANO:
 			position.y += Difficulty.fall_speed(kind) * speed_scale * delta
 	if kind == SpawnDirector.EYE or kind == SpawnDirector.WOLF or kind == SpawnDirector.WYVERN:
 		position.y = clampf(position.y, 28.0, field_size.y - 78.0)
+	if delta > 0.0:
+		move_velocity = (position - before) / delta
+	_release_telegraphs(fired, delta)
 	if is_inside_tree():
 		queue_redraw()
 	return fired
@@ -123,7 +138,7 @@ func _mount_island() -> void:
 		screen -= FieldBackground.TILE_W
 	ride_tex_x = screen + background.scroll_far
 	position = Vector2(screen, feet)
-	shot_cooldown = 1.8
+	shot_cooldown = 1.8 if FlappyMode.is_active() else 0.85
 
 func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, player_vel: Vector2, run_time: float) -> void:
 	var muzzle := Vector2(-16, -26)
@@ -134,7 +149,10 @@ func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, p
 		if position.x < -40.0:
 			alive = false
 			return
-		_try_fire(fired, delta, 1.9, _lead(position + muzzle, player_pos, player_vel, arrow_speed, run_time), "arrow.png", muzzle)
+		if FlappyMode.is_active():
+			_try_fire(fired, delta, 1.9, _lead(position + muzzle, player_pos, player_vel, arrow_speed, run_time), "arrow.png", muzzle)
+		else:
+			_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.25, muzzle, "arrow.png")
 		return
 	if not stopped:
 		position.x -= speed * delta
@@ -143,7 +161,7 @@ func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, p
 			position.x = stop_x
 			stopped = true
 			planted_scroll = background.scroll_near if background != null else 0.0
-			shot_cooldown = 1.15
+			shot_cooldown = 1.15 if FlappyMode.is_active() else 0.7
 	else:
 		if background != null:
 			position.x = stop_x - (background.scroll_near - planted_scroll)
@@ -151,7 +169,50 @@ func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, p
 		if position.x < -40.0:
 			alive = false
 			return
-		_try_fire(fired, delta, 1.9, _lead(position + muzzle, player_pos, player_vel, arrow_speed, run_time), "arrow.png", muzzle)
+		if FlappyMode.is_active():
+			_try_fire(fired, delta, 1.9, _lead(position + muzzle, player_pos, player_vel, arrow_speed, run_time), "arrow.png", muzzle)
+		else:
+			_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.25, muzzle, "arrow.png")
+
+func _pattern_fire(fired: Array[Dictionary], delta: float, player_pos: Vector2, player_vel: Vector2, run_time: float, interval: float, offset: Vector2, sprite: String) -> void:
+	if not telegraphs.is_empty():
+		return
+	shot_cooldown -= delta
+	if shot_cooldown > 0.0:
+		return
+	var bolt_speed := Difficulty.pattern_speed(kind, run_time)
+	var aim := _lead(position + offset, player_pos, player_vel, bolt_speed, run_time)
+	var windup := Difficulty.telegraph_for(aim.length())
+	shot_cooldown = interval
+	for off_y in Difficulty.fan_offsets(run_time):
+		_commit_shot(fired, aim, offset + Vector2(0.0, float(off_y)), sprite, windup)
+
+func _commit_shot(fired: Array[Dictionary], bolt_velocity: Vector2, offset: Vector2, sprite: String, windup: float) -> void:
+	if windup <= 0.02:
+		fired.append(_bolt(bolt_velocity, offset, sprite))
+		return
+	# Lock the muzzle in world space. The body can keep moving; the shot
+	# still leaves from the point the telegraph showed.
+	telegraphs.append({
+		"left": windup,
+		"velocity": bolt_velocity,
+		"pos": position + offset,
+		"sprite": sprite,
+	})
+
+func _release_telegraphs(fired: Array[Dictionary], delta: float) -> void:
+	if telegraphs.is_empty():
+		return
+	var still: Array[Dictionary] = []
+	for item in telegraphs:
+		var left := float(item["left"]) - delta
+		if left <= 0.0:
+			var world: Vector2 = item["pos"]
+			fired.append(_bolt(item["velocity"], world - position, str(item["sprite"])))
+		else:
+			item["left"] = left
+			still.append(item)
+	telegraphs = still
 
 func _try_fire(fired: Array[Dictionary], delta: float, interval: float, bolt_velocity: Vector2, sprite: String, offset: Vector2) -> void:
 	# shot_cooldown starts above zero, so a spawn on the right edge cannot snipe.
@@ -193,6 +254,7 @@ func _draw() -> void:
 	if warn_left > 0.0:
 		_draw_warning()
 		return
+	_draw_telegraphs()
 	var file := SpawnDirector.sprite_for(kind)
 	# Enemies and hazards are drawn facing the way the files face. Do not flip.
 	ArtLibrary.draw_loop(self, file, age)
@@ -206,6 +268,20 @@ func _draw() -> void:
 		var y := -ArtLibrary.anchor(file).y - 3.0
 		draw_rect(Rect2(left, y, width, 2), Color(0, 0, 0, 0.7))
 		draw_rect(Rect2(left, y, width * float(hp) / float(max_hp), 2), Color("f4efe4"))
+
+func _draw_telegraphs() -> void:
+	if telegraphs.is_empty():
+		return
+	var pulse := 0.45 + 0.45 * absf(sin(age * 28.0))
+	var ink := Color(1.0, 0.82, 0.35, pulse)
+	for item in telegraphs:
+		var origin: Vector2 = item["pos"] - position
+		var vel: Vector2 = item["velocity"]
+		if vel.length_squared() < 1.0:
+			continue
+		var dir := vel.normalized()
+		draw_line(origin, origin + dir * 16.0, ink, 1.0)
+		draw_arc(origin, 3.0, 0.0, TAU, 8, ink, 1.0, true)
 
 func _draw_warning() -> void:
 	var local_y := FieldBackground.GROUND_FEET - position.y

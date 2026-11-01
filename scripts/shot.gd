@@ -30,13 +30,19 @@ func setup(data: Dictionary, player_owned: bool) -> void:
 	sprite_name = str(data.get("sprite", ""))
 	killer_name = str(data.get("killer_name", ""))
 	from_player = player_owned
+	hit_ids.clear()
+	grazed = false
+	age = 0.0
+	ignore_id = int(data.get("ignore_id", -1))
+	visible = true
+	modulate = Color.WHITE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 func tick(delta: float) -> void:
 	age += delta
 	velocity.y += gravity * delta
 	position += velocity * delta
-	if is_inside_tree():
+	if visible and is_inside_tree():
 		queue_redraw()
 
 ## The cell drawn this frame. Demon orbs advance through the pulse sheet.
@@ -48,8 +54,9 @@ func _draw() -> void:
 	if sprite_name.is_empty():
 		return
 	# Art is already aimed: player shots face right, enemy shots face left. Do not flip.
-	# draw_loop plays a strip (the demon orbs). A single frame still draws once.
-	ArtLibrary.draw_loop(self, sprite_name, age)
+	# Player bullets stay translucent so enemy shots read through the stream.
+	var tint := Color(1, 1, 1, 0.42) if from_player else Color.WHITE
+	ArtLibrary.draw_loop(self, sprite_name, age, Vector2.ZERO, tint)
 	if HitLibrary.show:
 		var role := "body" if from_player else "threat"
 		var color := Color(0.45, 0.9, 1.0, 0.95) if from_player else Color(1.0, 0.55, 0.2, 0.95)

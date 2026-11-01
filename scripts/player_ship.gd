@@ -32,7 +32,9 @@ var evolve_new := ""
 var fx_mode := ""
 var fx_sprite := ""
 var fx_show_rim := false
+var shield_hits := 0
 var _evolve_fx: EvolveFx
+var _banner: Texture2D
 
 const REGROW_SECONDS := 15.0
 
@@ -54,6 +56,7 @@ func setup(id: int, start: Vector2) -> void:
 	_evolve_fx = EvolveFx.new()
 	_evolve_fx.z_index = 2
 	add_child(_evolve_fx)
+	_banner = PixelFont.outlined_texture("FINAL FORM!", Color("ffe56a"))
 	_apply_radius()
 
 func add_drag(relative: Vector2, bounds: Rect2) -> void:
@@ -215,6 +218,8 @@ func _draw() -> void:
 		_draw_body(sprite_name())
 		_draw_final_banner()
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if shield_hits > 0:
+		draw_arc(Vector2.ZERO, radius + 5.0, 0.0, TAU, 22, Color("f2fbff"), 1.5, true)
 	if HitLibrary.show:
 		HitLibrary.draw(self, sprite_name(), "hurt", Color(0.35, 1.0, 0.55, 0.95))
 
@@ -236,7 +241,7 @@ func _draw_final_banner() -> void:
 		return
 	if FxTimeline.evolve_stage(evolve_t, evolve_hold) != "pop":
 		return
-	var tex := PixelFont.outlined_texture("FINAL FORM!", Color("ffe56a"))
+	var tex := _banner if _banner != null else PixelFont.outlined_texture("FINAL FORM!", Color("ffe56a"))
 	var size := tex.get_size() * 2.0
 	draw_texture_rect(tex, Rect2(Vector2(-size.x * 0.5, -60.0), size), false)
 
