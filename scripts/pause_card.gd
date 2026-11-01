@@ -66,6 +66,12 @@ func show_form(id: int, rank_index: int, points: int, split_ready: bool) -> void
 	_weapon.text = "WEAPON  " + FormCatalog.weapon_line(id, rank_index)
 	_trait.text = "TRAIT  " + FormCatalog.trait_line(id, split_ready)
 	var at_cap := FormCatalog.gate_for_next_rank(rank_index) < 0
+	var points_text := FormCatalog.next_rank_text(rank_index, points)
+	var meter_fill := HudLayout.fill_px(points, rank_index)
+	if FlappyMode.is_active():
+		at_cap = FlappyMode.gate_for_next_rank(rank_index) < 0
+		points_text = FlappyMode.next_rank_text(rank_index, points)
+		meter_fill = FlappyMode.fill_px(points, rank_index)
 	_meter.visible = not at_cap
 	_points.visible = not at_cap
 	if at_cap:
@@ -75,10 +81,10 @@ func show_form(id: int, rank_index: int, points: int, split_ready: bool) -> void
 	else:
 		_next.text = "NEXT RANK"
 		_next.add_theme_color_override("font_color", ACCENT)
-		_points.text = FormCatalog.next_rank_text(rank_index, points)
+		_points.text = points_text
 		_size_line(_next)
 		_size_line(_points)
-		(_meter as _Meter).set_fill(rank_index, HudLayout.fill_px(points, rank_index))
+		(_meter as _Meter).set_fill(rank_index, meter_fill)
 	_apply_width()
 
 func set_card_width(width: float) -> void:

@@ -317,6 +317,8 @@ static func _reset_run_state() -> void:
 
 static func _points_to_next(game: Node) -> int:
 	var gate := FormCatalog.gate_for_next_rank(int(game.rank_index))
+	if FlappyMode.is_active():
+		gate = FlappyMode.gate_for_next_rank(int(game.rank_index))
 	if gate < 0:
 		return 0
 	return maxi(gate - int(game.evo_points), 0)

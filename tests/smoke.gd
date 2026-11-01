@@ -34,7 +34,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play()
+	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_flappy()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -2227,6 +2227,302 @@ func _check_audio_play() -> int:
 	game.free()
 	AudioCues.write_enabled(true)
 	AudioCues.apply_bus_levels()
+	return failed
+
+func _check_flappy() -> int:
+	var failed := _check_flappy_flags()
+	FlappyMode.clear_test_hook()
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var plain := packed.instantiate()
+	plain.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(plain)
+	if FlappyMode.is_active():
+		push_error("flappy mode should stay off without the flag")
+		failed += 1
+	if plain._hint_label == null or plain._hint_label.text != "Drag anywhere to move":
+		push_error("default hint should stay drag-to-move")
+		failed += 1
+	if plain._hud.get_node_or_null("FlappyTag") != null:
+		push_error("default HUD should not show the flappy tag")
+		failed += 1
+	root.remove_child(plain)
+	plain.free()
+	failed += _check_flappy_run(packed, FormCatalog.Id.SLIME)
+	failed += _check_flappy_run(packed, FormCatalog.Id.GOBLIN)
+	FlappyMode.clear_test_hook()
+	var restored := _sample(FormCatalog.Id.SLIME, Vector2(40, -20), Rect2(0, 0, 400, 800), 30)
+	if restored.x <= 120.0 or restored.y >= 500.0:
+		push_error("default drag should return after the flappy checks (at %s)" % restored)
+		failed += 1
+	return failed
+
+func _check_flappy_flags() -> int:
+	var failed := 0
+	if FlappyMode.flap_speed(FormCatalog.Id.SLIME) <= FlappyMode.flap_speed(FormCatalog.Id.GOBLIN):
+		push_error("slime flap should be the heavier hop")
+		failed += 1
+	if FlappyMode.gravity_of(FormCatalog.Id.SLIME) >= FlappyMode.gravity_of(FormCatalog.Id.GOBLIN):
+		push_error("slime should fall more slowly than the goblin")
+		failed += 1
+	var slime_gap := float(FlappyMode.feel_for(FormCatalog.Id.SLIME)["gap_end"])
+	var goblin_gap := float(FlappyMode.feel_for(FormCatalog.Id.GOBLIN)["gap_end"])
+	if slime_gap <= goblin_gap:
+		push_error("slime should keep the wider gap; the goblin thread is tighter")
+		failed += 1
+	var gate2 := FlappyMode.gate_for_next_rank(0)
+	var gate3 := FlappyMode.gate_for_next_rank(1)
+	if gate2 <= 0 or gate2 >= Difficulty.GATE_RANK2:
+		push_error("flappy rank 2 should sit below the main gate (%s vs %s)" % [gate2, Difficulty.GATE_RANK2])
+		failed += 1
+	if gate3 <= gate2 * 2:
+		push_error("flappy rank 3 should stay rare next to rank 2 (%s vs %s)" % [gate3, gate2])
+		failed += 1
+	if FlappyMode.gate_for_next_rank(2) != -1:
+		push_error("flappy mode has only two gates")
+		failed += 1
+	FlappyMode.reset_for_test(PackedStringArray(["--mode=flappy"]))
+	if not FlappyMode.is_active():
+		push_error("--mode=flappy should enable the test mode")
+		failed += 1
+	FlappyMode.reset_for_test(PackedStringArray(["-mode=flappy"]))
+	if not FlappyMode.is_active():
+		push_error("-mode=flappy should enable the test mode")
+		failed += 1
+	FlappyMode.reset_for_test(PackedStringArray(["mode=flappy"]))
+	if not FlappyMode.is_active():
+		push_error("mode=flappy should enable the test mode")
+		failed += 1
+	FlappyMode.reset_for_test(PackedStringArray(["--mode=flappy"]), "?mode=nope")
+	if FlappyMode.is_active():
+		push_error("the query string should win when it turns flappy off")
+		failed += 1
+	FlappyMode.reset_for_test(PackedStringArray(["--mode=nope"]), "?mode=flappy&form=slime")
+	if not FlappyMode.is_active():
+		push_error("?mode=flappy should win over a CLI mode")
+		failed += 1
+	FlappyMode.clear_test_hook()
+	if FlappyMode.is_active():
+		push_error("clearing the test hook should leave flappy off")
+		failed += 1
+	return failed
+
+func _check_flappy_run(packed: PackedScene, form: int) -> int:
+	var failed := 0
+	var step := 1.0 / 60.0
+	FlappyMode.reset_for_test(PackedStringArray(["--mode=flappy"]))
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	if not FlappyMode.is_active():
+		push_error("flappy run did not boot in flappy mode")
+		root.remove_child(game)
+		game.free()
+		return 1
+	var tag: Node = game._hud.get_node_or_null("FlappyTag")
+	if tag == null or not (tag is Label) or (tag as Label).text != "FLAPPY TEST" or not (tag as Label).visible:
+		push_error("flappy HUD should show a FLAPPY TEST tag")
+		failed += 1
+	if game._hint_label.text != "Tap anywhere to flap":
+		push_error("flappy hint should say tap to flap")
+		failed += 1
+	if game._player.position.x > game._viewport_size().x / 3.0:
+		push_error("flappy lane should stay in the left third (%s)" % game._player.position)
+		failed += 1
+	var lane: float = game._player.position.x
+	game.day_seed = 20261101
+	game.form_id = form
+	game._director = SpawnDirector.new(20261101)
+	game._player.setup(form, Vector2(lane, 130.0))
+	FlappyMode.relock(game)
+	if game._hud.get_node_or_null("FlappyTag") == null:
+		push_error("relock should keep the flappy tag")
+		failed += 1
+	game._begin_play()
+	var space := InputEventKey.new()
+	space.pressed = true
+	space.keycode = KEY_SPACE
+	game._unhandled_input(space)
+	game._process(step)
+	var expect := -FlappyMode.flap_speed(form)
+	if absf(game._player.velocity.y - expect) > 0.05:
+		push_error("%s flap should set upward speed %s, got %s" % [FormCatalog.display_name(form), expect, game._player.velocity.y])
+		failed += 1
+	if absf(game._player.position.x - lane) > 0.75:
+		push_error("flap should not move the ship off its lane (%s vs %s)" % [game._player.position.x, lane])
+		failed += 1
+	FlappyMode.clear_flap()
+	game._player.velocity = Vector2.ZERO
+	game._player.position = Vector2(lane, 130.0)
+	var drag := InputEventScreenDrag.new()
+	drag.index = 0
+	drag.relative = Vector2(40, -30)
+	drag.position = Vector2(200, 100)
+	game._primary_touch = 0
+	game._input(drag)
+	game._process(step)
+	if absf(game._player.position.x - lane) > 0.75:
+		push_error("drag should not move the ship in flappy mode")
+		failed += 1
+	var fall := FlappyMode.gravity_of(form) * step
+	if game._player.velocity.y < fall * 0.5:
+		push_error("gravity should pull the ship down after a flap is spent")
+		failed += 1
+	if form == FormCatalog.Id.SLIME:
+		var saw_shot := false
+		for _i in 50:
+			game.invuln = 2.0
+			game._player.invulnerable = true
+			game._player.position.y = 120.0
+			game._player.velocity = Vector2.ZERO
+			FlappyMode.clear_flap()
+			game._process(step)
+			if not saw_shot:
+				for shot in game._shots:
+					if shot.from_player and shot.sprite_name == "slime_shot.png":
+						saw_shot = true
+		if not saw_shot:
+			push_error("flappy slime should keep the forward slime shot")
+			failed += 1
+		for _i in 280:
+			game.invuln = 5.0
+			game._player.invulnerable = true
+			game._player.position.y = 120.0
+			game._player.velocity = Vector2.ZERO
+			FlappyMode.clear_flap()
+			game._process(step)
+		if FlappyMode.gates().is_empty():
+			push_error("flappy mode should spawn gap walls")
+			failed += 1
+		else:
+			var gate: FlappyGate = FlappyMode.gates()[0]
+			if gate.wall_sprite() != "anvil.png" or not ArtLibrary.has_file(gate.wall_sprite()):
+				push_error("gap walls should be built from the anvil sprite")
+				failed += 1
+			if gate.cell_count() < 8 or not gate.has_both_sides():
+				push_error("an anvil wall should have a top and a bottom")
+				failed += 1
+			if gate.get_child_count() != 0:
+				push_error("anvil walls should be drawn, not spawned as child rects")
+				failed += 1
+			var before_x := gate.position.x
+			gate.tick(step, 100.0)
+			if gate.position.x >= before_x:
+				push_error("gap walls should scroll left")
+				failed += 1
+			var reach := HitLibrary.bounds_radius(game._player.sprite_name(), "hurt")
+			if reach < 9.0:
+				push_error("flappy walls should test the full-body hurt shape (reach %.1f)" % reach)
+				failed += 1
+			gate.position.x = FlappyMode.lock_x()
+			game._player.position = Vector2(FlappyMode.lock_x(), gate.gap_center)
+			if gate.hits_ship(game._player):
+				push_error("the gap center should be open")
+				failed += 1
+			game._player.position = gate.wall_point()
+			if not gate.hits_ship(game._player):
+				push_error("an anvil in the wall should overlap the ship")
+				failed += 1
+		game.rank_index = 0
+		game._player.set_rank(0)
+		game.evo_points = 0
+		game._player.small = false
+		var gate2 := FlappyMode.gate_for_next_rank(0)
+		game._gain_skill(gate2 - 1)
+		if int(game.rank_index) != 0:
+			push_error("one point under the flappy gate should not rank up")
+			failed += 1
+		if FormCatalog.rank_for_points(gate2) != 0:
+			push_error("flappy gates should not change the main rank table")
+			failed += 1
+		game._gain_skill(1)
+		if int(game.rank_index) != 1:
+			push_error("the flappy rank-2 gate should rank the run up")
+			failed += 1
+		game.rank_index = 0
+		game.evo_points = 0
+		game._player.set_rank(0)
+		game._refresh_pause_card()
+		if game._pause_card._points.text != "0/%d" % gate2:
+			push_error("pause card should show the flappy gate, got %s" % game._pause_card._points.text)
+			failed += 1
+		game.invuln = 0.0
+		game._player.invulnerable = false
+		game._player.small = false
+		game._player.position = Vector2(lane, 400.0)
+		game._player.velocity = Vector2.ZERO
+		game._process(step)
+		if not game._player.small or int(game.phase) != game.PHASE_PLAY:
+			push_error("a full slime should split on the floor instead of ending the run")
+			failed += 1
+		game.invuln = 0.0
+		game._player.invulnerable = false
+		game._player.position = Vector2(lane, 400.0)
+		game._player.velocity = Vector2.ZERO
+		game._process(step)
+		if int(game.phase) != game.PHASE_DEAD or game.killer_name != "floor":
+			push_error("a small slime should die on the floor (phase %s killer %s)" % [game.phase, game.killer_name])
+			failed += 1
+		var path := FlappyMode.SAVE_PATH
+		var had := FileAccess.file_exists(path)
+		var backup := FileAccess.get_file_as_string(path) if had else ""
+		var main_before := JSON.stringify(BestScores.read())
+		var prior := int(FlappyMode.read_scores().get("SLIME", 0))
+		game.score = prior + 19
+		game.form_id = FormCatalog.Id.SLIME
+		game._show_game_over()
+		var shown := ScoreRules.format_score(prior + 19)
+		if game._best_label.text.find("Flappy best") < 0 or game._best_label.text.find(shown) < 0:
+			push_error("death card should show the separate flappy best (%s)" % game._best_label.text)
+			failed += 1
+		if JSON.stringify(BestScores.read()) != main_before:
+			push_error("a flappy best should not write the main score file")
+			failed += 1
+		if had:
+			var restore := FileAccess.open(path, FileAccess.WRITE)
+			if restore != null:
+				restore.store_string(backup)
+				restore.close()
+		else:
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	else:
+		var touch := InputEventScreenTouch.new()
+		touch.pressed = true
+		touch.index = 0
+		touch.position = Vector2(180, 90)
+		FlappyMode.clear_flap()
+		game._player.velocity = Vector2.ZERO
+		game._player.position = Vector2(lane, 130.0)
+		game._unhandled_input(touch)
+		game._process(step)
+		if absf(game._player.velocity.y - (-FlappyMode.flap_speed(form))) > 0.05:
+			push_error("a tap should flap the goblin")
+			failed += 1
+		for _i in 40:
+			if not game._shots.is_empty():
+				break
+			game.invuln = 2.0
+			game._player.invulnerable = true
+			game._player.position.y = 120.0
+			game._player.velocity = Vector2.ZERO
+			FlappyMode.clear_flap()
+			game._process(step)
+		var stone := false
+		for shot in game._shots:
+			if shot.from_player and str(shot.sprite_name).begins_with("slingshot_stone"):
+				stone = true
+		if not stone:
+			push_error("flappy goblin should keep the slingshot")
+			failed += 1
+		game.invuln = 0.0
+		game._player.invulnerable = false
+		game._player.position = Vector2(lane, -40.0)
+		game._player.velocity = Vector2.ZERO
+		game._process(step)
+		if int(game.phase) != game.PHASE_DEAD or game.killer_name != "ceiling":
+			push_error("the ceiling should kill a goblin (phase %s killer %s)" % [game.phase, game.killer_name])
+			failed += 1
+	root.remove_child(game)
+	game.free()
 	return failed
 
 func _sample(id: int, drag: Vector2, bounds: Rect2, frames: int) -> Vector2:
