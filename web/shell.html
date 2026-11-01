@@ -208,6 +208,45 @@ body {
 				}
 			};
 		</script>
+		<script>
+			// iOS Safari only starts web audio from a user gesture, and the
+			// gesture is over by the time Godot reads the tap. Resume Godot's
+			// own AudioContext here, on the event, and poke a one-sample buffer
+			// so the output actually opens. TEST audio still waits for this.
+			(function () {
+				function unlockGodotAudio() {
+					try {
+						var ctx = (typeof GodotAudio !== "undefined") ? GodotAudio.ctx : null;
+						if (!ctx) {
+							return;
+						}
+						if (ctx.state !== "running" && typeof ctx.resume === "function") {
+							var pending = ctx.resume();
+							if (pending && typeof pending.catch === "function") {
+								pending.catch(function () {});
+							}
+						}
+						if (!window.__godotAudioPrimed) {
+							var rate = ctx.sampleRate || 48000;
+							var buffer = ctx.createBuffer(1, 1, rate);
+							var source = ctx.createBufferSource();
+							source.buffer = buffer;
+							source.connect(ctx.destination);
+							try {
+								source.start(0);
+							} catch (err) {}
+							window.__godotAudioPrimed = true;
+						}
+						window.__godotAudioGesture = true;
+					} catch (err) {}
+				}
+				window.unlockGodotAudio = unlockGodotAudio;
+				var names = ["touchstart", "touchend", "pointerdown", "pointerup", "mousedown", "click", "keydown"];
+				for (var i = 0; i < names.length; i++) {
+					document.addEventListener(names[i], unlockGodotAudio, true);
+				}
+			}());
+		</script>
 		<script src="$GODOT_URL"></script>
 		<script>
 const GODOT_CONFIG = $GODOT_CONFIG;

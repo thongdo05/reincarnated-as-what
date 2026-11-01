@@ -24,6 +24,7 @@ func _initialize() -> void:
 	_unit_failed += _check_death_sequence()
 	_unit_failed += _check_share_card()
 	_unit_failed += _check_icons()
+	_unit_failed += _check_audio()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -32,7 +33,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play()
+	var failed := _unit_failed + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -1343,6 +1344,368 @@ func _check_evolve_play() -> int:
 			break
 	root.remove_child(game)
 	game.free()
+	return failed
+
+func _check_audio() -> int:
+	var failed := 0
+	var text := FileAccess.get_file_as_string("res://audio/manifest.json")
+	var parsed: Variant = JSON.parse_string(text)
+	if typeof(parsed) != TYPE_ARRAY:
+		push_error("audio manifest did not parse")
+		return 1
+	var by_file := {}
+	for item in parsed:
+		var entry: Dictionary = item
+		by_file[str(entry["file"])] = entry
+		if not FileAccess.file_exists("res://audio/" + str(entry["file"])):
+			# The reborn tease ships as ogg only. The wav is the same sting, much larger.
+			if str(entry["file"]) == "sting_reborn_tease.wav":
+				continue
+			push_error("missing audio file %s" % str(entry["file"]))
+			failed += 1
+	if FileAccess.file_exists("res://audio/sting_reborn_tease.wav"):
+		push_error("reborn tease should be the ogg, not the wav")
+		failed += 1
+	var tease := FileAccess.open("res://audio/sting_reborn_tease.ogg", FileAccess.READ)
+	if tease == null or tease.get_length() > 40000:
+		push_error("reborn tease ogg should stay the small web file")
+		failed += 1
+	if tease != null:
+		tease.close()
+	for event in AudioCues.all_events():
+		var data := AudioCues.spec(event)
+		var file_name := str(data["file"]).get_file()
+		if not by_file.has(file_name):
+			push_error("cue %s is not in the audio manifest" % event)
+			failed += 1
+			continue
+		var entry: Dictionary = by_file[file_name]
+		if absf(float(entry["lufs"]) - float(data["lufs"])) > 0.05:
+			push_error("cue %s lufs drifted from the manifest" % event)
+			failed += 1
+		if str(data["bus"]) != AudioCues.MUSIC_BUS and str(data["bus"]) != AudioCues.SFX_BUS:
+			push_error("cue %s is not on Music or SFX" % event)
+			failed += 1
+	var shot: Dictionary = by_file["sfx_shot_slime.wav"]
+	var pop: Dictionary = by_file["sfx_enemy_pop.wav"]
+	if absf((float(pop["lufs"]) - float(shot["lufs"])) - 3.0) > 0.05:
+		push_error("slime shot should sit 3 LU under the pop")
+		failed += 1
+	if absf(float(shot["duration"]) - AudioCues.SHOT_DURATION) > 0.001:
+		push_error("shot duration should match the manifest")
+		failed += 1
+	if not bool(by_file["music_gameplay_loop.ogg"]["loop"]):
+		push_error("gameplay music should loop")
+		failed += 1
+	var music_notes := str(by_file["music_gameplay_loop.ogg"]["notes"])
+	if music_notes.find("loop_offset=0") < 0 and music_notes.find("loop_offset = 0") < 0:
+		push_error("music notes should keep loop_offset at 0")
+		failed += 1
+	if str(by_file["sfx_evolve.wav"]["notes"]).find("0.42") < 0:
+		push_error("evolve notes should keep the 0.42 s hit")
+		failed += 1
+	# The frame-11 note lives on the wav entry. The ogg is the same sting.
+	if str(by_file["sting_reborn_tease.wav"]["notes"]).find("f11") < 0:
+		push_error("tease notes should keep the frame 11 start")
+		failed += 1
+	if AudioCues.shot_event_for_form(FormCatalog.Id.SLIME) != "slime_shot":
+		push_error("slime auto-fire should use the slime shot")
+		failed += 1
+	if AudioCues.shot_event_for_form(FormCatalog.Id.GOBLIN) != "":
+		push_error("goblin shots should stay silent")
+		failed += 1
+	for id in FormCatalog.IDS:
+		if AudioCues.reveal_event_for_card(FormCatalog.title_card(id)) != "":
+			push_error("a live form should not play a reveal sting")
+			failed += 1
+	if AudioCues.reveal_event_for_card(AudioCues.VENDING_TITLE) != "reveal_vending_machine":
+		push_error("vending machine title card should map to its sting")
+		failed += 1
+	var tease_at := AudioCues.death_event_seconds("reborn_tease")
+	var death_at := AudioCues.death_event_seconds("player_death")
+	if absf(death_at) > 0.0001 or FxTimeline.death_stage(death_at) != "hit":
+		push_error("death sting should start at frame 0")
+		failed += 1
+	if absf(tease_at - float(FxTimeline.DEATH_FRAMES) / FxTimeline.FPS) > 0.0001 or FxTimeline.death_stage(tease_at) != "tease":
+		push_error("tease sting should start at death frame 11")
+		failed += 1
+	if absf(tease_at - float(by_file["sfx_death.wav"]["duration"])) > 0.01:
+		push_error("tease should start as the 0.92 s death sting ends")
+		failed += 1
+	if FxTimeline.evolve_stage(0.0) != "glow":
+		push_error("evolve sting should start on frame 0")
+		failed += 1
+	var hit_frame := int(floor(AudioCues.EVOLVE_HIT_SECONDS * FxTimeline.FPS + 0.0001))
+	if hit_frame != 5 or FxTimeline.evolve_stage(AudioCues.EVOLVE_HIT_SECONDS) != "pop":
+		push_error("evolve hit at 0.42 s should land on the EVOLVED! pop")
+		failed += 1
+	var heard: Array[String] = []
+	var prev := ""
+	var death_t := -1.0
+	var heard_tease := -1.0
+	var t := 0.0
+	while t < 3.0:
+		var stage := FxTimeline.death_stage(t)
+		for cue in AudioCues.cues_for_death_transition(prev, stage):
+			heard.append(str(cue))
+			if str(cue) == "player_death":
+				death_t = t
+			if str(cue) == "reborn_tease":
+				heard_tease = t
+		prev = stage
+		t += 1.0 / 60.0
+	if heard.size() != 2 or heard[0] != "player_death" or heard[1] != "reborn_tease":
+		push_error("death timeline cues were %s" % str(heard))
+		failed += 1
+	if absf(death_t) > 0.0001 or absf(heard_tease - tease_at) > 0.0001:
+		push_error("death cues fired at %s and %s" % [death_t, heard_tease])
+		failed += 1
+	var stress := AudioCues.simulate_burst(AudioCues.SHOT_STRESS_RATE, AudioCues.SHOT_DURATION, AudioCues.SHOT_POLYPHONY, 1.0)
+	if int(stress["stolen"]) != 0 or int(stress["max_active"]) > AudioCues.SHOT_POLYPHONY:
+		push_error("an 8/s shot burst should fit in the polyphony cap")
+		failed += 1
+	var rank3_rate := 1.0 / float(FormCatalog.rank_spec(FormCatalog.Id.SLIME, 2)["fire_interval"])
+	var rank3 := AudioCues.simulate_burst(rank3_rate, AudioCues.SHOT_DURATION, AudioCues.SHOT_POLYPHONY, 1.0)
+	if int(rank3["stolen"]) != 0:
+		push_error("slime rank 3 should not chop the shot sound")
+		failed += 1
+	if AudioCues.SHOT_POLYPHONY > 4 or AudioCues.overlap_voices(AudioCues.SHOT_STRESS_RATE, AudioCues.SHOT_DURATION) > AudioCues.SHOT_POLYPHONY:
+		push_error("shot polyphony should stay a small cap over the 8/s burst")
+		failed += 1
+	if absf(AudioCues.semitone_to_pitch(0.0) - 1.0) > 0.0001 or absf(AudioCues.semitone_to_pitch(12.0) - 2.0) > 0.001:
+		push_error("semitone pitch should be 2^(n/12)")
+		failed += 1
+	var down := AudioCues.pop_semitones(0.0, 0.0)
+	var up := AudioCues.pop_semitones(1.0, 1.0)
+	if down < -2.0 or down > -1.0 or up < 1.0 or up > 2.0:
+		push_error("pop pitch should be 1 to 2 semitones either way")
+		failed += 1
+	var settings := "user://audio_smoke_unit.cfg"
+	AudioCues.write_enabled(false, settings)
+	if AudioCues.read_enabled(settings):
+		push_error("sound off should persist")
+		failed += 1
+	AudioCues.write_enabled(true, settings)
+	if not AudioCues.read_enabled(settings) or not AudioCues.read_enabled("user://audio_missing_nope.cfg"):
+		push_error("sound should default on and remember on")
+		failed += 1
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings))
+	AudioCues.apply_bus_levels()
+	var music_idx := AudioServer.get_bus_index(AudioCues.MUSIC_BUS)
+	var sfx_idx := AudioServer.get_bus_index(AudioCues.SFX_BUS)
+	if music_idx < 0 or sfx_idx < 0 or music_idx == sfx_idx:
+		push_error("Music and SFX should be separate buses")
+		failed += 1
+	elif absf(AudioServer.get_bus_volume_db(music_idx) - AudioCues.BUS_VOLUME_DB) > 0.01 or absf(AudioServer.get_bus_volume_db(sfx_idx) - AudioCues.BUS_VOLUME_DB) > 0.01:
+		push_error("buses should sit at the manifest loudness (0 dB)")
+		failed += 1
+	elif str(AudioServer.get_bus_send(music_idx)) != "Master" or str(AudioServer.get_bus_send(sfx_idx)) != "Master":
+		push_error("Music and SFX should send to Master")
+		failed += 1
+	var music := load("res://audio/music_gameplay_loop.ogg") as AudioStreamOggVorbis
+	AudioCues.prepare_stream(music, "gameplay_music")
+	if music == null or not music.loop or absf(music.loop_offset) > 0.001:
+		push_error("gameplay music should loop from offset 0")
+		failed += 1
+	elif absf(music.get_length() - float(by_file["music_gameplay_loop.ogg"]["duration"])) > 0.05:
+		push_error("music length should match the manifest, got %s" % music.get_length())
+		failed += 1
+	var death := load("res://audio/sfx_death.wav") as AudioStream
+	if death == null or absf(death.get_length() - float(by_file["sfx_death.wav"]["duration"])) > 0.02:
+		push_error("death sting should be the 0.92 s file")
+		failed += 1
+	var shell := FileAccess.get_file_as_string("res://web/shell.html")
+	if shell.find("unlockGodotAudio") < 0 or shell.find("GodotAudio.ctx") < 0 or shell.find("__godotAudioGesture") < 0:
+		push_error("the web shell should resume audio on the first tap")
+		failed += 1
+	var readme := FileAccess.get_file_as_string("res://audio/README.md")
+	if readme.find("TEST") < 0:
+		push_error("audio README should mark the files as test assets")
+		failed += 1
+	return failed
+
+func _check_audio_play() -> int:
+	var failed := 0
+	AudioCues.write_enabled(true)
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	if game._sound == null or game._sound_button == null or game._sound_label == null:
+		push_error("the run should build the sound rig and the toggle")
+		root.remove_child(game)
+		game.free()
+		AudioCues.write_enabled(true)
+		return 1
+	var step := 1.0 / 60.0
+	if DisplayServer.get_name() != "headless" and not game._sound.music_is_playing():
+		push_error("gameplay music should start with the run")
+		failed += 1
+	var ogg := game._sound.music_stream() as AudioStreamOggVorbis
+	if ogg == null or not ogg.loop or absf(ogg.loop_offset) > 0.001:
+		push_error("the playing music should loop from the start")
+		failed += 1
+	var music_player: AudioStreamPlayer = game._sound.player_for("gameplay_music")
+	var shot_player: AudioStreamPlayer = game._sound.player_for("slime_shot")
+	if music_player == null or shot_player == null:
+		push_error("music and slime shot players should exist")
+		failed += 1
+	elif str(music_player.bus) != AudioCues.MUSIC_BUS or str(shot_player.bus) != AudioCues.SFX_BUS:
+		push_error("music and shots should use their own buses")
+		failed += 1
+	elif absf(music_player.volume_db) > 0.01 or absf(shot_player.volume_db) > 0.01:
+		push_error("players should not add gain on top of the mastered files")
+		failed += 1
+	elif shot_player.max_polyphony != AudioCues.SHOT_POLYPHONY:
+		push_error("slime shot polyphony should be capped at %d" % AudioCues.SHOT_POLYPHONY)
+		failed += 1
+	elif music_player.playback_type != AudioServer.PLAYBACK_TYPE_STREAM:
+		push_error("music should use stream playback so the loop stays seamless")
+		failed += 1
+	for _i in 100:
+		game._process(step)
+	game.invuln = 30.0
+	game._player.invulnerable = true
+	if game._sound_button == null or not game._sound_button.visible:
+		push_error("the sound toggle should sit on screen during play")
+		failed += 1
+	else:
+		var pause_rect := Rect2(game._pause_button.position, game._pause_button.size)
+		var sound_rect := Rect2(game._sound_button.position, game._sound_button.size)
+		if pause_rect.intersects(sound_rect):
+			push_error("the sound toggle should not cover the pause target")
+			failed += 1
+		if sound_rect.size.x + 0.01 < 44.0 or absf(sound_rect.position.x - pause_rect.position.x) > 0.01:
+			push_error("the sound toggle should match the pause target and line up under it")
+			failed += 1
+		if sound_rect.position.y < pause_rect.end.y or sound_rect.position.y - pause_rect.end.y > 8.0:
+			push_error("the sound toggle should sit just under pause")
+			failed += 1
+		if game._sound_label.text != "SND":
+			push_error("sound on should read SND")
+			failed += 1
+	var elapsed_before := float(game.elapsed)
+	game._toggle_sound()
+	if game._paused or game._sound.enabled or game._sound_label.text != "OFF":
+		push_error("SND should mute without pausing")
+		failed += 1
+	if not AudioServer.is_bus_mute(AudioServer.get_bus_index(AudioCues.SFX_BUS)) or not AudioServer.is_bus_mute(AudioServer.get_bus_index(AudioCues.MUSIC_BUS)):
+		push_error("sound off should mute Music and SFX")
+		failed += 1
+	game._process(step)
+	if absf(float(game.elapsed) - elapsed_before) < 0.001:
+		push_error("muting should not freeze the run")
+		failed += 1
+	var ship_before: Vector2 = game._player.position
+	var touch := InputEventScreenTouch.new()
+	touch.index = 0
+	touch.pressed = true
+	touch.position = game._sound_button.position + Vector2(2, 2)
+	game._unhandled_input(touch)
+	var drag := InputEventScreenDrag.new()
+	drag.index = 0
+	drag.relative = Vector2(30, -20)
+	drag.position = touch.position + drag.relative
+	game._unhandled_input(drag)
+	game._process(step)
+	if game._player.position.distance_to(ship_before) > 8.0:
+		push_error("a sound-toggle touch should not drag the ship")
+		failed += 1
+	game._toggle_sound()
+	if not game._sound.enabled or AudioServer.is_bus_mute(AudioServer.get_bus_index(AudioCues.SFX_BUS)):
+		push_error("sound on should unmute")
+		failed += 1
+	var remembered := packed.instantiate()
+	remembered.process_mode = Node.PROCESS_MODE_DISABLED
+	AudioCues.write_enabled(false)
+	root.add_child(remembered)
+	if remembered._sound.enabled:
+		push_error("a new run should remember sound off")
+		failed += 1
+	remembered._sound.set_enabled(true)
+	root.remove_child(remembered)
+	remembered.free()
+	game.form_id = FormCatalog.Id.GOBLIN
+	game._player.form_id = FormCatalog.Id.GOBLIN
+	game._sound.played.clear()
+	for _i in 20:
+		game._player._cooldown = 0.0
+		game._process(step)
+	if game._sound.play_count("slime_shot") != 0:
+		push_error("goblin fire should not play the slime shot")
+		failed += 1
+	game.form_id = FormCatalog.Id.SLIME
+	game._player.form_id = FormCatalog.Id.SLIME
+	game._player._cooldown = 0.0
+	game._sound.played.clear()
+	game._process(step)
+	if game._sound.play_count("slime_shot") != 1:
+		push_error("slime auto-fire should play one bloop per volley")
+		failed += 1
+	for _i in 8:
+		game._sound.play_event("slime_shot")
+	if game._sound.player_for("slime_shot").max_polyphony != AudioCues.SHOT_POLYPHONY:
+		push_error("the 8/s burst should stay on the capped player")
+		failed += 1
+	var enemy := EnemyActor.new()
+	enemy.position = Vector2(120, 80)
+	enemy.score_value = 50
+	game._sound.played.clear()
+	game._award_kill(enemy)
+	enemy.free()
+	if game._sound.play_count("enemy_killed") != 1:
+		push_error("a kill should play the pop")
+		failed += 1
+	game._sound.played.clear()
+	game.evo_points = int(FormCatalog.RANK_GATES[0]) - 1
+	game._gain_skill(1)
+	if game._sound.play_count("evolve") != 1 or game._player.evolve_t > 0.02:
+		push_error("evolve sting should start once, on frame 0")
+		failed += 1
+	var hit := AudioCues.EVOLVE_HIT_SECONDS
+	var evolve_guard := 0
+	while game._player.evolve_t >= 0.0 and game._player.evolve_t < hit and evolve_guard < 90:
+		game._process(step)
+		evolve_guard += 1
+	if game._player._evolve_fx == null or game._player._evolve_fx.sheet != "fx/fx_evolved_pop.png" or not game._player._evolve_fx.playing:
+		push_error("the evolve hit should land on the EVOLVED! pop")
+		failed += 1
+	if game._sound.play_count("evolve") != 1:
+		push_error("the evolve sting should not retrigger on the pop")
+		failed += 1
+	game._sound.played.clear()
+	game._kill_player("Anvil")
+	if game._sound.play_count("player_death") != 1 or game._sound.play_count("reborn_tease") != 0:
+		push_error("death should start the death sting and wait for the tease")
+		failed += 1
+	var tease_heard := -1.0
+	for _i in 400:
+		if game._sound.play_count("reborn_tease") > 0:
+			tease_heard = float(game.death_elapsed)
+			break
+		game._process(step)
+	if tease_heard < 0.0 or absf(tease_heard - AudioCues.death_event_seconds("reborn_tease")) > step + 0.0001:
+		push_error("reborn tease should start at frame 11, heard at %s" % tease_heard)
+		failed += 1
+	game._sound.played.clear()
+	game._sound.play_title_card(FormCatalog.title_card(FormCatalog.Id.SLIME))
+	game._sound.play_title_card(FormCatalog.title_card(FormCatalog.Id.GOBLIN))
+	if game._sound.play_count("reveal_vending_machine") != 0:
+		push_error("slime and goblin cards should not play the vending sting")
+		failed += 1
+	game._sound.debug_play_vending_reveal()
+	game._sound.play_title_card(AudioCues.VENDING_TITLE)
+	if game._sound.play_count("reveal_vending_machine") != 2:
+		push_error("the vending sting should play from the debug path and the title card")
+		failed += 1
+	var vending: AudioStreamPlayer = game._sound.player_for("reveal_vending_machine")
+	if vending == null or vending.stream == null or str(vending.bus) != AudioCues.SFX_BUS:
+		push_error("the vending sting should be armed on the SFX bus")
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	AudioCues.write_enabled(true)
+	AudioCues.apply_bus_levels()
 	return failed
 
 func _sample(id: int, drag: Vector2, bounds: Rect2, frames: int) -> Vector2:

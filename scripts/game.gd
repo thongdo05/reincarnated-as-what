@@ -66,6 +66,10 @@ var _paused := false
 var _pause_button: Button
 var _pause_icon: TextureRect
 var _pause_overlay: Control
+var _sound: SoundRig
+var _sound_button: Button
+var _sound_label: Label
+var _death_audio_stage := ""
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -73,8 +77,16 @@ func _ready() -> void:
 	run_index = DailyRun.consume_run_index()
 	form_id = FormCatalog.id_for_run(day_seed, run_index)
 	_director = SpawnDirector.new(day_seed)
+	_sound = SoundRig.new()
+	_sound.name = "SoundRig"
+	# Keep playing when a headless check disables the game node. The pause
+	# button still stops the music through stream_paused.
+	_sound.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_sound)
+	_sound.start_gameplay_music()
 	_build_world()
 	_build_hud()
+	_sound.play_title_card(FormCatalog.title_card(form_id))
 	print("Reincarnated as %s (seed %d, run %d)" % [FormCatalog.display_name(form_id), day_seed, run_index])
 
 func _build_world() -> void:
@@ -301,6 +313,27 @@ func _build_hud() -> void:
 		_pause_button.add_theme_stylebox_override(state, empty)
 	_pause_button.pressed.connect(_toggle_pause)
 	_hud.add_child(_pause_button)
+	_sound_button = Button.new()
+	_sound_button.focus_mode = Control.FOCUS_NONE
+	_sound_button.flat = true
+	_sound_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	_sound_button.z_index = 3
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		_sound_button.add_theme_stylebox_override(state, empty)
+	_sound_button.add_theme_font_override("font", _font_outlined)
+	_sound_button.add_theme_font_size_override("font_size", 9)
+	_sound_button.pressed.connect(_toggle_sound)
+	_hud.add_child(_sound_button)
+	_sound_label = _make_label(9, Color("f2fbff"))
+	_sound_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_sound_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_sound_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_sound_label.offset_left = 0.0
+	_sound_label.offset_top = 1.0
+	_sound_label.offset_right = -2.0
+	_sound_label.offset_bottom = 0.0
+	_sound_button.add_child(_sound_label)
+	_refresh_sound_button()
 	_pause_icon = TextureRect.new()
 	_pause_icon.texture = load("res://art/ui/hud_pause_button.png")
 	_pause_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -343,6 +376,8 @@ func wants_rotate(size: Vector2) -> bool:
 	return window_size.y > window_size.x
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _is_gesture(event) and _sound != null:
+		_sound.unlock_from_gesture()
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_H:
 			HitLibrary.show = not HitLibrary.show
@@ -362,8 +397,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		_on_mouse_motion(event)
 
+func _is_gesture(event: InputEvent) -> bool:
+	if event is InputEventScreenTouch:
+		return (event as InputEventScreenTouch).pressed
+	if event is InputEventMouseButton:
+		var mouse := event as InputEventMouseButton
+		return mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		return key.pressed and not key.echo
+	return false
+
 func _on_screen_touch(event: InputEventScreenTouch) -> void:
-	if _hits_pause(event.position):
+	if _hits_pause(event.position) or _hits_sound(event.position):
 		if not event.pressed and event.index == _primary_touch:
 			_primary_touch = -1
 		return
@@ -382,7 +428,7 @@ func _on_screen_drag(event: InputEventScreenDrag) -> void:
 	_drag_accum += event.relative
 
 func _on_mouse_button(event: InputEventMouseButton) -> void:
-	if _hits_pause(event.position):
+	if _hits_pause(event.position) or _hits_sound(event.position):
 		if not event.pressed:
 			_mouse_down = false
 		return
@@ -420,6 +466,8 @@ func _process(delta: float) -> void:
 		_rotate.visible = true
 		if _pause_button != null:
 			_pause_button.visible = false
+		if _sound_button != null:
+			_sound_button.visible = false
 		return
 	if _rotate != null:
 		_rotate.visible = false
@@ -478,6 +526,9 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		_player.invulnerable = true
 	if _player.ready_to_fire():
 		var interval := float(FormCatalog.rank_spec(form_id, rank_index)["fire_interval"])
+		var shot_event := AudioCues.shot_event_for_form(form_id)
+		if _sound != null and shot_event != "":
+			_sound.play_event(shot_event)
 		for spec in FormCatalog.player_shots(form_id, _player.position, rank_index):
 			_spawn_shot(spec, true)
 		_player.did_fire(interval)
@@ -594,6 +645,8 @@ func _award_kill(enemy: EnemyActor) -> void:
 	combo_left = float(result["combo_left"])
 	var points := int(result["points"])
 	_gain_skill(points)
+	if _sound != null:
+		_sound.play_event("enemy_killed")
 	_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-8, -18), Color("241428"))
 	if form_id == FormCatalog.Id.GOBLIN:
 		_spawn_loot(enemy.position)
@@ -663,6 +716,8 @@ func _gain_skill(points: int) -> void:
 		rank_index = reached
 		_player.set_rank(rank_index)
 		_player.begin_evolve(old_sprite, _player.sprite_name())
+		if _sound != null:
+			_sound.play_event("evolve")
 	_refresh_hud()
 
 func _kill_player(name: String) -> void:
@@ -671,10 +726,15 @@ func _kill_player(name: String) -> void:
 	killer_name = name
 	phase = PHASE_DEAD
 	_paused = false
+	_death_audio_stage = ""
+	if _sound != null:
+		_sound.set_music_paused(false)
 	if _pause_overlay != null:
 		_pause_overlay.visible = false
 	if _pause_button != null:
 		_pause_button.visible = false
+	if _sound_button != null:
+		_sound_button.visible = false
 	_player.alive = false
 	_player.visible = false
 	_hint_label.visible = false
@@ -685,6 +745,10 @@ func _kill_player(name: String) -> void:
 
 func _present_death() -> void:
 	var stage := FxTimeline.death_stage(death_elapsed)
+	if _sound != null:
+		for cue in AudioCues.cues_for_death_transition(_death_audio_stage, stage):
+			_sound.play_event(cue)
+	_death_audio_stage = stage
 	if _death_fx != null:
 		_death_fx.elapsed = death_elapsed
 		_death_fx.visible = stage == "hit" or stage == "pop" or stage == "puff" or stage == "hold"
@@ -696,6 +760,8 @@ func _present_death() -> void:
 
 func _show_game_over() -> void:
 	game_over_visible = true
+	if _sound != null:
+		_sound.stop_event("reborn_tease")
 	if _tease != null:
 		_tease.visible = false
 	if _death_fx != null:
@@ -919,6 +985,15 @@ func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float)
 	_pause_button.visible = show
 	if _pause_overlay != null:
 		_pause_overlay.visible = _paused
+	if _sound_button != null:
+		var gap := 2.0
+		var sound_pos := Vector2(button_pos.x, button_pos.y + hit + gap)
+		if sound_pos.y + hit > viewport.y:
+			sound_pos.y = maxf(viewport.y - hit, 0.0)
+		_sound_button.position = sound_pos
+		_sound_button.size = control_size
+		_sound_button.custom_minimum_size = control_size
+		_sound_button.visible = phase == PHASE_REVEAL or phase == PHASE_PLAY or _paused
 
 func _layout_pause(viewport: Vector2) -> void:
 	var window := DisplayServer.window_get_size()
@@ -929,14 +1004,38 @@ func _hits_pause(point: Vector2) -> bool:
 		return false
 	return Rect2(_pause_button.position, _pause_button.size).has_point(point)
 
+func _hits_sound(point: Vector2) -> bool:
+	if _sound_button == null or not _sound_button.visible:
+		return false
+	return Rect2(_sound_button.position, _sound_button.size).has_point(point)
+
 func _toggle_pause() -> void:
 	if phase != PHASE_PLAY and not _paused:
 		return
+	if _sound != null:
+		_sound.unlock_from_gesture()
 	_paused = not _paused
 	_drag_accum = Vector2.ZERO
 	_mouse_down = false
 	_primary_touch = -1
+	if _sound != null:
+		_sound.set_music_paused(_paused)
 	_layout_pause(_viewport_size())
+
+func _toggle_sound() -> void:
+	if _sound == null:
+		return
+	_sound.unlock_from_gesture()
+	_sound.set_enabled(not _sound.enabled)
+	_refresh_sound_button()
+
+func _refresh_sound_button() -> void:
+	if _sound_label == null or _sound == null:
+		return
+	var on := _sound.enabled
+	_sound_label.text = "SND" if on else "OFF"
+	var color := Color("f2fbff") if on else Color("8d88a8")
+	_sound_label.add_theme_color_override("font_color", color)
 
 func _overlaps(a: Vector2, a_radius: float, b: Vector2, b_radius: float) -> bool:
 	var reach := a_radius + b_radius

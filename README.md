@@ -10,7 +10,9 @@ Turn the phone sideways. In portrait the game asks you to rotate instead of squa
 
 Drag anywhere. The ship follows the drag, so your finger does not have to sit on it. You start in the left third and can drag anywhere on the screen. You fire forward, to the right, on your own. One life per run: a hit ends it. Tap **Reincarnate** for the next one. Arrow keys or WASD also move, for a desktop check.
 
-The pause mark in the top-right is 18 pixels and is not scaled. Its touch target is at least 44 points, so a thumb can hit it on an iPhone. Tap it again, or press Esc, to resume.
+The pause mark in the top-right is 18 pixels and is not scaled. Its touch target is at least 44 points, so a thumb can hit it on an iPhone. Tap it again, or press Esc, to resume. Just under it, **SND** turns sound off and **OFF** turns it back on. That choice stays in the browser.
+
+Sound is a test mix (Hibiki, 1 Nov 2026), not the final one. Music loops for the whole run. The Slime's shot is a quiet bloop. The Goblin's stones are silent until they have their own sample. A kill pops, death lines up with the burst, `REBORN AS...?` gets the tease sting, and `EVOLVED!` lands on the evolve hit. The vending-machine sting is wired to that title card and does not play in this build. On an iPhone, Safari stays quiet until the first tap. That tap is the title card or the first touch in the run, and the music starts then.
 
 The field is 480×270 and scales up by whole pixels, so the art stays sharp. On a desktop the window opens at 960×540, which is that field at 2×.
 

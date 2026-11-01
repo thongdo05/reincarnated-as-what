@@ -4,6 +4,8 @@ class_name FormCatalog
 ## Launch roster entries that exist in this prototype.
 ## The Slime split is that form's trait. It is not an extra life. One life per run still holds.
 ## Vending Machine, Cat, and Demon Lord art is in res://art/ and is not played yet.
+## The vending machine title card is already mapped to its reveal sting. It stays
+## silent until that form is added to IDS. Goblin shots stay silent too.
 ## Vending Machine's weapon has no random WINNER! burst. WINNER! is only the meter clear.
 ## Slime and Goblin are tuned to the same close-range hit rate.
 ## Slime pays for a reliable forward stream with a big body and a long slide.

@@ -30,6 +30,10 @@ window/vsync/vsync_mode=1
 
 pointing/emulate_mouse_from_touch=true
 
+[audio]
+
+buses/default_bus_layout="res://audio/default_bus_layout.tres"
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
