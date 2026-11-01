@@ -156,8 +156,8 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 
 func _check_art() -> int:
 	var failed := 0
-	if ArtLibrary.file_count() != 40:
-		push_error("art manifest should have 40 entries, found %d" % ArtLibrary.file_count())
+	if ArtLibrary.file_count() != 75:
+		push_error("art manifest should have 75 entries, found %d" % ArtLibrary.file_count())
 		failed += 1
 	var text := FileAccess.get_file_as_string("res://art/manifest.json")
 	var parsed: Variant = JSON.parse_string(text)
