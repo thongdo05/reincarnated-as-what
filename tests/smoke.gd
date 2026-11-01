@@ -24,6 +24,7 @@ func _initialize() -> void:
 	_unit_failed += _check_death_sequence()
 	_unit_failed += _check_share_card()
 	_unit_failed += _check_icons()
+	_unit_failed += _check_pressure()
 	_unit_failed += _check_audio()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
@@ -154,7 +155,99 @@ func _check_spawns() -> int:
 	if other_day.max_heavies > SpawnDirector.HEAVY_CAP:
 		push_error("heavy cap depends on the date")
 		return 1
+	if float(slow[0]["t"]) > 1.0:
+		push_error("the first enemy should arrive within 1 s, got %s" % str(slow[0]["t"]))
+		return 1
+	var at_60 := Difficulty.spawn_interval(60.0)
+	if absf(at_60 / Difficulty.SPAWN_INTERVAL_START - Difficulty.SPAWN_INTERVAL_60_SCALE) > 0.02:
+		push_error("spawn interval at 60 s should be about 35 percent of the start, got %s" % at_60)
+		return 1
+	if absf(Difficulty.speed_scale(60.0) - Difficulty.SPEED_AT_60) > 0.02:
+		push_error("speed at 60 s should be about 1.6x")
+		return 1
+	if absf(Difficulty.scroll_scale(45.0) - Difficulty.SCROLL_AT_45) > 0.02:
+		push_error("scroll at 45 s should be about 1.3x")
+		return 1
+	if Difficulty.speed_scale(120.0) > Difficulty.SPEED_CAP + 0.001 or Difficulty.spawn_interval(120.0) < Difficulty.SPAWN_INTERVAL_START * Difficulty.SPAWN_INTERVAL_FLOOR_SCALE - 0.001:
+		push_error("the ramp after 60 s should stay inside the cap")
+		return 1
+	var paired := false
+	var seen := {}
+	for event in SpawnDirector.new(20261101).pop_due(40.0):
+		var key := str(event["t"])
+		if seen.has(key):
+			paired = true
+			break
+		seen[key] = true
+	if not paired:
+		push_error("after 15 s a beat should sometimes hold more than one threat")
+		return 1
+	var plain_kill: Dictionary = ScoreRules.on_kill(100, 1, 1.0, 0)
+	var ranked_kill: Dictionary = ScoreRules.on_kill(100, 1, 1.0, 1)
+	# Opening form: 100 * combo 2 = 200. Rank 2 throttles the raw kill and pays
+	# for the chain, so a lone x1 is worth less and a chain is the way forward.
+	var lone: Dictionary = ScoreRules.on_kill(100, 0, 0.0, 1)
+	if int(plain_kill["points"]) != 200 or int(lone["points"]) >= 100 or int(ranked_kill["points"]) <= int(lone["points"]):
+		push_error("rank 2 should pay for the chain, not a bigger flat kill (%s lone %s chain %s)" % [plain_kill["points"], lone["points"], ranked_kill["points"]])
+		return 1
+	if ScoreRules.graze_points(0) != Difficulty.GRAZE_BASE or ScoreRules.graze_points(1) <= ScoreRules.graze_points(0):
+		push_error("a near-miss at rank 2 should be worth more than one at the start")
+		return 1
 	return 0
+
+func _check_pressure() -> int:
+	var failed := 0
+	var bg := FieldBackground.new()
+	var hazard := EnemyActor.new()
+	hazard.setup(1, {
+		"kind": SpawnDirector.ANVIL,
+		"x_ratio": 0.4,
+		"phase": 0.2,
+		"stop_ratio": 0.3,
+	}, Vector2(480, 270), bg)
+	if absf(hazard.warn_left - Difficulty.HAZARD_WARN) > 0.001:
+		push_error("a falling hazard should telegraph for 0.4 s")
+		failed += 1
+	var warned_y := hazard.position.y
+	hazard.tick(0.2, Vector2(80, 120), 12.0, 1.0)
+	if absf(hazard.position.y - warned_y) > 0.01 or hazard.warn_left <= 0.0:
+		push_error("the hazard should hold still during the warning")
+		failed += 1
+	hazard.tick(0.25, Vector2(80, 120), 12.0, 1.0)
+	if hazard.position.y <= warned_y + 1.0:
+		push_error("the hazard should fall once the shadow ends")
+		failed += 1
+	hazard.free()
+	var wolf := EnemyActor.new()
+	wolf.setup(2, {
+		"kind": SpawnDirector.WOLF,
+		"x_ratio": 0.2,
+		"phase": 0.1,
+		"stop_ratio": 0.3,
+	}, Vector2(480, 270), bg)
+	var wolf_y := wolf.position.y
+	wolf.tick(0.5, Vector2(80, wolf_y + 40.0), 20.0, 1.0)
+	if absf(wolf.position.y - wolf_y) < 1.0:
+		push_error("the dire wolf should chase the player's Y")
+		failed += 1
+	wolf.free()
+	var eye := EnemyActor.new()
+	eye.setup(3, {
+		"kind": SpawnDirector.EYE,
+		"x_ratio": 0.5,
+		"phase": 0.0,
+		"stop_ratio": 0.3,
+		"wave_amp": 6.0,
+	}, Vector2(480, 270), bg)
+	eye.position = Vector2(300, 80)
+	eye.shot_cooldown = 0.0
+	var bolts := eye.tick(0.05, Vector2(40, 140), 20.0, 1.0)
+	if bolts.is_empty() or float(bolts[0]["velocity"].y) <= 0.0:
+		push_error("the floating eye should lead toward the player, got %s" % str(bolts))
+		failed += 1
+	eye.free()
+	bg.free()
+	return failed
 
 func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 	var director := SpawnDirector.new(seed_value)
@@ -705,13 +798,14 @@ func _check_traits() -> int:
 	if king_interval >= base_interval:
 		push_error("higher ranks should fire faster")
 		failed += 1
-	if FormCatalog.rank_for_points(0) != 0 or FormCatalog.rank_for_points(FormCatalog.RANK_GATES[0] - 1) != 0:
+	var gates := FormCatalog.rank_gates()
+	if FormCatalog.rank_for_points(0) != 0 or FormCatalog.rank_for_points(gates[0] - 1) != 0:
 		push_error("evolution should stay at rank 0 under the first gate")
 		failed += 1
-	if FormCatalog.rank_for_points(FormCatalog.RANK_GATES[0]) != 1:
+	if FormCatalog.rank_for_points(gates[0]) != 1:
 		push_error("the first gate should reach rank 1")
 		failed += 1
-	if FormCatalog.rank_for_points(FormCatalog.RANK_GATES[1]) != 2:
+	if FormCatalog.rank_for_points(gates[1]) != 2:
 		push_error("the second gate should reach rank 2")
 		failed += 1
 	var ranked := PlayerShip.new()
@@ -1013,6 +1107,20 @@ func _check_pause() -> int:
 	if HitLibrary.show:
 		push_error("H should hide the hit shapes again")
 		failed += 1
+	var debug_key := InputEventKey.new()
+	debug_key.pressed = true
+	debug_key.keycode = KEY_D
+	game._unhandled_input(debug_key)
+	if not game._debug_on or game._debug_label == null or not game._debug_label.visible:
+		push_error("D should show the pacing overlay")
+		failed += 1
+	elif game._debug_label.text.find("spawn") < 0 or game._debug_label.text.find("spd") < 0:
+		push_error("the pacing overlay should show the spawn interval and the speed multiplier")
+		failed += 1
+	game._unhandled_input(debug_key)
+	if game._debug_on:
+		push_error("D should hide the pacing overlay")
+		failed += 1
 	root.remove_child(game)
 	game.free()
 	return failed
@@ -1083,13 +1191,17 @@ func _check_loot() -> int:
 
 func _check_hud() -> int:
 	var failed := 0
-	if HudLayout.fill_px(0, 0) != 0 or HudLayout.fill_px(250, 0) != 32:
-		push_error("rank 1 meter should be empty at 0 and half full at 250, got %d %d" % [HudLayout.fill_px(0, 0), HudLayout.fill_px(250, 0)])
+	var gate_rank2 := Difficulty.GATE_RANK2
+	var gate_rank3 := Difficulty.GATE_RANK3
+	var half_rank2 := int(gate_rank2 / 2)
+	var half_rank3 := gate_rank2 + int((gate_rank3 - gate_rank2) / 2)
+	if HudLayout.fill_px(0, 0) != 0 or HudLayout.fill_px(half_rank2, 0) != 32:
+		push_error("rank 1 meter should be empty at 0 and half full at the midpoint, got %d %d" % [HudLayout.fill_px(0, 0), HudLayout.fill_px(half_rank2, 0)])
 		failed += 1
-	if HudLayout.fill_px(500, 1) != 0 or HudLayout.fill_px(1000, 1) != 32:
-		push_error("rank 2 meter should reset at the gate and reach half at 1000, got %d %d" % [HudLayout.fill_px(500, 1), HudLayout.fill_px(1000, 1)])
+	if HudLayout.fill_px(gate_rank2, 1) != 0 or HudLayout.fill_px(half_rank3, 1) != 32:
+		push_error("rank 2 meter should reset at the gate and reach half between the gates, got %d %d" % [HudLayout.fill_px(gate_rank2, 1), HudLayout.fill_px(half_rank3, 1)])
 		failed += 1
-	if HudLayout.fill_px(1500, 2) != 64 or HudLayout.fill_px(9000, 2) != 64:
+	if HudLayout.fill_px(gate_rank3, 2) != 64 or HudLayout.fill_px(gate_rank3 + 4000, 2) != 64:
 		push_error("rank 3 meter should stay full")
 		failed += 1
 	if HudLayout.meter_file(0) != "ui/hud_evo_meter_rank1_empty.png" or HudLayout.meter_file(2) != "ui/hud_evo_meter_rank3_empty.png":
@@ -1345,7 +1457,7 @@ func _check_evolve_play() -> int:
 	root.add_child(game)
 	game._begin_play()
 	var before := float(game.elapsed)
-	game.evo_points = int(FormCatalog.RANK_GATES[0]) - 1
+	game.evo_points = int(FormCatalog.rank_gates()[0]) - 1
 	game._gain_skill(1)
 	if int(game.rank_index) != 1 or game._player.fx_mode != "glow" or not game._player.fx_show_rim:
 		push_error("ranking up should open on the gold rim glow")
@@ -1376,6 +1488,28 @@ func _check_evolve_play() -> int:
 			break
 	root.remove_child(game)
 	game.free()
+	var final_run := packed.instantiate()
+	final_run.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(final_run)
+	final_run._begin_play()
+	final_run._player.set_rank(1)
+	final_run.rank_index = 1
+	final_run.evo_points = int(FormCatalog.rank_gates()[1]) - 1
+	final_run._gain_skill(1)
+	if int(final_run.rank_index) != 2 or not final_run._player.evolve_final:
+		push_error("the second gate should open the final evolve")
+		failed += 1
+	if absf(final_run._slow_left - Difficulty.FINAL_SLOWMO_SECONDS) > 0.001 or absf(Difficulty.FINAL_SLOWMO_SCALE - 0.4) > 0.001:
+		push_error("rank 3 should slow to 0.4x for about 0.3 s")
+		failed += 1
+	if final_run._shake_left <= 0.0 or absf(final_run._sound.last_gain_db - Difficulty.FINAL_STING_DB) > 0.01:
+		push_error("rank 3 should shake and play the evolve sting louder")
+		failed += 1
+	if absf(final_run._player.evolve_hold - Difficulty.FINAL_HOLD) > 0.001 or Difficulty.FINAL_HOLD <= FxTimeline.EVOLVE_HOLD:
+		push_error("rank 3 should hold FINAL FORM! longer than a normal evolve")
+		failed += 1
+	root.remove_child(final_run)
+	final_run.free()
 	return failed
 
 func _check_audio() -> int:
@@ -1684,6 +1818,7 @@ func _check_audio_play() -> int:
 	game.form_id = FormCatalog.Id.SLIME
 	game._player.form_id = FormCatalog.Id.SLIME
 	game._player._cooldown = 0.0
+	game._sound._shot_lockout = 0.0
 	game._sound.played.clear()
 	game._process(step)
 	if game._sound.play_count("slime_shot") != 1:
@@ -1724,7 +1859,7 @@ func _check_audio_play() -> int:
 	game._sound.played.clear()
 	game._player.set_rank(0)
 	game.rank_index = 0
-	game.evo_points = int(FormCatalog.RANK_GATES[0]) - 1
+	game.evo_points = int(FormCatalog.rank_gates()[0]) - 1
 	game._gain_skill(1)
 	if game._sound.play_count("evolve") != 1 or game._player.evolve_t > 0.02:
 		push_error("evolve sting should start once, on frame 0")

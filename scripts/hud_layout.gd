@@ -32,8 +32,9 @@ static func fill_px(points: int, rank_index: int) -> int:
 	if nxt < 0:
 		return FILL_FULL
 	var prev := 0
-	if rank_index > 0 and rank_index - 1 < FormCatalog.RANK_GATES.size():
-		prev = int(FormCatalog.RANK_GATES[rank_index - 1])
+	var gates := FormCatalog.rank_gates()
+	if rank_index > 0 and rank_index - 1 < gates.size():
+		prev = int(gates[rank_index - 1])
 	var span := nxt - prev
 	if span <= 0:
 		return FILL_FULL

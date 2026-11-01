@@ -14,6 +14,7 @@ var played: Array[String] = []
 var _music_wanted := false
 var _unlocked := false
 var _shot_lockout := 0.0
+var last_gain_db := 0.0
 var _music: AudioStreamPlayer
 var _pools: Dictionary = {}
 var _cursors: Dictionary = {}
@@ -74,12 +75,13 @@ func play_title_card(card: String) -> void:
 func debug_play_vending_reveal() -> void:
 	play_event("reveal_vending_machine")
 
-func play_event(event: String) -> void:
+func play_event(event: String, gain_db: float = 0.0) -> void:
 	if AudioCues.spec(event).is_empty():
 		return
 	if event == "slime_shot" and not _claim_shot():
 		return
 	played.append(event)
+	last_gain_db = gain_db
 	if not enabled:
 		return
 	# Same reason as the music player: a stream left running at process
@@ -90,6 +92,8 @@ func play_event(event: String) -> void:
 	if player == null:
 		return
 	player.pitch_scale = _pitch_for(event)
+	var base_db := float(AudioCues.spec(event).get("volume_db", 0.0))
+	player.volume_db = base_db + gain_db
 	player.play()
 
 func stop_event(event: String) -> void:

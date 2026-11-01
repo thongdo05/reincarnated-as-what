@@ -33,9 +33,10 @@ const GOBLIN_STRIDE := 0.32
 const GOBLIN_SPRINT_FRACTION := 0.70
 const GOBLIN_PLANT_SPEED_SCALE := 0.16
 
-## Cumulative skill points to reach rank 1, then rank 2. Rank 0 is the start.
-## Placeholder. Tune these two numbers.
-const RANK_GATES: Array[int] = [500, 1500]
+## Cumulative skill points to reach rank 2, then rank 3. Rank 1 is the start.
+## The numbers live in Difficulty so the bot and the meter share one pair.
+static func rank_gates() -> Array[int]:
+	return Difficulty.gates()
 
 ## A Goblin pickup. Added to the score and to the evolution meter. Not a weapon upgrade.
 const LOOT_POINTS := 40
@@ -195,15 +196,17 @@ static func rank_name(id: int, rank_index: int) -> String:
 
 static func rank_for_points(points: int) -> int:
 	var rank := 0
-	for gate in RANK_GATES:
+	var gates := rank_gates()
+	for gate in gates:
 		if points >= gate:
 			rank += 1
-	return mini(rank, RANK_GATES.size())
+	return mini(rank, gates.size())
 
 static func gate_for_next_rank(rank_index: int) -> int:
-	if rank_index < 0 or rank_index >= RANK_GATES.size():
+	var gates := rank_gates()
+	if rank_index < 0 or rank_index >= gates.size():
 		return -1
-	return RANK_GATES[rank_index]
+	return gates[rank_index]
 
 static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array[Dictionary]:
 	var spec := rank_spec(id, rank_index)

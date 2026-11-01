@@ -23,6 +23,12 @@ var ride_tex_x := 0.0
 var planted_scroll := 0.0
 var field_size := Vector2(480, 270)
 var background: FieldBackground
+var warn_left := 0.0
+var wave_amp := 8.0
+var y_bias := 0.0
+var speed_scale := 1.0
+var _last_player := Vector2.ZERO
+var _have_player := false
 
 func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: FieldBackground) -> void:
 	id = spawn_id
@@ -36,13 +42,17 @@ func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: Fi
 	phase = float(data["phase"])
 	field_size = field
 	background = field_background
+	wave_amp = float(data.get("wave_amp", 8.0))
+	y_bias = float(data.get("y_bias", 0.0))
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var lane := float(data["x_ratio"])
-	origin_y = clampf(lane * field.y, 36.0, field.y - 96.0)
+	origin_y = clampf(lane * field.y + y_bias, 36.0, field.y - 96.0)
 	var park := clampf(0.62 + float(data["stop_ratio"]) * 0.55, 0.62, 0.88)
 	stop_x = field.x * park
 	if kind == SpawnDirector.ANVIL or kind == SpawnDirector.PIANO:
 		var span := maxf(field.x - 80.0, 40.0)
+		# Straight down onto this column. The shadow is drawn here for HAZARD_WARN.
+		warn_left = Difficulty.HAZARD_WARN
 		position = Vector2(40.0 + lane * span, -radius - 8.0)
 	elif kind == SpawnDirector.ARCHER:
 		on_island = lane < 0.45
@@ -61,29 +71,41 @@ func hurt(amount: int) -> void:
 	if hp <= 0:
 		alive = false
 
-func tick(delta: float, _player_pos: Vector2) -> Array[Dictionary]:
+func tick(delta: float, player_pos: Vector2, run_time: float = 0.0, scale: float = 1.0) -> Array[Dictionary]:
 	age += delta
+	speed_scale = maxf(scale, 0.05)
+	speed = SpawnDirector.cruise_speed(kind) * speed_scale
+	var player_vel := Vector2.ZERO
+	if _have_player and delta > 0.0:
+		player_vel = (player_pos - _last_player) / delta
+	_last_player = player_pos
+	_have_player = true
 	var fired: Array[Dictionary] = []
+	if warn_left > 0.0:
+		warn_left -= delta
+		if warn_left > 0.0:
+			if is_inside_tree():
+				queue_redraw()
+			return fired
+		delta = -warn_left
+		warn_left = 0.0
 	match kind:
 		SpawnDirector.EYE:
 			position.x -= speed * delta
-			position.y = origin_y + sin(age * 1.5 + phase) * 8.0
-			_try_fire(fired, delta, 2.6, Vector2(-88, 0), "floating_eye_bolt.png", Vector2(-12, 0))
+			position.y = origin_y + sin(age * 1.5 + phase) * wave_amp
+			_try_fire(fired, delta, 2.8, _lead(position + Vector2(-12, 0), player_pos, player_vel, 88.0 * speed_scale, run_time), "floating_eye_bolt.png", Vector2(-12, 0))
 		SpawnDirector.WOLF:
 			position.x -= speed * delta
-			position.y = origin_y + sin(age * 1.1 + phase) * 3.0
+			var chase := Difficulty.wolf_chase(run_time) * speed
+			position.y = move_toward(position.y, player_pos.y, chase * delta)
 		SpawnDirector.ARCHER:
-			_tick_archer(delta, fired)
+			_tick_archer(delta, fired, player_pos, player_vel, run_time)
 		SpawnDirector.WYVERN:
 			position.x -= speed * delta
-			position.y = origin_y + sin(age * 2.1 + phase) * 12.0
-			_try_fire(fired, delta, 2.2, Vector2(-104, 8), "wyvern_shot.png", Vector2(-20, 4))
-		SpawnDirector.ANVIL:
-			position.x -= 16.0 * delta
-			position.y += 96.0 * delta
-		SpawnDirector.PIANO:
-			position.x -= 12.0 * delta
-			position.y += 62.0 * delta
+			position.y = origin_y + sin(age * 2.1 + phase) * wave_amp
+			_try_fire(fired, delta, 2.3, _lead(position + Vector2(-20, 4), player_pos, player_vel, 104.0 * speed_scale, run_time), "wyvern_shot.png", Vector2(-20, 4))
+		SpawnDirector.ANVIL, SpawnDirector.PIANO:
+			position.y += Difficulty.fall_speed(kind) * speed_scale * delta
 	if kind == SpawnDirector.EYE or kind == SpawnDirector.WOLF or kind == SpawnDirector.WYVERN:
 		position.y = clampf(position.y, 28.0, field_size.y - 78.0)
 	if is_inside_tree():
@@ -103,14 +125,16 @@ func _mount_island() -> void:
 	position = Vector2(screen, feet)
 	shot_cooldown = 1.8
 
-func _tick_archer(delta: float, fired: Array[Dictionary]) -> void:
+func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, player_vel: Vector2, run_time: float) -> void:
+	var muzzle := Vector2(-16, -26)
+	var arrow_speed := 116.0 * speed_scale
 	if on_island and background != null:
 		position.x = ride_tex_x - background.scroll_far
 		position.y = background.island_feet(ride_island)
 		if position.x < -40.0:
 			alive = false
 			return
-		_try_fire(fired, delta, 1.7, Vector2(-116, 0), "arrow.png", Vector2(-16, -26))
+		_try_fire(fired, delta, 1.9, _lead(position + muzzle, player_pos, player_vel, arrow_speed, run_time), "arrow.png", muzzle)
 		return
 	if not stopped:
 		position.x -= speed * delta
@@ -119,7 +143,7 @@ func _tick_archer(delta: float, fired: Array[Dictionary]) -> void:
 			position.x = stop_x
 			stopped = true
 			planted_scroll = background.scroll_near if background != null else 0.0
-			shot_cooldown = 1.4
+			shot_cooldown = 1.15
 	else:
 		if background != null:
 			position.x = stop_x - (background.scroll_near - planted_scroll)
@@ -127,7 +151,7 @@ func _tick_archer(delta: float, fired: Array[Dictionary]) -> void:
 		if position.x < -40.0:
 			alive = false
 			return
-		_try_fire(fired, delta, 1.7, Vector2(-116, 0), "arrow.png", Vector2(-16, -26))
+		_try_fire(fired, delta, 1.9, _lead(position + muzzle, player_pos, player_vel, arrow_speed, run_time), "arrow.png", muzzle)
 
 func _try_fire(fired: Array[Dictionary], delta: float, interval: float, bolt_velocity: Vector2, sprite: String, offset: Vector2) -> void:
 	# shot_cooldown starts above zero, so a spawn on the right edge cannot snipe.
@@ -136,6 +160,20 @@ func _try_fire(fired: Array[Dictionary], delta: float, interval: float, bolt_vel
 		return
 	shot_cooldown = interval
 	fired.append(_bolt(bolt_velocity, offset, sprite))
+
+func _lead(from: Vector2, player_pos: Vector2, player_vel: Vector2, shot_speed: float, run_time: float) -> Vector2:
+	var speed_abs := maxf(shot_speed, 1.0)
+	var flat := Vector2(-speed_abs, 0.0)
+	var travel := clampf(from.distance_to(player_pos) / speed_abs, 0.0, 0.55)
+	var aim := player_pos + player_vel * travel
+	var to := aim - from
+	if to.length() < 1.0:
+		return flat
+	var aimed := to.normalized() * speed_abs
+	var mixed := flat.lerp(aimed, Difficulty.aim_amount(run_time))
+	if mixed.length() < 1.0:
+		return flat
+	return mixed.normalized() * speed_abs
 
 func _bolt(bolt_velocity: Vector2, offset: Vector2, sprite: String) -> Dictionary:
 	return {
@@ -152,6 +190,9 @@ func _bolt(bolt_velocity: Vector2, offset: Vector2, sprite: String) -> Dictionar
 	}
 
 func _draw() -> void:
+	if warn_left > 0.0:
+		_draw_warning()
+		return
 	var file := SpawnDirector.sprite_for(kind)
 	# Enemies and hazards are drawn facing the way the files face. Do not flip.
 	ArtLibrary.draw_loop(self, file, age)
@@ -165,3 +206,9 @@ func _draw() -> void:
 		var y := -ArtLibrary.anchor(file).y - 3.0
 		draw_rect(Rect2(left, y, width, 2), Color(0, 0, 0, 0.7))
 		draw_rect(Rect2(left, y, width * float(hp) / float(max_hp), 2), Color("f4efe4"))
+
+func _draw_warning() -> void:
+	var local_y := FieldBackground.GROUND_FEET - position.y
+	var pulse := 0.4 + 0.45 * absf(sin((Difficulty.HAZARD_WARN - warn_left) * 28.0))
+	draw_rect(Rect2(Vector2(-16, local_y - 1), Vector2(32, 4)), Color(0.05, 0.03, 0.08, pulse))
+	draw_rect(Rect2(Vector2(-7, local_y - 3), Vector2(14, 2)), Color(0.55, 0.28, 0.72, pulse))

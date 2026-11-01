@@ -34,12 +34,13 @@ func setup(_seed_value: int, size: Vector2) -> void:
 	field_size = size
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
-func tick(delta: float, size: Vector2) -> void:
+func tick(delta: float, size: Vector2, scroll_scale: float = 1.0) -> void:
 	field_size = size
-	scroll_sky += delta * SCROLL_BASE * SKY_FACTOR
-	scroll_clouds += delta * SCROLL_BASE * CLOUDS_FACTOR
-	scroll_far += delta * SCROLL_BASE * FAR_FACTOR
-	scroll_near += delta * SCROLL_BASE * NEAR_FACTOR
+	var scale := maxf(scroll_scale, 0.0)
+	scroll_sky += delta * SCROLL_BASE * SKY_FACTOR * scale
+	scroll_clouds += delta * SCROLL_BASE * CLOUDS_FACTOR * scale
+	scroll_far += delta * SCROLL_BASE * FAR_FACTOR * scale
+	scroll_near += delta * SCROLL_BASE * NEAR_FACTOR * scale
 	if is_inside_tree():
 		queue_redraw()
 
