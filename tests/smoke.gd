@@ -1495,6 +1495,18 @@ func _check_audio() -> int:
 	if absf(AudioCues.semitone_to_pitch(0.0) - 1.0) > 0.0001 or absf(AudioCues.semitone_to_pitch(12.0) - 2.0) > 0.001:
 		push_error("semitone pitch should be 2^(n/12)")
 		failed += 1
+	if absf(AudioCues.shot_pitch_scale(0.0) - 0.92) > 0.0001 or absf(AudioCues.shot_pitch_scale(1.0) - 1.08) > 0.0001 or absf(AudioCues.shot_pitch_scale(0.5) - 1.0) > 0.0001:
+		push_error("shot pitch should be +/- 8 percent")
+		failed += 1
+	if AudioCues.music_playback_type(false) != AudioServer.PLAYBACK_TYPE_STREAM or AudioCues.music_playback_type(true) != AudioServer.PLAYBACK_TYPE_SAMPLE:
+		push_error("web music should be a sample so iOS Safari plays the loop")
+		failed += 1
+	if absf(float(AudioCues.spec("slime_shot")["volume_db"]) - AudioCues.SHOT_VOLUME_DB) > 0.01 or absf(AudioCues.SHOT_VOLUME_DB + 10.0) > 0.01:
+		push_error("slime shot should be -10 dB on its player")
+		failed += 1
+	if absf(AudioCues.SHOT_MIN_INTERVAL - 0.25) > 0.001:
+		push_error("shot sfx should be capped at about 4 per second")
+		failed += 1
 	var down := AudioCues.pop_semitones(0.0, 0.0)
 	var up := AudioCues.pop_semitones(1.0, 1.0)
 	if down < -2.0 or down > -1.0 or up < 1.0 or up > 2.0:
@@ -1516,8 +1528,11 @@ func _check_audio() -> int:
 	if music_idx < 0 or sfx_idx < 0 or music_idx == sfx_idx:
 		push_error("Music and SFX should be separate buses")
 		failed += 1
-	elif absf(AudioServer.get_bus_volume_db(music_idx) - AudioCues.BUS_VOLUME_DB) > 0.01 or absf(AudioServer.get_bus_volume_db(sfx_idx) - AudioCues.BUS_VOLUME_DB) > 0.01:
-		push_error("buses should sit at the manifest loudness (0 dB)")
+	elif absf(AudioServer.get_bus_volume_db(music_idx) - AudioCues.MUSIC_BUS_DB) > 0.01 or absf(AudioServer.get_bus_volume_db(sfx_idx) - AudioCues.SFX_BUS_DB) > 0.01:
+		push_error("Music should sit at -6 dB and SFX at -12 dB so the loop is above the stings")
+		failed += 1
+	elif AudioServer.get_bus_volume_db(music_idx) <= AudioServer.get_bus_volume_db(sfx_idx):
+		push_error("the music bus should be louder than the SFX bus")
 		failed += 1
 	elif str(AudioServer.get_bus_send(music_idx)) != "Master" or str(AudioServer.get_bus_send(sfx_idx)) != "Master":
 		push_error("Music and SFX should send to Master")
@@ -1573,14 +1588,14 @@ func _check_audio_play() -> int:
 	elif str(music_player.bus) != AudioCues.MUSIC_BUS or str(shot_player.bus) != AudioCues.SFX_BUS:
 		push_error("music and shots should use their own buses")
 		failed += 1
-	elif absf(music_player.volume_db) > 0.01 or absf(shot_player.volume_db) > 0.01:
-		push_error("players should not add gain on top of the mastered files")
+	elif absf(music_player.volume_db) > 0.01 or absf(shot_player.volume_db - AudioCues.SHOT_VOLUME_DB) > 0.01:
+		push_error("the shot player should be -10 dB and music should stay on the bus")
 		failed += 1
 	elif shot_player.max_polyphony != AudioCues.SHOT_POLYPHONY:
 		push_error("slime shot polyphony should be capped at %d" % AudioCues.SHOT_POLYPHONY)
 		failed += 1
-	elif music_player.playback_type != AudioServer.PLAYBACK_TYPE_STREAM:
-		push_error("music should use stream playback so the loop stays seamless")
+	elif music_player.playback_type != AudioCues.music_playback_type(OS.has_feature("web")):
+		push_error("music playback should stream on desktop and sample on the web")
 		failed += 1
 	for _i in 100:
 		game._process(step)
@@ -1662,6 +1677,24 @@ func _check_audio_play() -> int:
 	if game._sound.play_count("slime_shot") != 1:
 		push_error("slime auto-fire should play one bloop per volley")
 		failed += 1
+	game._player.set_rank(2)
+	game.rank_index = 2
+	game._player._cooldown = 0.0
+	game._sound._shot_lockout = 0.0
+	game._sound.played.clear()
+	game._process(step)
+	if FormCatalog.player_shots(FormCatalog.Id.SLIME, Vector2.ZERO, 2).size() != 3 or game._sound.play_count("slime_shot") != 1:
+		push_error("a rank 3 triple should play one bloop for the volley, not one per bullet")
+		failed += 1
+	game._sound.play_event("slime_shot")
+	if game._sound.play_count("slime_shot") != 1:
+		push_error("a second shot inside the rate limit should stay silent")
+		failed += 1
+	game._sound._process(AudioCues.SHOT_MIN_INTERVAL)
+	game._sound.play_event("slime_shot")
+	if game._sound.play_count("slime_shot") != 2:
+		push_error("a shot after 0.25 s should be allowed (about 4 per second)")
+		failed += 1
 	for _i in 8:
 		game._sound.play_event("slime_shot")
 	if game._sound.player_for("slime_shot").max_polyphony != AudioCues.SHOT_POLYPHONY:
@@ -1677,6 +1710,8 @@ func _check_audio_play() -> int:
 		push_error("a kill should play the pop")
 		failed += 1
 	game._sound.played.clear()
+	game._player.set_rank(0)
+	game.rank_index = 0
 	game.evo_points = int(FormCatalog.RANK_GATES[0]) - 1
 	game._gain_skill(1)
 	if game._sound.play_count("evolve") != 1 or game._player.evolve_t > 0.02:
