@@ -49,6 +49,32 @@ body {
 	outline: none;
 }
 
+#rotate-gate {
+	display: none;
+	position: fixed;
+	inset: 0;
+	z-index: 50;
+	margin: 0;
+	background: #100c14;
+	color: #f4efe4;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	font-family: "Noto Sans", "Droid Sans", Arial, sans-serif;
+}
+
+#rotate-gate strong {
+	font-size: 1.6rem;
+	font-weight: 700;
+}
+
+#rotate-gate span {
+	margin-top: 0.6rem;
+	color: #c8bdd4;
+	font-size: 1rem;
+}
+
 #status, #status-splash, #status-progress {
 	position: absolute;
 	left: 0;
@@ -119,6 +145,10 @@ body {
 		<canvas id="canvas">
 			Your browser does not support the canvas tag.
 		</canvas>
+		<div id="rotate-gate">
+			<strong>Rotate your phone</strong>
+			<span>This run flies sideways.</span>
+		</div>
 
 		<noscript>
 			Your browser does not support JavaScript.
@@ -131,6 +161,16 @@ body {
 		</div>
 
 		<script>
+			(function () {
+				var gate = document.getElementById("rotate-gate");
+				function syncRotateGate() {
+					var portrait = window.innerHeight > window.innerWidth;
+					gate.style.display = portrait ? "flex" : "none";
+				}
+				window.addEventListener("resize", syncRotateGate);
+				window.addEventListener("orientationchange", syncRotateGate);
+				syncRotateGate();
+			}());
 			document.addEventListener("touchmove", function (event) {
 				event.preventDefault();
 			}, { passive: false });
