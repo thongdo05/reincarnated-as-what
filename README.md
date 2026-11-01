@@ -10,6 +10,10 @@ Turn the phone sideways. In portrait the game asks you to rotate instead of squa
 
 Drag anywhere. The ship follows the drag, so your finger does not have to sit on it. You start in the left third and can drag anywhere on the screen. You fire forward, to the right, on your own. One life per run: a hit ends it. Tap **Reincarnate** for the next one. Arrow keys or WASD also move, for a desktop check.
 
+The pause mark in the top-right is 18 pixels and is not scaled. Its touch target is at least 44 points, so a thumb can hit it on an iPhone. Tap it again, or press Esc, to resume. Just under it, **SND** turns sound off and **OFF** turns it back on. That choice stays in the browser.
+
+Sound is a test mix (Hibiki, 1 Nov 2026), not the final one. Music loops for the whole run. The Slime's shot is a quiet bloop. The Goblin's stones are silent until they have their own sample. A kill pops, death lines up with the burst, `REBORN AS...?` gets the tease sting, and `EVOLVED!` lands on the evolve hit. The vending-machine sting is wired to that title card and does not play in this build. On an iPhone, Safari stays quiet until the first tap. That tap is the title card or the first touch in the run, and the music starts then.
+
 The field is 480×270 and scales up by whole pixels, so the art stays sharp. On a desktop the window opens at 960×540, which is that field at 2×.
 
 The form order and the enemy spawns come from the UTC date. Everyone gets the same order and the same spawns that day. Your place in the order is remembered in the browser. There is no leaderboard yet.
@@ -17,19 +21,19 @@ The form order and the enemy spawns come from the UTC date. Everyone gets the sa
 Score is kills, a combo when kills are chained, near-misses, and survival time. The form does not multiply it. The death card shows your best as that form and your best overall. Those two numbers stay in the browser. There is no online leaderboard.
 
 - **Slime.** Blue jelly cube. Shots fly right and split in two when they hit. Movement keeps sliding after you stop. Its trait, not an extra life: the hit that would kill a full-size Slime swaps in the small slime of the same rank, with a short moment of safety and a `SPLIT!` pop. Stay alive 15 seconds and it grows back at the same rank, trait included. A hit while small ends the run. One life still holds. Ranks: Slime, Gel Knight, Ooze Titan.
-- **Goblin.** Tiny crown. Stones lob forward and drop. Rank 2 and rank 3 use the larger stones. Movement is a short sprint, then a planted step. Kills drop a coin or a gem that drifts left. Touch one to pick it up for a score bonus. The slingshot does not level from a pickup count. Ranks: Goblin, Goblin Chief, Goblin King.
+- **Goblin.** Tiny crown. Stones lob forward and drop. Rank 2 and rank 3 use the larger stones. Movement is a short sprint, then a planted step. Kills drop an emerald gem or a slotted gold coin. Both drift left and bob one pixel. Touch one to pick it up for a score bonus. The slingshot does not level from a pickup count. Ranks: Goblin, Goblin Chief, Goblin King.
 
-Kills, combos, near-misses, and Goblin pickups fill an evolution meter. The gates are placeholder constants. Each rank swaps in that rank's sprite and a stronger weapon, with an `EVOLVED!` pop. The death card names the highest rank, for example `Reborn as SLIME, reached OOZE TITAN`.
+Kills, combos, near-misses, and Goblin pickups fill an evolution meter. The gates are placeholder constants. Each rank swaps in that rank's sprite and a stronger weapon: a gold rim, a white flash, then an `EVOLVED!` banner. The run does not stop. A hit plays the death burst, then `REBORN AS...?` for a second, then the death card. The card names the highest rank, for example `Reborn as SLIME, reached OOZE TITAN`. **Share** saves a picture of the run. **Reincarnate** starts the next one.
 
 The field is the painted isekai sky: an opaque sky, then castles and floating islands, then hills, treetops, and crystals. The three layers are 480×270 and tile sideways, each faster than the one behind it.
 
 Enemies come in from the right and are drawn facing left. A Floating Eye drifts, bobs, and fires a bolt. A Dire Wolf charges. A Skeleton Archer stands on the ground or rides a floating island and shoots arrows left. A Wyvern swoops in a wave and spits a fireball. An anvil or a piano sometimes falls. None of them is a slime or a goblin. Dire wolves and wyverns together stay at two on screen.
 
-Hitboxes sit inside the painted sprites, about half to two thirds of the art, and grow a little when a form ranks up.
+Hit shapes are per sprite in `art/hitboxes.json`. A player shot connects when it touches the opaque body, including a long wolf or a wyvern wing. The player's own hurtbox is a small core, and enemy bodies and shots only kill on a clear overlap of that core. Press **H** to draw them: yellow is where shots connect, red is what can kill you, green is your core.
 
 Each run opens on a title card, then about 1.5 seconds where you cannot die.
 
-Vending Machine, Cat, and Demon Lord sprites are in the project and are not in this build. When the vending machine is playable, its weapon has no random WINNER! burst. WINNER! is only the meter-triggered screen clear.
+Vending Machine, Cat, and Demon Lord sprites are in the project and are not in this build. Demon Lord orbs are 4-frame pulse sheets, so a shot plays one cell at a time instead of the whole strip. When the vending machine is playable, its weapon has no random WINNER! burst. WINNER! is only the meter-triggered screen clear.
 
 ## Run locally
 

@@ -7,6 +7,7 @@ class_name LootGem
 var sprite_name := "gem.png"
 var radius := 3.0
 var drift := 42.0
+var age := 0.0
 
 func setup(file_name: String) -> void:
 	sprite_name = file_name
@@ -14,10 +15,17 @@ func setup(file_name: String) -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 func tick(delta: float) -> void:
+	age += delta
 	position.x -= drift * delta
 	position.y += sin(position.x * 0.08) * 10.0 * delta
 	if is_inside_tree():
 		queue_redraw()
 
+## One pixel of vertical bob, sin(t * 4), drawn on top of the drift.
+func bob_offset() -> float:
+	return sin(age * 4.0)
+
 func _draw() -> void:
+	draw_set_transform(Vector2(0.0, bob_offset()), 0.0, Vector2.ONE)
 	ArtLibrary.draw_anchored(self, sprite_name)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

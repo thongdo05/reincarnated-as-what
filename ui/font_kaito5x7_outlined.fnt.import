@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://ckry25rfcoqfs"
+path="res://.godot/imported/font_kaito5x7_outlined.fnt-5118eb28fcbfae6c2894b6211177a0e7.fontdata"
+
+[deps]
+
+source_file="res://ui/font_kaito5x7_outlined.fnt"
+dest_files=["res://.godot/imported/font_kaito5x7_outlined.fnt-5118eb28fcbfae6c2894b6211177a0e7.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=2

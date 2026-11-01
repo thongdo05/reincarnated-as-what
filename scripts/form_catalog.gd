@@ -4,6 +4,8 @@ class_name FormCatalog
 ## Launch roster entries that exist in this prototype.
 ## The Slime split is that form's trait. It is not an extra life. One life per run still holds.
 ## Vending Machine, Cat, and Demon Lord art is in res://art/ and is not played yet.
+## The vending machine title card is already mapped to its reveal sting. It stays
+## silent until that form is added to IDS. Goblin shots stay silent too.
 ## Vending Machine's weapon has no random WINNER! burst. WINNER! is only the meter clear.
 ## Slime and Goblin are tuned to the same close-range hit rate.
 ## Slime pays for a reliable forward stream with a big body and a long slide.
@@ -38,6 +40,8 @@ const RANK_GATES: Array[int] = [500, 1500]
 ## A Goblin pickup. Added to the score and to the evolution meter. Not a weapon upgrade.
 const LOOT_POINTS := 40
 
+## Kept so older shot-size checks can still name the previous circle fraction.
+## Live shots use the shapes in res://art/hitboxes.json.
 const SHOT_PCT := 0.62
 
 static func display_name(id: int) -> String:
@@ -76,12 +80,19 @@ static func title_color(id: int) -> Color:
 static func hit_radius(id: int) -> float:
 	return hit_radius_for(id, 0, false)
 
-static func hit_radius_for(id: int, rank_index: int, small: bool) -> float:
+static func _sprite_file(id: int, rank_index: int, small: bool) -> String:
 	var spec := rank_spec(id, rank_index)
-	var file := str(spec["sprite"])
 	if small and id == Id.SLIME:
-		file = str(spec["sprite_small"])
-	return ArtLibrary.radius_for(file, float(spec["hit_pct"]))
+		return str(spec["sprite_small"])
+	return str(spec["sprite"])
+
+## Movement pad: far enough that the core, which can sit off the anchor, stays in frame.
+static func hit_radius_for(id: int, rank_index: int, small: bool) -> float:
+	return HitLibrary.bounds_radius(_sprite_file(id, rank_index, small), "hurt")
+
+## Radius of the core itself. This is the hurt target, not the distance from the anchor.
+static func core_radius(id: int, rank_index: int, small: bool) -> float:
+	return HitLibrary.max_part_radius(_sprite_file(id, rank_index, small), "hurt")
 
 static func max_speed(id: int) -> float:
 	if id == Id.SLIME:
@@ -110,8 +121,7 @@ static func id_for_run(day_seed: int, run_index: int) -> int:
 		index += forms.size()
 	return forms[index]
 
-## Three ranks per form. hit_pct is the share of the art box used as the hitbox.
-## It stays inside 0.50-0.65 and steps up a little each rank.
+## Three ranks per form. Hurt, body, and threat shapes live in res://art/hitboxes.json.
 static func rank_table(id: int) -> Array[Dictionary]:
 	if id == Id.SLIME:
 		return [
@@ -119,7 +129,6 @@ static func rank_table(id: int) -> Array[Dictionary]:
 				"name": "Slime",
 				"sprite": "slime_r1.png",
 				"sprite_small": "slime_small_r1.png",
-				"hit_pct": 0.62,
 				"fire_interval": SLIME_FIRE_INTERVAL,
 				"shot_sprite": "slime_shot.png",
 				"shot_color": Color("7ec8ff"),
@@ -130,7 +139,6 @@ static func rank_table(id: int) -> Array[Dictionary]:
 				"name": "Gel Knight",
 				"sprite": "slime_r2.png",
 				"sprite_small": "slime_small_r2.png",
-				"hit_pct": 0.64,
 				"fire_interval": 0.13,
 				"shot_sprite": "slime_shot.png",
 				"shot_color": Color("b7e4ff"),
@@ -141,7 +149,6 @@ static func rank_table(id: int) -> Array[Dictionary]:
 				"name": "Ooze Titan",
 				"sprite": "slime_r3.png",
 				"sprite_small": "slime_small_r3.png",
-				"hit_pct": 0.65,
 				"fire_interval": 0.10,
 				"shot_sprite": "slime_shot.png",
 				"shot_color": Color("eaf7ff"),
@@ -153,7 +160,6 @@ static func rank_table(id: int) -> Array[Dictionary]:
 		{
 			"name": "Goblin",
 			"sprite": "goblin_r1.png",
-			"hit_pct": 0.50,
 			"fire_interval": GOBLIN_FIRE_INTERVAL,
 			"shot_sprite": "slingshot_stone.png",
 			"shot_color": Color("f0c36a"),
@@ -163,7 +169,6 @@ static func rank_table(id: int) -> Array[Dictionary]:
 		{
 			"name": "Goblin Chief",
 			"sprite": "goblin_r2.png",
-			"hit_pct": 0.52,
 			"fire_interval": 0.36,
 			"shot_sprite": "slingshot_stone_l2.png",
 			"shot_color": Color("ffe08a"),
@@ -173,7 +178,6 @@ static func rank_table(id: int) -> Array[Dictionary]:
 		{
 			"name": "Goblin King",
 			"sprite": "goblin_r3.png",
-			"hit_pct": 0.54,
 			"fire_interval": 0.28,
 			"shot_sprite": "slingshot_stone_l3.png",
 			"shot_color": Color("fff3c4"),
@@ -236,7 +240,7 @@ static func _blob(pos: Vector2, velocity: Vector2, splits: int, color: Color, sp
 		"velocity": velocity,
 		"gravity": 0.0,
 		"damage": 1,
-		"radius": ArtLibrary.radius_for(sprite, SHOT_PCT),
+		"radius": HitLibrary.bounds_radius(sprite, "body"),
 		"splits": splits,
 		"color": color,
 		"style": "blob",

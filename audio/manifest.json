@@ -1,0 +1,82 @@
+[
+  {
+    "file": "music_gameplay_loop.ogg",
+    "type": "music",
+    "duration": 34.286,
+    "loop": true,
+    "event": "gameplay (all runs)",
+    "lufs": -22.0,
+    "true_peak": -9.0,
+    "notes": "140 BPM, 20 bars, exact 1,645,714 samples @48k stereo. Cut from ElevenLabs Music v2.5 take 1 at 5.153 s (on the beat grid); 40 ms seam blend makes last->first sample a natural continuation (wrap jump at 71st-81st percentile of normal sample-to-sample deltas after Ogg decode). Ogg tags LOOPSTART=0 LOOPLENGTH=1645714. In Godot set loop=true, loop_offset=0. Max momentary -20.4 LUFS. 48000 Hz, stereo. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_shot_slime.wav",
+    "type": "sfx",
+    "duration": 0.22,
+    "loop": false,
+    "event": "Slime auto-fire shot",
+    "lufs": -20.0,
+    "true_peak": -6.9,
+    "notes": "Single upward 'bloop' (pitch ~380->840 Hz), 0.22 s. Set 3 LU under other SFX for auto-fire; reel has an 8/s burst. Max momentary -19.0 LUFS. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_enemy_pop.wav",
+    "type": "sfx",
+    "duration": 0.3,
+    "loop": false,
+    "event": "enemy killed",
+    "lufs": -17.0,
+    "true_peak": -3.2,
+    "notes": "Bright bubble pop, decays in ~0.25 s. Fairly high-frequency (spectral centroid ~8 kHz); consider pitch randomisation +/-1-2 semitones in engine. Max momentary -16.0 LUFS. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_death.wav",
+    "type": "sfx",
+    "duration": 0.92,
+    "loop": false,
+    "event": "player death (0.92 s FX timeline, 12 fps)",
+    "lufs": -18.3,
+    "true_peak": -1.0,
+    "notes": "Spliced to frames: HIT f0 (0.00 s), POP f2 (0.16 s), debris bridge f3-4, PUFF + sparkle whistle f5 (0.41 s) decaying through crown fly f5-10, near-silent f10 hold. Play at f0. Max momentary -16.0 LUFS. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sting_reborn_tease.wav",
+    "type": "sting",
+    "duration": 1.0,
+    "loop": false,
+    "event": "REBORN AS...? tease card (1 s)",
+    "lufs": -18.8,
+    "true_peak": -7.6,
+    "notes": "Rising chiptune arpeggio (notes ~every 85 ms) ending on an unresolved chime; trimmed to exactly 1.0 s. Play at death f11 (0.92 s). Max momentary -16.0 LUFS. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sting_reborn_tease.ogg",
+    "type": "sting",
+    "duration": 1.0,
+    "loop": false,
+    "event": "REBORN AS...? tease card (1 s)",
+    "lufs": -18.7,
+    "true_peak": -7.5,
+    "notes": "Ogg Vorbis copy of sting_reborn_tease.wav. Max momentary -16.0 LUFS. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_evolve.wav",
+    "type": "sfx",
+    "duration": 1.22,
+    "loop": false,
+    "event": "evolve / rank-up (0.67 s + 1 s hold)",
+    "lufs": -19.1,
+    "true_peak": -1.1,
+    "notes": "Composite: rising arpeggio riser (ElevenLabs evolve take 2, f0 rises ~460->1700 Hz) with crescendo over f0-4, then fanfare chord hit (separate ElevenLabs generation) landing at 0.42 s (frame 5, EVOLVED! pop), tail decays by ~1.1 s inside the hold. Max momentary -16.0 LUFS. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sting_reveal_vending_machine.wav",
+    "type": "sting",
+    "duration": 1.6,
+    "loop": false,
+    "event": "Vending Machine reveal title card (~1.5 s)",
+    "lufs": -19.3,
+    "true_peak": -1.7,
+    "notes": "Heavy CLUNK (0-0.25 s), ~0.4 s silent comedic beat, can clang at 0.74 s, bigger can hit/rattle at 1.14 s, out by 1.6 s. No voice. Max momentary -16.0 LUFS. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  }
+]

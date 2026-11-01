@@ -1,0 +1,203 @@
+{
+ "_note": "Example values. time/score copy the design doc example (1:42, 4,210); killers are existing v1 enemies/hazards; gag lines are placeholders per killer.",
+ "run_example": {
+  "time": "1:42",
+  "score": "4,210",
+  "rank_reached": 3
+ },
+ "forms": {
+  "slime": {
+   "form_name": "SLIME",
+   "rank_names": [
+    "SLIME",
+    "GEL KNIGHT",
+    "OOZE TITAN"
+   ],
+   "sprites": [
+    "slime_r1.png",
+    "slime_r2.png",
+    "slime_r3.png"
+   ],
+   "theme": {
+    "bg": "#06cbfa",
+    "ray": "#56f3fe",
+    "core": [
+     "#c2f8ff",
+     "#f2fbff"
+    ],
+    "plate_edge": "#2546b8",
+    "name_ext": "#2546b8",
+    "rank_ramp": [
+     "#f2fbff",
+     "#c2f8ff",
+     "#56f3fe",
+     "#06cbfa"
+    ],
+    "rank_ext": "#1d2f8a"
+   },
+   "example_killer": "piano",
+   "example_gag": "Struck a final chord."
+  },
+  "vending_machine": {
+   "form_name": "VENDING MACHINE",
+   "rank_names": [
+    "VENDING MACHINE",
+    "MEGA VENDOR",
+    "VENDING FORTRESS"
+   ],
+   "sprites": [
+    "vending_machine_r1.png",
+    "vending_machine_r2.png",
+    "vending_machine_r3.png"
+   ],
+   "theme": {
+    "bg": "#f0a52a",
+    "ray": "#ffd84a",
+    "core": [
+     "#fff3a0",
+     "#f2fbff"
+    ],
+    "plate_edge": "#c2213f",
+    "name_ext": "#c2213f",
+    "rank_ramp": [
+     "#f2fbff",
+     "#ffbcea",
+     "#ff9aa2",
+     "#ff4d5e"
+    ],
+    "rank_ext": "#6e1430"
+   },
+   "example_killer": "anvil",
+   "example_gag": "Out of order."
+  },
+  "goblin": {
+   "form_name": "GOBLIN",
+   "rank_names": [
+    "GOBLIN",
+    "GOBLIN CHIEF",
+    "GOBLIN KING"
+   ],
+   "sprites": [
+    "goblin_r1.png",
+    "goblin_r2.png",
+    "goblin_r3.png"
+   ],
+   "theme": {
+    "bg": "#5cc94a",
+    "ray": "#a6ec6a",
+    "core": [
+     "#fff3a0",
+     "#f2fbff"
+    ],
+    "plate_edge": "#ffd84a",
+    "name_ext": "#2f8a3a",
+    "rank_ramp": [
+     "#f2fbff",
+     "#fff3a0",
+     "#ffd84a",
+     "#f0a52a"
+    ],
+    "rank_ext": "#1f4a1c"
+   },
+   "example_killer": "skeleton_archer",
+   "example_gag": "The crown fell off."
+  },
+  "cat": {
+   "form_name": "CAT (EX-CEO)",
+   "rank_names": [
+    "CAT (EX-CEO)",
+    "CAT CHAIRMAN",
+    "CAT OVERLORD"
+   ],
+   "sprites": [
+    "cat_r1.png",
+    "cat_r2.png",
+    "cat_r3.png"
+   ],
+   "theme": {
+    "bg": "#fe65dd",
+    "ray": "#ffbcea",
+    "core": [
+     "#ffe0b0",
+     "#f2fbff"
+    ],
+    "plate_edge": "#e07b2a",
+    "name_ext": "#eb31bc",
+    "rank_ramp": [
+     "#f2fbff",
+     "#ffe0b0",
+     "#f0a52a",
+     "#e07b2a"
+    ],
+    "rank_ext": "#c0561c"
+   },
+   "example_killer": "dire_wolf",
+   "example_gag": "Hostile takeover failed."
+  },
+  "demon_lord": {
+   "form_name": "DEMON LORD",
+   "rank_names": [
+    "DEMON LORD",
+    "DEMON EMPEROR",
+    "TRUE DEMON KING"
+   ],
+   "sprites": [
+    "demon_lord_r1.png",
+    "demon_lord_r2.png",
+    "demon_lord_r3.png"
+   ],
+   "theme": {
+    "bg": "#c2213f",
+    "ray": "#ff4d5e",
+    "core": [
+     "#ffd84a",
+     "#fff3a0"
+    ],
+    "plate_edge": "#ffd84a",
+    "name_ext": "#7a35b0",
+    "rank_ramp": [
+     "#f2fbff",
+     "#e0dcff",
+     "#b070ff",
+     "#7a35b0"
+    ],
+    "rank_ext": "#2a0f3a"
+   },
+   "example_killer": "floating_eye",
+   "example_gag": "Lost a staring contest."
+  }
+ },
+ "killers": {
+  "piano": {
+   "label": "PIANO",
+   "name": "a falling piano",
+   "sprite": "piano.png"
+  },
+  "anvil": {
+   "label": "ANVIL",
+   "name": "a falling anvil",
+   "sprite": "anvil.png"
+  },
+  "dire_wolf": {
+   "label": "DIRE WOLF",
+   "name": "a Dire Wolf",
+   "sprite": "dire_wolf.png"
+  },
+  "floating_eye": {
+   "label": "FLOATING EYE",
+   "name": "a Floating Eye",
+   "sprite": "floating_eye.png"
+  },
+  "skeleton_archer": {
+   "label": "ARCHER",
+   "name": "a Skeleton Archer",
+   "sprite": "skeleton_archer.png"
+  },
+  "wyvern": {
+   "label": "WYVERN",
+   "name": "a Wyvern",
+   "sprite": "wyvern.png",
+   "note": "56 px tall: taller than the 44 px killer slot, so it is drawn cropped to its head and wing (top 44 rows)"
+  }
+ }
+}

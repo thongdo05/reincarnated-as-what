@@ -1,0 +1,141 @@
+{
+ "note": "Approved icon (batch 4). iOS: Xcode 14+ accepts a single 1024 icon and downsizes it; the small sizes are here for older slots or stores that want them.",
+ "files": [
+  {
+   "file": "app_icon_64.png",
+   "size": [
+    64,
+    64
+   ],
+   "scaling": "1x base"
+  },
+  {
+   "file": "app_icon_1024.png",
+   "size": [
+    1024,
+    1024
+   ],
+   "scaling": "integer nearest 16x"
+  },
+  {
+   "file": "app_icon_512.png",
+   "size": [
+    512,
+    512
+   ],
+   "scaling": "integer nearest 8x"
+  },
+  {
+   "file": "app_icon_256.png",
+   "size": [
+    256,
+    256
+   ],
+   "scaling": "integer nearest 4x"
+  },
+  {
+   "file": "app_icon_128.png",
+   "size": [
+    128,
+    128
+   ],
+   "scaling": "integer nearest 2x"
+  },
+  {
+   "file": "app_icon_180.png",
+   "size": [
+    180,
+    180
+   ],
+   "scaling": "NON-integer nearest 2.812x (pixel widths alternate 2 and 3 px)"
+  },
+  {
+   "file": "app_icon_180_smooth.png",
+   "size": [
+    180,
+    180
+   ],
+   "scaling": "Lanczos downscale from 1024 (what iOS itself does with a single 1024 icon); soft edges, opaque so no alpha issue"
+  },
+  {
+   "file": "app_icon_120.png",
+   "size": [
+    120,
+    120
+   ],
+   "scaling": "NON-integer nearest 1.875x (pixel widths alternate 1 and 2 px)"
+  },
+  {
+   "file": "app_icon_120_smooth.png",
+   "size": [
+    120,
+    120
+   ],
+   "scaling": "Lanczos downscale from 1024 (what iOS itself does with a single 1024 icon); soft edges, opaque so no alpha issue"
+  },
+  {
+   "file": "app_icon_87.png",
+   "size": [
+    87,
+    87
+   ],
+   "scaling": "NON-integer nearest 1.359x (pixel widths alternate 1 and 2 px)"
+  },
+  {
+   "file": "app_icon_87_smooth.png",
+   "size": [
+    87,
+    87
+   ],
+   "scaling": "Lanczos downscale from 1024 (what iOS itself does with a single 1024 icon); soft edges, opaque so no alpha issue"
+  },
+  {
+   "file": "app_icon_80.png",
+   "size": [
+    80,
+    80
+   ],
+   "scaling": "NON-integer nearest 1.25x (pixel widths alternate 1 and 2 px)"
+  },
+  {
+   "file": "app_icon_80_smooth.png",
+   "size": [
+    80,
+    80
+   ],
+   "scaling": "Lanczos downscale from 1024 (what iOS itself does with a single 1024 icon); soft edges, opaque so no alpha issue"
+  },
+  {
+   "file": "app_icon_60.png",
+   "size": [
+    60,
+    60
+   ],
+   "scaling": "NON-integer nearest 0.9375x"
+  },
+  {
+   "file": "app_icon_60_smooth.png",
+   "size": [
+    60,
+    60
+   ],
+   "scaling": "Lanczos downscale from 1024 (what iOS itself does with a single 1024 icon); soft edges, opaque so no alpha issue"
+  },
+  {
+   "file": "android_adaptive_background_432.png",
+   "size": [
+    432,
+    432
+   ],
+   "scaling": "108 px grid at 4x"
+  },
+  {
+   "file": "android_adaptive_foreground_432.png",
+   "size": [
+    432,
+    432
+   ],
+   "scaling": "108 px grid at 4x, transparent, alpha 0/255 only. Art spans the central 64 px (= 64 dp), inside the 72 dp visible area; a full circle mask (66 dp safe zone) may nick the ?! corner and the sweat drop"
+  }
+ ]
+}

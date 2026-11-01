@@ -25,13 +25,12 @@ func tick(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	var font := ThemeDB.fallback_font
 	for item in items:
 		var life := float(item["life"])
 		var max_life := float(item["max_life"])
 		var color: Color = item["color"]
-		color.a = clampf(life / max_life, 0.0, 1.0)
-		var pos: Vector2 = item["pos"]
 		var text := str(item["text"])
-		if font != null and not text.is_empty():
-			draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, color)
+		if text.is_empty():
+			continue
+		var fill := Color(color.r, color.g, color.b, 1.0)
+		draw_texture(PixelFont.outlined_texture(text, fill), item["pos"] - Vector2(PixelFont.PAD, PixelFont.PAD), Color(1, 1, 1, clampf(life / max_life, 0.0, 1.0)))

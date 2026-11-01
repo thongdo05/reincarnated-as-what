@@ -143,7 +143,7 @@ func _bolt(bolt_velocity: Vector2, offset: Vector2, sprite: String) -> Dictionar
 		"velocity": bolt_velocity,
 		"gravity": 0.0,
 		"damage": 1,
-		"radius": ArtLibrary.radius_for(sprite, 0.62),
+		"radius": HitLibrary.bounds_radius(sprite, "threat"),
 		"splits": 0,
 		"color": Color("f0d78c"),
 		"style": "arrow" if sprite == "arrow.png" else "blob",
@@ -155,6 +155,9 @@ func _draw() -> void:
 	var file := SpawnDirector.sprite_for(kind)
 	# Enemies and hazards are drawn facing the way the files face. Do not flip.
 	ArtLibrary.draw_loop(self, file, age)
+	if HitLibrary.show:
+		HitLibrary.draw(self, file, "body", Color(1.0, 0.86, 0.2, 0.95))
+		HitLibrary.draw(self, file, "threat", Color(1.0, 0.28, 0.32, 0.95))
 	if hp < max_hp and alive:
 		var box := ArtLibrary.art_bbox(file)
 		var width := maxf(box.x * 0.55, 8.0)

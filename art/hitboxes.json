@@ -1,0 +1,106 @@
+{
+  "slime_r1.png": {
+    "hurt": [{ "type": "circle", "center": [0, 0], "r": 5.5 }]
+  },
+  "slime_r2.png": {
+    "hurt": [{ "type": "circle", "center": [0, 0], "r": 6.4 }]
+  },
+  "slime_r3.png": {
+    "hurt": [{ "type": "circle", "center": [0, 0], "r": 7.3 }]
+  },
+  "slime_small_r1.png": {
+    "hurt": [{ "type": "circle", "center": [0, 0], "r": 3.6 }]
+  },
+  "slime_small_r2.png": {
+    "hurt": [{ "type": "circle", "center": [0, 0], "r": 3.6 }]
+  },
+  "slime_small_r3.png": {
+    "hurt": [{ "type": "circle", "center": [0, 0], "r": 3.6 }]
+  },
+  "goblin_r1.png": {
+    "hurt": [{ "type": "circle", "center": [1, 4], "r": 4.6 }]
+  },
+  "goblin_r2.png": {
+    "hurt": [{ "type": "circle", "center": [1, 5], "r": 5.2 }]
+  },
+  "goblin_r3.png": {
+    "hurt": [{ "type": "circle", "center": [1, 6], "r": 5.8 }]
+  },
+  "dire_wolf.png": {
+    "body": [
+      { "type": "capsule", "a": [-16, 2], "b": [16, 2], "r": 12 },
+      { "type": "circle", "center": [-12, -10], "r": 8 }
+    ],
+    "threat": [
+      { "type": "capsule", "a": [-12, 2], "b": [10, 2], "r": 7 }
+    ]
+  },
+  "floating_eye.png": {
+    "body": [{ "type": "circle", "center": [0, -1], "r": 8.5 }],
+    "threat": [{ "type": "circle", "center": [0, -1], "r": 6 }]
+  },
+  "skeleton_archer.png": {
+    "body": [{ "type": "capsule", "a": [-3, -38], "b": [-3, -8], "r": 9 }],
+    "threat": [{ "type": "capsule", "a": [-2, -32], "b": [-2, -14], "r": 6 }]
+  },
+  "wyvern.png": {
+    "body": [
+      { "type": "capsule", "a": [-22, 3], "b": [26, 5], "r": 12 },
+      { "type": "capsule", "a": [-24, -13], "b": [20, -13], "r": 8 }
+    ],
+    "threat": [
+      { "type": "capsule", "a": [-14, 4], "b": [14, 4], "r": 8 }
+    ]
+  },
+  "anvil.png": {
+    "body": [
+      { "type": "capsule", "a": [-10, -6], "b": [10, -6], "r": 3 },
+      { "type": "capsule", "a": [-8, 4], "b": [8, 4], "r": 4 }
+    ],
+    "threat": [
+      { "type": "capsule", "a": [-8, -6], "b": [8, -6], "r": 2 },
+      { "type": "capsule", "a": [-6, 4], "b": [6, 4], "r": 3 }
+    ]
+  },
+  "piano.png": {
+    "body": [{ "type": "rect", "center": [0, -1], "half": [27, 20] }],
+    "threat": [{ "type": "rect", "center": [0, -1], "half": [22, 16] }]
+  },
+  "slime_shot.png": {
+    "body": [{ "type": "capsule", "a": [-3, 0], "b": [2, 0], "r": 2 }]
+  },
+  "slingshot_stone.png": {
+    "body": [{ "type": "circle", "center": [0, 0], "r": 2.5 }]
+  },
+  "slingshot_stone_l2.png": {
+    "body": [{ "type": "circle", "center": [0, 0], "r": 3 }]
+  },
+  "slingshot_stone_l3.png": {
+    "body": [{ "type": "circle", "center": [0, 0], "r": 4 }]
+  },
+  "demon_orb_r1.png": {
+    "body": [{ "type": "circle", "center": [0, 0], "r": 5 }]
+  },
+  "demon_orb_r2.png": {
+    "body": [{ "type": "circle", "center": [0, 0], "r": 6 }]
+  },
+  "demon_orb_r3.png": {
+    "body": [{ "type": "circle", "center": [0, 0], "r": 8 }]
+  },
+  "reflected_bullet.png": {
+    "body": [{ "type": "capsule", "a": [-3, 0], "b": [2, 0], "r": 2 }]
+  },
+  "arrow.png": {
+    "threat": [{ "type": "capsule", "a": [-5, 0], "b": [5, 0], "r": 1.25 }]
+  },
+  "floating_eye_bolt.png": {
+    "threat": [{ "type": "capsule", "a": [-3, 0], "b": [2, 0], "r": 1.5 }]
+  },
+  "wyvern_shot.png": {
+    "threat": [{ "type": "circle", "center": [0, 0], "r": 2.5 }]
+  },
+  "vending_can.png": {
+    "body": [{ "type": "capsule", "a": [-3, 0], "b": [3, 0], "r": 2.4 }],
+    "threat": [{ "type": "capsule", "a": [-2, 0], "b": [2, 0], "r": 1.6 }]
+  }
+}

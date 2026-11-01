@@ -22,6 +22,13 @@ var regrow_left := 0.0
 var regrew := false
 var rank_index := 0
 var evolve_flash := 0.0
+var evolve_t := -1.0
+var evolve_old := ""
+var evolve_new := ""
+var fx_mode := ""
+var fx_sprite := ""
+var fx_show_rim := false
+var _evolve_fx: EvolveFx
 
 const REGROW_SECONDS := 15.0
 
@@ -31,6 +38,9 @@ func setup(id: int, start: Vector2) -> void:
 	aim = start
 	_cooldown = 0.12
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_evolve_fx = EvolveFx.new()
+	_evolve_fx.z_index = 2
+	add_child(_evolve_fx)
 	_apply_radius()
 
 func add_drag(relative: Vector2, bounds: Rect2) -> void:
@@ -67,6 +77,9 @@ func tick(delta: float, bounds: Rect2) -> void:
 			_apply_radius()
 	if evolve_flash > 0.0:
 		evolve_flash = maxf(evolve_flash - delta, 0.0)
+	if evolve_t >= 0.0:
+		evolve_t += delta
+		_apply_evolve_visual()
 	if _cooldown > 0.0:
 		_cooldown -= delta
 	if form_id == FormCatalog.Id.SLIME:
@@ -135,6 +148,55 @@ func set_rank(index: int) -> void:
 	evolve_flash = 0.4
 	_apply_radius()
 
+func begin_evolve(old_sprite: String, new_sprite: String) -> void:
+	evolve_old = old_sprite
+	evolve_new = new_sprite
+	evolve_t = 0.0
+	_apply_evolve_visual()
+
+func _apply_evolve_visual() -> void:
+	var stage := FxTimeline.evolve_stage(evolve_t)
+	if stage == "glow":
+		fx_mode = "glow"
+		fx_sprite = evolve_old
+		fx_show_rim = FxTimeline.evolve_shows_rim(evolve_t)
+	elif stage == "flash":
+		fx_mode = "flash"
+		fx_sprite = FxTimeline.flash_file(evolve_new)
+		fx_show_rim = false
+	elif stage == "pop":
+		fx_mode = ""
+		fx_sprite = ""
+		fx_show_rim = false
+	else:
+		fx_mode = ""
+		fx_sprite = ""
+		fx_show_rim = false
+		evolve_t = -1.0
+	if _evolve_fx != null:
+		_evolve_fx.play(99.0 if evolve_t < 0.0 else evolve_t)
+
+func _draw() -> void:
+	if fx_mode == "flash":
+		ArtLibrary.draw_anchored(self, fx_sprite)
+	elif fx_mode == "glow":
+		_draw_body(fx_sprite)
+		if fx_show_rim:
+			ArtLibrary.draw_anchored(self, FxTimeline.rim_file(fx_sprite))
+	else:
+		_draw_body(sprite_name())
+	if HitLibrary.show:
+		HitLibrary.draw(self, sprite_name(), "hurt", Color(0.35, 1.0, 0.55, 0.95))
+
+func _draw_body(file: String) -> void:
+	if form_id == FormCatalog.Id.SLIME:
+		var i := _trail.size()
+		for point in _trail:
+			i -= 1
+			var tint := Color(1, 1, 1, 0.10 + 0.07 * float(i))
+			ArtLibrary.draw_loop(self, file, _wobble, point - position, tint)
+	ArtLibrary.draw_loop(self, file, _wobble)
+
 func sprite_name() -> String:
 	var spec := FormCatalog.rank_spec(form_id, rank_index)
 	if small and spec.has("sprite_small"):
@@ -144,12 +206,3 @@ func sprite_name() -> String:
 func _apply_radius() -> void:
 	radius = FormCatalog.hit_radius_for(form_id, rank_index, small)
 
-func _draw() -> void:
-	var file := sprite_name()
-	if form_id == FormCatalog.Id.SLIME:
-		var i := _trail.size()
-		for point in _trail:
-			i -= 1
-			var tint := Color(1, 1, 1, 0.10 + 0.07 * float(i))
-			ArtLibrary.draw_loop(self, file, _wobble, point - position, tint)
-	ArtLibrary.draw_loop(self, file, _wobble)

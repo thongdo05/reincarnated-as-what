@@ -8,6 +8,8 @@
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 		<meta name="theme-color" content="#100c14">
 		<title>$GODOT_PROJECT_NAME</title>
+		<link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+		<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 		<style>
 html, body, #canvas {
 	margin: 0;
@@ -179,6 +181,71 @@ body {
 			document.addEventListener("gesturestart", function (event) {
 				event.preventDefault();
 			});
+		</script>
+		<script>
+			window.shareRunCard = function (b64, filename, text) {
+				var binary = atob(b64);
+				var bytes = new Uint8Array(binary.length);
+				for (var i = 0; i < binary.length; i++) {
+					bytes[i] = binary.charCodeAt(i);
+				}
+				var file = new File([bytes], filename, { type: "image/png" });
+				function download() {
+					var url = URL.createObjectURL(file);
+					var link = document.createElement("a");
+					link.href = url;
+					link.download = filename;
+					document.body.appendChild(link);
+					link.click();
+					link.remove();
+					setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+				}
+				var payload = { files: [file], title: "Reincarnated as WHAT?!", text: text };
+				if (navigator.canShare && navigator.canShare(payload)) {
+					navigator.share(payload).catch(function () { download(); });
+				} else {
+					download();
+				}
+			};
+		</script>
+		<script>
+			// iOS Safari only starts web audio from a user gesture, and the
+			// gesture is over by the time Godot reads the tap. Resume Godot's
+			// own AudioContext here, on the event, and poke a one-sample buffer
+			// so the output actually opens. TEST audio still waits for this.
+			(function () {
+				function unlockGodotAudio() {
+					try {
+						var ctx = (typeof GodotAudio !== "undefined") ? GodotAudio.ctx : null;
+						if (!ctx) {
+							return;
+						}
+						if (ctx.state !== "running" && typeof ctx.resume === "function") {
+							var pending = ctx.resume();
+							if (pending && typeof pending.catch === "function") {
+								pending.catch(function () {});
+							}
+						}
+						if (!window.__godotAudioPrimed) {
+							var rate = ctx.sampleRate || 48000;
+							var buffer = ctx.createBuffer(1, 1, rate);
+							var source = ctx.createBufferSource();
+							source.buffer = buffer;
+							source.connect(ctx.destination);
+							try {
+								source.start(0);
+							} catch (err) {}
+							window.__godotAudioPrimed = true;
+						}
+						window.__godotAudioGesture = true;
+					} catch (err) {}
+				}
+				window.unlockGodotAudio = unlockGodotAudio;
+				var names = ["touchstart", "touchend", "pointerdown", "pointerup", "mousedown", "click", "keydown"];
+				for (var i = 0; i < names.length; i++) {
+					document.addEventListener(names[i], unlockGodotAudio, true);
+				}
+			}());
 		</script>
 		<script src="$GODOT_URL"></script>
 		<script>

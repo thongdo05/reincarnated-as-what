@@ -1,0 +1,55 @@
+[
+ {
+  "file": "gem.png",
+  "size": [
+   8,
+   8
+  ],
+  "frames": 1,
+  "anchor": [
+   4,
+   4
+  ],
+  "anchor_type": "center",
+  "category": "pickup",
+  "facing": "none",
+  "note": "Loot fix (Nov 1): emerald green faceted gem, white rim top-left + dark green rim bottom-right, fixed glint at (3,2). Was pink/magenta and read like the Floating Eye bolt.",
+  "batch": "4-loot_fix",
+  "replaces": "art/gem.png"
+ },
+ {
+  "file": "coin.png",
+  "size": [
+   8,
+   8
+  ],
+  "frames": 1,
+  "anchor": [
+   4,
+   4
+  ],
+  "anchor_type": "center",
+  "category": "pickup",
+  "facing": "none",
+  "note": "Loot fix (Nov 1): round gold coin with slot stamp, white rim top-left + brown rim bottom-right (#6b3e26 replaces off-palette #7a3a12), fixed glint at (2,2).",
+  "batch": "4-loot_fix",
+  "replaces": "art/coin.png"
+ },
+ {
+  "file": "ui/hud_coin_icon.png",
+  "size": [
+   10,
+   10
+  ],
+  "frames": 1,
+  "anchor": [
+   5,
+   5
+  ],
+  "anchor_type": "center",
+  "category": "ui",
+  "facing": "none",
+  "note": "HUD coin icon rebuilt from the new coin.png + 1 px ink ring; replaces batch4/ui/hud_coin_icon.png",
+  "replaces": "batch4/ui/hud_coin_icon.png"
+ }
+]
