@@ -36,8 +36,14 @@ func tick(delta: float) -> void:
 	if is_inside_tree():
 		queue_redraw()
 
+## The cell drawn this frame. Demon orbs advance through the pulse sheet.
+## A one-frame shot returns the whole sprite.
+func drawn_frame() -> Rect2:
+	return ArtLibrary.frame_source(sprite_name, age)
+
 func _draw() -> void:
 	if sprite_name.is_empty():
 		return
 	# Art is already aimed: player shots face right, enemy shots face left. Do not flip.
-	ArtLibrary.draw_anchored(self, sprite_name)
+	# draw_loop plays a strip (the demon orbs). A single frame still draws once.
+	ArtLibrary.draw_loop(self, sprite_name, age)

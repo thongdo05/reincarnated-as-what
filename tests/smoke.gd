@@ -17,6 +17,7 @@ func _initialize() -> void:
 	_unit_failed += _check_parallax()
 	_unit_failed += _check_titles()
 	_unit_failed += _check_facing()
+	_unit_failed += _check_polish()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -252,8 +253,9 @@ func _check_idle() -> int:
 			idle_count += 1
 			var frames := int(entry["frames"])
 			var fps := float(entry["fps"])
-			if frames != 4 or absf(fps - 6.0) > 0.01 or not bool(entry["loop"]):
-				push_error("idle sheet %s should be a 4-frame loop at 6 fps" % file_name)
+			var expect_frames := 8 if file_name == "floating_eye_idle.png" else 4
+			if frames != expect_frames or absf(fps - 6.0) > 0.01 or not bool(entry["loop"]):
+				push_error("idle sheet %s should be a %d-frame loop at 6 fps" % [file_name, expect_frames])
 				failed += 1
 			var base := str(entry.get("base_sprite", "")).get_file()
 			if not ArtLibrary.has_file(base):
@@ -425,6 +427,105 @@ func _check_facing() -> int:
 			solid += 1
 	if solid < 50:
 		push_error("ground feet should sit in the near-layer grass")
+		failed += 1
+	return failed
+
+func _check_polish() -> int:
+	var failed := 0
+	var sheets: Array = [
+		["demon_orb_r1.png", 48, 12, 12, 12],
+		["demon_orb_r2.png", 56, 14, 14, 14],
+		["demon_orb_r3.png", 72, 18, 18, 18],
+	]
+	for spec in sheets:
+		var file_name := str(spec[0])
+		var data := ArtLibrary.entry(file_name)
+		if int(data.get("frames", 0)) != 4 or absf(float(data.get("fps", 0)) - 6.0) > 0.01 or not bool(data.get("loop", false)):
+			push_error("%s should be a 4-frame loop at 6 fps" % file_name)
+			failed += 1
+		var size: Array = data["size"]
+		var frame: Array = data["frame_size"]
+		if int(size[0]) != int(spec[1]) or int(size[1]) != int(spec[2]) or int(frame[0]) != int(spec[3]) or int(frame[1]) != int(spec[4]):
+			push_error("%s sheet size drifted" % file_name)
+			failed += 1
+		var box := ArtLibrary.art_bbox(file_name)
+		if absf(box.x - float(spec[3])) > 0.01 or absf(box.y - float(spec[4])) > 0.01:
+			push_error("%s hit box used the strip width (%s)" % [file_name, box])
+			failed += 1
+		var first := ArtLibrary.frame_source(file_name, 0.0)
+		var second := ArtLibrary.frame_source(file_name, 1.0 / 6.0)
+		var wrapped := ArtLibrary.frame_source(file_name, 4.0 / 6.0)
+		if first.position != Vector2.ZERO or absf(first.size.x - float(spec[3])) > 0.01 or absf(first.size.y - float(spec[4])) > 0.01:
+			push_error("%s frame 0 should be one cell, got %s" % [file_name, first])
+			failed += 1
+		if absf(second.position.x - float(spec[3])) > 0.01 or absf(second.size.x - float(spec[3])) > 0.01:
+			push_error("%s frame 1 was not the next cell (%s)" % [file_name, second])
+			failed += 1
+		if wrapped.position != Vector2.ZERO:
+			push_error("%s did not loop after 4 frames (%s)" % [file_name, wrapped])
+			failed += 1
+		var tex := ArtLibrary.texture(file_name)
+		if tex == null or tex.get_width() != int(spec[1]) or tex.get_height() != int(spec[2]):
+			push_error("%s texture is not the pulse strip" % file_name)
+			failed += 1
+		var shot := Shot.new()
+		shot.sprite_name = file_name
+		shot.age = 1.0 / 6.0
+		var drawn := shot.drawn_frame()
+		if absf(drawn.position.x - float(spec[3])) > 0.01 or absf(drawn.size.x - float(spec[3])) > 0.01:
+			push_error("%s shot drew the strip instead of one pulsing cell (%s)" % [file_name, drawn])
+			failed += 1
+		shot.free()
+	var eye := ArtLibrary.frame_source("floating_eye.png", 0.0)
+	var blink := ArtLibrary.frame_source("floating_eye.png", 6.0 / 6.0)
+	var closed := ArtLibrary.frame_source("floating_eye.png", 7.0 / 6.0)
+	var after := ArtLibrary.frame_source("floating_eye.png", 8.0 / 6.0)
+	if absf(eye.size.x - 20.0) > 0.01 or eye.position != Vector2.ZERO:
+		push_error("eye frame 0 should be 20px, got %s" % eye)
+		failed += 1
+	if absf(blink.position.x - 120.0) > 0.01 or absf(closed.position.x - 140.0) > 0.01:
+		push_error("eye blink should be frames 7 and 8, got %s and %s" % [blink, closed])
+		failed += 1
+	if after.position != Vector2.ZERO:
+		push_error("eye idle should loop after 8 frames, got %s" % after)
+		failed += 1
+	var eye_tex := ArtLibrary.texture("floating_eye_idle.png")
+	if eye_tex == null or eye_tex.get_width() != 160 or eye_tex.get_height() != 20:
+		push_error("floating eye idle strip should be 160x20")
+		failed += 1
+	if ArtLibrary.anchor("slime_shot.png") != Vector2(4, 2) or ArtLibrary.art_bbox("slime_shot.png") != Vector2(8, 5):
+		push_error("slime shot should be 8x5 anchored at (4, 2)")
+		failed += 1
+	if ArtLibrary.anchor("slingshot_stone.png") != Vector2(3, 3) or ArtLibrary.art_bbox("slingshot_stone.png") != Vector2(6, 6):
+		push_error("slingshot stone should be 6x6 anchored at (3, 3)")
+		failed += 1
+	var slime_radius := ArtLibrary.radius_for("slime_shot.png", FormCatalog.SHOT_PCT)
+	var stone_radius := ArtLibrary.radius_for("slingshot_stone.png", FormCatalog.SHOT_PCT)
+	var expect_slime := FormCatalog.SHOT_PCT * (8.0 + 5.0) * 0.25
+	var expect_stone := FormCatalog.SHOT_PCT * (6.0 + 6.0) * 0.25
+	if absf(slime_radius - expect_slime) > 0.01 or absf(stone_radius - expect_stone) > 0.01:
+		push_error("shot hitboxes did not follow the new art")
+		failed += 1
+	var slime_shot: Dictionary = FormCatalog.player_shots(FormCatalog.Id.SLIME, Vector2.ZERO, 0)[0]
+	var stone_shot: Dictionary = FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO, 0)[0]
+	if absf(float(slime_shot["radius"]) - slime_radius) > 0.01:
+		push_error("slime shot radius was not retuned")
+		failed += 1
+	if absf(float(stone_shot["radius"]) - stone_radius) > 0.01:
+		push_error("slingshot radius was not retuned")
+		failed += 1
+	var old_slime := FormCatalog.SHOT_PCT * (6.0 + 4.0) * 0.25
+	var old_stone := FormCatalog.SHOT_PCT * (5.0 + 5.0) * 0.25
+	if slime_radius <= old_slime or stone_radius <= old_stone:
+		push_error("bigger sprites should have bigger hitboxes")
+		failed += 1
+	var slime_tex := ArtLibrary.texture("slime_shot.png")
+	var stone_tex := ArtLibrary.texture("slingshot_stone.png")
+	if slime_tex == null or slime_tex.get_width() != 8 or slime_tex.get_height() != 5:
+		push_error("slime shot texture should be 8x5")
+		failed += 1
+	if stone_tex == null or stone_tex.get_width() != 6 or stone_tex.get_height() != 6:
+		push_error("slingshot stone texture should be 6x6")
 		failed += 1
 	return failed
 

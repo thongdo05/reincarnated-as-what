@@ -4,8 +4,10 @@ class_name ArtLibrary
 ## Reads res://art/manifest.json. Anchors are pixels from the top-left of the frame.
 ## A center anchor draws the sprite around the node's origin. A bottom-center anchor
 ## (the skeleton archer) puts the feet on the node's origin.
-## Idle sheets are horizontal strips named <sprite>_idle.png. Hitboxes stay on the
-## static file, so a strip's full width never becomes a collision box.
+## Idle sheets are horizontal strips named <sprite>_idle.png. Demon orb shots are
+## strips on the projectile file itself, with no separate _idle sibling.
+## Hitboxes use one frame (frame_size, else art_bbox, else size), so a strip's
+## full width never becomes a collision box.
 
 const ROOT := "res://art/"
 
@@ -84,32 +86,51 @@ static func radius_for(file_name: String, pct: float) -> float:
 	return band * (box.x + box.y) * 0.25
 
 static func draw_anchored(canvas: CanvasItem, file_name: String, tint: Color = Color.WHITE) -> void:
+	# A multi-frame file is a horizontal strip. Drawing the whole texture would
+	# show every frame side by side, so a still call shows frame 0 only.
+	if int(entry(file_name).get("frames", 1)) > 1:
+		draw_loop(canvas, file_name, 0.0, Vector2.ZERO, tint)
+		return
 	var tex := texture(file_name)
 	if tex == null:
 		return
 	canvas.draw_texture(tex, -anchor(file_name), tint)
 
-## Draw base_file, or its idle sheet, around origin. origin is the actor's
-## anchor point in the canvas's local space (Vector2.ZERO for the actor itself).
-## The anchor is the static sprite's, which matches the sheet.
-static func draw_loop(canvas: CanvasItem, base_file: String, time_sec: float, origin: Vector2 = Vector2.ZERO, tint: Color = Color.WHITE) -> void:
-	var file := loop_file(base_file)
-	var tex := texture(file)
-	if tex == null:
-		return
+## One cell of a horizontal strip. Single-frame files return the whole texture.
+## Looping sheets wrap. A non-looping sheet holds its last frame.
+static func frame_source(file_name: String, time_sec: float) -> Rect2:
+	var file := loop_file(file_name)
 	var data := entry(file)
 	var frames := int(data.get("frames", 1))
-	var point := anchor(base_file)
 	if frames <= 1:
-		canvas.draw_texture(tex, origin - point, tint)
-		return
+		var tex := texture(file)
+		if tex != null:
+			return Rect2(Vector2.ZERO, tex.get_size())
+		return Rect2(Vector2.ZERO, art_bbox(file))
 	var frame_box: Array = data.get("frame_size", [1, 1])
 	var frame := Vector2(float(frame_box[0]), float(frame_box[1]))
 	var fps := float(data.get("fps", 6))
+	if fps <= 0.0:
+		fps = 6.0
 	var index := int(floor(time_sec * fps))
 	if bool(data.get("loop", true)):
 		index = posmod(index, frames)
 	else:
 		index = clampi(index, 0, frames - 1)
-	var src := Rect2(frame.x * float(index), 0.0, frame.x, frame.y)
-	canvas.draw_texture_rect_region(tex, Rect2(origin - point, frame), src, tint)
+	return Rect2(frame.x * float(index), 0.0, frame.x, frame.y)
+
+## Draw base_file, or its idle sheet, around origin. origin is the actor's
+## anchor point in the canvas's local space (Vector2.ZERO for the actor itself).
+## The anchor is the static sprite's, which matches one frame of the sheet.
+static func draw_loop(canvas: CanvasItem, base_file: String, time_sec: float, origin: Vector2 = Vector2.ZERO, tint: Color = Color.WHITE) -> void:
+	var file := loop_file(base_file)
+	var tex := texture(file)
+	if tex == null:
+		return
+	var frames := int(entry(file).get("frames", 1))
+	var point := anchor(base_file)
+	if frames <= 1:
+		canvas.draw_texture(tex, origin - point, tint)
+		return
+	var src := frame_source(base_file, time_sec)
+	canvas.draw_texture_rect_region(tex, Rect2(origin - point, src.size), src, tint)

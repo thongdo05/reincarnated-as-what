@@ -29,7 +29,7 @@ Hitboxes sit inside the painted sprites, about half to two thirds of the art, an
 
 Each run opens on a title card, then about 1.5 seconds where you cannot die.
 
-Vending Machine, Cat, and Demon Lord sprites are in the project and are not in this build. When the vending machine is playable, its weapon has no random WINNER! burst. WINNER! is only the meter-triggered screen clear.
+Vending Machine, Cat, and Demon Lord sprites are in the project and are not in this build. Demon Lord orbs are 4-frame pulse sheets, so a shot plays one cell at a time instead of the whole strip. When the vending machine is playable, its weapon has no random WINNER! burst. WINNER! is only the meter-triggered screen clear.
 
 ## Run locally
 

@@ -38,6 +38,9 @@ const RANK_GATES: Array[int] = [500, 1500]
 ## A Goblin pickup. Added to the score and to the evolution meter. Not a weapon upgrade.
 const LOOT_POINTS := 40
 
+## Share of the projectile art box used as the hit circle. Slime shots and
+## slingshot stones read their box from the manifest, so a redrawn size
+## (slime 8x5, stone 6x6) retunes the hitbox with the sprite.
 const SHOT_PCT := 0.62
 
 static func display_name(id: int) -> String:
