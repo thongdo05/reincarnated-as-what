@@ -94,14 +94,39 @@ func _check_forms() -> int:
 	if split.size() != 2 or int(split[0]["splits"]) != 0:
 		push_error("slime split should produce two child shots")
 		failed += 1
-	var slime_dps := 1.0 / FormCatalog.SLIME_FIRE_INTERVAL
-	var goblin_close := 3.0 / FormCatalog.GOBLIN_FIRE_INTERVAL
-	var goblin_far := 1.0 / FormCatalog.GOBLIN_FIRE_INTERVAL
-	if absf(slime_dps - goblin_close) / slime_dps > 0.2:
-		push_error("close-range fire rate is out of balance: slime %.2f goblin %.2f" % [slime_dps, goblin_close])
+	if absf(FormCatalog.SLIME_FIRE_INTERVAL - 0.16) > 0.001:
+		push_error("slime fire interval should stay 0.16")
 		failed += 1
-	if goblin_far >= slime_dps:
-		push_error("goblin's single center stone should not out-damage slime's stream")
+	# The arc misses, so the volley is allowed to outpace the slime stream.
+	# A single rock still has to be a rock, not a delete button.
+	if FormCatalog.goblin_rank_f("fire_interval", 0) > 0.48:
+		push_error("goblin should not fire slower than the old 0.48s rank 1")
+		failed += 1
+	if int(FormCatalog.goblin_f("damage")) < 1 or int(FormCatalog.goblin_f("damage")) > 3:
+		push_error("goblin rock damage should stay in the tuned 1-3 range")
+		failed += 1
+	if goblin.is_empty() or int(goblin[0]["damage"]) != int(FormCatalog.goblin_f("damage")) or int(goblin[0]["pierce"]) != int(FormCatalog.goblin_f("pierce")):
+		push_error("goblin stones should use the tuning table's damage and pierce")
+		failed += 1
+	if FormCatalog.weapon_line(FormCatalog.Id.SLIME, 0).find("%.2fs" % FormCatalog.SLIME_FIRE_INTERVAL) < 0:
+		push_error("slime weapon line should quote the real fire interval")
+		failed += 1
+	var slime_trait := FormCatalog.trait_line(FormCatalog.Id.SLIME, true)
+	if slime_trait.find("Split ready.") < 0 or slime_trait.find("regrows in 15s.") < 0:
+		push_error("slime trait should say the split is ready and regrows in 15s")
+		failed += 1
+	if FormCatalog.trait_line(FormCatalog.Id.SLIME, false).find("Split used.") < 0:
+		push_error("slime trait should say when the split is used")
+		failed += 1
+	var goblin_trait := FormCatalog.trait_line(FormCatalog.Id.GOBLIN, true)
+	if goblin_trait.find("score and evolution points") < 0:
+		push_error("goblin trait should describe loot as score and evolution points")
+		failed += 1
+	if FormCatalog.next_rank_text(2, Difficulty.GATE_RANK3) != "FINAL FORM":
+		push_error("rank 3 pause card should read FINAL FORM")
+		failed += 1
+	if FormCatalog.card_heading(FormCatalog.Id.SLIME, 1) != "SLIME, Gel Knight (rank 2/3)":
+		push_error("pause heading should name the form and the rank, got %s" % FormCatalog.card_heading(FormCatalog.Id.SLIME, 1))
 		failed += 1
 	if FormCatalog.core_radius(FormCatalog.Id.SLIME, 0, false) <= FormCatalog.core_radius(FormCatalog.Id.GOBLIN, 0, false):
 		push_error("slime's core should be a bigger target than the goblin's")
@@ -1096,6 +1121,7 @@ func _check_pause() -> int:
 	if not game._paused or float(game.elapsed) > elapsed_before + 0.001:
 		push_error("pause should freeze the run")
 		failed += 1
+	failed += _check_pause_card(game)
 	game._toggle_pause()
 	game._process(step)
 	if game._paused or float(game.elapsed) <= elapsed_before:
@@ -1144,6 +1170,51 @@ func _check_pause() -> int:
 		failed += 1
 	root.remove_child(game)
 	game.free()
+	return failed
+
+func _check_pause_card(game) -> int:
+	var failed := 0
+	var card = game._pause_card
+	if card == null or not game._pause_overlay.visible or not card.visible:
+		push_error("pause should show the form card")
+		return 1
+	if card.heading_text() != FormCatalog.card_heading(int(game.form_id), int(game.rank_index)):
+		push_error("pause card heading mismatch: %s" % card.heading_text())
+		failed += 1
+	var interval := "%.2fs" % float(FormCatalog.rank_spec(int(game.form_id), int(game.rank_index))["fire_interval"])
+	if card.weapon_text().find(interval) < 0 or card.weapon_text().find("WEAPON") < 0:
+		push_error("pause weapon line should come from the rank data, got %s" % card.weapon_text())
+		failed += 1
+	if card.trait_text().find("TRAIT") < 0:
+		push_error("pause card should label the trait")
+		failed += 1
+	if int(game.form_id) == FormCatalog.Id.SLIME:
+		if card.trait_text().find("Split ready.") < 0:
+			push_error("a full slime should show the split as ready")
+			failed += 1
+		game._player.small = true
+		game._refresh_pause_card()
+		if card.trait_text().find("Split used.") < 0:
+			push_error("a small slime should show the split as used")
+			failed += 1
+		game._player.small = false
+		game._player._apply_radius()
+		game._refresh_pause_card()
+	elif card.trait_text().find("evolution points") < 0:
+		push_error("goblin pause card should describe loot points")
+		failed += 1
+	if card.next_text().find("FINAL FORM") >= 0:
+		push_error("rank 1 should show the next-rank bar, not FINAL FORM")
+		failed += 1
+	var card_rect := Rect2(card.position, card.size)
+	var pause_rect := Rect2(game._pause_button.position, game._pause_button.size)
+	var sound_rect := Rect2(game._sound_button.position, game._sound_button.size)
+	if card.size.y < 40.0 or card_rect.intersects(pause_rect) or card_rect.intersects(sound_rect):
+		push_error("pause card should stay clear of resume and sound (card %s pause %s sound %s)" % [card_rect, pause_rect, sound_rect])
+		failed += 1
+	if card.mouse_filter != Control.MOUSE_FILTER_IGNORE:
+		push_error("the pause card should not eat the resume or sound touch")
+		failed += 1
 	return failed
 
 func _check_loot() -> int:

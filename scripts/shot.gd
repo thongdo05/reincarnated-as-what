@@ -4,8 +4,10 @@ class_name Shot
 var velocity := Vector2.ZERO
 var gravity := 0.0
 var damage := 1
+var pierce := 0
 var radius := 4.0
 var splits := 0
+var hit_ids: Array[int] = []
 var from_player := true
 var color := Color.WHITE
 var style := "blob"
@@ -20,6 +22,7 @@ func setup(data: Dictionary, player_owned: bool) -> void:
 	velocity = data["velocity"]
 	gravity = float(data.get("gravity", 0.0))
 	damage = int(data.get("damage", 1))
+	pierce = int(data.get("pierce", 0))
 	radius = float(data.get("radius", 4.0))
 	splits = int(data.get("splits", 0))
 	color = data.get("color", Color.WHITE)
