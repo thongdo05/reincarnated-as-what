@@ -104,14 +104,20 @@ func tick(delta: float, bounds: Rect2) -> void:
 		stride = fmod(stride + delta, FormCatalog.goblin_f("stride"))
 		sprinting = stride < FormCatalog.goblin_f("stride") * FormCatalog.goblin_f("sprint_fraction")
 	var before := position
-	_pursue(delta)
+	# Flappy replaces the snap-to-aim chase. The pose is drawn only, so the
+	# hurt shape stays on the body either way.
+	if FlappyMode.is_active():
+		FlappyMode.integrate_ship(self, delta, bounds)
+	else:
+		_pursue(delta)
 	if position.distance_to(before) > 0.2:
 		_pose = 1.0
 	else:
 		_pose = maxf(_pose - delta * 7.0, 0.0)
 	if form_id == FormCatalog.Id.SLIME:
 		_record_trail(delta)
-	_clamp(bounds)
+	if not FlappyMode.is_active():
+		_clamp(bounds)
 	if invulnerable:
 		modulate.a = 0.35 if fmod(_wobble, 0.16) < 0.08 else 1.0
 	else:

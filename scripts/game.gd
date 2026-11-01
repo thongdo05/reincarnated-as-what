@@ -96,6 +96,7 @@ func _ready() -> void:
 	_build_world()
 	_build_hud()
 	CaptureMode.finish_boot(self)
+	FlappyMode.attach(self)
 	_sound.play_title_card(CaptureMode.title_card(form_id))
 	print("Reincarnated as %s (seed %d, run %d)" % [CaptureMode.announce_name(form_id), day_seed, run_index])
 	if CaptureMode.is_active():
@@ -439,6 +440,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	if _paused or wants_rotate(_viewport_size()):
 		return
+	if FlappyMode.is_active() and FlappyMode.consume_pointer(self, event):
+		return
 	if event is InputEventScreenTouch:
 		_on_screen_touch(event)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -470,6 +473,8 @@ func _on_screen_touch(event: InputEventScreenTouch) -> void:
 		_primary_touch = -1
 
 func _on_screen_drag(event: InputEventScreenDrag) -> bool:
+	if FlappyMode.is_active():
+		return false
 	if phase != PHASE_PLAY or event.index != _primary_touch or _player == null:
 		return false
 	_player.nudge(event.relative, _play_bounds(_viewport_size()))
@@ -490,6 +495,8 @@ func _on_mouse_button(event: InputEventMouseButton) -> void:
 		_try_skip_reveal()
 
 func _on_mouse_motion(event: InputEventMouseMotion) -> bool:
+	if FlappyMode.is_active():
+		return false
 	if phase != PHASE_PLAY or _primary_touch != -1 or not _mouse_down or _player == null:
 		return false
 	_player.nudge(event.relative, _play_bounds(_viewport_size()))
@@ -572,9 +579,11 @@ func _begin_play() -> void:
 
 func _play_frame(delta: float, size: Vector2) -> void:
 	var bounds := _play_bounds(size)
-	var key := _key_vector()
-	if key != Vector2.ZERO:
-		_player.add_drag(key * FormCatalog.max_speed(form_id) * delta, bounds)
+	# Pointer drag is applied in _input. Keys stay on this tick. Flappy ignores both.
+	if not FlappyMode.is_active():
+		var key := _key_vector()
+		if key != Vector2.ZERO:
+			_player.add_drag(key * FormCatalog.max_speed(form_id) * delta, bounds)
 	invuln = maxf(invuln - delta, 0.0)
 	_player.invulnerable = invuln > 0.0
 	_player.tick(delta, bounds)
@@ -601,6 +610,8 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	for shot in _shots:
 		shot.tick(delta)
 	_collide()
+	if FlappyMode.is_active():
+		FlappyMode.tick(self, delta, size, bounds)
 	_tick_loot(delta)
 	_sweep(size)
 	_bank_survival(delta)
@@ -796,6 +807,8 @@ func _gain_skill(points: int) -> void:
 	score += points
 	evo_points += points
 	var reached := FormCatalog.rank_for_points(evo_points)
+	if FlappyMode.is_active():
+		reached = FlappyMode.rank_for_points(evo_points)
 	if reached > rank_index:
 		var final := reached >= FormCatalog.rank_gates().size()
 		var old_sprite := _player.sprite_name()
@@ -864,12 +877,21 @@ func _show_game_over() -> void:
 	var form_name := FormCatalog.display_name(form_id)
 	var reached_rank := FormCatalog.rank_name(form_id, rank_index)
 	_share_label.text = ScoreRules.share_line(form_name, reached_rank, elapsed, killer_name, score)
-	var saved := CaptureMode.record_score(form_name, score)
-	_best_label.text = "Best as %s: %s / Best overall: %s" % [
-		form_name,
-		ScoreRules.format_score(int(saved["form"])),
-		ScoreRules.format_score(int(saved["overall"])),
-	]
+	var saved: Dictionary
+	if FlappyMode.is_active():
+		saved = FlappyMode.record_score(form_name, score)
+		_best_label.text = "Flappy best as %s: %s / Flappy best: %s" % [
+			form_name,
+			ScoreRules.format_score(int(saved["form"])),
+			ScoreRules.format_score(int(saved["overall"])),
+		]
+	else:
+		saved = CaptureMode.record_score(form_name, score)
+		_best_label.text = "Best as %s: %s / Best overall: %s" % [
+			form_name,
+			ScoreRules.format_score(int(saved["form"])),
+			ScoreRules.format_score(int(saved["overall"])),
+		]
 	_seed_label.text = "UTC seed %d · run %d" % [day_seed, run_index + 1]
 	_layout_death_card()
 	_game_over.visible = true
@@ -1002,13 +1024,16 @@ func _apply_shake(delta: float) -> void:
 func _refresh_hud() -> void:
 	if _hud_view == null:
 		return
+	var fill := HudLayout.fill_px(evo_points, rank_index)
+	if FlappyMode.is_active():
+		fill = FlappyMode.fill_px(evo_points, rank_index)
 	_hud_view.set_run(
 		ScoreRules.format_score(score),
 		ScoreRules.format_time(elapsed),
 		loot_count,
 		FormCatalog.rank_name(form_id, rank_index).to_upper(),
 		rank_index,
-		HudLayout.fill_px(evo_points, rank_index),
+		fill,
 		form_id == FormCatalog.Id.GOBLIN
 	)
 
@@ -1188,6 +1213,8 @@ func _toggle_pause() -> void:
 	_paused = not _paused
 	_mouse_down = false
 	_primary_touch = -1
+	if FlappyMode.is_active():
+		FlappyMode.clear_flap()
 	if _sound != null:
 		_sound.set_music_paused(_paused)
 	_layout_pause(_viewport_size())
