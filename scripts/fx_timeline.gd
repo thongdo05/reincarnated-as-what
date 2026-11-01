@@ -30,8 +30,12 @@ static func death_stage(t: float) -> String:
 		return "tease"
 	return "card"
 
+## The readability ring adds 2 px. 34 keeps slime r3, and cat r3 when the
+## frame size is used instead of art_bbox, on the small pop they had before.
+const POP_LARGE_ABOVE := 34.0
+
 static func pop_file(box: Vector2) -> String:
-	if maxf(box.x, box.y) > 32.0:
+	if maxf(box.x, box.y) > POP_LARGE_ABOVE:
 		return "fx/fx_death_pop_l.png"
 	return "fx/fx_death_pop_s.png"
 

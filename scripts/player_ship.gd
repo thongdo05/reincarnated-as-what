@@ -34,6 +34,15 @@ var _evolve_fx: EvolveFx
 
 const REGROW_SECONDS := 15.0
 
+## Afterimages behind a moving slime. The split body is small on the pastel
+## sky, so it keeps fewer, fainter copies than the full form.
+const TRAIL_COPIES := 5
+const TRAIL_ALPHA_FAR := 0.10
+const TRAIL_ALPHA_NEAR := 0.38
+const SPLIT_TRAIL_COPIES := 3
+const SPLIT_TRAIL_ALPHA_FAR := 0.08
+const SPLIT_TRAIL_ALPHA_NEAR := 0.25
+
 func setup(id: int, start: Vector2) -> void:
 	form_id = id
 	position = start
@@ -142,8 +151,7 @@ func _record_trail(delta: float) -> void:
 		return
 	_trail_timer = 0.045
 	_trail.push_front(position)
-	while _trail.size() > 5:
-		_trail.pop_back()
+	_trim_trail()
 
 func set_rank(index: int) -> void:
 	rank_index = index
@@ -202,12 +210,29 @@ func _draw_final_banner() -> void:
 	var size := tex.get_size() * 2.0
 	draw_texture_rect(tex, Rect2(Vector2(-size.x * 0.5, -60.0), size), false)
 
+func _trail_copies() -> int:
+	return SPLIT_TRAIL_COPIES if small else TRAIL_COPIES
+
+func _trail_alpha(age_index: int) -> float:
+	var copies := _trail_copies()
+	var far := SPLIT_TRAIL_ALPHA_FAR if small else TRAIL_ALPHA_FAR
+	var near := SPLIT_TRAIL_ALPHA_NEAR if small else TRAIL_ALPHA_NEAR
+	if copies <= 1:
+		return near
+	return lerpf(far, near, float(age_index) / float(copies - 1))
+
+func _trim_trail() -> void:
+	var copies := _trail_copies()
+	while _trail.size() > copies:
+		_trail.pop_back()
+
 func _draw_body(file: String) -> void:
 	if form_id == FormCatalog.Id.SLIME:
+		_trim_trail()
 		var i := _trail.size()
 		for point in _trail:
 			i -= 1
-			var tint := Color(1, 1, 1, 0.10 + 0.07 * float(i))
+			var tint := Color(1, 1, 1, _trail_alpha(i))
 			ArtLibrary.draw_loop(self, file, _wobble, point - position, tint)
 	ArtLibrary.draw_loop(self, file, _wobble)
 
