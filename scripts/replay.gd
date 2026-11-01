@@ -74,18 +74,25 @@ static func reset_seen_for_test() -> void:
 ## The pixel font has no emoji, so the share line uses a text mark.
 ## Phones still get the words, and a later form is never named.
 static func form_mark(form_id: int) -> String:
-	if form_id == FormCatalog.Id.GOBLIN:
-		return "(G)"
-	if form_id == FormCatalog.Id.SLIME:
-		return "(S)"
-	return "(?)"
+	match form_id:
+		FormCatalog.Id.GOBLIN:
+			return "(G)"
+		FormCatalog.Id.SLIME:
+			return "(S)"
+		FormCatalog.Id.VENDING:
+			return "(V)"
+		FormCatalog.Id.CAT:
+			return "(C)"
+		FormCatalog.Id.DEMON:
+			return "(D)"
+		_:
+			return "(?)"
 
 static func form_key(form_id: int) -> String:
-	if form_id == FormCatalog.Id.GOBLIN:
-		return "goblin"
-	if form_id == FormCatalog.Id.SLIME:
-		return "slime"
-	return ""
+	var key := FormCatalog.key_for(form_id)
+	if key == "slime" and form_id != FormCatalog.Id.SLIME:
+		return ""
+	return key
 
 ## Wordle-style line for this run only. No later form in the daily order.
 static func daily_text(seed_value: int, form_id: int, score: int, rank_name: String) -> String:
@@ -97,12 +104,12 @@ static func daily_text(seed_value: int, form_id: int, score: int, rank_name: Str
 		rank_name.to_upper(),
 	]
 
-## Same seed, and the form when it is one of the two that play.
-## Anything else drops the form so the friend gets that day's normal run.
+## Same seed and form. Any of the five playable forms stays on the link.
+## An unknown key drops the form so the friend gets that day's normal run.
 static func beat_url(seed_value: int, form_key: String) -> String:
 	var base := "%s?seed=%d" % [PAGE, seed_value]
 	var key := form_key.strip_edges().to_lower()
-	if key != "slime" and key != "goblin":
+	if FormCatalog.id_from_key(key) < 0:
 		return base
 	return "%s&form=%s" % [base, key]
 

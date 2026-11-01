@@ -1,6 +1,6 @@
 # Reincarnated as WHAT?!
 
-Landscape side-scrolling shooter. You fly right while the ground scrolls left. Each run you are reborn as a different form. This prototype has two of them, Slime and Goblin, so the core loop can be judged in Safari on an iPhone held sideways.
+Landscape side-scrolling shooter. You fly right while the ground scrolls left. Each run you are reborn as a different form, and a retry never repeats the form you just died as. This build plays five of them: Slime, Goblin, Vending Machine, Cat (ex-CEO), and Demon Lord.
 
 Play it: https://thongdo05.github.io/reincarnated-as-what/
 
@@ -12,7 +12,7 @@ Drag anywhere. The ship follows the drag, so your finger does not have to sit on
 
 The pause mark in the top-right is 18 pixels and is not scaled. Its touch target is at least 44 points, so a thumb can hit it on an iPhone. Tap it again, or press Esc, to resume. Just under it, **SND** turns sound off and **OFF** turns it back on. That choice stays in the browser.
 
-Sound is a test mix (Hibiki, 1 Nov 2026), not the final one. Music loops for the whole run. The Slime's shot is a quiet bloop. The Goblin's stones are silent until they have their own sample. A kill pops, death lines up with the burst, `REBORN AS...?` gets the tease sting, and `EVOLVED!` lands on the evolve hit. The vending-machine sting is wired to that title card and does not play in this build. On an iPhone, Safari stays quiet until the first tap. That tap is the title card or the first touch in the run, and the music starts then.
+Sound is a test mix (Hibiki, 1 Nov 2026), not the final one. Music loops for the whole run. The Slime's shot is a quiet bloop. The other forms' shots stay silent until they have their own samples. A kill pops, death lines up with the burst, `REBORN AS...?` gets the tease sting, and `EVOLVED!` lands on the evolve hit. The vending-machine sting plays on that form's title card. On an iPhone, Safari stays quiet until the first tap. That tap is the title card or the first touch in the run, and the music starts then.
 
 The field is 480×270 and scales up by whole pixels, so the art stays sharp. On a desktop the window opens at 960×540, which is that field at 2×.
 
@@ -21,9 +21,12 @@ The form order and the enemy spawns come from the UTC date. Everyone gets the sa
 Score is kills, a combo when kills are chained, near-misses, and survival time. The form does not multiply it. The death card shows your best as that form and your best overall. Those two numbers stay in the browser. There is no online leaderboard.
 
 - **Slime.** Blue jelly cube. Shots fly right and split in two when they hit. Movement keeps sliding after you stop. Its trait, not an extra life: the hit that would kill a full-size Slime swaps in the small slime of the same rank, with a short moment of safety and a `SPLIT!` pop. Stay alive 15 seconds and it grows back at the same rank, trait included. A hit while small ends the run. One life still holds. Ranks: Slime, Gel Knight, Ooze Titan.
-- **Goblin.** Tiny crown. Stones lob forward and drop. Each rock hits harder than a slime shot and pierces one target. Rank 2 and rank 3 use the larger stones and a wider arc. Movement is a short sprint, then a planted step. Kills drop an emerald gem or a slotted gold coin. Both drift left and bob one pixel. Touch one to add score and evolution points. The slingshot does not level from a pickup count. Ranks: Goblin, Goblin Chief, Goblin King.
+- **Goblin.** Tiny crown. Stones lob forward and drop. Each rock hits harder than a slime shot and pierces one target. Rank 2 and rank 3 use the larger stones and a wider arc. Movement snaps to the finger. Kills can drop a gem that drifts left. Touch one to add score and evolution points. The slingshot does not level from a pickup count. Ranks: Goblin, Goblin Chief, Goblin King.
+- **Vending Machine.** Heavy drift: it trails the finger for a few frames and still finishes a flick. Three cans fly forward in a spread. There is no random burst. Kills fill a WINNER! meter, and a full meter is the only WINNER! screen clear in the game. Ranks: Vending Machine, Mega Vendor, Vending Fortress.
+- **Cat (ex-CEO).** A hard flick blinks a short dash, then the body snaps the rest of the way. The swipe in front reflects enemy bullets. A streak of near-misses makes nearby enemies fight for you for a moment. Ranks: Cat (ex-CEO), Cat Chairman, Cat Overlord.
+- **Demon Lord.** Large body. Big slow orbs home in, and they hit harder the more enemies are on screen. Ranks: Demon Lord, Demon Emperor, True Demon King.
 
-Kills, combos, near-misses, and Goblin pickups fill an evolution meter. The gates are placeholder constants. Each rank swaps in that rank's sprite and a stronger weapon: a gold rim, a white flash, then an `EVOLVED!` banner. The run does not stop. A hit plays the death burst. Tap through it, then the card. The card shows the score large, the best as that form, and the best overall. A new best pops `NEW BEST!`. **Share** saves a picture of the run. **Challenge a friend** sends a link to the same daily seed and form, then the button reads `LINK COPIED!`. Slime and Goblin are the forms that link can start; any other form is left off the link so the friend gets that day's normal run. **Reincarnate**, or a tap on the card, starts the next one.
+Kills, combos, near-misses, and Goblin pickups fill an evolution meter. The gates are placeholder constants. Each rank swaps in that rank's sprite and a stronger weapon: a gold rim, a white flash, then an `EVOLVED!` banner. The run does not stop. A hit plays the death burst. Tap through it, then the card. The card shows the score large, the best as that form, and the best overall. A new best pops `NEW BEST!`. **Share** saves a picture of the run. **Challenge a friend** sends a link to the same daily seed and form, then the button reads `LINK COPIED!`. All five forms can start from that link. **Reincarnate**, or a tap on the card, starts the next one as a different form. A Challenge a Friend link (`?seed=&form=`) keeps that form for the challenged run only; the retry rolls again and still will not repeat the form you just died as. `?mode=flappy` and `?mode=hop` stay on Slime and Goblin.
 
 The field is the painted isekai sky: an opaque sky, then castles and floating islands, then hills, treetops, and crystals. The three layers are 480×270 and tile sideways, each faster than the one behind it.
 
@@ -33,7 +36,7 @@ Hit shapes are per sprite in `art/hitboxes.json`. A player shot connects when it
 
 Each run opens on a title card, then about 1.5 seconds where you cannot die.
 
-Vending Machine, Cat, and Demon Lord sprites are in the project and are not in this build. Demon Lord orbs are 4-frame pulse sheets, so a shot plays one cell at a time instead of the whole strip. When the vending machine is playable, its weapon has no random WINNER! burst. WINNER! is only the meter-triggered screen clear.
+Demon Lord orbs are 4-frame pulse sheets, so a shot plays one cell at a time instead of the whole strip. The vending machine weapon has no random WINNER! burst. WINNER! is only that form's meter-triggered screen clear.
 
 ## Run locally
 

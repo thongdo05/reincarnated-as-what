@@ -1,10 +1,12 @@
 extends Node2D
 class_name PlayerShip
 
-## Relative drag: the finger moves an aim point, and the body snaps to it.
+## Relative drag: the finger moves an aim point, and the body follows it.
 ## The ship never jumps to the finger, so the thumb can stay out of the way.
-## Both forms arrive in about 1-3 frames, with no slide. A slime squash and a
-## goblin lean are drawn only. They do not lag the hurtbox.
+## Snap forms arrive in about 1-3 frames, with no slide. Vending trails the
+## aim for a few frames and still finishes a flick quickly. Cat blinks a short
+## dash when the aim jumps, then snaps the rest. A slime squash and a goblin
+## lean are drawn only. They do not lag the hurtbox.
 
 var form_id := FormCatalog.Id.SLIME
 var aim := Vector2.ZERO
@@ -15,6 +17,7 @@ var invulnerable := true
 var stride := 0.0
 var sprinting := true
 var _cooldown := 0.0
+var _blink_cd := 0.0
 var _wobble := 0.0
 var _trail_timer := 0.0
 var _trail: Array[Vector2] = []
@@ -119,6 +122,8 @@ func tick(delta: float, bounds: Rect2) -> void:
 		_pose = maxf(_pose - delta * 7.0, 0.0)
 	if form_id == FormCatalog.Id.SLIME:
 		_record_trail(delta)
+	elif form_id == FormCatalog.Id.CAT:
+		_fade_blink_trail(delta)
 	if not FlappyMode.is_active():
 		_clamp(bounds)
 	if invulnerable:
@@ -129,13 +134,15 @@ func tick(delta: float, bounds: Rect2) -> void:
 		queue_redraw()
 
 func _pursue(delta: float) -> void:
+	if form_id == FormCatalog.Id.CAT:
+		_try_blink(delta)
 	var to_aim := aim - position
 	var dist := to_aim.length()
 	if dist <= 0.35:
 		position = aim
 		velocity = Vector2.ZERO
 		return
-	var gain := 1.0 - exp(-FormCatalog.SNAP_ARRIVE * delta)
+	var gain := 1.0 - exp(-FormCatalog.arrive_rate(form_id) * delta)
 	var step := to_aim * gain
 	var cap := FormCatalog.SNAP_MAX_SPEED * delta
 	if step.length() > cap:
@@ -145,6 +152,31 @@ func _pursue(delta: float) -> void:
 	else:
 		position += step
 	velocity = Vector2.ZERO
+
+## One short dash toward a hard flick. Small aim corrections stay on the snap.
+func _try_blink(delta: float) -> void:
+	if _blink_cd > 0.0:
+		_blink_cd = maxf(_blink_cd - delta, 0.0)
+		return
+	var to_aim := aim - position
+	var dist := to_aim.length()
+	if dist < FormCatalog.CAT_BLINK_MIN:
+		return
+	var hop := to_aim / dist * minf(dist, FormCatalog.CAT_BLINK_DIST)
+	_trail.push_front(position)
+	_trim_trail()
+	position += hop
+	_blink_cd = FormCatalog.CAT_BLINK_CD
+	_trail_timer = 0.04
+
+func _fade_blink_trail(delta: float) -> void:
+	if _trail.is_empty():
+		return
+	_trail_timer -= delta
+	if _trail_timer > 0.0:
+		return
+	_trail.pop_back()
+	_trail_timer = 0.04
 
 func _clamp_aim(bounds: Rect2) -> void:
 	var pad := radius
@@ -194,6 +226,7 @@ func respawn(id: int, start: Vector2) -> void:
 	fx_show_rim = false
 	shield_hits = 0
 	_cooldown = 0.12
+	_blink_cd = 0.0
 	_wobble = 0.0
 	_pose = 0.0
 	_trail.clear()
@@ -295,7 +328,7 @@ func _trim_trail() -> void:
 		_trail.pop_back()
 
 func _draw_body(file: String) -> void:
-	if form_id == FormCatalog.Id.SLIME:
+	if form_id == FormCatalog.Id.SLIME or (form_id == FormCatalog.Id.CAT and not _trail.is_empty()):
 		_trim_trail()
 		var i := _trail.size()
 		for point in _trail:

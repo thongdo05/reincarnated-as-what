@@ -35,7 +35,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_flappy()
+	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_flappy()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -50,11 +50,28 @@ func _check_forms() -> int:
 	if FormCatalog.id_for_run(20261101, 0) != first:
 		push_error("form order is not stable for a seed")
 		failed += 1
-	if FormCatalog.id_for_run(20261101, 1) == first:
-		push_error("the two forms did not both appear in the daily order")
+	var previous := first
+	for run in range(1, 16):
+		var rolled := FormCatalog.id_for_run(20261101, run)
+		if rolled == previous:
+			push_error("run %d repeated the form from run %d" % [run, run - 1])
+			failed += 1
+			break
+		previous = rolled
+	for seed_value in [7, 99, 20270101]:
+		var prior := -1
+		for run in 12:
+			var rolled := FormCatalog.id_for_run(seed_value, run)
+			if run > 0 and rolled == prior:
+				push_error("seed %d run %d repeated the previous form" % [seed_value, run])
+				failed += 1
+				break
+			prior = rolled
+	if FormCatalog.id_for_side_run(20261101, 1) == FormCatalog.id_for_side_run(20261101, 0):
+		push_error("flappy's two-form order should still use both forms")
 		failed += 1
-	if FormCatalog.id_for_run(20261101, 2) != first:
-		push_error("form order did not cycle")
+	if FormCatalog.id_for_side_run(20261101, 2) != FormCatalog.id_for_side_run(20261101, 0):
+		push_error("flappy's two-form order should still cycle")
 		failed += 1
 	var slime := FormCatalog.player_shots(FormCatalog.Id.SLIME, Vector2.ZERO)
 	var goblin := FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO)
@@ -131,6 +148,56 @@ func _check_forms() -> int:
 		failed += 1
 	if FormCatalog.core_radius(FormCatalog.Id.SLIME, 0, false) <= FormCatalog.core_radius(FormCatalog.Id.GOBLIN, 0, false):
 		push_error("slime's core should be a bigger target than the goblin's")
+		failed += 1
+	var cans := FormCatalog.player_shots(FormCatalog.Id.VENDING, Vector2.ZERO, 0)
+	if cans.size() != 3:
+		push_error("vending machine should fire a 3-can spread, got %d" % cans.size())
+		failed += 1
+	else:
+		var ys: Array[float] = []
+		for shot in cans:
+			if str(shot["sprite"]) != "vending_can.png":
+				push_error("vending shots should be cans")
+				failed += 1
+			var vel: Vector2 = shot["velocity"]
+			ys.append(vel.y)
+			if vel.x <= 0.0:
+				push_error("cans should fly forward")
+				failed += 1
+		if ys[0] >= -1.0 or absf(ys[1]) > 0.01 or ys[2] <= 1.0:
+			push_error("can spread should be up, forward, and down, got %s" % str(ys))
+			failed += 1
+	if FormCatalog.player_shots(FormCatalog.Id.VENDING, Vector2.ZERO, 2).size() != 3:
+		push_error("vending fortress should stay a 3-can spread with no extra burst")
+		failed += 1
+	var swipe := FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2.ZERO, 0)
+	if swipe.size() != 1 or str(swipe[0]["sprite"]) != "cat_swipe.png" or str(swipe[0]["style"]) != "swipe":
+		push_error("cat should fire one swipe")
+		failed += 1
+	var orb := FormCatalog.player_shots(FormCatalog.Id.DEMON, Vector2.ZERO, 0)
+	if orb.size() != 1 or str(orb[0]["sprite"]) != "demon_orb_r1.png" or float(orb[0]["homing"]) <= 0.0:
+		push_error("demon lord should fire one homing orb")
+		failed += 1
+	if str(FormCatalog.player_shots(FormCatalog.Id.DEMON, Vector2.ZERO, 2)[0]["sprite"]) != "demon_orb_r3.png":
+		push_error("true demon king should fire the rank 3 orb")
+		failed += 1
+	if FormCatalog.demon_damage(0, 6) <= FormCatalog.demon_damage(0, 0):
+		push_error("demon damage should rise with the crowd")
+		failed += 1
+	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("cans") < 0 or FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("No burst") < 0:
+		push_error("vending weapon line should name the cans and no burst")
+		failed += 1
+	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("WINNER!") < 0:
+		push_error("vending trait should name the WINNER meter")
+		failed += 1
+	if FormCatalog.trait_line(FormCatalog.Id.CAT, true).find("graze") < 0 or FormCatalog.weapon_line(FormCatalog.Id.CAT, 0).find("Reflects") < 0:
+		push_error("cat card should describe the blink trait and the reflecting swipe")
+		failed += 1
+	if FormCatalog.trait_line(FormCatalog.Id.DEMON, true).find("enemies") < 0:
+		push_error("demon trait should scale with enemies on screen")
+		failed += 1
+	if FormCatalog.card_heading(FormCatalog.Id.CAT, 0) != "CAT, Cat (ex-CEO) (rank 1/3)":
+		push_error("cat pause heading should name the form and the rank, got %s" % FormCatalog.card_heading(FormCatalog.Id.CAT, 0))
 		failed += 1
 	var today := DailyRun.date_seed()
 	if today < 20260101 or today > 21000101:
@@ -328,8 +395,8 @@ func _check_art() -> int:
 		if not ArtLibrary.has_file(parked):
 			push_error("parked form art missing: %s" % parked)
 			failed += 1
-	if FormCatalog.IDS.size() != 2:
-		push_error("vending, cat, and demon lord should stay out of the roster")
+	if FormCatalog.IDS.size() != 5:
+		push_error("roster should be slime, goblin, vending, cat, and demon lord, got %d" % FormCatalog.IDS.size())
 		failed += 1
 	var slime_r1 := str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, 0)["sprite"])
 	var slime_r3 := str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, 2)["sprite"])
@@ -788,6 +855,17 @@ func _check_shapes() -> int:
 		failed += _check_body_cover(goblin_file)
 		prev_slime = slime_r
 		prev_goblin = goblin_r
+	for id in [FormCatalog.Id.VENDING, FormCatalog.Id.CAT, FormCatalog.Id.DEMON]:
+		for rank in 3:
+			failed += _check_body_cover(str(FormCatalog.rank_spec(id, rank)["sprite"]))
+	if not HitLibrary.has_role("cat_swipe.png", "body"):
+		push_error("the cat swipe needs a body shape so it can meet bullets")
+		failed += 1
+	var demon_pad := FormCatalog.hit_radius_for(FormCatalog.Id.DEMON, 0, false)
+	var slime_pad := FormCatalog.hit_radius_for(FormCatalog.Id.SLIME, 0, false)
+	if demon_pad <= slime_pad:
+		push_error("demon lord's full-body pad should be larger than the slime")
+		failed += 1
 	return failed
 
 ## Opaque body pixels, skipping the ink outline. Local points are pixel centers.
@@ -1080,6 +1158,21 @@ func _check_drag() -> int:
 	if slime_end.distance_to(aim) > 0.5 or goblin_end.distance_to(aim) > 0.5:
 		push_error("the body should stay on the aim with no slide (slime %s goblin %s)" % [slime_end, goblin_end])
 		failed += 1
+	var vending_fast := _sample(FormCatalog.Id.VENDING, drag, bounds, 3)
+	var vending_end := _sample(FormCatalog.Id.VENDING, drag, bounds, 12)
+	if vending_fast.distance_to(aim) < 4.0:
+		push_error("vending should still be trailing at 3 frames, got %s aim %s" % [vending_fast, aim])
+		failed += 1
+	if vending_end.distance_to(aim) > 2.0:
+		push_error("vending should finish a flick within 12 frames, got %s" % vending_end)
+		failed += 1
+	var vending_nudge := PlayerShip.new()
+	vending_nudge.setup(FormCatalog.Id.VENDING, start)
+	vending_nudge.nudge(Vector2(0, -36), bounds)
+	if vending_nudge.position.distance_to(start) < 10.0:
+		push_error("vending should answer a flick on the first frame, moved %s" % vending_nudge.position)
+		failed += 1
+	vending_nudge.free()
 	# A drag of +150 must not be treated as a finger coordinate of (150, -80).
 	if slime_end.x < start.x + 100.0:
 		push_error("relative drag did not carry the ship by the drag delta")
@@ -1423,9 +1516,22 @@ func _check_pause_card(game) -> int:
 		game._player.small = false
 		game._player._apply_radius()
 		game._refresh_pause_card()
-	elif card.trait_text().find("evolution points") < 0:
-		push_error("goblin pause card should describe loot points")
-		failed += 1
+	elif int(game.form_id) == FormCatalog.Id.GOBLIN:
+		if card.trait_text().find("evolution points") < 0:
+			push_error("goblin pause card should describe loot points")
+			failed += 1
+	elif int(game.form_id) == FormCatalog.Id.VENDING:
+		if card.trait_text().find("WINNER!") < 0 or card.weapon_text().find("cans") < 0:
+			push_error("vending pause card should describe the cans and the WINNER meter")
+			failed += 1
+	elif int(game.form_id) == FormCatalog.Id.CAT:
+		if card.trait_text().find("graze") < 0 or card.weapon_text().find("Reflects") < 0:
+			push_error("cat pause card should describe the swipe and the graze trait")
+			failed += 1
+	elif int(game.form_id) == FormCatalog.Id.DEMON:
+		if card.trait_text().find("enemies") < 0 or card.weapon_text().find("Homing") < 0:
+			push_error("demon pause card should describe homing orbs and the crowd")
+			failed += 1
 	if card.next_text().find("FINAL FORM") >= 0:
 		push_error("rank 1 should show the next-rank bar, not FINAL FORM")
 		failed += 1
@@ -1693,9 +1799,14 @@ func _check_share_card() -> int:
 	if ShareCard.killer_id("falling piano") != "piano" or ShareCard.killer_id("Dire Wolf") != "dire_wolf":
 		push_error("killer names should map onto the share-card ids")
 		failed += 1
-	if ShareCard.form_key(FormCatalog.Id.SLIME) != "slime" or ShareCard.form_key(FormCatalog.Id.GOBLIN) != "goblin":
-		push_error("playable forms should map onto the share-card config")
-		failed += 1
+	for pair in [["slime", FormCatalog.Id.SLIME], ["goblin", FormCatalog.Id.GOBLIN], ["vending_machine", FormCatalog.Id.VENDING], ["cat", FormCatalog.Id.CAT], ["demon_lord", FormCatalog.Id.DEMON]]:
+		if ShareCard.form_key(int(pair[1])) != str(pair[0]) or Replay.form_key(int(pair[1])) != str(pair[0]):
+			push_error("form key for %s drifted" % str(pair[0]))
+			failed += 1
+		var link := Replay.beat_url(20261101, str(pair[0]))
+		if link.find("form=%s" % str(pair[0])) < 0:
+			push_error("challenge link should keep %s, got %s" % [str(pair[0]), link])
+			failed += 1
 	var fields := ShareCard.resolve({
 		"form": "slime",
 		"rank_reached": 2,
@@ -1906,8 +2017,17 @@ func _check_audio() -> int:
 		push_error("goblin shots should stay silent")
 		failed += 1
 	for id in FormCatalog.IDS:
-		if AudioCues.reveal_event_for_card(FormCatalog.title_card(id)) != "":
-			push_error("a live form should not play a reveal sting")
+		var reveal := AudioCues.reveal_event_for_card(FormCatalog.title_card(id))
+		if id == FormCatalog.Id.VENDING:
+			if reveal != "reveal_vending_machine":
+				push_error("the vending machine card should play its sting")
+				failed += 1
+		elif reveal != "":
+			push_error("only the vending machine card plays a reveal sting")
+			failed += 1
+	for quiet in [FormCatalog.Id.GOBLIN, FormCatalog.Id.VENDING, FormCatalog.Id.CAT, FormCatalog.Id.DEMON]:
+		if AudioCues.shot_event_for_form(quiet) != "":
+			push_error("%s shots should stay silent" % FormCatalog.display_name(quiet))
 			failed += 1
 	if AudioCues.reveal_event_for_card(AudioCues.VENDING_TITLE) != "reveal_vending_machine":
 		push_error("vending machine title card should map to its sting")
@@ -2265,6 +2385,116 @@ func _check_audio_play() -> int:
 	AudioCues.apply_bus_levels()
 	return failed
 
+func _check_roster_play() -> int:
+	FlappyMode.clear_test_hook()
+	CaptureMode.reset_for_test(PackedStringArray())
+	var failed := 0
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game.day_seed = 20261101
+	var previous := int(game.form_id)
+	for _i in 6:
+		game._reincarnate()
+		if int(game.form_id) == previous:
+			push_error("a retry repeated %s" % FormCatalog.display_name(previous))
+			failed += 1
+			break
+		previous = int(game.form_id)
+	game.form_id = FormCatalog.Id.SLIME
+	game._player.form_id = FormCatalog.Id.SLIME
+	game.winner_pops = 0
+	game._overdrive_blast()
+	if game.winner_pops != 0:
+		push_error("overdrive must not be the WINNER clear")
+		failed += 1
+	for fx in game._effects:
+		if str(fx.sprite_name) == "winner_burst.png":
+			push_error("overdrive should not spawn the WINNER burst")
+			failed += 1
+	game.form_id = FormCatalog.Id.VENDING
+	game._player.form_id = FormCatalog.Id.VENDING
+	game.phase = game.PHASE_PLAY
+	game.winner = FormCatalog.vending_winner_kills() - 1
+	var victim := EnemyActor.new()
+	victim.position = Vector2(300, 120)
+	victim.score_value = 40
+	victim.hp = 1
+	victim.max_hp = 1
+	victim.alive = true
+	game._award_kill(victim, true)
+	victim.free()
+	if game.winner_pops != 1:
+		push_error("a full WINNER meter should clear once, pops %s" % game.winner_pops)
+		failed += 1
+	var saw_burst := false
+	for fx in game._effects:
+		if str(fx.sprite_name) == "winner_burst.png":
+			saw_burst = true
+	if not saw_burst:
+		push_error("the vending clear should use winner_burst.png")
+		failed += 1
+	game._player.form_id = FormCatalog.Id.CAT
+	game._player.position = Vector2(140, 130)
+	var swipe_spec: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, game._player.position, 0)[0]
+	var swipe = game._spawn_shot(swipe_spec, true)
+	var bullet = game._spawn_shot({
+		"position": swipe.position + Vector2(6, 0),
+		"velocity": Vector2(-160, 12),
+		"sprite": "floating_eye_bolt.png",
+		"radius": 4.0,
+		"damage": 1,
+		"killer_name": "Floating Eye",
+	}, false)
+	var bystander = game._spawn_shot({
+		"position": Vector2(400, 40),
+		"velocity": Vector2(-90, 0),
+		"sprite": "arrow.png",
+		"radius": 4.0,
+		"damage": 1,
+		"killer_name": "Skeleton Archer",
+	}, false)
+	game._collide()
+	if not bullet.from_player or str(bullet.sprite_name) != "reflected_bullet.png" or bullet.velocity.x <= 0.0:
+		push_error("a swipe should reflect the bolt, from_player %s sprite %s vel %s" % [bullet.from_player, bullet.sprite_name, bullet.velocity])
+		failed += 1
+	if bystander.from_player or bystander.z_index < Replay.bullet_z(false):
+		push_error("an untouched enemy bullet should stay an enemy bullet above FX")
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	CaptureMode.reset_for_test(PackedStringArray(["--form=cat", "--seed=20261101"]))
+	var challenged := packed.instantiate()
+	challenged.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(challenged)
+	if int(challenged.form_id) != FormCatalog.Id.CAT:
+		push_error("a challenge link should open as the named form")
+		failed += 1
+	CaptureMode.note_player_retry(FormCatalog.Id.CAT)
+	root.remove_child(challenged)
+	challenged.free()
+	var retry := packed.instantiate()
+	retry.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(retry)
+	if int(retry.form_id) == FormCatalog.Id.CAT:
+		push_error("the retry after a challenged cat should roll a different form")
+		failed += 1
+	var retry_form := int(retry.form_id)
+	CaptureMode.note_player_retry(retry_form)
+	root.remove_child(retry)
+	retry.free()
+	var third := packed.instantiate()
+	third.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(third)
+	if int(third.form_id) == retry_form:
+		push_error("consecutive retries should not repeat %s" % FormCatalog.display_name(retry_form))
+		failed += 1
+	root.remove_child(third)
+	third.free()
+	CaptureMode.reset_for_test(PackedStringArray())
+	return failed
+
 func _check_flappy() -> int:
 	var failed := _check_flappy_flags()
 	FlappyMode.clear_test_hook()
@@ -2598,9 +2828,9 @@ func _check_replay_rules() -> int:
 	if url.find("seed=20261101") < 0 or url.find("form=goblin") < 0:
 		push_error("beat link should carry the seed and the goblin, got %s" % url)
 		failed += 1
-	var fallen := Replay.beat_url(20261101, "cat")
+	var fallen := Replay.beat_url(20261101, "nope")
 	if fallen.find("form=") >= 0 or fallen.find("seed=20261101") < 0:
-		push_error("an unplayable form should fall back to the daily seed, got %s" % fallen)
+		push_error("an unknown form should fall back to the daily seed, got %s" % fallen)
 		failed += 1
 	var shell := FileAccess.get_file_as_string("res://web/shell.html")
 	if shell.find("shareRunText") < 0 or shell.find("navigator.share") < 0 or shell.find("clipboard") < 0:

@@ -85,7 +85,7 @@ func setup(run_seed: int, form: int) -> void:
 	refresh_draw()
 
 static func roll_form(rng: RandomNumberGenerator) -> int:
-	var forms := FormCatalog.IDS
+	var forms := FormCatalog.SIDE_IDS
 	return int(forms[rng.randi_range(0, forms.size() - 1)])
 
 func hopping() -> bool:

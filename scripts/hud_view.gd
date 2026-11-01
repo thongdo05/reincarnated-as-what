@@ -12,6 +12,7 @@ var shield_on := false
 var rapid_s := 0
 var magnet_s := 0
 var overdrive_px := -1
+var winner_px := -1
 
 var _score: Texture2D
 var _time: Texture2D
@@ -19,9 +20,9 @@ var _rank: Texture2D
 var _coin: Texture2D
 var _built := ""
 
-func set_run(score: String, time: String, coins: int, rank_name: String, rank: int, fill: int, loot: bool, shield: bool = false, rapid: int = 0, magnet: int = 0, overdrive: int = -1) -> void:
+func set_run(score: String, time: String, coins: int, rank_name: String, rank: int, fill: int, loot: bool, shield: bool = false, rapid: int = 0, magnet: int = 0, overdrive: int = -1, winner: int = -1) -> void:
 	var coin := "x%d" % coins
-	var signature := "%s|%s|%s|%s|%d|%d|%s|%s|%d|%d|%d" % [score, time, coin, rank_name, rank, fill, loot, shield, rapid, magnet, overdrive]
+	var signature := "%s|%s|%s|%s|%d|%d|%s|%s|%d|%d|%d|%d" % [score, time, coin, rank_name, rank, fill, loot, shield, rapid, magnet, overdrive, winner]
 	if signature == _built:
 		return
 	score_text = score
@@ -35,6 +36,7 @@ func set_run(score: String, time: String, coins: int, rank_name: String, rank: i
 	rapid_s = rapid
 	magnet_s = magnet
 	overdrive_px = overdrive
+	winner_px = winner
 	_score = PixelFont.score_texture(score_text)
 	_time = PixelFont.outlined_texture(time_text, HudLayout.TIME_COLOR)
 	_rank = PixelFont.outlined_texture(rank_text, HudLayout.RANK_COLOR)
@@ -77,3 +79,11 @@ func _draw() -> void:
 			var fill := ArtLibrary.texture("ui/hud_evo_meter_fill_64x6.png")
 			draw_texture_rect_region(fill, Rect2(bar.position, Vector2(width, 6)), Rect2(0, 0, width, 6), Color("ffe56a"))
 		draw_texture(PixelFont.outlined_texture("OD", Color("ffe56a")), Vector2(HudLayout.FILL_POS.x + 66.0, 64.0) - Vector2(PixelFont.PAD, PixelFont.PAD))
+	if winner_px >= 0:
+		var bar := Rect2(Vector2(HudLayout.FILL_POS.x, 78.0), Vector2(HudLayout.FILL_FULL, 6))
+		draw_rect(bar, Color(0.16, 0.05, 0.08, 0.9))
+		var width := mini(winner_px, HudLayout.FILL_FULL)
+		if width > 0:
+			var fill := ArtLibrary.texture("ui/hud_evo_meter_fill_64x6.png")
+			draw_texture_rect_region(fill, Rect2(bar.position, Vector2(width, 6)), Rect2(0, 0, width, 6), Color("ff4d5e"))
+		draw_texture(PixelFont.outlined_texture("WIN", Color("ffe56a")), Vector2(HudLayout.FILL_POS.x + 66.0, 76.0) - Vector2(PixelFont.PAD, PixelFont.PAD))

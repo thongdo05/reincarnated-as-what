@@ -20,7 +20,7 @@ If both are present, the query string wins.
 
 | Flag | Values | Effect |
 | --- | --- | --- |
-| `form` | `slime`, `goblin`, `vending_machine`, `cat`, `demon_lord` | Forces the form. Slime and Goblin play. The other three play their title card (and the vending-machine sting), then hold **NOT PLAYABLE YET**. Their gameplay is not in this build. |
+| `form` | `slime`, `goblin`, `vending_machine`, `cat`, `demon_lord` | Forces the form for that run. All five play. A retry after a challenged form rolls a different form. |
 | `seed` | integer | Forces the day seed, so the spawn timeline repeats. |
 | `clean` | `1` | Hides the D pacing overlay, hitbox draw, and the engine collision / path / navigation debug hints. Blocks the H and D debug keys. Arrow keys and WASD still move. |
 | `hitbox` | `1` | Draws the hurt, body, and threat shapes. Works on a normal run (`?hitbox=1`) without the other capture flags. `clean=1` hides them. |
@@ -46,7 +46,7 @@ Movie Maker audio is recorded on this path: the AVI carries 48 kHz stereo PCM, a
 
 ### Form reveals
 
-The title card lasts 1.5s. Four seconds covers the card and a short beat after it. Vending Machine, Cat, and Demon Lord stay on the "not playable yet" card.
+The title card lasts 1.5s. Four seconds covers the card and a short beat after it. All five forms enter play after the card.
 
 ```
 tools/capture.sh 4 build/capture/reveal_slime.mp4 form=slime clean=1

@@ -32,7 +32,7 @@ const POP_SEMITONE_MAX := 2.0
 ## Fanfare chord inside sfx_evolve.wav. Evolve frame 5, the EVOLVED! pop.
 const EVOLVE_HIT_SECONDS := 0.42
 
-## Not a roster entry. play_title_card uses this when that form is added.
+## Plays with the Vending Machine title card. The other forms stay silent.
 const VENDING_TITLE := "title_cards/title_vending_machine.png"
 
 static func spec(event: String) -> Dictionary:
@@ -120,7 +120,7 @@ static func all_events() -> PackedStringArray:
 		"reveal_vending_machine",
 	])
 
-## Goblin stones have no sample. Leave them silent. Do not reuse the slime bloop.
+## Only the slime has a shot sample. The other forms stay silent.
 static func shot_event_for_form(form_id: int) -> String:
 	if form_id == FormCatalog.Id.SLIME:
 		return "slime_shot"
