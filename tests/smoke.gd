@@ -14,6 +14,7 @@ func _initialize() -> void:
 	_unit_failed += _check_traits()
 	_unit_failed += _check_art()
 	_unit_failed += _check_idle()
+	_unit_failed += _check_parallax()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -323,6 +324,32 @@ func _check_idle() -> int:
 		if absf(body - expect) > 0.05:
 			push_error("enemy hitbox should stay on the static art box")
 			failed += 1
+	return failed
+
+func _check_parallax() -> int:
+	var failed := 0
+	var bg := FieldBackground.new()
+	bg.tick(1.0, Vector2(480, 270))
+	if absf(bg.scroll_near - 28.0) > 0.02:
+		push_error("near layer should still scroll at 28 px/s, got %s" % str(bg.scroll_near))
+		failed += 1
+	if absf(bg.scroll_far - 14.0) > 0.02:
+		push_error("far layer should scroll at 0.3 of the base, got %s" % str(bg.scroll_far))
+		failed += 1
+	if absf(bg.scroll_clouds - 7.0) > 0.02:
+		push_error("clouds should scroll between sky and far, got %s" % str(bg.scroll_clouds))
+		failed += 1
+	var sky := 28.0 * FieldBackground.SKY_FACTOR / FieldBackground.NEAR_FACTOR
+	if absf(bg.scroll_sky - sky) > 0.02:
+		push_error("sky factor should be 0.05, got %s" % str(bg.scroll_sky))
+		failed += 1
+	if bg.scroll_sky >= bg.scroll_clouds or bg.scroll_clouds >= bg.scroll_far or bg.scroll_far >= bg.scroll_near:
+		push_error("parallax should speed up from sky to clouds to far to near")
+		failed += 1
+	if not ArtLibrary.has_file("bg_clouds.png"):
+		push_error("cloud layer art missing")
+		failed += 1
+	bg.free()
 	return failed
 
 func _check_score() -> int:
