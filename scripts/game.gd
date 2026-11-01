@@ -3,6 +3,8 @@ extends Node2D
 const REVEAL_SECONDS := 2.3
 const INVULN_SECONDS := 1.5
 const GRAZE_PAD := 22.0
+const SPLIT_IFRAMES := 1.15
+const REGROW_IFRAMES := 0.45
 
 const PHASE_REVEAL := 0
 const PHASE_PLAY := 1
@@ -23,6 +25,8 @@ var death_elapsed := 0.0
 var game_over_visible := false
 var killer_name := "something"
 var next_enemy_id := 1
+var loot_count := 0
+var sling_level := 0
 
 var _player: PlayerShip
 var _background: FieldBackground
@@ -30,6 +34,7 @@ var _combat: CombatText
 var _director: SpawnDirector
 var _enemies: Array[EnemyActor] = []
 var _shots: Array[Shot] = []
+var _loot: Array[LootGem] = []
 var _drag_accum := Vector2.ZERO
 var _primary_touch := -1
 var _mouse_down := false
@@ -44,7 +49,10 @@ var _reveal: Control
 var _skip_label: Label
 var _game_over: Control
 var _share_label: Label
+var _best_label: Label
 var _seed_label: Label
+var _loot_label: Label
+var _rotate: Control
 
 func _ready() -> void:
 	day_seed = DailyRun.date_seed()
@@ -63,7 +71,7 @@ func _build_world() -> void:
 
 	_player = PlayerShip.new()
 	_player.z_index = 5
-	_player.setup(form_id, Vector2(size.x * 0.5, size.y * 0.78))
+	_player.setup(form_id, Vector2(size.x * 0.28, size.y * 0.5))
 	add_child(_player)
 
 	_combat = CombatText.new()
@@ -80,48 +88,56 @@ func _build_hud() -> void:
 	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(_hud)
 
-	_score_label = _make_label(22, Color("f4efe4"))
-	_score_label.position = Vector2(16, 54)
+	_score_label = _make_label(20, Color("241428"))
+	_score_label.position = Vector2(40, 6)
 	_hud.add_child(_score_label)
 
-	_form_label = _make_label(13, FormCatalog.title_color(form_id))
-	_form_label.position = Vector2(16, 80)
+	var form_ink := Color("1a4f9c") if form_id == FormCatalog.Id.SLIME else Color("8a4b12")
+	_form_label = _make_label(13, form_ink)
+	_form_label.position = Vector2(40, 28)
 	_form_label.text = FormCatalog.display_name(form_id)
 	_hud.add_child(_form_label)
 
-	_time_label = _make_label(22, Color("f4efe4"))
+	_loot_label = _make_label(13, Color("8a4b12"))
+	_loot_label.position = Vector2(40, 46)
+	_loot_label.visible = form_id == FormCatalog.Id.GOBLIN
+	_hud.add_child(_loot_label)
+
+	_time_label = _make_label(20, Color("241428"))
 	_time_label.anchor_left = 1.0
 	_time_label.anchor_right = 1.0
-	_time_label.offset_left = -150.0
-	_time_label.offset_right = -16.0
-	_time_label.offset_top = 54.0
-	_time_label.offset_bottom = 84.0
+	_time_label.offset_left = -160.0
+	_time_label.offset_right = -40.0
+	_time_label.offset_top = 6.0
+	_time_label.offset_bottom = 32.0
 	_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_hud.add_child(_time_label)
 
-	_combo_label = _make_label(18, Color("ffd56a"))
+	_combo_label = _make_label(18, Color("8a3a12"))
 	_combo_label.anchor_left = 0.5
 	_combo_label.anchor_right = 0.5
 	_combo_label.offset_left = -80.0
 	_combo_label.offset_right = 80.0
-	_combo_label.offset_top = 54.0
-	_combo_label.offset_bottom = 84.0
+	_combo_label.offset_top = 6.0
+	_combo_label.offset_bottom = 32.0
 	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hud.add_child(_combo_label)
 
-	_hint_label = _make_label(16, Color("f4efe4"))
+	_hint_label = _make_label(16, Color("241428"))
 	_hint_label.anchor_left = 0.5
 	_hint_label.anchor_right = 0.5
 	_hint_label.anchor_top = 1.0
 	_hint_label.anchor_bottom = 1.0
 	_hint_label.offset_left = -140.0
 	_hint_label.offset_right = 140.0
-	_hint_label.offset_top = -78.0
-	_hint_label.offset_bottom = -48.0
+	_hint_label.offset_top = -48.0
+	_hint_label.offset_bottom = -26.0
 	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint_label.text = "Drag anywhere to move"
 	_hint_label.visible = false
 	_hud.add_child(_hint_label)
+	for sky_label in [_score_label, _time_label, _combo_label, _form_label, _hint_label, _loot_label]:
+		sky_label.add_theme_color_override("font_shadow_color", Color(1, 1, 1, 0.8))
 
 	_reveal = Control.new()
 	_reveal.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -188,6 +204,11 @@ func _build_hud() -> void:
 	_share_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_share_label.custom_minimum_size = Vector2(280, 110)
 	over_column.add_child(_share_label)
+	_best_label = _make_label(14, Color("f0d78c"))
+	_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_best_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_best_label.custom_minimum_size = Vector2(280, 40)
+	over_column.add_child(_best_label)
 	_seed_label = _make_label(12, Color("8d8298"))
 	_seed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_column.add_child(_seed_label)
@@ -210,6 +231,33 @@ func _build_hud() -> void:
 	button.add_theme_font_size_override("font_size", 22)
 	button.pressed.connect(_on_restart)
 	over_column.add_child(button)
+
+	_rotate = Control.new()
+	_rotate.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_rotate.visible = false
+	_rotate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.add_child(_rotate)
+	var rotate_dim := ColorRect.new()
+	rotate_dim.color = Color("100c14")
+	rotate_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rotate_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_rotate.add_child(rotate_dim)
+	var rotate_center := CenterContainer.new()
+	rotate_center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rotate_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rotate.add_child(rotate_center)
+	var rotate_column := VBoxContainer.new()
+	rotate_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rotate_column.add_theme_constant_override("separation", 8)
+	rotate_center.add_child(rotate_column)
+	var rotate_title := _make_label(28, Color("f4efe4"))
+	rotate_title.text = "Rotate your phone"
+	rotate_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rotate_column.add_child(rotate_title)
+	var rotate_body := _make_label(16, Color("c8bdd4"))
+	rotate_body.text = "This run flies sideways."
+	rotate_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rotate_column.add_child(rotate_body)
 	_refresh_hud()
 
 func _make_label(size: int, color: Color) -> Label:
@@ -222,7 +270,12 @@ func _make_label(size: int, color: Color) -> Label:
 	label.add_theme_constant_override("shadow_offset_y", 2)
 	return label
 
+func wants_rotate(size: Vector2) -> bool:
+	return size.y > size.x
+
 func _unhandled_input(event: InputEvent) -> void:
+	if wants_rotate(_viewport_size()):
+		return
 	if event is InputEventScreenTouch:
 		_on_screen_touch(event)
 	elif event is InputEventScreenDrag:
@@ -264,8 +317,13 @@ func _try_skip_reveal() -> void:
 func _process(delta: float) -> void:
 	if _background == null or _player == null or _combat == null:
 		return
-	delta = clampf(delta, 0.0, 0.033)
 	var size := _viewport_size()
+	if _rotate != null and wants_rotate(size):
+		_rotate.visible = true
+		return
+	if _rotate != null:
+		_rotate.visible = false
+	delta = clampf(delta, 0.0, 0.033)
 	_background.tick(delta, size)
 	_combat.tick(delta)
 	if phase == PHASE_REVEAL:
@@ -301,10 +359,16 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	invuln = maxf(invuln - delta, 0.0)
 	_player.invulnerable = invuln > 0.0
 	_player.tick(delta, bounds)
+	if _player.regrew:
+		invuln = maxf(invuln, REGROW_IFRAMES)
+		_player.invulnerable = true
 	if _player.ready_to_fire():
-		for spec in FormCatalog.player_shots(form_id, _player.position):
+		var interval := FormCatalog.fire_interval(form_id)
+		if form_id == FormCatalog.Id.GOBLIN:
+			interval = FormCatalog.goblin_interval(sling_level)
+		for spec in FormCatalog.player_shots(form_id, _player.position, sling_level):
 			_spawn_shot(spec, true)
-		_player.did_fire(FormCatalog.fire_interval(form_id))
+		_player.did_fire(interval)
 	for event in _director.pop_due(elapsed):
 		_spawn_enemy(event, size)
 	var player_pos := _player.position
@@ -316,6 +380,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	for shot in _shots:
 		shot.tick(delta)
 	_collide()
+	_tick_loot(delta)
 	_sweep(size)
 	_bank_survival(delta)
 	if combo_left > 0.0:
@@ -326,7 +391,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	_refresh_hud()
 
 func _play_bounds(size: Vector2) -> Rect2:
-	return Rect2(16, 18, maxf(size.x - 32.0, 40.0), maxf(size.y - 46.0, 40.0))
+	return Rect2(36, 26, maxf(size.x - 72.0, 40.0), maxf(size.y - 54.0, 40.0))
 
 func _key_vector() -> Vector2:
 	var vector := Vector2.ZERO
@@ -391,14 +456,14 @@ func _collide() -> void:
 		if not enemy.alive:
 			continue
 		if _overlaps(_player.position, _player.radius, enemy.position, enemy.radius):
-			_kill_player(enemy.kind_name)
+			_hurt_player(enemy.kind_name)
 			return
 		_graze(enemy, enemy.position, enemy.radius)
 	for shot in _shots:
 		if shot.from_player or not is_instance_valid(shot):
 			continue
 		if _overlaps(_player.position, _player.radius, shot.position, shot.radius):
-			_kill_player(shot.killer_name if shot.killer_name != "" else "shot")
+			_hurt_player(shot.killer_name if shot.killer_name != "" else "shot")
 			return
 		_graze(shot, shot.position, shot.radius)
 
@@ -408,7 +473,9 @@ func _award_kill(enemy: EnemyActor) -> void:
 	combo_left = float(result["combo_left"])
 	var points := int(result["points"])
 	score += points
-	_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-8, -18), Color("f4efe4"))
+	_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-8, -18), Color("241428"))
+	if form_id == FormCatalog.Id.GOBLIN:
+		_spawn_loot(enemy.position)
 
 func _graze(hazard: Object, at: Vector2, hazard_radius: float) -> void:
 	if hazard.grazed:
@@ -420,6 +487,47 @@ func _graze(hazard: Object, at: Vector2, hazard_radius: float) -> void:
 	hazard.grazed = true
 	score += ScoreRules.GRAZE
 	_combat.push("+%d" % ScoreRules.GRAZE, at + Vector2(6, -8), Color("ffe08a"))
+
+func _hurt_player(killer: String) -> void:
+	if phase != PHASE_PLAY or not _player.alive:
+		return
+	if _player.absorb_lethal_hit():
+		invuln = maxf(invuln, SPLIT_IFRAMES)
+		_player.invulnerable = true
+		_combat.push("SPLIT!", _player.position + Vector2(-28, -24), Color("1a4f9c"))
+		return
+	_kill_player(killer)
+
+func _spawn_loot(at: Vector2) -> void:
+	var gem := LootGem.new()
+	gem.position = at
+	gem.z_index = 4
+	add_child(gem)
+	_loot.append(gem)
+
+func _tick_loot(delta: float) -> void:
+	var keep: Array[LootGem] = []
+	for gem in _loot:
+		if not is_instance_valid(gem):
+			continue
+		gem.tick(delta)
+		if _player.alive and _overlaps(_player.position, _player.radius, gem.position, gem.radius):
+			_collect_gem(gem)
+			continue
+		if gem.position.x < -40.0:
+			gem.queue_free()
+			continue
+		keep.append(gem)
+	_loot = keep
+
+func _collect_gem(gem: LootGem) -> void:
+	gem.queue_free()
+	loot_count += 1
+	var next_level := mini(int(loot_count / 10), 3)
+	if next_level > sling_level:
+		sling_level = next_level
+		_combat.push("SLING LV %d" % sling_level, _player.position + Vector2(-36, -26), Color("8a4b12"))
+	_refresh_hud()
 
 func _kill_player(name: String) -> void:
 	if phase != PHASE_PLAY:
@@ -434,7 +542,14 @@ func _kill_player(name: String) -> void:
 
 func _show_game_over() -> void:
 	game_over_visible = true
-	_share_label.text = ScoreRules.share_line(FormCatalog.display_name(form_id), elapsed, killer_name, score)
+	var form_name := FormCatalog.display_name(form_id)
+	_share_label.text = ScoreRules.share_line(form_name, elapsed, killer_name, score)
+	var saved := BestScores.record(form_name, score)
+	_best_label.text = "Best as %s: %s / Best overall: %s" % [
+		form_name,
+		ScoreRules.format_score(int(saved["form"])),
+		ScoreRules.format_score(int(saved["overall"])),
+	]
 	_seed_label.text = "UTC seed %d · run %d" % [day_seed, run_index + 1]
 	_game_over.visible = true
 
@@ -476,6 +591,10 @@ func _refresh_hud() -> void:
 		_combo_label.text = "x%d" % combo
 	else:
 		_combo_label.text = ""
+	if form_id == FormCatalog.Id.GOBLIN:
+		_loot_label.text = "Gems %d  Lv %d" % [loot_count, sling_level]
+	else:
+		_loot_label.text = ""
 
 func _on_restart() -> void:
 	get_tree().reload_current_scene()
@@ -486,8 +605,8 @@ func _overlaps(a: Vector2, a_radius: float, b: Vector2, b_radius: float) -> bool
 
 func _viewport_size() -> Vector2:
 	if not is_inside_tree():
-		return Vector2(360, 780)
+		return Vector2(780, 360)
 	var size := get_viewport_rect().size
 	if size.x < 32.0 or size.y < 32.0:
-		return Vector2(360, 780)
+		return Vector2(780, 360)
 	return size

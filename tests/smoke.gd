@@ -11,6 +11,7 @@ func _initialize() -> void:
 	_unit_failed += _check_spawns()
 	_unit_failed += _check_score()
 	_unit_failed += _check_drag()
+	_unit_failed += _check_traits()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -45,13 +46,30 @@ func _check_forms() -> int:
 	if slime.size() != 1 or int(slime[0]["splits"]) != 1 or float(slime[0]["gravity"]) != 0.0:
 		push_error("slime shot should be one straight bullet that splits")
 		failed += 1
+	else:
+		var slime_velocity: Vector2 = slime[0]["velocity"]
+		if slime_velocity.x <= 0.0 or absf(slime_velocity.y) > 1.0:
+			push_error("slime shots should fly right")
+			failed += 1
+		var slime_color: Color = slime[0]["color"]
+		if slime_color.b <= slime_color.g:
+			push_error("slime shots should be blue")
+			failed += 1
+	var accent := FormCatalog.title_color(FormCatalog.Id.SLIME)
+	if accent.b <= accent.g:
+		push_error("slime title accent should be blue")
+		failed += 1
 	if goblin.size() != 3:
 		push_error("goblin should fire a 3-stone burst")
 		failed += 1
 	else:
 		var spreads: Array[float] = []
 		for shot in goblin:
-			spreads.append(float(shot["velocity"].x))
+			var stone_velocity: Vector2 = shot["velocity"]
+			spreads.append(stone_velocity.y)
+			if stone_velocity.x <= 0.0:
+				push_error("goblin stones should fly forward")
+				failed += 1
 			if float(shot["gravity"]) <= 0.0:
 				push_error("goblin stones should arc")
 				failed += 1
@@ -105,7 +123,7 @@ func _check_spawns() -> int:
 		return 1
 	var early_fang := false
 	for event in slow:
-		if float(event["t"]) < 8.0 and int(event["kind"]) == SpawnDirector.FANG and float(event["t"]) < 1.2:
+		if float(event["t"]) < 8.0 and int(event["kind"]) == SpawnDirector.WYVERN and float(event["t"]) < 1.2:
 			early_fang = true
 	if early_fang:
 		push_error("a fang spawned immediately")
@@ -132,9 +150,62 @@ func _check_score() -> int:
 	if ScoreRules.format_score(4210) != "4,210":
 		push_error("score formatting broke")
 		failed += 1
-	var line := ScoreRules.share_line("SLIME", 102.0, "Dart", 4210)
-	if line != "Reborn as SLIME. Lasted 1:42. Died to a Dart. Score 4,210.":
+	var line := ScoreRules.share_line("SLIME", 102.0, "Dire Wolf", 4210)
+	if line != "Reborn as SLIME. Lasted 1:42. Died to a Dire Wolf. Score 4,210.":
 		push_error("share line was '%s'" % line)
+		failed += 1
+	return failed
+
+func _check_traits() -> int:
+	var failed := 0
+	var bounds := Rect2(0, 0, 780, 360)
+	var slime := PlayerShip.new()
+	slime.setup(FormCatalog.Id.SLIME, Vector2(200, 160))
+	if slime.small or not slime.absorb_lethal_hit():
+		push_error("a full slime should split instead of dying")
+		failed += 1
+	if not slime.small or slime.radius >= FormCatalog.SLIME_HIT_RADIUS:
+		push_error("the split slime should be smaller")
+		failed += 1
+	if slime.absorb_lethal_hit():
+		push_error("a small slime should not split again")
+		failed += 1
+	for _i in 960:
+		slime.tick(1.0 / 60.0, bounds)
+	if slime.small:
+		push_error("the slime should regrow after 15 seconds")
+		failed += 1
+	if absf(slime.radius - FormCatalog.SLIME_HIT_RADIUS) > 0.1:
+		push_error("the regrown slime should have a full hitbox")
+		failed += 1
+	slime.free()
+	var goblin := PlayerShip.new()
+	goblin.setup(FormCatalog.Id.GOBLIN, Vector2(200, 160))
+	if goblin.absorb_lethal_hit():
+		push_error("the goblin has no split shield")
+		failed += 1
+	goblin.free()
+	if FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO, 0).size() != 3:
+		push_error("base slingshot should fire 3 stones")
+		failed += 1
+	if FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO, 1).size() != 4:
+		push_error("sling level 1 should add a stone")
+		failed += 1
+	if FormCatalog.player_shots(FormCatalog.Id.GOBLIN, Vector2.ZERO, 3).size() != 5:
+		push_error("sling level 3 should fire 5 stones")
+		failed += 1
+	if FormCatalog.goblin_interval(3) >= FormCatalog.goblin_interval(0):
+		push_error("higher sling levels should fire faster")
+		failed += 1
+	var fresh: Dictionary = {}
+	var after_slime: Dictionary = BestScores.apply(fresh, "SLIME", 100)
+	var after_low: Dictionary = BestScores.apply(after_slime, "SLIME", 40)
+	var after_goblin: Dictionary = BestScores.apply(after_low, "GOBLIN", 250)
+	if int(after_low.get("SLIME", 0)) != 100 or int(after_goblin.get("GOBLIN", 0)) != 250:
+		push_error("per-form best should keep the higher score")
+		failed += 1
+	if int(after_goblin.get("overall", 0)) != 250 or int(after_low.get("overall", 0)) != 100:
+		push_error("overall best should be the best run of any form")
 		failed += 1
 	return failed
 
@@ -172,6 +243,10 @@ func _check_play() -> int:
 	root.add_child(game)
 	if game._player == null:
 		push_error("game did not finish setting up")
+		game.free()
+		return 1
+	if not game.wants_rotate(Vector2(390, 844)) or game.wants_rotate(Vector2(844, 390)):
+		push_error("portrait should ask for a rotate, landscape should play")
 		game.free()
 		return 1
 	var step := 1.0 / 60.0

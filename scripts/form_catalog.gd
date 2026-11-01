@@ -2,9 +2,12 @@ extends RefCounted
 class_name FormCatalog
 
 ## Launch roster entries that exist in this prototype.
+## The Slime split is that form's trait. It is not an extra life. One life per run still holds.
+## Vending Machine is not in this build. Its weapon has no random WINNER! burst.
+## WINNER! is only the meter-triggered screen clear.
 ## Slime and Goblin are tuned to the same close-range hit rate.
-## Slime pays for reliable column fire with a big body and a long slide.
-## Goblin pays for a small body with arcing stones that only fully connect up close,
+## Slime pays for a reliable forward stream with a big body and a long slide.
+## Goblin pays for a small body with stones that lob forward and only fully connect up close,
 ## plus a stride that plants his feet for a moment each step.
 
 enum Id { SLIME, GOBLIN }
@@ -50,7 +53,7 @@ static func gag(id: int) -> String:
 
 static func title_color(id: int) -> Color:
 	if id == Id.SLIME:
-		return Color("9dff7a")
+		return Color("8ecbff")
 	return Color("ffd56a")
 
 static func hit_radius(id: int) -> float:
@@ -85,13 +88,33 @@ static func id_for_run(day_seed: int, run_index: int) -> int:
 		index += forms.size()
 	return forms[index]
 
-static func player_shots(id: int, origin: Vector2) -> Array[Dictionary]:
+static func goblin_interval(level: int) -> float:
+	match clampi(level, 0, 3):
+		1:
+			return 0.42
+		2:
+			return 0.34
+		3:
+			return 0.28
+		_:
+			return GOBLIN_FIRE_INTERVAL
+
+static func goblin_spread(level: int) -> Array[float]:
+	match clampi(level, 0, 3):
+		1, 2:
+			return [-150.0, -50.0, 50.0, 150.0]
+		3:
+			return [-180.0, -90.0, 0.0, 90.0, 180.0]
+		_:
+			return [-GOBLIN_SPREAD, 0.0, GOBLIN_SPREAD]
+
+static func player_shots(id: int, origin: Vector2, sling_level: int = 0) -> Array[Dictionary]:
 	var shots: Array[Dictionary] = []
 	if id == Id.SLIME:
-		shots.append(_blob(origin + Vector2(0, -18), Vector2(0, -SLIME_SHOT_SPEED), 5.0, 1, Color("d6ff6a")))
+		shots.append(_blob(origin + Vector2(20, 0), Vector2(SLIME_SHOT_SPEED, 0), 5.0, 1, Color("7ec8ff")))
 	else:
-		for vx in [-GOBLIN_SPREAD, 0.0, GOBLIN_SPREAD]:
-			var stone := _blob(origin + Vector2(0, -14), Vector2(vx, -GOBLIN_SHOT_SPEED), 4.5, 0, Color("f0c36a"))
+		for vy in goblin_spread(sling_level):
+			var stone := _blob(origin + Vector2(16, -2), Vector2(GOBLIN_SHOT_SPEED, vy), 4.5, 0, Color("f0c36a"))
 			stone["gravity"] = GOBLIN_GRAVITY
 			stone["style"] = "stone"
 			shots.append(stone)
@@ -101,9 +124,9 @@ static func split_shots(velocity: Vector2, origin: Vector2) -> Array[Dictionary]
 	var shots: Array[Dictionary] = []
 	var base := velocity
 	if base.length() < 1.0:
-		base = Vector2(0, -SLIME_SHOT_SPEED)
+		base = Vector2(SLIME_SHOT_SPEED, 0)
 	for angle in [-0.62, 0.62]:
-		var spec := _blob(origin + base.normalized() * 10.0, base.rotated(angle) * 0.92, 4.0, 0, Color("efffb0"))
+		var spec := _blob(origin + base.normalized() * 10.0, base.rotated(angle) * 0.92, 4.0, 0, Color("d7f1ff"))
 		shots.append(spec)
 	return shots
 

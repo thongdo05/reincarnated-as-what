@@ -5,10 +5,10 @@ class_name SpawnDirector
 ## never on how well the player is doing, so every run that day meets the same
 ## spawns. Querying more or less often does not change the timeline.
 
-const WISP := 0
-const DART := 1
-const TURRET := 2
-const FANG := 3
+const EYE := 0
+const WOLF := 1
+const ARCHER := 2
+const WYVERN := 3
 
 var _rng := RandomNumberGenerator.new()
 var _next_time := 1.05
@@ -54,65 +54,65 @@ func _pick(diff: float) -> int:
 		acc += weights[i]
 		if roll <= acc:
 			return i
-	return WISP
+	return EYE
 
 static func kind_name(kind: int) -> String:
 	match kind:
-		WISP:
-			return "Wisp"
-		DART:
-			return "Dart"
-		TURRET:
-			return "Turret"
-		FANG:
-			return "Fang"
+		EYE:
+			return "Floating Eye"
+		WOLF:
+			return "Dire Wolf"
+		ARCHER:
+			return "Skeleton Archer"
+		WYVERN:
+			return "Wyvern"
 		_:
 			return "Thing"
 
 static func max_hp(kind: int) -> int:
 	match kind:
-		TURRET:
+		ARCHER:
 			return 6
-		FANG:
+		WYVERN:
 			return 3
 		_:
 			return 2
 
 static func score_value(kind: int) -> int:
 	match kind:
-		WISP:
+		EYE:
 			return 100
-		DART:
+		WOLF:
 			return 150
-		TURRET:
+		ARCHER:
 			return 220
-		FANG:
+		WYVERN:
 			return 260
 		_:
 			return 50
 
 static func body_radius(kind: int) -> float:
 	match kind:
-		WISP:
+		EYE:
 			return 13.0
-		DART:
-			return 12.0
-		TURRET:
+		WOLF:
+			return 14.0
+		ARCHER:
 			return 16.0
-		FANG:
-			return 12.0
+		WYVERN:
+			return 14.0
 		_:
 			return 12.0
 
-static func fall_speed(kind: int) -> float:
+static func cruise_speed(kind: int) -> float:
 	match kind:
-		WISP:
+		EYE:
 			return 74.0
-		DART:
-			return 158.0
-		TURRET:
+		WOLF:
+			return 168.0
+		ARCHER:
 			return 56.0
-		FANG:
-			return 30.0
+		WYVERN:
+			return 118.0
 		_:
 			return 80.0
