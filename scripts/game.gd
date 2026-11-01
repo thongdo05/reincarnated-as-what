@@ -271,7 +271,12 @@ func _make_label(size: int, color: Color) -> Label:
 	return label
 
 func wants_rotate(size: Vector2) -> bool:
-	return size.y > size.x
+	# The stretch mode can keep a landscape viewport inside a tall window.
+	# A portrait phone should see the prompt, not a letterboxed strip.
+	if size.y > size.x:
+		return true
+	var window_size := DisplayServer.window_get_size()
+	return window_size.y > window_size.x
 
 func _unhandled_input(event: InputEvent) -> void:
 	if wants_rotate(_viewport_size()):
