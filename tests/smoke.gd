@@ -784,6 +784,7 @@ func _check_play() -> int:
 		push_error("game did not finish setting up")
 		game.free()
 		return 1
+	var failed := 0
 	if game._hud_view.show_coins != (int(game.form_id) == FormCatalog.Id.GOBLIN):
 		push_error("only the goblin run should show the coin counter")
 		failed += 1
@@ -792,7 +793,6 @@ func _check_play() -> int:
 		game.free()
 		return 1
 	var step := 1.0 / 60.0
-	var failed := 0
 	var card_file := FormCatalog.title_card(int(game.form_id))
 	if game._title_card.texture != ArtLibrary.texture(card_file):
 		push_error("title card should match the rolled form")
