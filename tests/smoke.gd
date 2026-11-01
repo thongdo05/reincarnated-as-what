@@ -19,6 +19,7 @@ func _initialize() -> void:
 	_unit_failed += _check_facing()
 	_unit_failed += _check_polish()
 	_unit_failed += _check_shapes()
+	_unit_failed += _check_loot()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -1006,6 +1007,70 @@ func _check_pause() -> int:
 		failed += 1
 	root.remove_child(game)
 	game.free()
+	return failed
+
+func _check_loot() -> int:
+	var failed := 0
+	var gem := ArtLibrary.texture("gem.png").get_image()
+	var coin := ArtLibrary.texture("coin.png").get_image()
+	if gem == null or gem.get_width() != 8 or gem.get_height() != 8:
+		push_error("gem should stay 8x8")
+		failed += 1
+	elif gem.get_pixel(3, 2) != Color("f2fbff"):
+		push_error("gem glint should sit at (3, 2)")
+		failed += 1
+	else:
+		var green := false
+		var pink := false
+		for y in gem.get_height():
+			for x in gem.get_width():
+				var pixel := gem.get_pixel(x, y)
+				if pixel.a < 0.5:
+					continue
+				if pixel.g > pixel.r and pixel.g > pixel.b and pixel.g > 0.6:
+					green = true
+				if pixel.r > 0.7 and pixel.b > 0.7 and pixel.g < 0.5:
+					pink = true
+		if not green or pink:
+			push_error("gem should be the emerald step-cut, not the old pink diamond")
+			failed += 1
+	if coin == null or coin.get_width() != 8 or coin.get_height() != 8:
+		push_error("coin should stay 8x8")
+		failed += 1
+	elif coin.get_pixel(2, 2) != Color("f2fbff"):
+		push_error("coin glint should sit at (2, 2)")
+		failed += 1
+	else:
+		var rim := coin.get_pixel(4, 7)
+		if rim.r < 0.35 or rim.g > rim.r or rim.b > 0.2:
+			push_error("coin rim should be the brown #6b3e26, got %s" % rim)
+			failed += 1
+	var hud_coin := load("res://art/ui/hud_coin_icon.png") as Texture2D
+	if hud_coin == null or hud_coin.get_width() != 10 or hud_coin.get_height() != 10:
+		push_error("HUD coin icon should be the 10x10 loot-fix coin")
+		failed += 1
+	var pickup := LootGem.new()
+	pickup.setup("coin.png")
+	if absf(pickup.bob_offset()) > 0.001:
+		push_error("loot bob should start at 0")
+		failed += 1
+	pickup.age = PI * 0.5 / 4.0
+	if absf(pickup.bob_offset() - 1.0) > 0.001:
+		push_error("loot bob should be sin(t*4), got %s" % pickup.bob_offset())
+		failed += 1
+	pickup.age = 0.0
+	var start := pickup.position
+	pickup.tick(0.25)
+	if pickup.position.x >= start.x - 1.0:
+		push_error("loot should keep drifting left under the bob")
+		failed += 1
+	# The bob is a draw offset. It must not be baked into the drifted position.
+	var drifted := pickup.position.y
+	pickup.age = PI * 0.5 / 4.0
+	if absf(pickup.position.y - drifted) > 0.001 or absf(pickup.bob_offset() - 1.0) > 0.001:
+		push_error("the 1px bob should sit on top of the drift")
+		failed += 1
+	pickup.free()
 	return failed
 
 func _sample(id: int, drag: Vector2, bounds: Rect2, frames: int) -> Vector2:

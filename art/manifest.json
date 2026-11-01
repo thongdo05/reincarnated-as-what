@@ -645,7 +645,8 @@
     "anchor_type": "center",
     "category": "pickup",
     "facing": "none",
-    "note": "Goblin loot: gold coin (also usable for Vending Machine coins)."
+    "note": "Loot fix (Nov 1): round gold coin with slot stamp, white rim top-left + brown rim bottom-right (#6b3e26 replaces off-palette #7a3a12), fixed glint at (2,2).",
+    "batch": "4-loot_fix"
   },
   {
     "file": "gem.png",
@@ -661,7 +662,8 @@
     "anchor_type": "center",
     "category": "pickup",
     "facing": "none",
-    "note": "Goblin loot: pink gem."
+    "note": "Loot fix (Nov 1): emerald green faceted gem, white rim top-left + dark green rim bottom-right, fixed glint at (3,2). Was pink/magenta and read like the Floating Eye bolt.",
+    "batch": "4-loot_fix"
   },
   {
     "file": "death_puff.png",
