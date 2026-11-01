@@ -1,0 +1,98 @@
+name: Web
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A pull request build can be cancelled. A main deploy is left to finish.
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          base="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${base}.zip" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          sudo mv "/tmp/godot/${base}" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz" -o /tmp/templates.tpz
+          unzip -q /tmp/templates.tpz -d /tmp/templates
+          tdir="${HOME}/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$tdir"
+          mv /tmp/templates/templates/* "$tdir/"
+          godot --version
+          test -f "$tdir/web_nothreads_release.zip"
+
+      - name: Headless check
+        run: |
+          set -euo pipefail
+          godot --headless --path . --import --quit
+          godot --headless --path . -s res://tests/smoke.gd
+          log="$(mktemp)"
+          set +e
+          godot --headless --path . --quit-after 240 >"$log" 2>&1
+          code=$?
+          set -e
+          cat "$log"
+          if grep -E "SCRIPT ERROR|Parse Error|ERROR:" "$log"; then
+            echo "Godot reported an error while running the game."
+            exit 1
+          fi
+          test "$code" -eq 0
+
+      - name: Export web
+        run: |
+          set -euo pipefail
+          mkdir -p build/web
+          godot --headless --path . --export-release "Web" build/web/index.html
+          test -f build/web/index.html
+          test -f build/web/index.wasm
+          test -f build/web/index.pck
+          if grep -q "GODOT_THREADS_ENABLED = true" build/web/index.html; then
+            echo "Threaded web export cannot load on GitHub Pages or iOS Safari."
+            exit 1
+          fi
+          grep -q "GODOT_THREADS_ENABLED = false" build/web/index.html
+          touch build/web/.nojekyll
+
+      - name: Configure Pages
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: build/web
+          include-hidden-files: true
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
