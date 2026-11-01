@@ -79,9 +79,7 @@ var _death_audio_stage := ""
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	day_seed = DailyRun.date_seed()
-	run_index = DailyRun.consume_run_index()
-	form_id = FormCatalog.id_for_run(day_seed, run_index)
+	CaptureMode.boot(self)
 	_director = SpawnDirector.new(day_seed)
 	_sound = SoundRig.new()
 	_sound.name = "SoundRig"
@@ -92,8 +90,11 @@ func _ready() -> void:
 	_sound.start_gameplay_music()
 	_build_world()
 	_build_hud()
-	_sound.play_title_card(FormCatalog.title_card(form_id))
-	print("Reincarnated as %s (seed %d, run %d)" % [FormCatalog.display_name(form_id), day_seed, run_index])
+	CaptureMode.finish_boot(self)
+	_sound.play_title_card(CaptureMode.title_card(form_id))
+	print("Reincarnated as %s (seed %d, run %d)" % [CaptureMode.announce_name(form_id), day_seed, run_index])
+	if CaptureMode.is_active():
+		print(CaptureMode.summary())
 
 func _build_world() -> void:
 	var size := _viewport_size()
@@ -159,7 +160,7 @@ func _build_hud() -> void:
 	_title_card = TextureRect.new()
 	_title_card.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_title_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_title_card.texture = ArtLibrary.texture(FormCatalog.title_card(form_id))
+	_title_card.texture = ArtLibrary.texture(CaptureMode.title_card(form_id))
 	_title_card.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_title_card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_title_card.stretch_mode = TextureRect.STRETCH_SCALE
@@ -390,6 +391,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _is_gesture(event) and _sound != null:
 		_sound.unlock_from_gesture()
 	if event is InputEventKey and event.pressed and not event.echo:
+		if CaptureMode.eat_key(self, event.keycode):
+			return
 		if event.keycode == KEY_H:
 			HitLibrary.show = not HitLibrary.show
 			_redraw_hitboxes()
@@ -499,6 +502,8 @@ func _process(delta: float) -> void:
 	_combat.tick(delta)
 	_tick_effects(delta)
 	if phase == PHASE_REVEAL:
+		if CaptureMode.holding():
+			return
 		reveal_elapsed += delta
 		_animate_title_card()
 		_skip_label.text = "Tap to skip" if reveal_elapsed > 0.35 else ""
@@ -523,6 +528,8 @@ func _animate_title_card() -> void:
 
 func _begin_play() -> void:
 	if phase != PHASE_REVEAL:
+		return
+	if CaptureMode.block_play(self):
 		return
 	phase = PHASE_PLAY
 	invuln = INVULN_SECONDS
@@ -552,6 +559,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		for spec in FormCatalog.player_shots(form_id, _player.position, rank_index):
 			_spawn_shot(spec, true)
 		_player.did_fire(interval)
+	CaptureMode.tick_play(self, delta)
 	for event in _director.pop_due(elapsed):
 		_spawn_enemy(event, size)
 	var player_pos := _player.position
@@ -684,10 +692,13 @@ func _graze_gap(hazard: Object, separation: float) -> void:
 	_spawn_fx("graze_sparkle.png", at, 0.34, 0.45, 1.45)
 
 func _hurt_player(killer: String) -> void:
+	if CaptureMode.ignore_hit(self, killer):
+		return
 	if phase != PHASE_PLAY or not _player.alive:
 		return
 	# Slime trait only. A small Slime falls through to the one death of the run.
-	if _player.absorb_lethal_hit():
+	# A capture piano is the death the clip is there to record, so it is not spent on the split.
+	if not CaptureMode.bypass_split(killer) and _player.absorb_lethal_hit():
 		invuln = maxf(invuln, SPLIT_IFRAMES)
 		_player.invulnerable = true
 		_combat.push("SPLIT!", _player.position + Vector2(-28, -24), Color("1a4f9c"))
@@ -783,6 +794,8 @@ func _present_death() -> void:
 	if _tease != null:
 		_tease.visible = stage == "tease" and not game_over_visible
 	if stage == "card" and not game_over_visible:
+		if CaptureMode.continue_after_death(self):
+			return
 		_show_game_over()
 
 func _show_game_over() -> void:
@@ -796,7 +809,7 @@ func _show_game_over() -> void:
 	var form_name := FormCatalog.display_name(form_id)
 	var reached_rank := FormCatalog.rank_name(form_id, rank_index)
 	_share_label.text = ScoreRules.share_line(form_name, reached_rank, elapsed, killer_name, score)
-	var saved := BestScores.record(form_name, score)
+	var saved := CaptureMode.record_score(form_name, score)
 	_best_label.text = "Best as %s: %s / Best overall: %s" % [
 		form_name,
 		ScoreRules.format_score(int(saved["form"])),
@@ -907,6 +920,9 @@ func _bank_survival(delta: float) -> void:
 func _refresh_debug() -> void:
 	if _debug_label == null:
 		return
+	if CaptureMode.hides_overlay():
+		_debug_on = false
+		HitLibrary.show = false
 	_debug_label.visible = _debug_on
 	if not _debug_on:
 		return
