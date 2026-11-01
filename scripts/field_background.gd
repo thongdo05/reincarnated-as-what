@@ -17,11 +17,11 @@ const NEAR_FACTOR := 0.6
 ## 0.6 of this base is the previous near speed, 28 px/s.
 const SCROLL_BASE := 28.0 / NEAR_FACTOR
 
-## Decks wide enough for the 28px archer. Feet y is the top of the grass.
-## The two higher islands are too narrow and too high for a 44px archer.
+## Decks on the redrawn far layer that hold the 28×44 archer.
+## Feet y is the top grass row. The high right island would clip the skull.
 const ISLANDS: Array[Vector2] = [
-	Vector2(81, 69),
-	Vector2(358, 79),
+	Vector2(63, 43),
+	Vector2(227, 59),
 ]
 
 var field_size := Vector2(TILE_W, TILE_H)

@@ -16,6 +16,7 @@ func _initialize() -> void:
 	_unit_failed += _check_idle()
 	_unit_failed += _check_parallax()
 	_unit_failed += _check_titles()
+	_unit_failed += _check_facing()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -367,6 +368,63 @@ func _check_titles() -> int:
 			failed += 1
 	if FormCatalog.title_card(FormCatalog.Id.SLIME) == FormCatalog.title_card(FormCatalog.Id.GOBLIN):
 		push_error("slime and goblin should reveal different cards")
+		failed += 1
+	return failed
+
+func _check_facing() -> int:
+	var failed := 0
+	var text := FileAccess.get_file_as_string("res://art/manifest.json")
+	var parsed: Variant = JSON.parse_string(text)
+	for item in parsed:
+		var entry: Dictionary = item
+		var category := str(entry.get("category", ""))
+		var facing := str(entry.get("facing", ""))
+		var file_name := str(entry["file"])
+		if category == "enemy" and facing != "left":
+			push_error("%s should face left and stay unflipped" % file_name)
+			failed += 1
+		if (category == "player_form" or category == "player_form_split") and facing != "right":
+			push_error("%s should face right" % file_name)
+			failed += 1
+	for shot_name in ["arrow.png", "floating_eye_bolt.png", "wyvern_shot.png"]:
+		if str(ArtLibrary.entry(shot_name).get("facing", "")) != "left":
+			push_error("%s should face left" % shot_name)
+			failed += 1
+	var anchor := ArtLibrary.anchor("skeleton_archer.png")
+	var size: Array = ArtLibrary.entry("skeleton_archer.png")["size"]
+	if absf(anchor.y - float(size[1])) > 0.5:
+		push_error("the archer anchor should stay on its feet")
+		failed += 1
+	var far := ArtLibrary.texture("bg_far.png").get_image()
+	if far == null:
+		push_error("far layer did not decode")
+		return failed + 1
+	for island in FieldBackground.ISLANDS:
+		var x := int(island.x)
+		var y := int(island.y)
+		if y < 40:
+			push_error("island %s clips a 44px archer" % str(island))
+			failed += 1
+		var grass := far.get_pixel(x, y)
+		if grass.a < 0.5 or grass.g <= grass.r or grass.g <= grass.b:
+			push_error("archer feet missed the grass at %s (%s)" % [str(island), str(grass)])
+			failed += 1
+		var left := x
+		while left > 0 and far.get_pixel(left - 1, y).a > 0.4:
+			left -= 1
+		var right := x
+		while right < far.get_width() - 1 and far.get_pixel(right + 1, y).a > 0.4:
+			right += 1
+		if right - left + 1 < 28:
+			push_error("island %s is narrower than the archer" % str(island))
+			failed += 1
+	var near := ArtLibrary.texture("bg_near.png").get_image()
+	var solid := 0
+	for sample_x in range(0, 480, 8):
+		if near.get_pixel(sample_x, int(FieldBackground.GROUND_FEET)).a > 0.8:
+			solid += 1
+	if solid < 50:
+		push_error("ground feet should sit in the near-layer grass")
 		failed += 1
 	return failed
 
