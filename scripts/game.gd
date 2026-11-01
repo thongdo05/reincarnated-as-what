@@ -80,6 +80,11 @@ var _audio_blocked_icon: Control
 var _death_audio_stage := ""
 
 func _ready() -> void:
+	# Experimental modes leave this boot untouched unless their flag is set.
+	# Hop (?mode=hop / --mode=hop) swaps the scene and returns.
+	# Flappy stays on this scene and attaches later in this boot, only when hop did not.
+	if HopMode.redirect(self):
+		return
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	# Touch drags stay raw. Accumulated motion would smooth the finger and
 	# add a frame before the body can follow.
