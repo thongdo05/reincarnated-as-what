@@ -7,9 +7,11 @@ var sheet := ""
 var sheet_time := 0.0
 var anchor_at := Vector2.ZERO
 var playing := false
+## Rank 4 uses a smaller EVOLVED! pop. Rank 5 draws FINAL FORM! instead.
+var pop_scale := 1.0
 
-func play(t: float) -> void:
-	var stage := FxTimeline.evolve_stage(t)
+func play(t: float, hold: float = -1.0) -> void:
+	var stage := FxTimeline.evolve_stage(t, hold if hold >= 0.0 else FxTimeline.EVOLVE_HOLD)
 	playing = stage != "done" and stage != "none"
 	visible = playing
 	if not playing:
@@ -32,5 +34,10 @@ func play(t: float) -> void:
 
 func _draw() -> void:
 	if not playing or sheet.is_empty():
+		return
+	if sheet == "fx/fx_evolved_pop.png" and absf(pop_scale - 1.0) > 0.01:
+		draw_set_transform(anchor_at, 0.0, Vector2(pop_scale, pop_scale))
+		ArtLibrary.draw_loop(self, sheet, sheet_time, Vector2.ZERO)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
 	ArtLibrary.draw_loop(self, sheet, sheet_time, anchor_at)

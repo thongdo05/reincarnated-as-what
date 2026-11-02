@@ -18,6 +18,7 @@ static var show := false
 static var _data: Dictionary = {}
 static var _ready := false
 static var _warned := {}
+static var _derived: Dictionary = {}
 
 static func _ensure() -> void:
 	if _ready:
@@ -180,8 +181,122 @@ static func _parts_scaled(file_name: String, role: String, scale: float) -> Arra
 		scaled.append(copy)
 	return scaled
 
+## Vending and the batch-6 bodies have no hand-authored circles. The hurt
+## shape is fit to the loaded pixels, so a smaller Vending PNG updates the
+## hitbox without a new table. Aura files are not hurt sources.
+static func _wants_derived_hurt(file_name: String) -> bool:
+	if file_name.ends_with("_aura.png"):
+		return false
+	if file_name.begins_with("vending_machine_"):
+		return true
+	if file_name.ends_with("_body.png"):
+		return true
+	if file_name.begins_with("slime_small_r4") or file_name.begins_with("slime_small_r5"):
+		return true
+	return false
+
+static func _derived_hurt(file_name: String) -> Array:
+	if _derived.has(file_name):
+		return _derived[file_name]
+	var parts: Array = _fit_hurt(file_name)
+	_derived[file_name] = parts
+	return parts
+
+static func _fit_hurt(file_name: String) -> Array:
+	var tex := ArtLibrary.texture(file_name)
+	if tex == null:
+		return []
+	var image := tex.get_image()
+	if image == null or image.is_empty():
+		return []
+	var anchor := ArtLibrary.anchor(file_name)
+	var pts: Array[Vector2] = []
+	var occ := {}
+	for y in image.get_height():
+		for x in image.get_width():
+			var color := image.get_pixel(x, y)
+			if color.a < 0.5:
+				continue
+			if color.r8 == 20 and color.g8 == 18 and color.b8 == 31:
+				continue
+			var point := Vector2(float(x), float(y)) - anchor + Vector2(0.5, 0.5)
+			pts.append(point)
+			occ[Vector2i(int(floor(point.x)), int(floor(point.y)))] = true
+	if pts.is_empty():
+		return []
+	var head := pts[0]
+	var foot := pts[0]
+	for point in pts:
+		if point.y < head.y or (is_equal_approx(point.y, head.y) and absf(point.x) < absf(head.x)):
+			head = point
+		if point.y > foot.y or (is_equal_approx(point.y, foot.y) and absf(point.x) < absf(foot.x)):
+			foot = point
+	var sky := head + Vector2(0.0, -4.0)
+	var remaining: Array[Vector2] = pts.duplicate()
+	var circles: Array[Dictionary] = []
+	var guard := 0
+	while not remaining.is_empty() and guard < 80:
+		guard += 1
+		var step := maxi(int(remaining.size() / 40), 1)
+		var best := remaining[0]
+		var best_r := -1.0
+		var i := 0
+		while i < remaining.size():
+			var candidate: Vector2 = remaining[i]
+			var radius := _inscribed(candidate, occ, sky)
+			if radius > best_r:
+				best_r = radius
+				best = candidate
+			i += step
+		var placed := best_r
+		if placed < 0.8:
+			placed = 1.25
+			best = remaining[0]
+		else:
+			placed = minf(placed, best.distance_to(sky) - 0.2)
+			placed = maxf(placed, 1.05)
+		circles.append({"type": "circle", "center": best, "r": placed})
+		var reach := placed + 1.02
+		var next: Array[Vector2] = []
+		for point in remaining:
+			if point.distance_to(best) > reach:
+				next.append(point)
+		remaining = next
+	# Every pixel on the top row and the bottom row has to sit inside the
+	# shape, not merely within a pixel of it. A 1.2 circle on that pixel
+	# does not reach the empty space four pixels above the head.
+	for point in pts:
+		if not is_equal_approx(point.y, head.y) and not is_equal_approx(point.y, foot.y):
+			continue
+		var gap := 9999.0
+		for circle in circles:
+			gap = minf(gap, point.distance_to(circle["center"]) - float(circle["r"]))
+		if gap > 0.0:
+			circles.append({"type": "circle", "center": point, "r": 1.2})
+	return circles
+
+static func _inscribed(center: Vector2, occ: Dictionary, sky: Vector2) -> float:
+	var step := 1
+	while step < 40:
+		var rad := float(step) * 0.5
+		var ok := true
+		for k in 16:
+			var ang := float(k) / 16.0 * TAU
+			var probe := center + Vector2(cos(ang), sin(ang)) * rad
+			if not occ.has(Vector2i(int(floor(probe.x)), int(floor(probe.y)))):
+				ok = false
+				break
+		if not ok:
+			return maxf(0.4, rad - 0.5)
+		if center.distance_to(sky) <= rad:
+			return maxf(0.4, rad - 0.15)
+		step += 1
+	return 8.0
+
 static func _parts(file_name: String, role: String) -> Array:
 	_ensure()
+	if role == "hurt" and _wants_derived_hurt(file_name):
+		return _derived_hurt(file_name)
 	var found := entry(file_name)
 	var raw: Variant = found.get(role, [])
 	if typeof(raw) != TYPE_ARRAY or (raw as Array).is_empty():

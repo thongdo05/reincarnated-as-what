@@ -136,10 +136,13 @@ func _check_forms() -> int:
 	if goblin_trait.find("score and evolution points") < 0:
 		push_error("goblin trait should describe loot as score and evolution points")
 		failed += 1
-	if FormCatalog.next_rank_text(2, Difficulty.GATE_RANK3) != "FINAL FORM":
-		push_error("rank 3 pause card should read FINAL FORM")
+	if FormCatalog.next_rank_text(4, Difficulty.GATE_RANK5) != "FINAL FORM":
+		push_error("rank 5 pause card should read FINAL FORM")
 		failed += 1
-	if FormCatalog.card_heading(FormCatalog.Id.SLIME, 1) != "SLIME, Gel Knight (rank 2/3)":
+	if FormCatalog.next_rank_text(2, Difficulty.GATE_RANK3).find("FINAL FORM") >= 0:
+		push_error("rank 3 should still have two ranks above it")
+		failed += 1
+	if FormCatalog.card_heading(FormCatalog.Id.SLIME, 1) != "SLIME, Gel Knight (rank 2/5)":
 		push_error("pause heading should name the form and the rank, got %s" % FormCatalog.card_heading(FormCatalog.Id.SLIME, 1))
 		failed += 1
 	if FormCatalog.core_radius(FormCatalog.Id.SLIME, 0, false) <= FormCatalog.core_radius(FormCatalog.Id.GOBLIN, 0, false):
@@ -180,7 +183,7 @@ func _check_forms() -> int:
 	if FormCatalog.demon_damage(0, 6) <= FormCatalog.demon_damage(0, 0):
 		push_error("demon damage should rise with the crowd")
 		failed += 1
-	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("cans") < 0 or FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("No burst") < 0:
+	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("cans") < 0 or FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("WINNER!") < 0:
 		push_error("vending weapon line should name the cans and no burst")
 		failed += 1
 	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("WINNER!") < 0:
@@ -192,7 +195,7 @@ func _check_forms() -> int:
 	if FormCatalog.trait_line(FormCatalog.Id.DEMON, true).find("enemies") < 0:
 		push_error("demon trait should scale with enemies on screen")
 		failed += 1
-	if FormCatalog.card_heading(FormCatalog.Id.CAT, 0) != "CAT, Cat (ex-CEO) (rank 1/3)":
+	if FormCatalog.card_heading(FormCatalog.Id.CAT, 0) != "CAT, Cat (ex-CEO) (rank 1/5)":
 		push_error("cat pause heading should name the form and the rank, got %s" % FormCatalog.card_heading(FormCatalog.Id.CAT, 0))
 		failed += 1
 	var today := DailyRun.date_seed()
@@ -247,25 +250,23 @@ func _check_spawns() -> int:
 	if float(slow[0]["t"]) > 1.0:
 		push_error("the first enemy should arrive within 1 s, got %s" % str(slow[0]["t"]))
 		return 1
-	var at_20 := Difficulty.spawn_interval(20.0)
-	if absf(at_20 - Difficulty.SPAWN_INTERVAL_AT_20) > 0.02:
-		push_error("spawn interval at 20 s should still match the old opening, got %s" % at_20)
+	var at_10 := Difficulty.spawn_interval(10.0)
+	var opening_spawn := lerpf(Difficulty.SPAWN_INTERVAL_START, Difficulty.SPAWN_INTERVAL_AT_20, 10.0 / Difficulty.SPAWN_EASE_SECONDS)
+	if absf(at_10 - opening_spawn) > 0.001:
+		push_error("the first 10 s of spawns should stay on the old opening, got %s" % at_10)
 		return 1
-	var at_50 := Difficulty.spawn_interval(50.0)
-	if absf(at_50 - Difficulty.SPAWN_INTERVAL_AT_50) > 0.02 or at_50 >= at_20:
-		push_error("spawn interval should drop faster after 20 s, got %s" % at_50)
+	var opening_speed := lerpf(1.0, Difficulty.SPEED_AT_20, 10.0 / Difficulty.SPEED_EASE_SECONDS)
+	if absf(Difficulty.speed_scale(10.0) - opening_speed) > 0.001:
+		push_error("the first 10 s of speed should stay on the old opening, got %s" % Difficulty.speed_scale(10.0))
 		return 1
-	if absf(Difficulty.speed_scale(20.0) - Difficulty.SPEED_AT_20) > 0.02:
-		push_error("speed at 20 s should still be 1.2x")
+	if Difficulty.spawn_interval(20.0) >= at_10 or Difficulty.speed_scale(20.0) <= Difficulty.speed_scale(10.0):
+		push_error("after 10 s the field should already be harder than the opening")
 		return 1
-	if absf(Difficulty.speed_scale(50.0) - Difficulty.SPEED_AT_50) > 0.02 or Difficulty.speed_scale(50.0) <= Difficulty.speed_scale(20.0):
-		push_error("shot speed should climb faster after 20 s")
+	if Difficulty.spawn_interval(180.0) > Difficulty.SPAWN_EXTREME + 0.001:
+		push_error("spawns should be at the 3:00 extreme, got %s" % Difficulty.spawn_interval(180.0))
 		return 1
-	if absf(Difficulty.scroll_scale(45.0) - Difficulty.SCROLL_AT_45) > 0.02:
-		push_error("scroll at 45 s should be about 1.3x")
-		return 1
-	if Difficulty.speed_scale(120.0) > Difficulty.SPEED_CAP + 0.001 or Difficulty.spawn_interval(120.0) < Difficulty.SPAWN_INTERVAL_FLOOR - 0.001:
-		push_error("the ramp after 50 s should stay inside the cap")
+	if Difficulty.speed_scale(180.0) + 0.001 < Difficulty.SPEED_EXTREME:
+		push_error("speed should be at the 3:00 extreme, got %s" % Difficulty.speed_scale(180.0))
 		return 1
 	var paired := false
 	var seen := {}
@@ -289,20 +290,20 @@ func _check_spawns() -> int:
 	if ScoreRules.graze_points(0) != Difficulty.GRAZE_BASE or ScoreRules.graze_points(1) <= ScoreRules.graze_points(0):
 		push_error("a near-miss at rank 2 should be worth more than one at the start")
 		return 1
-	if Difficulty.spawn_interval(60.0) > Difficulty.spawn_interval(20.0):
-		push_error("spawns should still be tightening at the one-minute ceiling")
+	if Difficulty.spawn_interval(60.0) >= Difficulty.spawn_interval(20.0) or Difficulty.spawn_interval(180.0) >= Difficulty.spawn_interval(60.0):
+		push_error("spawns should keep tightening from 20 s through 3:00")
 		return 1
-	if Difficulty.spawn_interval(180.0) + 0.001 < Difficulty.SPAWN_INTERVAL_FLOOR:
-		push_error("the late creep dropped through the spawn floor")
+	if Difficulty.speed_scale(180.0) <= Difficulty.speed_scale(60.0):
+		push_error("speed should still be climbing at 3:00")
 		return 1
-	if Difficulty.spawn_interval(60.0) - Difficulty.spawn_interval(180.0) > 0.05:
-		push_error("after a minute the spawn rate should only creep")
+	if Difficulty.spawn_interval(180.0) - Difficulty.spawn_interval(240.0) > 0.03:
+		push_error("after 3:00 the spawn rate should only creep")
 		return 1
-	if Difficulty.speed_scale(180.0) > Difficulty.SPEED_CAP + 0.001:
-		push_error("the late creep broke the speed cap")
+	if Difficulty.speed_scale(240.0) - Difficulty.speed_scale(180.0) > 0.12:
+		push_error("after 3:00 speed should only creep")
 		return 1
-	if Difficulty.speed_scale(180.0) - Difficulty.speed_scale(60.0) > 0.2:
-		push_error("after a minute speed should only creep")
+	if Difficulty.spawn_interval(240.0) > Difficulty.spawn_interval(180.0) + 0.001:
+		push_error("the hold after 3:00 should not get easier")
 		return 1
 	if Difficulty.telegraph_for(90.0) < 0.15 or Difficulty.telegraph_for(400.0) < 0.15:
 		push_error("aimed shots need a visible warning before they exist")
@@ -319,14 +320,14 @@ func _check_pattern_gap() -> int:
 		shot_h = maxf(shot_h, HitLibrary.vertical_extent(sprite, "threat"))
 	var anchor_floor := 232.0
 	for id in FormCatalog.IDS:
-		for rank in 3:
+		for rank in 5:
 			var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
 			var hurt := HitLibrary.vertical_extent(file, "hurt")
 			var span := HitLibrary.vertical_span(file, "hurt")
 			var radius := HitLibrary.bounds_radius(file, "hurt")
 			var anchor_min := 10.0 + radius
 			var anchor_max := anchor_floor - radius
-			for elapsed in [60.0, 90.0, 150.0, 240.0]:
+			for elapsed in [10.0, 60.0, 120.0, 180.0, 210.0, 240.0]:
 				for player_y in [50.0, 90.0, 130.0, 170.0, 200.0]:
 					var plan: Dictionary = Difficulty.build_rake(elapsed, player_y, hurt)
 					var lane_top := float(plan["lane_top"])
@@ -346,11 +347,11 @@ func _check_pattern_gap() -> int:
 					if hi - lo < 4.0:
 						push_error("%s cannot sit in the rake lane (room %.1f)" % [file, hi - lo])
 						failed += 1
-	for elapsed in [40.0, 90.0, 180.0]:
+	for elapsed in [10.0, 40.0, 90.0, 180.0, 240.0]:
 		var spacing := Difficulty.fan_min_spacing(elapsed)
 		var open := spacing - shot_h
 		for id in FormCatalog.IDS:
-			for rank in 3:
+			for rank in 5:
 				var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
 				var hurt := HitLibrary.vertical_extent(file, "hurt")
 				if open <= hurt:
@@ -428,8 +429,8 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 
 func _check_art() -> int:
 	var failed := 0
-	if ArtLibrary.file_count() != 128:
-		push_error("art manifest should have 128 entries, found %d" % ArtLibrary.file_count())
+	if ArtLibrary.file_count() != 162:
+		push_error("art manifest should have 162 entries, found %d" % ArtLibrary.file_count())
 		failed += 1
 	var text := FileAccess.get_file_as_string("res://art/manifest.json")
 	var parsed: Variant = JSON.parse_string(text)
@@ -502,7 +503,7 @@ func _check_art() -> int:
 		push_error("slime's hitbox should stay larger than the goblin's")
 		failed += 1
 	var kept := ArtLibrary.radius_for("vending_machine_r1.png", 0.62)
-	var from_old := 0.62 * (23.0 + 40.0) * 0.25
+	var from_old := 0.62 * (17.0 + 31.0) * 0.25
 	if absf(kept - from_old) > 0.01:
 		push_error("a radius taken from art_bbox should stay on the pre-ring box")
 		failed += 1
@@ -559,7 +560,7 @@ func _check_idle() -> int:
 	for file_name in static_by_file:
 		var entry: Dictionary = static_by_file[file_name]
 		var category := str(entry.get("category", ""))
-		var wants_idle := category == "player_form" or category == "player_form_split" or category == "enemy"
+		var wants_idle := (category == "player_form" or category == "player_form_split" or category == "enemy") and bool(entry.get("idle", true))
 		var idle := ArtLibrary.loop_file(file_name)
 		if wants_idle and idle == file_name:
 			push_error("%s should play an idle sheet" % file_name)
@@ -894,7 +895,7 @@ func _check_shapes() -> int:
 		failed += 1
 	var prev_slime := 0.0
 	var prev_goblin := 0.0
-	for rank in 3:
+	for rank in 5:
 		var slime_file := str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, rank)["sprite"])
 		var goblin_file := str(FormCatalog.rank_spec(FormCatalog.Id.GOBLIN, rank)["sprite"])
 		var small_file := str(FormCatalog.rank_spec(FormCatalog.Id.SLIME, rank)["sprite_small"])
@@ -904,11 +905,14 @@ func _check_shapes() -> int:
 		if slime_r <= goblin_r:
 			push_error("the slime body should stay a bigger target than the goblin")
 			failed += 1
-		if rank > 0 and (slime_r <= prev_slime or goblin_r <= prev_goblin):
+		if rank > 0 and rank < 3 and (slime_r <= prev_slime or goblin_r <= prev_goblin):
 			push_error("hurt shapes should grow with rank")
 			failed += 1
-		if rank > 0 and (slime_r > prev_slime * 1.35 or goblin_r > prev_goblin * 1.35):
+		if rank > 0 and rank < 3 and (slime_r > prev_slime * 1.35 or goblin_r > prev_goblin * 1.35):
 			push_error("hurt shapes grew more than a modest step")
+			failed += 1
+		if rank == 4 and (absf(slime_r - prev_slime) > 0.75 or absf(goblin_r - prev_goblin) > 0.75):
+			push_error("rank 5 should keep the rank 4 body silhouette")
 			failed += 1
 		if small_r >= slime_r:
 			push_error("the split slime hurt shape should be smaller")
@@ -919,7 +923,7 @@ func _check_shapes() -> int:
 		prev_slime = slime_r
 		prev_goblin = goblin_r
 	for id in [FormCatalog.Id.VENDING, FormCatalog.Id.CAT, FormCatalog.Id.DEMON]:
-		for rank in 3:
+		for rank in 5:
 			failed += _check_body_cover(str(FormCatalog.rank_spec(id, rank)["sprite"]))
 	if not HitLibrary.has_role("cat_swipe.png", "body"):
 		push_error("the cat swipe needs a body shape so it can meet bullets")
@@ -1791,8 +1795,14 @@ func _check_hud() -> int:
 	if HudLayout.fill_px(gate_rank2, 1) != 0 or HudLayout.fill_px(half_rank3, 1) != 32:
 		push_error("rank 2 meter should reset at the gate and reach half between the gates, got %d %d" % [HudLayout.fill_px(gate_rank2, 1), HudLayout.fill_px(half_rank3, 1)])
 		failed += 1
-	if HudLayout.fill_px(gate_rank3, 2) != 64 or HudLayout.fill_px(gate_rank3 + 4000, 2) != 64:
-		push_error("rank 3 meter should stay full")
+	if HudLayout.fill_px(gate_rank3, 2) != 0:
+		push_error("rank 3 meter should restart at its gate, got %d" % HudLayout.fill_px(gate_rank3, 2))
+		failed += 1
+	if HudLayout.fill_px(Difficulty.GATE_RANK5, 4) != 64 or HudLayout.fill_px(Difficulty.GATE_RANK5 + 4000, 4) != 64:
+		push_error("rank 5 meter should stay full")
+		failed += 1
+	if HudLayout.meter_file(4) != "ui/hud_evo_meter_rank5_empty.png":
+		push_error("rank 5 should use the five-pip meter")
 		failed += 1
 	if HudLayout.meter_file(0) != "ui/hud_evo_meter_rank1_empty.png" or HudLayout.meter_file(2) != "ui/hud_evo_meter_rank3_empty.png":
 		push_error("meter frame should follow the rank")
@@ -1872,7 +1882,7 @@ func _check_death_sequence() -> int:
 	if FxTimeline.pop_file(Vector2(24, 24)) != "fx/fx_death_pop_s.png" or FxTimeline.pop_file(Vector2(34, 34)) != "fx/fx_death_pop_s.png":
 		push_error("forms up to 34 px should pop small")
 		failed += 1
-	if FxTimeline.pop_file(Vector2(35, 34)) != "fx/fx_death_pop_l.png" or FxTimeline.pop_file(Vector2(40, 48)) != "fx/fx_death_pop_l.png":
+	if FxTimeline.pop_file(Vector2(35, 34)) != "fx/fx_death_pop_s.png" or FxTimeline.pop_file(Vector2(37, 34)) != "fx/fx_death_pop_l.png" or FxTimeline.pop_file(Vector2(40, 48)) != "fx/fx_death_pop_l.png":
 		push_error("big forms should pop large")
 		failed += 1
 	if FxTimeline.pop_file(ArtLibrary.art_bbox("slime_r3.png")) != "fx/fx_death_pop_s.png":
@@ -1885,7 +1895,7 @@ func _check_death_sequence() -> int:
 	if FxTimeline.pop_file(Vector2(float(cat_size[0]), float(cat_size[1]))) != "fx/fx_death_pop_s.png":
 		push_error("cat r3 frame size should still pop small")
 		failed += 1
-	for crowned in ["goblin_r1.png", "goblin_r2.png", "goblin_r3.png", "cat_r3.png", "demon_lord_r3.png", "slime_r3.png", "slime_small_r3.png"]:
+	for crowned in ["goblin_r1.png", "goblin_r2.png", "goblin_r3.png", "goblin_r5_body.png", "cat_r3.png", "cat_r5_body.png", "demon_lord_r3.png", "demon_lord_r5_body.png", "slime_r3.png", "slime_r4_body.png", "slime_small_r3.png", "slime_small_r5.png"]:
 		if not FxTimeline.wears_crown(crowned):
 			push_error("%s should fly a crown" % crowned)
 			failed += 1
@@ -2097,21 +2107,27 @@ func _check_evolve_play() -> int:
 	final_run.process_mode = Node.PROCESS_MODE_DISABLED
 	root.add_child(final_run)
 	final_run._begin_play()
-	final_run._player.set_rank(1)
-	final_run.rank_index = 1
-	final_run.evo_points = int(FormCatalog.rank_gates()[1]) - 1
+	final_run._player.set_rank(3)
+	final_run.rank_index = 3
+	final_run.evo_points = int(FormCatalog.rank_gates()[3]) - 1
 	final_run._gain_skill(1)
-	if int(final_run.rank_index) != 2 or not final_run._player.evolve_final:
-		push_error("the second gate should open the final evolve")
+	if int(final_run.rank_index) != 4 or not final_run._player.evolve_final:
+		push_error("the last gate should open the final evolve")
+		failed += 1
+	if Difficulty.FINAL_SLOWMO_SECONDS < 0.5 or Difficulty.FINAL_SLOWMO_SECONDS > 0.8:
+		push_error("final form slow-mo should last about 0.5 to 0.8 s")
 		failed += 1
 	if absf(final_run._slow_left - Difficulty.FINAL_SLOWMO_SECONDS) > 0.001 or absf(Difficulty.FINAL_SLOWMO_SCALE - 0.4) > 0.001:
-		push_error("rank 3 should slow to 0.4x for about 0.3 s")
+		push_error("rank 5 should slow to 0.4x")
+		failed += 1
+	if final_run._final_flash <= 0.0:
+		push_error("rank 5 should flash the screen")
 		failed += 1
 	if final_run._shake_left <= 0.0 or absf(final_run._sound.last_gain_db - Difficulty.FINAL_STING_DB) > 0.01:
-		push_error("rank 3 should shake and play the evolve sting louder")
+		push_error("rank 5 should shake and play the evolve sting louder")
 		failed += 1
 	if absf(final_run._player.evolve_hold - Difficulty.FINAL_HOLD) > 0.001 or Difficulty.FINAL_HOLD <= FxTimeline.EVOLVE_HOLD:
-		push_error("rank 3 should hold FINAL FORM! longer than a normal evolve")
+		push_error("rank 5 should hold FINAL FORM! longer than a normal evolve")
 		failed += 1
 	root.remove_child(final_run)
 	final_run.free()

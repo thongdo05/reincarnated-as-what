@@ -22,11 +22,11 @@ const RANK_COLOR := Color("ffbcea")
 const COIN_COLOR := Color("ffd84a")
 
 static func meter_file(rank_index: int) -> String:
-	var shown := clampi(rank_index, 0, 2) + 1
+	var shown := clampi(rank_index, 0, 4) + 1
 	return "ui/hud_evo_meter_rank%d_empty.png" % shown
 
 ## Width of the 64px fill, clipped by progress from this rank to the next.
-## Rank 3 has no next gate, so the bar stays full.
+## Rank 5 has no next gate, so the bar stays full.
 static func fill_px(points: int, rank_index: int) -> int:
 	var nxt := FormCatalog.gate_for_next_rank(rank_index)
 	if nxt < 0:

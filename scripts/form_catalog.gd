@@ -31,7 +31,7 @@ const SNAP_ARRIVE := 110.0
 const SNAP_MAX_SPEED := 22000.0
 ## Vending closes about 45% of the gap per frame. A flick still lands inside
 ## 8 frames, and the first frame of a drag already moves. No overshoot.
-const VENDING_ARRIVE := 68.0
+const VENDING_ARRIVE := 62.0
 const VENDING_MAX_SPEED := 400.0
 ## Kills, not coins. A full meter is the only WINNER! in the game.
 const VENDING_WINNER_KILLS := 6
@@ -48,7 +48,7 @@ const CAT_CHARM_TIME := 1.55
 const CAT_CHARM_RADIUS := 92.0
 const CAT_CHARM_MAX := 2
 
-## Every Goblin balance number. Rank arrays are rank 1, rank 2, rank 3.
+## Every Goblin balance number. Rank arrays are rank 1 through rank 5.
 ## Movement, stones, and loot all read this table.
 ## Before this pass: fire_interval [0.48, 0.36, 0.28], shot_speed 780, gravity 170,
 ## spread [±110], [±150, ±50], [±180, ±90, 0], damage 1, pierce 0,
@@ -58,16 +58,20 @@ const CAT_CHARM_MAX := 2
 ## measured and left at 0: it inflated score past the bot band without being
 ## what closed the survival gap.
 const GOBLIN := {
-	"fire_interval": [0.30, 0.24, 0.20],
+	"fire_interval": [0.30, 0.24, 0.20, 0.16, 0.13],
 	"shot_speed": 780.0,
 	"gravity": 170.0,
 	"spread": [
 		[-110.0, 0.0, 110.0],
 		[-170.0, -56.0, 56.0, 170.0],
 		[-200.0, -100.0, 0.0, 100.0, 200.0],
+		[-220.0, -110.0, 0.0, 110.0, 220.0],
+		[-230.0, -138.0, -46.0, 46.0, 138.0, 230.0],
 	],
 	"damage": 2,
+	"damage_by_rank": [2, 2, 2, 3, 3],
 	"pierce": 1,
+	"pierce_by_rank": [1, 1, 1, 2, 2],
 	"max_speed": 560.0,
 	"stride": 0.32,
 	"sprint_fraction": 0.70,
@@ -77,21 +81,32 @@ const GOBLIN := {
 }
 
 ## Three forward cans. Spread is degrees off the forward axis, +y down.
-## Rank 1 is slow enough that the heavy body is the tax. Rank 3 hits harder.
+## Rank 1 is slow enough that the heavy body is the tax. Later ranks hit
+## harder and the WINNER! meter pays out more often, and for more points.
+## The body is the smaller batch-6 art, so the drift is a little heavier
+## than the old large machine, to keep survival in line with the other forms.
 const VENDING := {
-	"fire_interval": [0.24, 0.20, 0.16],
-	"shot_speed": [520.0, 580.0, 640.0],
-	"damage": [1, 1, 2],
-	"spread_deg": [16.0, 18.0, 20.0],
+	"fire_interval": [0.24, 0.20, 0.16, 0.135, 0.115],
+	"shot_speed": [520.0, 580.0, 640.0, 700.0, 760.0],
+	"damage": [1, 1, 2, 2, 3],
+	"spread_deg": [16.0, 18.0, 20.0, 22.0, 24.0],
+	"winner_kills": [6, 6, 5, 4, 3],
+	"winner_bonus": [200, 400, 700, 1200, 2000],
 }
 
 ## The swipe is short. Reflecting bullets is the defense, not a long stream.
+## Later ranks dash farther, graze into a charm sooner, and swipe harder.
 const CAT := {
-	"fire_interval": [0.24, 0.20, 0.17],
+	"fire_interval": [0.24, 0.20, 0.17, 0.145, 0.12],
 	"shot_speed": 420.0,
-	"life": 0.58,
-	"damage": [1, 1, 2],
+	"life": [0.58, 0.60, 0.64, 0.70, 0.78],
+	"damage": [1, 1, 2, 2, 3],
 	"pierce": 2,
+	"blink_dist": [34.0, 38.0, 44.0, 52.0, 62.0],
+	"blink_guard": [0.10, 0.10, 0.11, 0.13, 0.15],
+	"graze_need": [3, 3, 3, 2, 2],
+	"charm_max": [2, 2, 2, 3, 4],
+	"charm_radius": [92.0, 100.0, 110.0, 124.0, 140.0],
 }
 
 ## Drawn and hurt at this fraction of the source art. The hurt circles are the
@@ -104,11 +119,13 @@ static func play_scale(id: int) -> float:
 	return 1.0
 
 ## Slow homing orbs. Damage, speed, and turn rate climb with the crowd.
+## Rank 4 fires a pair. Rank 5 fires three. The art stays the rank-3 orb.
 const DEMON := {
-	"fire_interval": [0.34, 0.28, 0.22],
-	"shot_speed": [180.0, 210.0, 240.0],
-	"damage": [2, 2, 3],
-	"homing": [180.0, 220.0, 260.0],
+	"fire_interval": [0.34, 0.28, 0.22, 0.20, 0.18],
+	"shot_speed": [180.0, 210.0, 240.0, 250.0, 265.0],
+	"damage": [2, 2, 3, 3, 3],
+	"homing": [180.0, 220.0, 260.0, 280.0, 300.0],
+	"orbs": [1, 1, 1, 2, 3],
 	"per_enemy": 0.5,
 	"enemy_cap": 6,
 }
@@ -121,34 +138,34 @@ const SHOT_PCT := 0.62
 ## here; weapon_line() builds it from the rank's real shot data.
 const FORM_CARD := {
 	Id.SLIME: {
-		"trait": "Once per run, splits into a small slime instead of dying; regrows in 15s.",
+		"trait": "Once per run, splits into a small slime instead of dying; regrows in 15s. Later ranks add lanes and a wider split.",
 		"ready": "Split ready.",
 		"used": "Split used.",
 	},
 	Id.GOBLIN: {
-		"trait": "Kills can drop gems. Picking one up adds score and evolution points. A small magnet pulls nearby gems.",
+		"trait": "Kills can drop gems. Picking one up adds score and evolution points. Later ranks throw more rocks that hit harder.",
 		"ready": "",
 		"used": "",
 	},
 	Id.VENDING: {
-		"trait": "Heavy drift. Kills fill a WINNER! meter. A full meter clears the screen.",
+		"trait": "Heavy drift. Kills fill a WINNER! meter. A full meter clears the screen. Later ranks pay a bigger WINNER!.",
 		"ready": "",
 		"used": "",
 	},
 	Id.CAT: {
-		"trait": "A hard flick blinks a short dash. A graze streak makes nearby enemies fight for you.",
+		"trait": "A hard flick blinks a short dash. A graze streak makes nearby enemies fight for you. Later ranks dash farther and charm more.",
 		"ready": "",
 		"used": "",
 	},
 	Id.DEMON: {
-		"trait": "Big slow orbs home in. They hit harder the more enemies are on screen.",
+		"trait": "Big slow orbs home in. They hit harder the more enemies are on screen. Later ranks loose more orbs.",
 		"ready": "",
 		"used": "",
 	},
 }
 
-## Cumulative skill points to reach rank 2, then rank 3. Rank 1 is the start.
-## The numbers live in Difficulty so the bot and the meter share one pair.
+## Cumulative skill points to reach rank 2, then 3, 4, and 5. Rank 1 is the start.
+## The numbers live in Difficulty so the bot and the meter share one list.
 static func rank_gates() -> Array[int]:
 	return Difficulty.gates()
 
@@ -163,6 +180,14 @@ static func goblin_spread(rank_index: int) -> Array:
 	var rows: Array = GOBLIN["spread"]
 	return (rows[clampi(rank_index, 0, rows.size() - 1)] as Array).duplicate()
 
+static func goblin_damage(rank_index: int) -> int:
+	var values: Array = GOBLIN["damage_by_rank"]
+	return int(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func goblin_pierce(rank_index: int) -> int:
+	var values: Array = GOBLIN["pierce_by_rank"]
+	return int(values[clampi(rank_index, 0, values.size() - 1)])
+
 static func vending_rank_f(key: String, rank_index: int) -> float:
 	var values: Array = VENDING[key]
 	return float(values[clampi(rank_index, 0, values.size() - 1)])
@@ -173,6 +198,30 @@ static func cat_rank_f(key: String, rank_index: int) -> float:
 
 static func cat_f(key: String) -> float:
 	return float(CAT[key])
+
+static func cat_blink_dist(rank_index: int) -> float:
+	var values: Array = CAT["blink_dist"]
+	return float(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func cat_blink_guard(rank_index: int) -> float:
+	var values: Array = CAT["blink_guard"]
+	return float(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func cat_graze_need(rank_index: int) -> int:
+	var values: Array = CAT["graze_need"]
+	return int(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func cat_charm_max(rank_index: int) -> int:
+	var values: Array = CAT["charm_max"]
+	return int(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func cat_charm_radius(rank_index: int) -> float:
+	var values: Array = CAT["charm_radius"]
+	return float(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func cat_life(rank_index: int) -> float:
+	var values: Array = CAT["life"]
+	return float(values[clampi(rank_index, 0, values.size() - 1)])
 
 static func demon_rank_f(key: String, rank_index: int) -> float:
 	var values: Array = DEMON[key]
@@ -191,8 +240,17 @@ static func demon_homing(rank_index: int, enemies: int) -> float:
 	var extra := float(clampi(enemies, 0, int(DEMON["enemy_cap"]))) * 12.0
 	return demon_rank_f("homing", rank_index) + extra
 
-static func vending_winner_kills() -> int:
-	return VENDING_WINNER_KILLS
+static func vending_winner_kills(rank_index: int = 0) -> int:
+	var values: Array = VENDING["winner_kills"]
+	return int(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func vending_winner_bonus(rank_index: int) -> int:
+	var values: Array = VENDING["winner_bonus"]
+	return int(values[clampi(rank_index, 0, values.size() - 1)])
+
+static func demon_orbs(rank_index: int) -> int:
+	var values: Array = DEMON["orbs"]
+	return int(values[clampi(rank_index, 0, values.size() - 1)])
 
 ## A Goblin pickup. Added to the score and to the evolution meter. Not a weapon upgrade.
 static func loot_points() -> int:
@@ -355,51 +413,45 @@ static func _pick(day_seed: int, run_index: int, force_avoid: int, roster: Array
 		previous = chosen
 	return chosen
 
-## Three ranks per form. Hurt, body, and threat shapes live in res://art/hitboxes.json.
+## Five ranks per form. A `<form>_rN_body.png` is the body and the hitbox.
+## `<form>_rN.png` is the fallback when no body file has been dropped in.
+## `<form>_rN_aura.png` is optional FX and is not part of this table.
 static func rank_table(id: int) -> Array[Dictionary]:
 	if id == Id.SLIME:
-		return [
-			{
-				"name": "Slime",
-				"sprite": "slime_r1.png",
-				"sprite_small": "slime_small_r1.png",
-				"fire_interval": SLIME_FIRE_INTERVAL,
-				"shot_sprite": "slime_shot.png",
-				"shot_color": Color("7ec8ff"),
-				"lanes": [0.0],
-				"spread": [],
-			},
-			{
-				"name": "Gel Knight",
-				"sprite": "slime_r2.png",
-				"sprite_small": "slime_small_r2.png",
-				"fire_interval": 0.13,
-				"shot_sprite": "slime_shot.png",
-				"shot_color": Color("b7e4ff"),
-				"lanes": [-12.0, 12.0],
-				"spread": [],
-			},
-			{
-				"name": "Ooze Titan",
-				"sprite": "slime_r3.png",
-				"sprite_small": "slime_small_r3.png",
-				"fire_interval": 0.10,
-				"shot_sprite": "slime_shot.png",
-				"shot_color": Color("eaf7ff"),
-				"lanes": [-16.0, 0.0, 16.0],
-				"spread": [],
-			},
+		var names := ["Slime", "Gel Knight", "Ooze Titan", "Gel Paladin", "Prism Ooze"]
+		var intervals: Array[float] = [SLIME_FIRE_INTERVAL, 0.13, 0.10, 0.085, 0.072]
+		var lanes: Array = [
+			[0.0],
+			[-12.0, 12.0],
+			[-16.0, 0.0, 16.0],
+			[-22.0, -8.0, 8.0, 22.0],
+			[-24.0, -12.0, 0.0, 12.0, 24.0],
 		]
-	if id == Id.GOBLIN:
-		var names := ["Goblin", "Goblin Chief", "Goblin King"]
-		var sprites := ["goblin_r1.png", "goblin_r2.png", "goblin_r3.png"]
-		var stones := ["slingshot_stone.png", "slingshot_stone_l2.png", "slingshot_stone_l3.png"]
-		var colors: Array[Color] = [Color("f0c36a"), Color("ffe08a"), Color("fff3c4")]
+		var splits: Array[int] = [1, 1, 1, 2, 3]
+		var colors: Array[Color] = [Color("7ec8ff"), Color("b7e4ff"), Color("eaf7ff"), Color("f4fbff"), Color("ffffff")]
 		var rows: Array[Dictionary] = []
 		for i in names.size():
 			rows.append({
 				"name": names[i],
-				"sprite": sprites[i],
+				"sprite": _body_file("slime", i + 1),
+				"sprite_small": _small_file(i + 1),
+				"fire_interval": intervals[i],
+				"shot_sprite": "slime_shot.png",
+				"shot_color": colors[i],
+				"lanes": lanes[i],
+				"spread": [],
+				"splits": splits[i],
+			})
+		return rows
+	if id == Id.GOBLIN:
+		var names := ["Goblin", "Goblin Chief", "Goblin King", "Goblin Warlord", "Goblin Emperor"]
+		var stones := ["slingshot_stone.png", "slingshot_stone_l2.png", "slingshot_stone_l3.png", "slingshot_stone_l3.png", "slingshot_stone_l3.png"]
+		var colors: Array[Color] = [Color("f0c36a"), Color("ffe08a"), Color("fff3c4"), Color("fff6d2"), Color("fffdf2")]
+		var rows: Array[Dictionary] = []
+		for i in names.size():
+			rows.append({
+				"name": names[i],
+				"sprite": _body_file("goblin", i + 1),
 				"fire_interval": goblin_rank_f("fire_interval", i),
 				"shot_sprite": stones[i],
 				"shot_color": colors[i],
@@ -408,14 +460,13 @@ static func rank_table(id: int) -> Array[Dictionary]:
 			})
 		return rows
 	if id == Id.VENDING:
-		var names := ["Vending Machine", "Mega Vendor", "Vending Fortress"]
-		var sprites := ["vending_machine_r1.png", "vending_machine_r2.png", "vending_machine_r3.png"]
-		var colors: Array[Color] = [Color("ffd56a"), Color("ffe08a"), Color("fff3c4")]
+		var names := ["Vending Machine", "Mega Vendor", "Vending Fortress", "Vending Citadel", "Golden Jackpot"]
+		var colors: Array[Color] = [Color("ffd56a"), Color("ffe08a"), Color("fff3c4"), Color("fff6d0"), Color("fffdf0")]
 		var rows: Array[Dictionary] = []
 		for i in names.size():
 			rows.append({
 				"name": names[i],
-				"sprite": sprites[i],
+				"sprite": _body_file("vending_machine", i + 1),
 				"fire_interval": vending_rank_f("fire_interval", i),
 				"shot_sprite": "vending_can.png",
 				"shot_color": colors[i],
@@ -425,14 +476,13 @@ static func rank_table(id: int) -> Array[Dictionary]:
 			})
 		return rows
 	if id == Id.CAT:
-		var names := ["Cat (ex-CEO)", "Cat Chairman", "Cat Overlord"]
-		var sprites := ["cat_r1.png", "cat_r2.png", "cat_r3.png"]
-		var colors: Array[Color] = [Color("ffb7ea"), Color("ffd0f2"), Color("fff0fb")]
+		var names := ["Cat (ex-CEO)", "Cat Chairman", "Cat Overlord", "Cat Tycoon", "Briefcase Boss"]
+		var colors: Array[Color] = [Color("ffb7ea"), Color("ffd0f2"), Color("fff0fb"), Color("fff6fd"), Color("ffffff")]
 		var rows: Array[Dictionary] = []
 		for i in names.size():
 			rows.append({
 				"name": names[i],
-				"sprite": sprites[i],
+				"sprite": _body_file("cat", i + 1),
 				"fire_interval": cat_rank_f("fire_interval", i),
 				"shot_sprite": "cat_swipe.png",
 				"shot_color": colors[i],
@@ -440,15 +490,14 @@ static func rank_table(id: int) -> Array[Dictionary]:
 				"spread": [],
 			})
 		return rows
-	var names := ["Demon Lord", "Demon Emperor", "True Demon King"]
-	var sprites := ["demon_lord_r1.png", "demon_lord_r2.png", "demon_lord_r3.png"]
-	var orbs := ["demon_orb_r1.png", "demon_orb_r2.png", "demon_orb_r3.png"]
-	var colors: Array[Color] = [Color("ff4d6a"), Color("ff6b8a"), Color("ffd0dc")]
+	var names := ["Demon Lord", "Demon Emperor", "True Demon King", "Demon Overlord", "Abyss Sovereign"]
+	var orbs := ["demon_orb_r1.png", "demon_orb_r2.png", "demon_orb_r3.png", "demon_orb_r3.png", "demon_orb_r3.png"]
+	var colors: Array[Color] = [Color("ff4d6a"), Color("ff6b8a"), Color("ffd0dc"), Color("ffe0e8"), Color("fff4f7")]
 	var rows: Array[Dictionary] = []
 	for i in names.size():
 		rows.append({
 			"name": names[i],
-			"sprite": sprites[i],
+			"sprite": _body_file("demon_lord", i + 1),
 			"fire_interval": demon_rank_f("fire_interval", i),
 			"shot_sprite": orbs[i],
 			"shot_color": colors[i],
@@ -456,6 +505,26 @@ static func rank_table(id: int) -> Array[Dictionary]:
 			"spread": [],
 		})
 	return rows
+
+## Body file when the artist dropped one in, otherwise the plain rank sprite.
+## Idle sheets are optional: ArtLibrary.loop_file falls back when `_idle` is missing.
+static func _body_file(form_key: String, rank_number: int) -> String:
+	var body := "%s_r%d_body.png" % [form_key, rank_number]
+	if ArtLibrary.has_file(body):
+		return body
+	return "%s_r%d.png" % [form_key, rank_number]
+
+static func _small_file(rank_number: int) -> String:
+	var body := "slime_small_r%d_body.png" % rank_number
+	if ArtLibrary.has_file(body):
+		return body
+	return "slime_small_r%d.png" % rank_number
+
+static func aura_file(id: int, rank_index: int) -> String:
+	var aura := "%s_r%d_aura.png" % [key_for(id), rank_index + 1]
+	if ArtLibrary.has_file(aura):
+		return aura
+	return ""
 
 static func rank_spec(id: int, rank_index: int) -> Dictionary:
 	var table := rank_table(id)
@@ -486,12 +555,13 @@ static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array
 	var muzzle := (ArtLibrary.anchor(str(spec["sprite"])).x + 2.0) * play_scale(id)
 	if id == Id.SLIME:
 		var lanes: Array = spec["lanes"]
+		var splits := int(spec.get("splits", 1))
 		for lane in lanes:
-			shots.append(_blob(origin + Vector2(muzzle, float(lane)), Vector2(SLIME_SHOT_SPEED, 0), 1, shot_color, shot_sprite))
+			shots.append(_blob(origin + Vector2(muzzle, float(lane)), Vector2(SLIME_SHOT_SPEED, 0), splits, shot_color, shot_sprite))
 	elif id == Id.GOBLIN:
 		var spread: Array = spec["spread"]
-		var damage := int(goblin_f("damage"))
-		var pierce := int(goblin_f("pierce"))
+		var damage := goblin_damage(rank_index)
+		var pierce := goblin_pierce(rank_index)
 		for vy in spread:
 			var stone := _blob(origin + Vector2(muzzle, -2), Vector2(goblin_f("shot_speed"), float(vy)), 0, shot_color, shot_sprite, damage)
 			stone["gravity"] = goblin_f("gravity")
@@ -513,24 +583,36 @@ static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array
 		var swipe := _blob(origin + Vector2(muzzle, -2), Vector2(cat_f("shot_speed"), 0), 0, shot_color, shot_sprite, damage)
 		swipe["style"] = "swipe"
 		swipe["expires"] = true
-		swipe["life"] = cat_f("life")
+		swipe["life"] = cat_life(rank_index)
 		swipe["pierce"] = int(CAT["pierce"])
 		shots.append(swipe)
 	else:
 		var damage := int(demon_rank_f("damage", rank_index))
 		var speed := demon_rank_f("shot_speed", rank_index)
-		var orb := _blob(origin + Vector2(muzzle, 0), Vector2(speed, 0), 0, shot_color, shot_sprite, damage)
-		orb["style"] = "orb"
-		orb["homing"] = demon_rank_f("homing", rank_index)
-		shots.append(orb)
+		var count := demon_orbs(rank_index)
+		var offsets: Array[float] = [0.0]
+		if count == 2:
+			offsets = [-12.0, 12.0]
+		elif count >= 3:
+			offsets = [-16.0, 0.0, 16.0]
+		for lane in offsets:
+			var orb := _blob(origin + Vector2(muzzle, lane), Vector2(speed, lane * 0.35), 0, shot_color, shot_sprite, damage)
+			orb["style"] = "orb"
+			orb["homing"] = demon_rank_f("homing", rank_index)
+			shots.append(orb)
 	return shots
 
-static func split_shots(velocity: Vector2, origin: Vector2) -> Array[Dictionary]:
+static func split_shots(velocity: Vector2, origin: Vector2, count: int = 1) -> Array[Dictionary]:
 	var shots: Array[Dictionary] = []
 	var base := velocity
 	if base.length() < 1.0:
 		base = Vector2(SLIME_SHOT_SPEED, 0)
-	for angle in [-0.62, 0.62]:
+	var angles: Array[float] = [-0.62, 0.62]
+	if count >= 3:
+		angles = [-1.05, -0.62, 0.0, 0.62, 1.05]
+	elif count >= 2:
+		angles = [-0.95, -0.38, 0.38, 0.95]
+	for angle in angles:
 		var spec := _blob(origin + base.normalized() * 10.0, base.rotated(angle) * 0.92, 0, Color("d7f1ff"), "slime_shot.png")
 		shots.append(spec)
 	return shots
@@ -576,7 +658,7 @@ static func weapon_line(id: int, rank_index: int) -> String:
 			return "%s Splits on hit." % head
 		return head
 	if id == Id.VENDING:
-		return "%d cans every %s. Spread %d. No burst." % [count, every, int(round(float(spec["spread_deg"])))]
+		return "%d cans every %s. Spread %d. WINNER! in %d kills." % [count, every, int(round(float(spec["spread_deg"]))), vending_winner_kills(rank_index)]
 	if id == Id.CAT:
 		var line := "Swipe every %s. Reflects shots." % every
 		var damage := int(first.get("damage", 1))
@@ -585,6 +667,8 @@ static func weapon_line(id: int, rank_index: int) -> String:
 		return line
 	if id == Id.DEMON:
 		var line := "Homing orb every %s." % every
+		if count > 1:
+			line = "%d homing orbs every %s." % [count, every]
 		var damage := int(first.get("damage", 1))
 		if damage != 1:
 			line += " Dmg %d." % damage

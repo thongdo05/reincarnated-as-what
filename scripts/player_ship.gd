@@ -160,12 +160,12 @@ func _try_blink(delta: float) -> void:
 	var dist := to_aim.length()
 	if dist < FormCatalog.CAT_BLINK_MIN:
 		return
-	var hop := to_aim / dist * minf(dist, FormCatalog.CAT_BLINK_DIST)
+	var hop := to_aim / dist * minf(dist, FormCatalog.cat_blink_dist(rank_index))
 	_trail.push_front(position)
 	_trim_trail()
 	position += hop
 	_blink_cd = FormCatalog.CAT_BLINK_CD
-	blink_guard = FormCatalog.CAT_BLINK_GUARD
+	blink_guard = FormCatalog.cat_blink_guard(rank_index)
 	_trail_timer = 0.04
 
 func _fade_blink_trail(delta: float) -> void:
@@ -246,7 +246,7 @@ func begin_evolve(old_sprite: String, new_sprite: String, final: bool = false) -
 	evolve_old = old_sprite
 	evolve_new = new_sprite
 	evolve_final = final
-	evolve_hold = Difficulty.FINAL_HOLD if final else FxTimeline.EVOLVE_HOLD
+	evolve_hold = Difficulty.FINAL_HOLD if final else (FxTimeline.EVOLVE_HOLD * 0.72 if rank_index == 3 else FxTimeline.EVOLVE_HOLD)
 	evolve_t = 0.0
 	_apply_evolve_visual()
 
@@ -270,19 +270,26 @@ func _apply_evolve_visual() -> void:
 		fx_show_rim = false
 		evolve_t = -1.0
 	if _evolve_fx != null:
-		_evolve_fx.play(99.0 if evolve_t < 0.0 else evolve_t)
+		_evolve_fx.pop_scale = 0.62 if rank_index == 3 and not evolve_final else 1.0
+		_evolve_fx.play(99.0 if evolve_t < 0.0 else evolve_t, evolve_hold)
 
 func _draw() -> void:
 	_begin_pose()
 	if fx_mode == "flash":
-		ArtLibrary.draw_anchored(self, fx_sprite)
+		if ArtLibrary.has_file(fx_sprite):
+			ArtLibrary.draw_anchored(self, fx_sprite)
+		else:
+			_draw_body(evolve_new if evolve_new != "" else sprite_name())
 	elif fx_mode == "glow":
 		_draw_body(fx_sprite)
-		if fx_show_rim:
-			ArtLibrary.draw_anchored(self, FxTimeline.rim_file(fx_sprite))
+		var rim := FxTimeline.rim_file(fx_sprite)
+		if fx_show_rim and ArtLibrary.has_file(rim):
+			ArtLibrary.draw_anchored(self, rim)
 	else:
+		var aura := FormCatalog.aura_file(form_id, rank_index)
+		if aura != "":
+			ArtLibrary.draw_loop(self, aura, 0.0)
 		_draw_body(sprite_name())
-		_draw_final_banner()
 	var fitted := FormCatalog.play_scale(form_id)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(fitted, fitted))
 	if shield_hits > 0:
