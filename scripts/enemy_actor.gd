@@ -34,6 +34,8 @@ var charmed := 0.0
 var charm_cd := 0.0
 ## Shots promised by a telegraph. Each entry is left, velocity, offset, sprite.
 var telegraphs: Array[Dictionary] = []
+## How many new aimed shots this enemy may still start. -1 means unlimited.
+var fire_room := -1
 var _last_player := Vector2.ZERO
 var _have_player := false
 
@@ -182,6 +184,8 @@ func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, p
 func _pattern_fire(fired: Array[Dictionary], delta: float, player_pos: Vector2, player_vel: Vector2, run_time: float, interval: float, offset: Vector2, sprite: String) -> void:
 	if hold_fire or charmed > 0.0:
 		return
+	if fire_room == 0:
+		return
 	if not telegraphs.is_empty():
 		return
 	shot_cooldown -= delta
@@ -192,7 +196,11 @@ func _pattern_fire(fired: Array[Dictionary], delta: float, player_pos: Vector2, 
 	var windup := Difficulty.telegraph_for(aim.length())
 	shot_cooldown = interval
 	for off_y in Difficulty.fan_offsets(run_time):
+		if fire_room == 0:
+			break
 		_commit_shot(fired, aim, offset + Vector2(0.0, float(off_y)), sprite, windup)
+		if fire_room > 0:
+			fire_room -= 1
 
 func _commit_shot(fired: Array[Dictionary], bolt_velocity: Vector2, offset: Vector2, sprite: String, windup: float) -> void:
 	if windup <= 0.02:

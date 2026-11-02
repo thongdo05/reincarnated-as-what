@@ -9,6 +9,7 @@ var _done := false
 func _initialize() -> void:
 	_unit_failed += _check_forms()
 	_unit_failed += _check_spawns()
+	_unit_failed += _check_pattern_gap()
 	_unit_failed += _check_score()
 	_unit_failed += _check_drag()
 	_unit_failed += _check_traits()
@@ -293,7 +294,74 @@ func _check_spawns() -> int:
 	if ScoreRules.graze_points(0) != Difficulty.GRAZE_BASE or ScoreRules.graze_points(1) <= ScoreRules.graze_points(0):
 		push_error("a near-miss at rank 2 should be worth more than one at the start")
 		return 1
+	if Difficulty.spawn_interval(60.0) > Difficulty.spawn_interval(20.0):
+		push_error("spawns should still be tightening at the one-minute ceiling")
+		return 1
+	if Difficulty.spawn_interval(180.0) + 0.001 < Difficulty.SPAWN_INTERVAL_FLOOR:
+		push_error("the late creep dropped through the spawn floor")
+		return 1
+	if Difficulty.spawn_interval(60.0) - Difficulty.spawn_interval(180.0) > 0.05:
+		push_error("after a minute the spawn rate should only creep")
+		return 1
+	if Difficulty.speed_scale(180.0) > Difficulty.SPEED_CAP + 0.001:
+		push_error("the late creep broke the speed cap")
+		return 1
+	if Difficulty.speed_scale(180.0) - Difficulty.speed_scale(60.0) > 0.2:
+		push_error("after a minute speed should only creep")
+		return 1
+	if Difficulty.telegraph_for(90.0) < 0.15 or Difficulty.telegraph_for(400.0) < 0.15:
+		push_error("aimed shots need a visible warning before they exist")
+		return 1
 	return 0
+
+## The sweeping rake and the aimed fan stay wider than every form's hurtbox,
+## including the late ranks, and a legal anchor can sit in that lane.
+func _check_pattern_gap() -> int:
+	var failed := 0
+	var bolt := HitLibrary.vertical_span(Difficulty.RAKE_BOLT, "threat")
+	var shot_h := 0.0
+	for sprite in ["floating_eye_bolt.png", "arrow.png", "wyvern_shot.png"]:
+		shot_h = maxf(shot_h, HitLibrary.vertical_extent(sprite, "threat"))
+	var anchor_floor := 232.0
+	for id in FormCatalog.IDS:
+		for rank in 3:
+			var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
+			var hurt := HitLibrary.vertical_extent(file, "hurt")
+			var span := HitLibrary.vertical_span(file, "hurt")
+			var radius := HitLibrary.bounds_radius(file, "hurt")
+			var anchor_min := 10.0 + radius
+			var anchor_max := anchor_floor - radius
+			for elapsed in [60.0, 90.0, 150.0, 240.0]:
+				for player_y in [50.0, 90.0, 130.0, 170.0, 200.0]:
+					var plan: Dictionary = Difficulty.build_rake(elapsed, player_y, hurt)
+					var lane_top := float(plan["lane_top"])
+					var lane_bottom := float(plan["lane_bottom"])
+					if lane_bottom - lane_top <= hurt:
+						push_error("%s rake lane %.1f is not wider than the hurtbox %.1f at %.0fs" % [file, lane_bottom - lane_top, hurt, elapsed])
+						failed += 1
+					for y in plan["ys"]:
+						var top := float(y) + bolt.x
+						var bottom := float(y) + bolt.y
+						if bottom > lane_top + 0.01 and top < lane_bottom - 0.01:
+							push_error("%s rake bullet at %.1f cuts the lane" % [file, float(y)])
+							failed += 1
+							break
+					var lo := maxf(anchor_min, lane_top - span.x)
+					var hi := minf(anchor_max, lane_bottom - span.y)
+					if hi - lo < 4.0:
+						push_error("%s cannot sit in the rake lane (room %.1f)" % [file, hi - lo])
+						failed += 1
+	for elapsed in [40.0, 90.0, 180.0]:
+		var spacing := Difficulty.fan_min_spacing(elapsed)
+		var open := spacing - shot_h
+		for id in FormCatalog.IDS:
+			for rank in 3:
+				var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
+				var hurt := HitLibrary.vertical_extent(file, "hurt")
+				if open <= hurt:
+					push_error("fan gap %.1f is not wider than %s (%.1f) at %.0fs" % [open, file, hurt, elapsed])
+					failed += 1
+	return failed
 
 func _check_pressure() -> int:
 	var failed := 0
@@ -865,6 +933,14 @@ func _check_shapes() -> int:
 	var slime_pad := FormCatalog.hit_radius_for(FormCatalog.Id.SLIME, 0, false)
 	if demon_pad <= slime_pad:
 		push_error("demon lord's full-body pad should be larger than the slime")
+		failed += 1
+	if absf(FormCatalog.play_scale(FormCatalog.Id.DEMON) - 0.75) > 0.001 or absf(FormCatalog.play_scale(FormCatalog.Id.CAT) - 1.0) > 0.001:
+		push_error("only the demon lord is drawn smaller in play")
+		failed += 1
+	var demon_src := HitLibrary.bounds_radius("demon_lord_r3.png", "hurt")
+	var demon_play := FormCatalog.hit_radius_for(FormCatalog.Id.DEMON, 2, false)
+	if absf(demon_play - demon_src * FormCatalog.DEMON_PLAY_SCALE) > 0.05:
+		push_error("the demon play pad should be the fitted hurtbox at the drawn size")
 		failed += 1
 	return failed
 

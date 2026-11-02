@@ -41,10 +41,12 @@ const VENDING_WINNER_KILLS := 6
 ## Short dash when the aim jumps. Fine corrections still use the snap.
 const CAT_BLINK_DIST := 34.0
 const CAT_BLINK_MIN := 26.0
-const CAT_BLINK_CD := 0.18
-const CAT_GRAZE_NEED := 5
+const CAT_BLINK_CD := 0.14
+## A few frames where the dash body cannot be hit.
+const CAT_BLINK_GUARD := 0.10
+const CAT_GRAZE_NEED := 3
 const CAT_GRAZE_WINDOW := 1.6
-const CAT_CHARM_TIME := 1.05
+const CAT_CHARM_TIME := 1.55
 const CAT_CHARM_RADIUS := 92.0
 const CAT_CHARM_MAX := 2
 
@@ -87,19 +89,28 @@ const VENDING := {
 
 ## The swipe is short. Reflecting bullets is the defense, not a long stream.
 const CAT := {
-	"fire_interval": [0.28, 0.24, 0.20],
+	"fire_interval": [0.24, 0.20, 0.17],
 	"shot_speed": 420.0,
-	"life": 0.42,
+	"life": 0.58,
 	"damage": [1, 1, 2],
 	"pierce": 2,
 }
 
+## Drawn and hurt at this fraction of the source art. The hurt circles are the
+## same fit, scaled with the sprite, so a shot that touches the picture hits.
+const DEMON_PLAY_SCALE := 0.75
+
+static func play_scale(id: int) -> float:
+	if id == Id.DEMON:
+		return DEMON_PLAY_SCALE
+	return 1.0
+
 ## Slow homing orbs. Damage, speed, and turn rate climb with the crowd.
 const DEMON := {
 	"fire_interval": [0.34, 0.28, 0.22],
-	"shot_speed": [200.0, 240.0, 280.0],
-	"damage": [2, 3, 3],
-	"homing": [240.0, 300.0, 360.0],
+	"shot_speed": [180.0, 210.0, 240.0],
+	"damage": [2, 2, 3],
+	"homing": [180.0, 220.0, 260.0],
 	"per_enemy": 0.5,
 	"enemy_cap": 6,
 }
@@ -289,7 +300,7 @@ static func _sprite_file(id: int, rank_index: int, small: bool) -> String:
 
 ## Movement pad: far enough that the core, which can sit off the anchor, stays in frame.
 static func hit_radius_for(id: int, rank_index: int, small: bool) -> float:
-	return HitLibrary.bounds_radius(_sprite_file(id, rank_index, small), "hurt")
+	return HitLibrary.bounds_radius(_sprite_file(id, rank_index, small), "hurt") * play_scale(id)
 
 ## Radius of the core itself. This is the hurt target, not the distance from the anchor.
 static func core_radius(id: int, rank_index: int, small: bool) -> float:
@@ -490,7 +501,7 @@ static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array
 	var shots: Array[Dictionary] = []
 	var shot_sprite := str(spec["shot_sprite"])
 	var shot_color: Color = spec["shot_color"]
-	var muzzle := ArtLibrary.anchor(str(spec["sprite"])).x + 2.0
+	var muzzle := (ArtLibrary.anchor(str(spec["sprite"])).x + 2.0) * play_scale(id)
 	if id == Id.SLIME:
 		var lanes: Array = spec["lanes"]
 		for lane in lanes:
