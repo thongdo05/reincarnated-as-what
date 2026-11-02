@@ -28,6 +28,7 @@ func _initialize() -> void:
 	_unit_failed += _check_pressure()
 	_unit_failed += _check_audio()
 	_unit_failed += _check_replay_rules()
+	_unit_failed += _check_leaderboard()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -1431,7 +1432,30 @@ func _check_death_card() -> int:
 			if int(challenge.get_theme_font_size("font_size")) < 18:
 				push_error("challenge label should be readable, font %s" % challenge.get_theme_font_size("font_size"))
 				failed += 1
-		for label in [game._share_label, game._best_label, game._seed_label, game._death_kicker]:
+		if game._board_button == null or not game._board_button.visible or game._board_button.text != "LEADERBOARD":
+			push_error("the death card should offer LEADERBOARD")
+			failed += 1
+		else:
+			var board: Button = game._board_button
+			var brect := Rect2(board.position, board.size)
+			if brect.size.y < 44.0:
+				push_error("leaderboard button should be tappable (%s)" % brect)
+				failed += 1
+			if brect.size.x + 0.5 >= rect.size.x:
+				push_error("leaderboard button should be narrower than Reincarnate")
+				failed += 1
+			var challenge_rect := Rect2(game._beat_button.position, game._beat_button.size)
+			if brect.intersects(rect) or (game._beat_button.visible and brect.intersects(challenge_rect)):
+				push_error("leaderboard button overlaps retry or challenge")
+				failed += 1
+			if brect.position.x < -0.5 or brect.end.x > field.x + 0.5 or brect.end.y > field.y + 0.5:
+				push_error("leaderboard button left the field (%s)" % brect)
+				failed += 1
+		if game._rank_label != null:
+			game._rank_label.visible = true
+			game._rank_label.text = "#12 today - #40 all-time"
+			game._layout_death_card()
+		for label in [game._share_label, game._best_label, game._seed_label, game._death_kicker, game._rank_label]:
 			var label_rect := Rect2(label.position, label.size)
 			if label_rect.end.y > rect.position.y + 0.5:
 				push_error("death copy overlaps Reincarnate for '%s'" % lines[i])
@@ -1443,12 +1467,97 @@ func _check_death_card() -> int:
 					push_error("death copy overlaps the challenge button for '%s'" % lines[i])
 					failed += 1
 					break
+			if game._board_button != null and game._board_button.visible:
+				var board_rect := Rect2(game._board_button.position, game._board_button.size)
+				if label_rect.intersects(board_rect):
+					push_error("death copy overlaps the leaderboard button for '%s'" % lines[i])
+					failed += 1
+					break
 			if label_rect.position.y < -0.5 or label_rect.end.y > field.y + 0.5:
 				push_error("death copy left the field for '%s'" % lines[i])
 				failed += 1
 				break
 	root.remove_child(game)
 	game.free()
+	return failed
+
+func _check_leaderboard() -> int:
+	var failed := 0
+	if Leaderboard.local_name_error("Fuuuck") != "":
+		push_error("the client must not run its own profanity filter")
+		failed += 1
+	if Leaderboard.local_name_error("damn") != "":
+		push_error("a mild name is a format check only")
+		failed += 1
+	if Leaderboard.local_name_error("!!!") == "":
+		push_error("symbols should fail the name format check")
+		failed += 1
+	if Leaderboard.local_name_error("   ") == "":
+		push_error("a blank name should fail the format check")
+		failed += 1
+	if Leaderboard.clean_name("  A  B  ") != "A B":
+		push_error("names should trim and collapse spaces, got %s" % Leaderboard.clean_name("  A  B  "))
+		failed += 1
+	if Leaderboard.REJECTED_NAME != "That name isn't allowed, try another":
+		push_error("rejection copy changed")
+		failed += 1
+	var encoded := Leaderboard.encode_rpc({"p_period": "all", "p_form": null, "p_limit": 50})
+	if encoded.find("\"p_form\":null") < 0 and encoded.find("\"p_form\": null") < 0:
+		push_error("overall board must send a JSON null form, got %s" % encoded)
+		failed += 1
+	if Leaderboard.short_form("vending_machine") != "VEND" or Leaderboard.short_form("demon_lord") != "DEMON":
+		push_error("form labels drifted")
+		failed += 1
+	var path := Leaderboard.PROFILE_PATH
+	var had := FileAccess.file_exists(path)
+	var backup := FileAccess.get_file_as_string(path) if had else ""
+	if had:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	var client := Leaderboard.new()
+	root.add_child(client)
+	var first := client.device_id()
+	var second := client.device_id()
+	if first == "" or first != second or first.find("-") < 0:
+		push_error("device id should be created once, got %s / %s" % [first, second])
+		failed += 1
+	if client.set_local_name("TEST") != "TEST" or client.player_name() != "TEST":
+		push_error("local name did not stick")
+		failed += 1
+	client.free()
+	var again := Leaderboard.new()
+	root.add_child(again)
+	if again.device_id() != first or again.player_name() != "TEST":
+		push_error("device id and name should persist")
+		failed += 1
+	again.free()
+	if had:
+		var restore := FileAccess.open(path, FileAccess.WRITE)
+		if restore != null:
+			restore.store_string(backup)
+			restore.close()
+	else:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	FlappyMode.reset_for_test(PackedStringArray(["--mode=flappy"]))
+	if Leaderboard.should_submit():
+		push_error("flappy runs must not post")
+		failed += 1
+	FlappyMode.clear_test_hook()
+	HopMode.reset_for_test(PackedStringArray(["--mode=hop"]))
+	if Leaderboard.should_submit():
+		push_error("hop runs must not post")
+		failed += 1
+	HopMode.reset_for_test(PackedStringArray())
+	CaptureMode.reset_for_test(PackedStringArray(["--form=cat", "--seed=3"]))
+	if not Leaderboard.should_submit():
+		push_error("a challenge run should post")
+		failed += 1
+	CaptureMode.reset_for_test(PackedStringArray())
+	if not Leaderboard.should_submit():
+		push_error("a normal run should post")
+		failed += 1
+	if FlappyMode.is_active() or HopMode.requested() or CaptureMode.is_active():
+		push_error("leaderboard checks left a mode flag on")
+		failed += 1
 	return failed
 
 func _check_pause() -> int:
@@ -2819,6 +2928,9 @@ func _check_flappy_run(packed: PackedScene, form: int) -> int:
 		if game._beat_button != null and game._beat_button.visible:
 			push_error("flappy death card should hide the challenge link")
 			failed += 1
+		if game._board_button != null and game._board_button.visible:
+			push_error("flappy death card should hide the leaderboard")
+			failed += 1
 		if JSON.stringify(BestScores.read()) != main_before:
 			push_error("a flappy best should not write the main score file")
 			failed += 1
@@ -2911,6 +3023,9 @@ func _check_replay_rules() -> int:
 	var shell := FileAccess.get_file_as_string("res://web/shell.html")
 	if shell.find("shareRunText") < 0 or shell.find("navigator.share") < 0 or shell.find("clipboard") < 0:
 		push_error("the web shell should share text and fall back to the clipboard")
+		failed += 1
+	if shell.find("lbShowNameField") < 0 or shell.find("lb-name-input") < 0 or shell.find("lbSetCover") < 0:
+		push_error("the web shell should host the leaderboard name field")
 		failed += 1
 	return failed
 

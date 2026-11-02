@@ -119,6 +119,19 @@ var _finger: Replay.Finger
 var _chains: Array[Dictionary] = []
 var _new_best := false
 var _copy_left := 0.0
+var _leaderboard: Leaderboard
+var _board: LeaderboardScreen
+var _name_prompt: NamePrompt
+var _rank_label: Label
+var _board_button: Button
+var _title_board_button: Button
+var _pending_score: Dictionary = {}
+var _lb_gen := 0
+var _died_in_play := false
+var _board_scaled := false
+var _saved_scale_mode := 0
+var _saved_scale_aspect := 0
+var _saved_window_size := Vector2i.ZERO
 
 func _ready() -> void:
 	# Experimental modes leave this boot untouched unless their flag is set.
@@ -309,6 +322,10 @@ func _build_hud() -> void:
 	_seed_label = _make_label(9, Color("a49fcf"))
 	_seed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_game_over.add_child(_seed_label)
+	_rank_label = _make_label(9, Color("8ecbff"))
+	_rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_rank_label.visible = false
+	_game_over.add_child(_rank_label)
 	_restart_button = Button.new()
 	_restart_button.text = "Reincarnate"
 	_restart_button.focus_mode = Control.FOCUS_NONE
@@ -353,6 +370,9 @@ func _build_hud() -> void:
 	_beat_button.add_theme_font_size_override("font_size", 18)
 	_beat_button.pressed.connect(_on_beat_link)
 	_game_over.add_child(_beat_button)
+	_board_button = _make_death_button("LEADERBOARD", Color("2a2140"))
+	_board_button.pressed.connect(_open_board)
+	_game_over.add_child(_board_button)
 	_style_challenge(false)
 	_layout_death_card()
 
@@ -460,6 +480,26 @@ func _build_hud() -> void:
 	_debug_label.visible = false
 	_debug_label.z_index = 4
 	_hud.add_child(_debug_label)
+	_title_board_button = _make_death_button("LEADERBOARD", Color("2a2140"))
+	_title_board_button.z_index = 3
+	_title_board_button.visible = false
+	_title_board_button.pressed.connect(_open_board)
+	_hud.add_child(_title_board_button)
+	_layout_title_button(_viewport_size())
+	_leaderboard = Leaderboard.new()
+	_leaderboard.name = "Leaderboard"
+	_leaderboard.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_leaderboard)
+	_board = LeaderboardScreen.new()
+	_board.setup(_leaderboard, _font_outlined)
+	_board.closed.connect(_on_board_closed)
+	_board.rename_requested.connect(_on_board_rename)
+	_hud.add_child(_board)
+	_name_prompt = NamePrompt.new()
+	_name_prompt.setup(_font_outlined)
+	_name_prompt.decided.connect(_on_name_decided)
+	_name_prompt.cancelled.connect(_on_name_cancelled)
+	_hud.add_child(_name_prompt)
 	_refresh_hud()
 
 func _load_fonts() -> void:
@@ -530,6 +570,10 @@ func _input(event: InputEvent) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _is_gesture(event) and _sound != null:
 		_sound.unlock_from_gesture()
+	if _board != null and _board.visible:
+		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+			_board._on_back()
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if CaptureMode.eat_key(self, event.keycode):
 			return
@@ -651,6 +695,14 @@ func _process(delta: float) -> void:
 	if _background == null or _player == null or _combat == null:
 		return
 	var size := _viewport_size()
+	if _name_prompt != null and _name_prompt.visible:
+		_name_prompt.place_for(size)
+	if _board != null and _board.visible:
+		if _rotate != null:
+			_rotate.visible = false
+		if _title_board_button != null:
+			_title_board_button.visible = false
+		return
 	if _rotate != null and wants_rotate(size):
 		_rotate.visible = true
 		if _pause_button != null:
@@ -659,10 +711,15 @@ func _process(delta: float) -> void:
 			_sound_button.visible = false
 		if _audio_blocked_button != null:
 			_audio_blocked_button.visible = false
+		if _title_board_button != null:
+			_title_board_button.visible = false
 		return
 	if _rotate != null:
 		_rotate.visible = false
 	_layout_pause(size)
+	_layout_title_button(size)
+	if _title_board_button != null:
+		_title_board_button.visible = phase == PHASE_REVEAL
 	_apply_shake(delta)
 	if _paused:
 		return
@@ -1534,6 +1591,7 @@ func _kill_player(name: String) -> void:
 	_player.alive = false
 	_player.visible = false
 	_hint_label.visible = false
+	_died_in_play = true
 	if _death_fx != null:
 		_death_fx.start(_player.position, _player.sprite_name())
 	_present_death()
@@ -1575,6 +1633,7 @@ func _show_game_over() -> void:
 		_set_default_death(form_name, reached_rank)
 	_layout_death_card()
 	_game_over.visible = true
+	_present_online_score()
 
 func _set_flappy_death(form_name: String, reached_rank: String) -> void:
 	_new_best = false
@@ -1648,18 +1707,36 @@ func _layout_death_card() -> void:
 		_place_death_control(_share_button, Vector2(row_x, button_pos.y), Vector2(share_w, button_h))
 	# Challenge sits above the retry row. Shorter and narrower than Reincarnate,
 	# and a different color, so the gold button stays the retry target.
+	# Leaderboard shares that row, on the left, in a smaller face.
 	var challenge := _beat_button != null and _beat_button.visible
 	var challenge_h := 44.0 if challenge else 0.0
 	var challenge_gap := 6.0 if challenge else 0.0
 	if challenge:
-		var challenge_w := minf(240.0, reinc_w - 12.0)
+		var challenge_w := minf(240.0, reinc_w - 8.0)
 		if challenge_w < 160.0:
 			challenge_w = minf(240.0, field.x - 16.0)
-		var challenge_x := (field.x - challenge_w) * 0.5
+		var show_board := _board_button != null and _board_button.visible
+		var board_w := 120.0 if show_board else 0.0
+		var pair_gap := 8.0 if show_board else 0.0
+		var pair := board_w + pair_gap + challenge_w
+		if show_board and pair > field.x - 12.0:
+			board_w = maxf(96.0, field.x - 12.0 - pair_gap - challenge_w)
+			pair = board_w + pair_gap + challenge_w
+		var pair_x := (field.x - pair) * 0.5
 		var challenge_y := button_pos.y - challenge_gap - challenge_h
-		_place_death_control(_beat_button, Vector2(challenge_x, challenge_y), Vector2(challenge_w, challenge_h))
+		if show_board:
+			_place_death_control(_board_button, Vector2(pair_x, challenge_y), Vector2(board_w, challenge_h))
+			_place_death_control(_beat_button, Vector2(pair_x + board_w + pair_gap, challenge_y), Vector2(challenge_w, challenge_h))
+		else:
+			_place_death_control(_beat_button, Vector2(pair_x, challenge_y), Vector2(challenge_w, challenge_h))
 		var label_px := 18 if challenge_w >= 224.0 else 9
 		_beat_button.add_theme_font_size_override("font_size", label_px)
+	elif _board_button != null and _board_button.visible:
+		var lone_w := minf(200.0, field.x - 16.0)
+		var lone_y := button_pos.y - 6.0 - 44.0
+		_place_death_control(_board_button, Vector2((field.x - lone_w) * 0.5, lone_y), Vector2(lone_w, 44.0))
+		challenge_h = 44.0
+		challenge_gap = 6.0
 	var text_width := minf(448.0, field.x - 16.0)
 	var text_left := (field.x - text_width) * 0.5
 	var text_top := 6.0
@@ -1676,13 +1753,27 @@ func _layout_death_card() -> void:
 	if _new_best_label != null and _new_best_label.visible and not _new_best_label.text.is_empty():
 		_fit_wrapped_label(_new_best_label, text_width, 22.0, 18, 9)
 		new_h = _wrapped_height(_new_best_label.text, text_width, _death_font_size(_new_best_label))
-	var chrome := kicker_h + seed_h + score_h + new_h
+	var rank_h := 0.0
+	if _rank_label != null and _rank_label.visible and not _rank_label.text.is_empty():
+		_fit_wrapped_label(_rank_label, text_width, 28.0, 9, 9)
+		rank_h = _wrapped_height(_rank_label.text, text_width, _death_font_size(_rank_label))
+	var chrome := kicker_h + seed_h + score_h + new_h + rank_h
 	var gap_count := 3.0
 	if score_h > 0.0:
 		gap_count += 1.0
 	if new_h > 0.0:
 		gap_count += 1.0
+	if rank_h > 0.0:
+		gap_count += 1.0
 	var room := maxf(text_height - chrome - text_gap * gap_count, 24.0)
+	# A rank line takes a row. The score stays the largest line, a step smaller.
+	var score_cap := 22.0 if rank_h > 0.0 else 34.0
+	var score_start := 18 if rank_h > 0.0 else 27
+	if _score_label != null and score_h > 0.0:
+		_fit_wrapped_label(_score_label, text_width, score_cap, score_start, 9)
+		score_h = _wrapped_height(_score_label.text, text_width, _death_font_size(_score_label))
+		chrome = kicker_h + seed_h + score_h + new_h + rank_h
+		room = maxf(text_height - chrome - text_gap * gap_count, 24.0)
 	_fit_wrapped_label(_share_label, text_width, room * 0.4, 18, 9)
 	_fit_wrapped_label(_best_label, text_width, room * 0.6, 18, 9)
 	var share_h := _wrapped_height(_share_label.text, text_width, _death_font_size(_share_label))
@@ -1702,6 +1793,9 @@ func _layout_death_card() -> void:
 	y += share_h + text_gap
 	_place_death_control(_best_label, Vector2(text_left, y), Vector2(text_width, best_h))
 	y += best_h + text_gap
+	if rank_h > 0.0:
+		_place_death_control(_rank_label, Vector2(text_left, y), Vector2(text_width, rank_h))
+		y += rank_h + text_gap
 	_place_death_control(_seed_label, Vector2(text_left, y), Vector2(text_width, seed_h))
 
 func _place_death_control(control: Control, pos: Vector2, control_size: Vector2) -> void:
@@ -1862,6 +1956,8 @@ func _on_share() -> void:
 	print("Saved share card to %s" % ProjectSettings.globalize_path(path))
 
 func _on_restart() -> void:
+	_force_close_board()
+	_dismiss_name_prompt()
 	if FlappyMode.is_active() or CaptureMode.is_active():
 		# Flappy keeps its own form rules. A challenged form sticks for that
 		# one run; the retry rolls, and does not repeat the form you died as.
@@ -2194,6 +2290,11 @@ func _finish_tutorial() -> void:
 
 func _reincarnate() -> void:
 	_silence_death()
+	_lb_gen += 1
+	_died_in_play = false
+	_pending_score = {}
+	_force_close_board()
+	_dismiss_name_prompt()
 	_clear_field()
 	var died_as := form_id
 	run_index = DailyRun.consume_run_index()
@@ -2374,6 +2475,276 @@ class SpeakerOffMark extends Control:
 		draw_rect(Rect2(8, 3, 2, 12), ink)
 		for i in 12:
 			draw_rect(Rect2(3 + i, 15 - i, 2, 2), slash)
+
+func _exit_tree() -> void:
+	_restore_board_viewport()
+	if _name_prompt != null:
+		_name_prompt.close()
+
+func _layout_title_button(viewport: Vector2) -> void:
+	if _title_board_button == null:
+		return
+	var width := 136.0
+	var height := 44.0
+	_title_board_button.position = Vector2(8, viewport.y - 6.0 - height)
+	_title_board_button.size = Vector2(width, height)
+	_title_board_button.custom_minimum_size = Vector2(width, height)
+
+func _present_online_score() -> void:
+	var post := Leaderboard.should_submit()
+	if _board_button != null:
+		_board_button.visible = post
+	if _rank_label != null:
+		_rank_label.visible = post
+		if not post:
+			_rank_label.text = ""
+	_layout_death_card()
+	if not post or _leaderboard == null:
+		return
+	if DisplayServer.get_name() == "headless" or not _died_in_play:
+		return
+	_pending_score = {
+		"form": FormCatalog.key_for(form_id),
+		"score": maxi(score, 0),
+		"survival_ms": maxi(int(round(elapsed * 1000.0)), 0),
+	}
+	_lb_gen += 1
+	if _leaderboard.player_name() == "":
+		_set_rank_text("Name this run to post it", Color("a49fcf"))
+		_open_name_prompt("death")
+		return
+	_submit_pending()
+
+func _open_name_prompt(source: String) -> void:
+	if _name_prompt == null or _leaderboard == null:
+		return
+	_name_prompt.place_for(_viewport_size())
+	_name_prompt.open(_leaderboard.player_name(), source)
+	if _leaderboard != null:
+		_leaderboard.set_page_cover(true)
+
+func _dismiss_name_prompt() -> void:
+	if _name_prompt != null and _name_prompt.visible:
+		_name_prompt.close()
+	if _leaderboard != null and (_board == null or not _board.visible):
+		_leaderboard.set_page_cover(false)
+
+func _on_name_decided(clean: String, source: String) -> void:
+	if _leaderboard == null:
+		return
+	var local_err := Leaderboard.local_name_error(clean)
+	if local_err != "":
+		_name_prompt.show_error(local_err)
+		return
+	if source == "board" and _leaderboard.has_posted():
+		_leaderboard.set_remote_name(clean, _on_renamed)
+		return
+	_leaderboard.set_local_name(clean)
+	_name_prompt.close()
+	if _leaderboard != null and (_board == null or not _board.visible):
+		_leaderboard.set_page_cover(false)
+	if source == "board" and _board != null:
+		_board.set_player_name(clean)
+		return
+	if source == "death" and not _pending_score.is_empty():
+		_submit_pending()
+
+func _on_name_cancelled() -> void:
+	if _leaderboard != null and (_board == null or not _board.visible):
+		_leaderboard.set_page_cover(false)
+	if _name_prompt != null and _name_prompt.source == "death":
+		_set_rank_text("Name this run to post it", Color("a49fcf"))
+
+func _on_renamed(parsed: Dictionary) -> void:
+	if _name_prompt == null:
+		return
+	var err := str(parsed.get("error", ""))
+	if err == "rate_limited":
+		if _leaderboard != null:
+			_leaderboard.call_later(Leaderboard.RETRY_SECONDS, func() -> void:
+				if _name_prompt != null and _name_prompt.visible:
+					_leaderboard.set_remote_name(_name_prompt.current_text(), _on_renamed)
+			)
+		return
+	if err == "name_not_allowed":
+		_name_prompt.show_error(Leaderboard.REJECTED_NAME)
+		return
+	if err == "bad_name":
+		_name_prompt.show_error(Leaderboard.FORMAT_HINT)
+		return
+	if err == "no_scores_yet":
+		var kept := _leaderboard.set_local_name(_name_prompt.current_text())
+		_name_prompt.close()
+		if _board != null:
+			_board.set_player_name(kept)
+		return
+	if not bool(parsed.get("ok", false)):
+		_name_prompt.show_error("leaderboard offline")
+		return
+	var renamed := str(parsed.get("data", {}).get("name", _leaderboard.player_name()))
+	_name_prompt.close()
+	if _board != null:
+		_board.set_player_name(renamed)
+		if _board.visible:
+			_board.open()
+
+func _submit_pending() -> void:
+	if _leaderboard == null or _pending_score.is_empty():
+		return
+	var local_err := Leaderboard.local_name_error(_leaderboard.player_name())
+	if local_err != "":
+		_open_name_prompt("death")
+		_name_prompt.show_error(local_err)
+		return
+	if _name_prompt != null:
+		_name_prompt.close()
+	_set_rank_text("...", Color("a49fcf"))
+	_send_submit(_lb_gen)
+
+func _send_submit(gen: int) -> void:
+	if _leaderboard == null or _pending_score.is_empty():
+		return
+	_leaderboard.submit_score(
+		str(_pending_score.get("form", "")),
+		int(_pending_score.get("score", 0)),
+		int(_pending_score.get("survival_ms", 0)),
+		func(parsed: Dictionary) -> void:
+			_on_submit_parsed(parsed, gen)
+	)
+
+func _on_submit_parsed(parsed: Dictionary, gen: int) -> void:
+	if gen != _lb_gen:
+		return
+	var err := str(parsed.get("error", ""))
+	if err == "rate_limited":
+		if _leaderboard != null:
+			_leaderboard.call_later(Leaderboard.RETRY_SECONDS, func() -> void:
+				if gen == _lb_gen:
+					_send_submit(gen)
+			)
+		return
+	if err == "name_not_allowed":
+		_open_name_prompt("death")
+		_name_prompt.show_error(Leaderboard.REJECTED_NAME)
+		_set_rank_text("", Color("8ecbff"))
+		return
+	if err == "bad_name":
+		_open_name_prompt("death")
+		_name_prompt.show_error(Leaderboard.FORMAT_HINT)
+		_set_rank_text("", Color("8ecbff"))
+		return
+	if not bool(parsed.get("ok", false)):
+		_set_rank_text("leaderboard offline", Color("a49fcf"))
+		return
+	_fetch_ranks(str(_pending_score.get("form", "")), gen)
+
+func _fetch_ranks(form: String, gen: int) -> void:
+	if _leaderboard == null:
+		return
+	_daily_rank = -1
+	_all_rank = -1
+	_rank_parts = 0
+	_leaderboard.fetch_rank(form, "daily", _on_rank_part.bind("daily", gen))
+	_leaderboard.fetch_rank(form, "all", _on_rank_part.bind("all", gen))
+
+var _daily_rank := -1
+var _all_rank := -1
+var _rank_parts := 0
+
+func _on_rank_part(parsed: Dictionary, period: String, gen: int) -> void:
+	if gen != _lb_gen:
+		return
+	_rank_parts += 1
+	var rows: Array = parsed.get("rows", [])
+	if bool(parsed.get("ok", false)) and not rows.is_empty() and typeof(rows[0]) == TYPE_DICTIONARY:
+		var rank := int((rows[0] as Dictionary).get("rank", 0))
+		if period == "daily":
+			_daily_rank = rank
+		else:
+			_all_rank = rank
+	if _rank_parts < 2:
+		return
+	_rank_parts = 0
+	var bits: PackedStringArray = []
+	if _daily_rank > 0:
+		bits.append("#%d today" % _daily_rank)
+	if _all_rank > 0:
+		bits.append("#%d all-time" % _all_rank)
+	if bits.is_empty():
+		_set_rank_text("leaderboard offline", Color("a49fcf"))
+		return
+	_set_rank_text(" - ".join(bits), Color("8ecbff"))
+
+func _set_rank_text(text: String, color: Color) -> void:
+	if _rank_label == null:
+		return
+	_rank_label.text = text
+	_rank_label.visible = text != "" or (_board_button != null and _board_button.visible and Leaderboard.should_submit())
+	_rank_label.add_theme_color_override("font_color", color)
+	if game_over_visible:
+		_layout_death_card()
+
+func _open_board() -> void:
+	if _board == null or _leaderboard == null:
+		return
+	_apply_board_viewport()
+	_board.open()
+	_leaderboard.set_page_cover(true)
+	if _title_board_button != null:
+		_title_board_button.visible = false
+	if _rotate != null:
+		_rotate.visible = false
+
+func _on_board_closed() -> void:
+	_restore_board_viewport()
+	call_deferred("_layout_after_board")
+
+func _on_board_rename() -> void:
+	_open_name_prompt("board")
+
+func _force_close_board() -> void:
+	if _board != null and _board.visible:
+		_board.dismiss()
+	_restore_board_viewport()
+
+func _apply_board_viewport() -> void:
+	if _leaderboard != null:
+		_leaderboard.set_page_cover(true)
+	if _board_scaled:
+		return
+	var win := DisplayServer.window_get_size()
+	if win.x < 2 or win.y < 2 or win.y <= win.x:
+		return
+	var root := get_tree().root
+	_saved_scale_mode = root.content_scale_mode
+	_saved_scale_aspect = root.content_scale_aspect
+	_saved_window_size = root.size
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+	root.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
+	# Fill the phone. The game field stays 480x270 until this closes.
+	root.size = win
+	_board_scaled = true
+
+func _restore_board_viewport() -> void:
+	if _leaderboard != null and (_board == null or not _board.visible) and (_name_prompt == null or not _name_prompt.visible):
+		_leaderboard.set_page_cover(false)
+	if not _board_scaled:
+		return
+	var root := get_tree().root
+	root.content_scale_mode = _saved_scale_mode as Window.ContentScaleMode
+	root.content_scale_aspect = _saved_scale_aspect as Window.ContentScaleAspect
+	if _saved_window_size != Vector2i.ZERO:
+		root.size = _saved_window_size
+	_board_scaled = false
+	_saved_window_size = Vector2i.ZERO
+
+func _layout_after_board() -> void:
+	_layout_death_card()
+	_layout_pause(_viewport_size())
+	_layout_title_button(_viewport_size())
+	if _title_board_button != null and (_board == null or not _board.visible):
+		var covered := wants_rotate(_viewport_size())
+		_title_board_button.visible = phase == PHASE_REVEAL and not covered
 
 func _viewport_size() -> Vector2:
 	if not is_inside_tree():

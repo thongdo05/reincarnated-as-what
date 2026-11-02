@@ -132,6 +132,28 @@ body {
 	margin: 0 auto;
 }
 
+#lb-name-input {
+	display: none;
+	position: fixed;
+	z-index: 80;
+	margin: 0;
+	padding: 4px 8px;
+	border: 2px solid #f0d78c;
+	border-radius: 0;
+	background: #100c14;
+	color: #f2fbff;
+	font-size: 16px;
+	font-family: ui-monospace, "Courier New", monospace;
+	line-height: 1.2;
+	box-sizing: border-box;
+	touch-action: manipulation !important;
+	-webkit-user-select: text;
+	user-select: text;
+	-webkit-touch-callout: default;
+	caret-color: #f0d78c;
+	outline: none;
+}
+
 #status-notice {
 	background-color: #5b3943;
 	border-radius: 0.5rem;
@@ -152,6 +174,7 @@ body {
 		<canvas id="canvas">
 			Your browser does not support the canvas tag.
 		</canvas>
+		<input id="lb-name-input" type="text" maxlength="12" enterkeyhint="done" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" aria-label="Your name">
 		<div id="rotate-gate">
 			<strong>Rotate your phone</strong>
 			<span>This run flies sideways.</span>
@@ -170,9 +193,80 @@ body {
 		<script>
 			(function () {
 				var gate = document.getElementById("rotate-gate");
+				var input = document.getElementById("lb-name-input");
 				function syncRotateGate() {
+					if (window.__lbHoldGate || window.__lbFieldOpen) {
+						gate.style.display = "none";
+						return;
+					}
 					var portrait = window.innerHeight > window.innerWidth;
 					gate.style.display = portrait ? "flex" : "none";
+				}
+				window.syncRotateGate = syncRotateGate;
+				window.lbSetCover = function (on) {
+					window.__lbHoldGate = !!on;
+					syncRotateGate();
+				};
+				window.lbShowNameField = function (vx, vy, vw, vh, viewW, viewH, text) {
+					var canvas = document.getElementById("canvas");
+					var rect = canvas.getBoundingClientRect();
+					var scale = Math.min(rect.width / viewW, rect.height / viewH);
+					if (!isFinite(scale) || scale <= 0) {
+						scale = 1;
+					}
+					var offX = rect.left + (rect.width - viewW * scale) / 2;
+					var offY = rect.top + (rect.height - viewH * scale) / 2;
+					input.style.left = (offX + vx * scale) + "px";
+					input.style.top = (offY + vy * scale) + "px";
+					input.style.width = Math.max(vw * scale, 120) + "px";
+					input.style.height = Math.max(vh * scale, 44) + "px";
+					if (typeof text === "string" && document.activeElement !== input) {
+						input.value = text;
+					}
+					input.style.display = "block";
+					window.__lbFieldOpen = true;
+					window.__lbPlace = { vx: vx, vy: vy, vw: vw, vh: vh, viewW: viewW, viewH: viewH };
+					syncRotateGate();
+				};
+				window.lbHideNameField = function () {
+					input.blur();
+					input.style.display = "none";
+					window.__lbFieldOpen = false;
+					syncRotateGate();
+				};
+				window.lbNameValue = function () {
+					if (!window.__lbFieldOpen) {
+						return null;
+					}
+					return input.value;
+				};
+				function stopTouch(event) {
+					event.stopPropagation();
+				}
+				input.addEventListener("touchstart", stopTouch, { passive: true });
+				input.addEventListener("touchmove", stopTouch, { passive: true });
+				input.addEventListener("touchend", stopTouch, { passive: true });
+				input.addEventListener("input", function () {
+					if (window.__lbOnNameInput) {
+						window.__lbOnNameInput(input.value);
+					}
+				});
+				input.addEventListener("keydown", function (event) {
+					if (event.key === "Enter") {
+						event.preventDefault();
+						if (window.__lbOnNameSubmit) {
+							window.__lbOnNameSubmit(input.value);
+						}
+					}
+				});
+				if (window.visualViewport) {
+					window.visualViewport.addEventListener("resize", function () {
+						var place = window.__lbPlace;
+						if (!window.__lbFieldOpen || !place || !window.lbShowNameField) {
+							return;
+						}
+						window.lbShowNameField(place.vx, place.vy, place.vw, place.vh, place.viewW, place.viewH, null);
+					});
 				}
 				window.addEventListener("resize", syncRotateGate);
 				window.addEventListener("orientationchange", syncRotateGate);
