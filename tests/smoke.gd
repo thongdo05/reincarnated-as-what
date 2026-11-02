@@ -1798,8 +1798,24 @@ func _check_hud() -> int:
 	if HudLayout.fill_px(gate_rank3, 2) != 0:
 		push_error("rank 3 meter should restart at its gate, got %d" % HudLayout.fill_px(gate_rank3, 2))
 		failed += 1
-	if HudLayout.fill_px(Difficulty.GATE_RANK5, 4) != 64 or HudLayout.fill_px(Difficulty.GATE_RANK5 + 4000, 4) != 64:
-		push_error("rank 5 meter should stay full")
+	if HudLayout.fill_px(Difficulty.GATE_RANK5, 4) != 0:
+		push_error("rank 5 meter should restart toward Power, got %d" % HudLayout.fill_px(Difficulty.GATE_RANK5, 4))
+		failed += 1
+	var power_half := Difficulty.GATE_RANK5 + int(Difficulty.power_step_points(1) / 2)
+	if HudLayout.fill_px(power_half, 4) != 32:
+		push_error("Power meter should be half full halfway to +1, got %d" % HudLayout.fill_px(power_half, 4))
+		failed += 1
+	if Difficulty.power_level(Difficulty.GATE_RANK5) != 0 or Difficulty.power_level(Difficulty.GATE_RANK5 + Difficulty.power_step_points(1)) != 1:
+		push_error("the first Power level should cost more than one gem and start at the final form")
+		failed += 1
+	if Difficulty.power_step_gems(2) <= Difficulty.power_step_gems(1):
+		push_error("each Power level should cost more gems than the last")
+		failed += 1
+	if Difficulty.overdrive_drop_chance(180.0) <= Difficulty.overdrive_drop_chance(10.0):
+		push_error("OVERDRIVE should be a little more common as the run approaches 3:00")
+		failed += 1
+	if Difficulty.OVERDRIVE_DROP_COOLDOWN < 8.0 or Difficulty.OVERDRIVE_SCORE <= Difficulty.BOMB_SCORE:
+		push_error("OVERDRIVE should be rarer than a back-to-back drop and worth more than Bomb")
 		failed += 1
 	if HudLayout.meter_file(4) != "ui/hud_evo_meter_rank5_empty.png":
 		push_error("rank 5 should use the five-pip meter")

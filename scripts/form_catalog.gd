@@ -199,13 +199,14 @@ static func cat_rank_f(key: String, rank_index: int) -> float:
 static func cat_f(key: String) -> float:
 	return float(CAT[key])
 
-static func cat_blink_dist(rank_index: int) -> float:
+static func cat_blink_dist(rank_index: int, power_level: int = 0) -> float:
 	var values: Array = CAT["blink_dist"]
-	return float(values[clampi(rank_index, 0, values.size() - 1)])
+	return float(values[clampi(rank_index, 0, values.size() - 1)]) + float(maxi(power_level, 0)) * 2.0
 
-static func cat_blink_guard(rank_index: int) -> float:
+static func cat_blink_guard(rank_index: int, power_level: int = 0) -> float:
 	var values: Array = CAT["blink_guard"]
-	return float(values[clampi(rank_index, 0, values.size() - 1)])
+	var guard := float(values[clampi(rank_index, 0, values.size() - 1)]) + float(maxi(power_level, 0)) * 0.008
+	return minf(guard, 0.2)
 
 static func cat_graze_need(rank_index: int) -> int:
 	var values: Array = CAT["graze_need"]
@@ -247,6 +248,21 @@ static func vending_winner_kills(rank_index: int = 0) -> int:
 static func vending_winner_bonus(rank_index: int) -> int:
 	var values: Array = VENDING["winner_bonus"]
 	return int(values[clampi(rank_index, 0, values.size() - 1)])
+
+## Modest, and slower for the slime stream, whose shots start at 1 damage.
+static func power_damage_bonus(id: int, power_level: int) -> int:
+	if power_level <= 0:
+		return 0
+	if id == Id.SLIME:
+		return power_level / 3
+	if id == Id.DEMON:
+		return power_level / 4
+	return power_level / 2
+
+static func power_fire_interval(base: float, power_level: int) -> float:
+	if power_level <= 0:
+		return base
+	return base * pow(0.985, float(power_level))
 
 static func demon_orbs(rank_index: int) -> int:
 	var values: Array = DEMON["orbs"]

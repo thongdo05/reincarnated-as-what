@@ -47,6 +47,8 @@ var _effects: Array[PixelEffect] = []
 var pattern_shots: Array[Dictionary] = []
 var power_spawned := 0
 var overdrive := 0
+var overdrive_spawned := 0
+var _overdrive_lock := 0.0
 var winner := 0
 var winner_pops := 0
 var _graze_streak := 0
@@ -779,6 +781,13 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		_player.invulnerable = true
 	if _player.ready_to_fire():
 		var interval := float(FormCatalog.rank_spec(form_id, rank_index)["fire_interval"])
+		var level := _power_level()
+		if form_id == FormCatalog.Id.DEMON:
+			# Orbs already clear crowds. Power only nudges them, so a long run
+			# cannot turn the final form into a screen wipe.
+			interval *= pow(0.995, float(level))
+		else:
+			interval = FormCatalog.power_fire_interval(interval, level)
 		if rapid_left > 0.0:
 			interval *= Difficulty.RAPID_FIRE_SCALE
 		var shot_event := AudioCues.shot_event_for_form(form_id)
@@ -788,9 +797,12 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		for spec in FormCatalog.player_shots(form_id, _player.position, rank_index):
 			if form_id == FormCatalog.Id.DEMON:
 				var speed := FormCatalog.demon_speed(rank_index, crowd)
-				spec["velocity"] = Vector2(speed, 0.0)
-				spec["homing"] = FormCatalog.demon_homing(rank_index, crowd)
-				spec["damage"] = FormCatalog.demon_damage(rank_index, crowd)
+				var aim: Vector2 = spec["velocity"]
+				spec["velocity"] = Vector2(speed, aim.y)
+				spec["homing"] = FormCatalog.demon_homing(rank_index, crowd) + float(level) * 0.5
+				spec["damage"] = FormCatalog.demon_damage(rank_index, crowd) + level / 8
+			elif level > 0:
+				spec["damage"] = int(spec["damage"]) + FormCatalog.power_damage_bonus(form_id, level)
 			_spawn_shot(spec, true)
 		_player.did_fire(interval)
 	CaptureMode.tick_play(self, delta)
@@ -1094,12 +1106,6 @@ func _collect_gem(gem: LootGem) -> void:
 	loot_count += 1
 	score += Difficulty.GEM_SCORE
 	_spawn_fx("graze_sparkle.png", at, 0.22, 0.6, 1.2)
-	if FormCatalog.gate_for_next_rank(rank_index) < 0:
-		overdrive += 1
-		if overdrive >= Difficulty.OVERDRIVE_GEMS:
-			overdrive = 0
-			_overdrive_blast()
-		return
 	_add_evo(Difficulty.GEM_EVO)
 
 func _loot_reached(gem: LootGem, magnet: float) -> bool:
@@ -1112,10 +1118,27 @@ func _loot_reached(gem: LootGem, magnet: float) -> bool:
 func _roll_drops(at: Vector2) -> void:
 	if _drop_unit() < Difficulty.GEM_CHANCE:
 		_spawn_evo_gem(at)
+	if _try_overdrive_drop(at):
+		return
 	if _drop_unit() < Difficulty.POWER_CHANCE:
 		var kinds: Array[String] = ["bomb", "shield", "rapid", "magnet"]
 		var index := _drop_rng.randi() % kinds.size()
 		_spawn_power(at + Vector2(8, -6), kinds[index])
+
+func _try_overdrive_drop(at: Vector2) -> bool:
+	if elapsed < _overdrive_lock or _overdrive_live():
+		return false
+	if _drop_unit() >= Difficulty.overdrive_drop_chance(elapsed):
+		return false
+	_spawn_power(at + Vector2(10, -8), "overdrive")
+	_overdrive_lock = elapsed + Difficulty.OVERDRIVE_DROP_COOLDOWN
+	return true
+
+func _overdrive_live() -> bool:
+	for drop in _powers:
+		if is_instance_valid(drop) and drop.visible and drop.kind == "overdrive":
+			return true
+	return false
 
 func _drop_unit() -> float:
 	if not _drop_seeded:
@@ -1138,6 +1161,8 @@ func _spawn_power(at: Vector2, kind: String) -> void:
 	drop.visible = true
 	_powers.append(drop)
 	power_spawned += 1
+	if kind == "overdrive":
+		overdrive_spawned += 1
 
 func _tick_powers(delta: float) -> void:
 	if _powers.is_empty():
@@ -1179,6 +1204,8 @@ func _collect_power(drop: PowerDrop) -> void:
 			rapid_left = Difficulty.POWER_DURATION
 		"magnet":
 			magnet_left = Difficulty.POWER_DURATION
+		"overdrive":
+			_overdrive_blast()
 
 func _release_power(drop: PowerDrop) -> void:
 	if not is_instance_valid(drop):
@@ -1456,6 +1483,19 @@ func _add_evo(points: int) -> void:
 		return
 	evo_points += points
 	_try_rank()
+	_sync_power()
+
+func _power_level() -> int:
+	return Difficulty.power_level(evo_points)
+
+func _sync_power() -> void:
+	if _player == null:
+		return
+	var level := _power_level()
+	var before := int(_player.power_level)
+	_player.power_level = level
+	if level > before and phase == PHASE_PLAY and _combat != null:
+		_combat.push_callout("POWER +%d" % level, _player.position + Vector2(-28, -22), Color("ffe56a"), 0.36)
 
 func _try_rank() -> void:
 	var reached := FormCatalog.rank_for_points(evo_points)
@@ -1789,25 +1829,26 @@ func _refresh_hud() -> void:
 	if _hud_view == null:
 		return
 	var fill := HudLayout.fill_px(evo_points, rank_index)
-	var overdrive_px := -1
-	if FormCatalog.gate_for_next_rank(rank_index) < 0:
-		overdrive_px = int(round(float(HudLayout.FILL_FULL) * clampf(float(overdrive) / float(Difficulty.OVERDRIVE_GEMS), 0.0, 1.0)))
 	var winner_px := -1
 	if form_id == FormCatalog.Id.VENDING:
 		var need := float(FormCatalog.vending_winner_kills(rank_index))
 		winner_px = int(round(float(HudLayout.FILL_FULL) * clampf(float(winner) / need, 0.0, 1.0)))
+	var rank_label := FormCatalog.rank_name(form_id, rank_index).to_upper()
+	var level := _power_level()
+	if level > 0:
+		rank_label += " +%d" % level
 	_hud_view.set_run(
 		ScoreRules.format_score(score),
 		ScoreRules.format_time(elapsed),
 		loot_count,
-		FormCatalog.rank_name(form_id, rank_index).to_upper(),
+		rank_label,
 		rank_index,
 		fill,
 		form_id == FormCatalog.Id.GOBLIN,
 		_player != null and _player.shield_hits > 0,
 		int(ceil(rapid_left)) if rapid_left > 0.0 else 0,
 		int(ceil(magnet_left)) if magnet_left > 0.0 else 0,
-		overdrive_px,
+		-1,
 		winner_px
 	)
 
@@ -2104,6 +2145,7 @@ func _tick_effects(delta: float) -> void:
 func _prewarm() -> void:
 	PixelFont.outlined_texture("FINAL FORM!", Color("ffe56a"))
 	PixelFont.outlined_texture("OVERDRIVE", Color("ffe56a"))
+	PixelFont.outlined_texture("POWER +1", Color("ffe56a"))
 	PixelFont.outlined_texture("WINNER!", Color("ffe56a"))
 	PixelFont.outlined_texture("NEW BEST!", Color("ffe56a"))
 	PixelFont.outlined_texture("BOMB", Color("ffe56a"))
@@ -2196,6 +2238,8 @@ func _reincarnate() -> void:
 	evo_points = 0
 	rank_index = 0
 	overdrive = 0
+	overdrive_spawned = 0
+	_overdrive_lock = 0.0
 	winner = 0
 	_graze_streak = 0
 	_graze_left = 0.0

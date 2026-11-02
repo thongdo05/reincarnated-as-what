@@ -28,6 +28,7 @@ var small := false
 var regrow_left := 0.0
 var regrew := false
 var rank_index := 0
+var power_level := 0
 var evolve_flash := 0.0
 var evolve_t := -1.0
 var evolve_hold := 1.0
@@ -160,12 +161,12 @@ func _try_blink(delta: float) -> void:
 	var dist := to_aim.length()
 	if dist < FormCatalog.CAT_BLINK_MIN:
 		return
-	var hop := to_aim / dist * minf(dist, FormCatalog.cat_blink_dist(rank_index))
+	var hop := to_aim / dist * minf(dist, FormCatalog.cat_blink_dist(rank_index, power_level))
 	_trail.push_front(position)
 	_trim_trail()
 	position += hop
 	_blink_cd = FormCatalog.CAT_BLINK_CD
-	blink_guard = FormCatalog.cat_blink_guard(rank_index)
+	blink_guard = FormCatalog.cat_blink_guard(rank_index, power_level)
 	_trail_timer = 0.04
 
 func _fade_blink_trail(delta: float) -> void:
@@ -215,6 +216,7 @@ func respawn(id: int, start: Vector2) -> void:
 	regrow_left = 0.0
 	regrew = false
 	rank_index = 0
+	power_level = 0
 	evolve_flash = 0.0
 	evolve_t = -1.0
 	evolve_final = false

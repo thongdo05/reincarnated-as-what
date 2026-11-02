@@ -128,6 +128,8 @@ func _run(seed_value: int, form: int, style: String) -> Dictionary:
 		"killer": str(game.killer_name),
 		"powers": int(game.power_spawned),
 		"loot": int(game.loot_count),
+		"power": int(Difficulty.power_level(int(game.evo_points))) if int(game.rank_index) >= 4 else 0,
+		"overdrive": int(game.overdrive_spawned),
 	}
 	root.remove_child(game)
 	game.free()
@@ -443,6 +445,8 @@ func _report() -> void:
 			var reached3 := 0
 			var reached4 := 0
 			var reached5 := 0
+			var power_sum := 0
+			var overdrive_sum := 0
 			for seed_value in seeds:
 				print("RUN %s %s %d" % [style, FormCatalog.display_name(form), seed_value])
 				var result := _run(seed_value, form, style)
@@ -469,6 +473,8 @@ func _report() -> void:
 					reached4 += 1
 				if float(result["rank5"]) >= 0.0:
 					reached5 += 1
+					power_sum += int(result["power"])
+				overdrive_sum += int(result["overdrive"])
 				var rank2_text := "never"
 				var rank3_text := "never"
 				if float(result["rank2"]) >= 0.0:
@@ -489,7 +495,10 @@ func _report() -> void:
 					str(result["killer"]),
 				])
 			var n := seeds.size()
-			print("REPORT %s %s n %d med %.2f p90 %.2f dead10 %.1f past30 %.1f past60 %.1f past120 %.1f past180 %.1f rank2 %.1f rank3 %.1f rank4 %.1f rank5 %.1f rank2_med %s rank3_med %s powers %.2f" % [
+			var power_avg := 0.0
+			if reached5 > 0:
+				power_avg = float(power_sum) / float(reached5)
+			print("REPORT %s %s n %d med %.2f p90 %.2f dead10 %.1f past30 %.1f past60 %.1f past120 %.1f past180 %.1f rank2 %.1f rank3 %.1f rank4 %.1f rank5 %.1f power_avg %.2f overdrive_per_run %.2f rank2_med %s rank3_med %s powers %.2f" % [
 				style,
 				FormCatalog.display_name(form),
 				n,
@@ -504,6 +513,8 @@ func _report() -> void:
 				100.0 * float(reached3) / float(n),
 				100.0 * float(reached4) / float(n),
 				100.0 * float(reached5) / float(n),
+				power_avg,
+				float(overdrive_sum) / float(n),
 				"%.2f" % _median(r2) if not r2.is_empty() else "never",
 				"%.2f" % _median(r3) if not r3.is_empty() else "never",
 				float(powers) / float(n),

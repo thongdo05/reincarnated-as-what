@@ -114,8 +114,17 @@ const BOMB_DAMAGE := 8
 const BOMB_SCORE := 400
 const SHIELD_IFRAMES := 0.22
 
-const OVERDRIVE_GEMS := 4
+## OVERDRIVE is a rare monster drop, not a gem meter. It pays more than Bomb
+## and kills what Bomb only chips. The chance climbs a little toward 3:00.
+## A cooldown keeps two from landing back to back.
 const OVERDRIVE_SCORE := 2500
+const OVERDRIVE_DROP_START := 0.008
+const OVERDRIVE_DROP_EXTREME := 0.018
+const OVERDRIVE_DROP_COOLDOWN := 80.0
+## After rank 5, gems buy Power levels. The first costs 3 gems. Each later
+## level costs 2 gems more than the one before it, so it cannot snowball.
+const POWER_FIRST_GEMS := 3
+const POWER_GEM_STEP := 2
 
 ## Full-height rake. The hole starts wide and closes on the old early slope,
 ## then stops at a lane the largest body can sit in. It does not keep closing.
@@ -253,6 +262,49 @@ static func kill_multiplier(combo: int, rank_index: int) -> float:
 
 static func gates() -> Array[int]:
 	return [GATE_RANK2, GATE_RANK3, GATE_RANK4, GATE_RANK5]
+
+## Gems in one Power step. Level 1 is the first step after the final form.
+static func power_step_gems(next_level: int) -> int:
+	return POWER_FIRST_GEMS + maxi(next_level - 1, 0) * POWER_GEM_STEP
+
+static func power_step_points(next_level: int) -> int:
+	return power_step_gems(next_level) * GEM_EVO
+
+## Uncapped. 0 at the moment rank 5 is reached.
+static func power_level(points: int) -> int:
+	var extra := points - GATE_RANK5
+	if extra <= 0:
+		return 0
+	var level := 0
+	var spent := 0
+	while level < 80:
+		var cost := power_step_points(level + 1)
+		if extra < spent + cost:
+			return level
+		spent += cost
+		level += 1
+	return level
+
+## Absolute meter points where this Power level starts, and where the next one starts.
+static func power_bounds(points: int) -> Vector2:
+	var level := power_level(points)
+	var start := GATE_RANK5
+	for step in level:
+		start += power_step_points(step + 1)
+	return Vector2(float(start), float(start + power_step_points(level + 1)))
+
+static func power_progress(points: int) -> float:
+	var bounds := power_bounds(points)
+	var span := bounds.y - bounds.x
+	if span <= 0.0:
+		return 0.0
+	return clampf((float(points) - bounds.x) / span, 0.0, 1.0)
+
+static func overdrive_drop_chance(elapsed: float) -> float:
+	var u := 0.0
+	if elapsed > OPENING_SECONDS:
+		u = _climb(minf(elapsed, EXTREME_SECONDS))
+	return lerpf(OVERDRIVE_DROP_START, OVERDRIVE_DROP_EXTREME, u)
 
 ## 0 at the end of the opening, 1 at 3:00. Smooth, so the climb has no knee.
 static func _climb(elapsed: float) -> float:

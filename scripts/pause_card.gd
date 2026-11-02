@@ -69,13 +69,20 @@ func show_form(id: int, rank_index: int, points: int, split_ready: bool) -> void
 	_weapon.text = "WEAPON  " + FormCatalog.weapon_line(id, rank_index)
 	_trait.text = "TRAIT  " + FormCatalog.trait_line(id, split_ready)
 	_drops.visible = true
-	_drops.text = "DROPS  Gems fill the meter, drift left, and fade. Bomb clears shots. Shield blocks one hit. Rapid and Magnet last 5s. After the final form, gems charge OVERDRIVE."
+	_drops.text = "DROPS  Gems fill the meter and score. Bomb clears shots. Shield blocks one hit. Rapid and Magnet last 5s. OVERDRIVE is a rare drop that clears the screen. After the final form, gems raise Power."
 	var at_cap := FormCatalog.gate_for_next_rank(rank_index) < 0
 	var points_text := FormCatalog.next_rank_text(rank_index, points)
 	var meter_fill := HudLayout.fill_px(points, rank_index)
-	_meter.visible = not at_cap
+	var show_power := at_cap
+	_meter.visible = not at_cap or show_power
 	_points.visible = not at_cap
-	if at_cap:
+	if show_power:
+		var level := Difficulty.power_level(points)
+		_next.text = "POWER +%d" % level
+		_next.add_theme_color_override("font_color", FINAL)
+		_size_line(_next)
+		(_meter as _Meter).set_fill(rank_index, meter_fill)
+	elif at_cap:
 		_next.text = "NEXT RANK  FINAL FORM"
 		_next.add_theme_color_override("font_color", FINAL)
 		_size_line(_next)
