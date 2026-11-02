@@ -408,7 +408,7 @@ static func _schedule_piano(game: Node) -> void:
 	var size: Vector2 = game._viewport_size()
 	var player_pos: Vector2 = game._player.position
 	var piano_x := _piano_x(player_pos.x, size.x)
-	var impact_y := _impact_y(player_pos, game._player.sprite_name(), piano_x)
+	var impact_y := _impact_y(player_pos, game._player.sprite_name(), piano_x, FormCatalog.play_scale(int(game.form_id)))
 	var start_y := -SpawnDirector.body_radius(SpawnDirector.PIANO) - 8.0
 	var dt := 1.0 / 60.0
 	var impact_frame := int(round(play_t / dt))
@@ -451,12 +451,12 @@ static func _y_on_frame(spawn_frame: int, frame: int, start_y: float) -> float:
 		y += Difficulty.PIANO_FALL * Difficulty.speed_scale(float(f) * dt) * step
 	return y
 
-static func _impact_y(player_pos: Vector2, player_file: String, piano_x: float) -> float:
+static func _impact_y(player_pos: Vector2, player_file: String, piano_x: float, player_scale: float = 1.0) -> float:
 	var lo := -80.0
 	var hi := player_pos.y + 80.0
 	for _i in 18:
 		var mid := (lo + hi) * 0.5
-		var gap := HitLibrary.gap(player_pos, player_file, "hurt", Vector2(piano_x, mid), "piano.png", "threat")
+		var gap := HitLibrary.gap(player_pos, player_file, "hurt", Vector2(piano_x, mid), "piano.png", "threat", player_scale, 1.0)
 		if gap <= 0.0:
 			hi = mid
 		else:

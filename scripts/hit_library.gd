@@ -42,13 +42,15 @@ static func entry(file_name: String) -> Dictionary:
 static func has_role(file_name: String, role: String) -> bool:
 	return not _parts(file_name, role).is_empty()
 
-static func overlaps(pos_a: Vector2, file_a: String, role_a: String, pos_b: Vector2, file_b: String, role_b: String) -> bool:
-	return gap(pos_a, file_a, role_a, pos_b, file_b, role_b) <= 0.0
+static func overlaps(pos_a: Vector2, file_a: String, role_a: String, pos_b: Vector2, file_b: String, role_b: String, scale_a: float = 1.0, scale_b: float = 1.0) -> bool:
+	return gap(pos_a, file_a, role_a, pos_b, file_b, role_b, scale_a, scale_b) <= 0.0
 
 ## Positive when the shapes are apart, negative when they penetrate.
-static func gap(pos_a: Vector2, file_a: String, role_a: String, pos_b: Vector2, file_b: String, role_b: String) -> float:
-	var parts_a := _parts(file_a, role_a)
-	var parts_b := _parts(file_b, role_b)
+## scale_* shrinks a role around its anchor. Play uses this so a drawn-smaller
+## body and its hurtbox stay the same shape.
+static func gap(pos_a: Vector2, file_a: String, role_a: String, pos_b: Vector2, file_b: String, role_b: String, scale_a: float = 1.0, scale_b: float = 1.0) -> float:
+	var parts_a := _parts_scaled(file_a, role_a, scale_a)
+	var parts_b := _parts_scaled(file_b, role_b, scale_b)
 	if parts_a.is_empty() or parts_b.is_empty():
 		return 9999.0
 	var best := 9999.0
@@ -82,6 +84,36 @@ static func max_part_radius(file_name: String, role: String) -> float:
 		else:
 			best = maxf(best, float(part["r"]))
 	return best
+
+## Local vertical extent of a role: x is the top (min y), y is the bottom (max y).
+static func vertical_span(file_name: String, role: String) -> Vector2:
+	var min_y := 100000.0
+	var max_y := -100000.0
+	for part in _parts(file_name, role):
+		var kind := str(part["type"])
+		if kind == "circle":
+			var center: Vector2 = part["center"]
+			var radius := float(part["r"])
+			min_y = minf(min_y, center.y - radius)
+			max_y = maxf(max_y, center.y + radius)
+		elif kind == "capsule":
+			var radius := float(part["r"])
+			var cap_a: Vector2 = part["a"]
+			var cap_b: Vector2 = part["b"]
+			min_y = minf(min_y, minf(cap_a.y, cap_b.y) - radius)
+			max_y = maxf(max_y, maxf(cap_a.y, cap_b.y) + radius)
+		elif kind == "rect":
+			var center: Vector2 = part["center"]
+			var half: Vector2 = part["half"]
+			min_y = minf(min_y, center.y - half.y)
+			max_y = maxf(max_y, center.y + half.y)
+	if max_y < min_y:
+		return Vector2.ZERO
+	return Vector2(min_y, max_y)
+
+static func vertical_extent(file_name: String, role: String) -> float:
+	var span := vertical_span(file_name, role)
+	return span.y - span.x
 
 ## Distance from the anchor to the outside of the shape. Movement and spawns use this.
 static func bounds_radius(file_name: String, role: String) -> float:
@@ -123,6 +155,30 @@ static func draw(canvas: CanvasItem, file_name: String, role: String, color: Col
 			var center: Vector2 = part["center"]
 			var half: Vector2 = part["half"]
 			canvas.draw_rect(Rect2(center - half, half * 2.0), color, false, 1.0)
+
+static func _parts_scaled(file_name: String, role: String, scale: float) -> Array:
+	var parts := _parts(file_name, role)
+	if absf(scale - 1.0) < 0.001:
+		return parts
+	var scaled: Array = []
+	for part in parts:
+		var copy: Dictionary = (part as Dictionary).duplicate()
+		var kind := str(copy["type"])
+		if kind == "circle" or kind == "rect":
+			var center: Vector2 = copy["center"]
+			copy["center"] = center * scale
+		if kind == "circle" or kind == "capsule":
+			copy["r"] = float(copy["r"]) * scale
+		if kind == "capsule":
+			var cap_a: Vector2 = copy["a"]
+			var cap_b: Vector2 = copy["b"]
+			copy["a"] = cap_a * scale
+			copy["b"] = cap_b * scale
+		if kind == "rect":
+			var half: Vector2 = copy["half"]
+			copy["half"] = half * scale
+		scaled.append(copy)
+	return scaled
 
 static func _parts(file_name: String, role: String) -> Array:
 	_ensure()

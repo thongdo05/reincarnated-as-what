@@ -743,13 +743,18 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		_player.invulnerable = true
 	if _player.ready_to_fire():
 		var interval := float(FormCatalog.rank_spec(form_id, rank_index)["fire_interval"])
+		if form_id == FormCatalog.Id.SLIME:
+			interval *= Difficulty.slime_fire_scale(elapsed)
 		if rapid_left > 0.0 and not FlappyMode.is_active():
 			interval *= Difficulty.RAPID_FIRE_SCALE
 		var shot_event := AudioCues.shot_event_for_form(form_id)
 		if _sound != null and shot_event != "":
 			_sound.play_event(shot_event)
 		var crowd := _crowd_size()
-		for spec in FormCatalog.player_shots(form_id, _player.position, rank_index):
+		var fired: Array[Dictionary] = FormCatalog.player_shots(form_id, _player.position, rank_index)
+		if _slime_one_lane() and fired.size() > 1:
+			fired = [_center_lane(fired)]
+		for spec in fired:
 			if form_id == FormCatalog.Id.DEMON and not FlappyMode.is_active():
 				var speed := FormCatalog.demon_speed(rank_index, crowd)
 				spec["velocity"] = Vector2(speed, 0.0)
@@ -764,14 +769,24 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	else:
 		if _tutorial_active:
 			_finish_tutorial()
+		var enemy_room := Difficulty.enemy_cap(elapsed) - _alive_enemy_count()
 		for event in _director.pop_due(elapsed):
-			_spawn_enemy(event, size)
+			if not FlappyMode.is_active() and enemy_room <= 0:
+				continue
+			if _spawn_enemy(event, size):
+				enemy_room -= 1
 	var player_pos := _player.position
+	var shot_room := -1
+	if not FlappyMode.is_active():
+		shot_room = maxi(Difficulty.enemy_shot_cap(elapsed) - _reserved_enemy_shots(), 0)
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
+		enemy.fire_room = shot_room
 		for spec in enemy.tick(delta, player_pos, elapsed, Difficulty.speed_scale(elapsed)):
 			_spawn_shot(spec, false)
+		if shot_room >= 0:
+			shot_room = enemy.fire_room
 	_tick_charm(delta)
 	_guide_orbs(delta)
 	for shot in _shots:
@@ -819,13 +834,62 @@ func _key_vector() -> Vector2:
 		vector = vector.normalized()
 	return vector
 
-func _spawn_enemy(data: Dictionary, size: Vector2) -> void:
+func _spawn_enemy(data: Dictionary, size: Vector2) -> bool:
 	var enemy := EnemyActor.new()
 	enemy.z_index = 3
 	enemy.setup(next_enemy_id, data, size, _background)
 	next_enemy_id += 1
+	if _spawn_overlaps_player(enemy):
+		enemy.free()
+		return false
 	add_child(enemy)
 	_enemies.append(enemy)
+	return true
+
+func _alive_enemy_count() -> int:
+	var count := 0
+	for enemy in _enemies:
+		if enemy.alive:
+			count += 1
+	return count
+
+func _reserved_enemy_shots() -> int:
+	var count := 0
+	for shot in _shots:
+		if is_instance_valid(shot) and not shot.from_player:
+			count += 1
+	for enemy in _enemies:
+		if enemy.alive:
+			count += enemy.telegraphs.size()
+	return count
+
+## A spawn that is already touching the player is not a dodge. Pushing it
+## would desync an archer from its island, so the beat is skipped instead.
+func _spawn_overlaps_player(enemy: EnemyActor) -> bool:
+	if FlappyMode.is_active() or CaptureMode.is_active() or _player == null:
+		return false
+	if enemy.position.distance_to(_player.position) > enemy.radius + _player.radius + 6.0:
+		return false
+	var enemy_file := SpawnDirector.sprite_for(enemy.kind)
+	return HitLibrary.overlaps(_player.position, _player.sprite_name(), "hurt", enemy.position, enemy_file, "threat", FormCatalog.play_scale(form_id), 1.0)
+
+func _slime_shot_splits() -> bool:
+	if FlappyMode.is_active():
+		return true
+	return elapsed < Difficulty.SLIME_SPLIT_UNTIL
+
+func _slime_one_lane() -> bool:
+	return form_id == FormCatalog.Id.SLIME and not FlappyMode.is_active() and elapsed >= Difficulty.SLIME_SPLIT_UNTIL
+
+func _center_lane(shots: Array[Dictionary]) -> Dictionary:
+	var best: Dictionary = shots[0]
+	var best_off := absf(float(best["position"].y) - _player.position.y)
+	for spec in shots:
+		var off := absf(float(spec["position"].y) - _player.position.y)
+		if off < best_off:
+			best = spec
+			best_off = off
+	return best
 
 func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
 	var shot: Shot
@@ -864,7 +928,7 @@ func _collide() -> void:
 				continue
 			enemy.hurt(shot.damage)
 			shot.hit_ids.append(enemy.id)
-			if shot.splits > 0:
+			if shot.splits > 0 and _slime_shot_splits():
 				for spec in FormCatalog.split_shots(shot.velocity, shot.position):
 					spec["ignore_id"] = enemy.id
 					splits.append(spec)
@@ -883,15 +947,16 @@ func _collide() -> void:
 	for spec in splits:
 		var child := _spawn_shot(spec, true)
 		child.ignore_id = int(spec["ignore_id"])
-	if not _player.alive or _player.invulnerable:
+	if not _player.alive or _player.invulnerable or _player.blink_guard > 0.0:
 		return
 	var player_file := _player.sprite_name()
+	var player_scale := FormCatalog.play_scale(form_id)
 	for enemy in _enemies:
 		if not enemy.alive or enemy.charmed > 0.0:
 			continue
 		var enemy_file := SpawnDirector.sprite_for(enemy.kind)
 		# Every hurt part, not the movement bounds radius.
-		var enemy_gap := HitLibrary.gap(_player.position, player_file, "hurt", enemy.position, enemy_file, "threat")
+		var enemy_gap := HitLibrary.gap(_player.position, player_file, "hurt", enemy.position, enemy_file, "threat", player_scale, 1.0)
 		if enemy_gap <= 0.0:
 			_hurt_player(enemy.kind_name)
 			return
@@ -899,7 +964,7 @@ func _collide() -> void:
 	for shot in _shots:
 		if shot.from_player or not is_instance_valid(shot):
 			continue
-		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat")
+		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat", player_scale, 1.0)
 		if shot_gap <= 0.0:
 			_hurt_player(shot.killer_name if shot.killer_name != "" else "shot")
 			return
@@ -1335,7 +1400,7 @@ func _reflect_bullet(bullet: Shot) -> void:
 	bullet.velocity = dir * speed
 	bullet.from_player = true
 	bullet.sprite_name = "reflected_bullet.png"
-	bullet.damage = 1
+	bullet.damage = 2
 	bullet.pierce = 0
 	bullet.radius = HitLibrary.bounds_radius("reflected_bullet.png", "body")
 	bullet.style = "blob"
@@ -1396,29 +1461,17 @@ func _tick_patterns(delta: float, size: Vector2) -> void:
 		_pattern_layer.queue_redraw()
 
 func _spawn_rake(size: Vector2) -> void:
-	var gap_h := Difficulty.rake_gap(elapsed)
-	var player_y := _player.position.y
-	var min_y := 40.0
-	var max_y := 214.0
-	var gap_y := player_y + Difficulty.RAKE_SHIFT
-	if player_y > (min_y + max_y) * 0.5:
-		gap_y = player_y - Difficulty.RAKE_SHIFT
-	gap_y = clampf(gap_y, min_y + gap_h * 0.5, max_y - gap_h * 0.5)
-	if absf(gap_y - player_y) < _player.radius + 24.0:
-		gap_y = min_y + gap_h * 0.5 if player_y > 120.0 else max_y - gap_h * 0.5
-		gap_y = clampf(gap_y, min_y + gap_h * 0.5, max_y - gap_h * 0.5)
-	var speed := Difficulty.rake_speed(elapsed)
+	var hurt_h := HitLibrary.vertical_extent(_player.sprite_name(), "hurt")
+	var plan := Difficulty.build_rake(elapsed, _player.position.y, hurt_h)
+	var speed := float(plan["speed"])
 	var windup := Difficulty.telegraph_for(speed)
-	var y := min_y
-	while y <= max_y + 0.1:
-		if absf(y - gap_y) > gap_h * 0.5:
-			pattern_shots.append({
-				"pos": Vector2(size.x + 18.0, y),
-				"vel": Vector2(-speed, 0.0),
-				"left": windup,
-				"sprite": "floating_eye_bolt.png",
-			})
-		y += 26.0
+	for y in plan["ys"]:
+		pattern_shots.append({
+			"pos": Vector2(size.x + 18.0, float(y)),
+			"vel": Vector2(-speed, 0.0),
+			"left": windup,
+			"sprite": Difficulty.RAKE_BOLT,
+		})
 
 func _gain_skill(points: int) -> void:
 	if points <= 0:

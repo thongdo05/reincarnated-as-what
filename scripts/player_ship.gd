@@ -18,6 +18,8 @@ var stride := 0.0
 var sprinting := true
 var _cooldown := 0.0
 var _blink_cd := 0.0
+## Seconds left where a Cat dash cannot be hit.
+var blink_guard := 0.0
 var _wobble := 0.0
 var _trail_timer := 0.0
 var _trail: Array[Vector2] = []
@@ -106,6 +108,8 @@ func tick(delta: float, bounds: Rect2) -> void:
 		_apply_evolve_visual()
 	if _cooldown > 0.0:
 		_cooldown -= delta
+	if blink_guard > 0.0:
+		blink_guard = maxf(blink_guard - delta, 0.0)
 	if form_id == FormCatalog.Id.GOBLIN:
 		stride = fmod(stride + delta, FormCatalog.goblin_f("stride"))
 		sprinting = stride < FormCatalog.goblin_f("stride") * FormCatalog.goblin_f("sprint_fraction")
@@ -167,6 +171,7 @@ func _try_blink(delta: float) -> void:
 	_trim_trail()
 	position += hop
 	_blink_cd = FormCatalog.CAT_BLINK_CD
+	blink_guard = FormCatalog.CAT_BLINK_GUARD
 	_trail_timer = 0.04
 
 func _fade_blink_trail(delta: float) -> void:
@@ -227,6 +232,7 @@ func respawn(id: int, start: Vector2) -> void:
 	shield_hits = 0
 	_cooldown = 0.12
 	_blink_cd = 0.0
+	blink_guard = 0.0
 	_wobble = 0.0
 	_pose = 0.0
 	_trail.clear()
@@ -283,24 +289,27 @@ func _draw() -> void:
 	else:
 		_draw_body(sprite_name())
 		_draw_final_banner()
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var fitted := FormCatalog.play_scale(form_id)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(fitted, fitted))
 	if shield_hits > 0:
-		draw_arc(Vector2.ZERO, radius + 5.0, 0.0, TAU, 22, Color("f2fbff"), 1.5, true)
+		draw_arc(Vector2.ZERO, radius / maxf(fitted, 0.01) + 5.0, 0.0, TAU, 22, Color("f2fbff"), 1.5, true)
 	if HitLibrary.show:
 		HitLibrary.draw(self, sprite_name(), "hurt", Color(0.35, 1.0, 0.55, 0.95))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 ## Squash and lean stay under about a pixel on these sprites, and the hurt
 ## overlay is drawn after the pose is cleared so it matches the collision.
 func _begin_pose() -> void:
+	var fitted := FormCatalog.play_scale(form_id)
 	if _pose <= 0.01:
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(fitted, fitted))
 		return
 	if form_id == FormCatalog.Id.SLIME:
 		var squash := 0.06 * _pose
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0 + squash, 1.0 - squash * 0.75))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(fitted * (1.0 + squash), fitted * (1.0 - squash * 0.75)))
 	else:
 		var lean := (-0.045 if sprinting else 0.025) * _pose
-		draw_set_transform(Vector2.ZERO, lean, Vector2.ONE)
+		draw_set_transform(Vector2.ZERO, lean, Vector2(fitted, fitted))
 
 func _draw_final_banner() -> void:
 	if not evolve_final or evolve_t < 0.0:

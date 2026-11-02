@@ -4,42 +4,55 @@ class_name Difficulty
 ## Pacing for the default drag shooter. Flappy mode keeps the previous curve
 ## (see the legacy_* helpers) so ?mode=flappy stays on its own tuning.
 ##
-## Previous default (f4d1e34 / 06a00b9), before this pass:
-## - FIRST_SPAWN 0.72
-## - spawn gap 1.85 → 1.45 at 20 s → 0.52 at 50 s → floor 0.36
-## - speed scale 1.0 → 1.20 at 20 s → 1.95 at 50 s → cap 2.40
-## - aim 0.18 until 8 s, full at 44 s
-## - wolf chase off until 16 s, then 0.35 → 0.85 over 20 s
-## - bursts only after 15 s (pair chance 0.62, triple after 32 s)
-## - hazards from 8 s, warn 0.4 s, anvil fall 96, piano fall 62
-## - gates 800 / 12000 skill points, kills and grazes filled the meter
-## - graze 25, then 55 at rank 2
-## - no power drops, no overdrive, goblin magnet 0
+## The opening stays brutal: the first ten seconds still match the short
+## curve that kills an average dodge in 5–10 s. Danger then climbs to a hard
+## ceiling around a minute. After that, spawn rate and speed only creep, and
+## the sweeping rake never closes past a lane a body can sit in.
 
 const FIRST_SPAWN := 0.34
 
 const SPAWN_INTERVAL_START := 0.78
 const SPAWN_INTERVAL_AT_20 := 0.40
-const SPAWN_INTERVAL_AT_50 := 0.30
-const SPAWN_INTERVAL_FLOOR := 0.24
+const SPAWN_INTERVAL_AT_50 := 0.34
+const SPAWN_INTERVAL_PEAK := 0.32
+const SPAWN_INTERVAL_FLOOR := 0.30
 const SPAWN_EASE_SECONDS := 20.0
-const SPAWN_STEEP_SECONDS := 30.0
-const SPAWN_FLOOR_SECONDS := 40.0
-const SPAWN_RAMP_SECONDS := 60.0
+const SPAWN_PEAK_SECONDS := 60.0
+const SPAWN_CREEP_SECONDS := 240.0
 const SPAWN_JITTER_MIN := 0.94
 const SPAWN_JITTER_MAX := 1.06
 
 const BURST_PAIR_AFTER := 6.0
-const BURST_TRIPLE_AFTER := 14.0
+const BURST_TRIPLE_AFTER := 26.0
 const BURST_PAIR_CHANCE := 0.55
-const BURST_TRIPLE_CHANCE := 0.34
+const BURST_TRIPLE_CHANCE := 0.22
 
 const SPEED_AT_20 := 1.55
-const SPEED_AT_50 := 2.20
-const SPEED_CAP := 2.65
+const SPEED_AT_50 := 1.85
+const SPEED_PEAK := 1.95
+const SPEED_CAP := 2.08
 const SPEED_EASE_SECONDS := 20.0
-const SPEED_STEEP_SECONDS := 30.0
-const SPEED_CAP_SECONDS := 40.0
+const SPEED_PEAK_SECONDS := 60.0
+const SPEED_CREEP_SECONDS := 240.0
+
+## Live caps so a bad seed cannot tile the field. The rake is not part of the
+## bullet cap; it is a designed lane, not leftover fire.
+const MAX_ENEMIES := 8
+const MAX_ENEMIES_LATE := 6
+const MAX_ENEMY_SHOTS := 9
+## After the opening, fewer aimed shots may be in flight at once. The count
+## stays fixed, so a long run does not drown in bullets.
+const MAX_ENEMY_SHOTS_LATE := 6
+const MAX_ENEMY_SHOTS_PEAK := 8
+const SHOT_CAP_PEAK_SECONDS := 50.0
+const SHOT_CAP_LATE_SECONDS := 14.0
+## Slime's hit-split is an opening clear. After this, a shot stays one bullet
+## so a long run does not vacuum the field. Flappy keeps the split.
+const SLIME_SPLIT_UNTIL := 14.0
+## After the opening, the slime stream slows so it no longer erases the field.
+## 1 until SLIME_SPLIT_UNTIL, then up to this multiple.
+const SLIME_LATE_FIRE_SCALE := 9.0
+const SLIME_LATE_FIRE_SECONDS := 24.0
 
 const SCROLL_AT_45 := 1.18
 const SCROLL_CAP := 1.30
@@ -99,17 +112,26 @@ const SHIELD_IFRAMES := 0.22
 const OVERDRIVE_GEMS := 4
 const OVERDRIVE_SCORE := 2500
 
-## Full-height rake. The gap starts wide enough to reach and closes
-## until a body no longer fits, so a perfect dodge still ends the run.
+## Full-height rake. The hole starts wide and closes on the old early slope,
+## then stops at a lane the largest body can sit in. It does not keep closing.
 const RAKE_FIRST := 3.4
 const RAKE_GAP_START := 120.0
 const RAKE_GAP_END := 28.0
+const RAKE_GAP_FLOOR := 100.0
 const RAKE_GAP_SECONDS := 22.0
 const RAKE_SPEED_START := 142.0
 const RAKE_SPEED_END := 220.0
+const RAKE_SPEED_CAP := 236.0
 const RAKE_EVERY_START := 3.5
 const RAKE_EVERY_END := 2.15
+const RAKE_EVERY_FLOOR := 2.0
 const RAKE_SHIFT := 78.0
+const RAKE_TOP := 40.0
+const RAKE_BOTTOM := 214.0
+const RAKE_STEP := 26.0
+## Extra empty pixels beyond the hurtbox, so the lane is wider than the body.
+const PATTERN_GAP_SLACK := 12.0
+const RAKE_BOLT := "floating_eye_bolt.png"
 
 const FINAL_HOLD := 1.85
 const FINAL_SLOWMO_SECONDS := 0.3
@@ -155,27 +177,35 @@ static func first_spawn() -> float:
 		return LEGACY_FIRST_SPAWN
 	return FIRST_SPAWN
 
+static func _creep(elapsed: float, knee: float, span: float) -> float:
+	var u := clampf((elapsed - knee) / span, 0.0, 1.0)
+	return u * u * (3.0 - 2.0 * u)
+
 static func spawn_interval(elapsed: float) -> float:
 	if _flappy():
 		return _legacy_spawn_interval(elapsed)
 	if elapsed <= SPAWN_EASE_SECONDS:
 		return lerpf(SPAWN_INTERVAL_START, SPAWN_INTERVAL_AT_20, clampf(elapsed / SPAWN_EASE_SECONDS, 0.0, 1.0))
-	if elapsed <= SPAWN_EASE_SECONDS + SPAWN_STEEP_SECONDS:
-		var u := clampf((elapsed - SPAWN_EASE_SECONDS) / SPAWN_STEEP_SECONDS, 0.0, 1.0)
+	if elapsed <= 50.0:
+		var u := clampf((elapsed - SPAWN_EASE_SECONDS) / 30.0, 0.0, 1.0)
 		return lerpf(SPAWN_INTERVAL_AT_20, SPAWN_INTERVAL_AT_50, u)
-	var extra := clampf((elapsed - SPAWN_EASE_SECONDS - SPAWN_STEEP_SECONDS) / SPAWN_FLOOR_SECONDS, 0.0, 1.0)
-	return lerpf(SPAWN_INTERVAL_AT_50, SPAWN_INTERVAL_FLOOR, extra)
+	if elapsed <= SPAWN_PEAK_SECONDS:
+		var to_peak := clampf((elapsed - 50.0) / 10.0, 0.0, 1.0)
+		return lerpf(SPAWN_INTERVAL_AT_50, SPAWN_INTERVAL_PEAK, to_peak)
+	return lerpf(SPAWN_INTERVAL_PEAK, SPAWN_INTERVAL_FLOOR, _creep(elapsed, SPAWN_PEAK_SECONDS, SPAWN_CREEP_SECONDS))
 
 static func speed_scale(elapsed: float) -> float:
 	if _flappy():
 		return _legacy_speed_scale(elapsed)
 	if elapsed <= SPEED_EASE_SECONDS:
 		return lerpf(1.0, SPEED_AT_20, clampf(elapsed / SPEED_EASE_SECONDS, 0.0, 1.0))
-	if elapsed <= SPEED_EASE_SECONDS + SPEED_STEEP_SECONDS:
-		var u := clampf((elapsed - SPEED_EASE_SECONDS) / SPEED_STEEP_SECONDS, 0.0, 1.0)
+	if elapsed <= 50.0:
+		var u := clampf((elapsed - SPEED_EASE_SECONDS) / 30.0, 0.0, 1.0)
 		return lerpf(SPEED_AT_20, SPEED_AT_50, u)
-	var extra := clampf((elapsed - SPEED_EASE_SECONDS - SPEED_STEEP_SECONDS) / SPEED_CAP_SECONDS, 0.0, 1.0)
-	return lerpf(SPEED_AT_50, SPEED_CAP, extra)
+	if elapsed <= SPEED_PEAK_SECONDS:
+		var to_peak := clampf((elapsed - 50.0) / 10.0, 0.0, 1.0)
+		return lerpf(SPEED_AT_50, SPEED_PEAK, to_peak)
+	return lerpf(SPEED_PEAK, SPEED_CAP, _creep(elapsed, SPEED_PEAK_SECONDS, SPEED_CREEP_SECONDS))
 
 static func scroll_scale(elapsed: float) -> float:
 	if elapsed <= SCROLL_RAMP_SECONDS:
@@ -259,16 +289,26 @@ static func kill_multiplier(combo: int, rank_index: int) -> float:
 static func gates() -> Array[int]:
 	return [GATE_RANK2, GATE_RANK3]
 
-## Y offsets for an aimed fan. Early fans cover a parked lane.
-## Later fans reach both edges of the 270-tall field.
+## Y offsets for an aimed fan. Early fire is one shot. Later fans keep a
+## lane between the streams wider than the largest hurtbox.
 static func fan_offsets(elapsed: float) -> Array:
-	# One aimed shot while the run is young. The -54 fork is the average
-	# bot's tie-break juke. Later fans close the open side.
-	if elapsed < 16.0:
+	# One stream through the opening. A second stream, then a third, only
+	# once an average run is already over, and each gap stays body-wide.
+	if elapsed < 18.0:
 		return [0.0]
-	if elapsed < 20.0:
-		return [0.0, -54.0]
-	return [-84.0, 0.0, 84.0]
+	if elapsed < 70.0:
+		return [0.0, -110.0]
+	return [-110.0, 0.0, 110.0]
+
+static func fan_min_spacing(elapsed: float) -> float:
+	var offs := fan_offsets(elapsed)
+	if offs.size() < 2:
+		return 10000.0
+	var best := 10000.0
+	for i in offs.size():
+		for j in range(i + 1, offs.size()):
+			best = minf(best, absf(float(offs[i]) - float(offs[j])))
+	return best
 
 static func pattern_speed(kind: int, elapsed: float) -> float:
 	var base := 90.0
@@ -278,8 +318,34 @@ static func pattern_speed(kind: int, elapsed: float) -> float:
 		base = 118.0
 	elif kind == SpawnDirector.EYE:
 		base = 102.0
-	var climb := lerpf(1.0, 1.55, clampf(elapsed / 18.0, 0.0, 1.0))
-	return base * climb * speed_scale(elapsed)
+	# The first 10s use the old climb, so the opening that kills an average
+	# dodge stays put. After that, bullet speed eases toward a ceiling a
+	# committed dodge can still leave, then creeps.
+	var opening := lerpf(1.0, 1.55, clampf(minf(elapsed, 10.0) / 18.0, 0.0, 1.0)) * speed_scale(minf(elapsed, 10.0))
+	if elapsed <= 10.0:
+		return base * opening
+	var extra := lerpf(1.0, 1.05, clampf((elapsed - 10.0) / 35.0, 0.0, 1.0))
+	if elapsed > 42.0:
+		extra = lerpf(1.05, 1.24, clampf((elapsed - 42.0) / 48.0, 0.0, 1.0))
+	return base * opening * extra
+
+static func slime_fire_scale(elapsed: float) -> float:
+	if _flappy() or elapsed <= SLIME_SPLIT_UNTIL:
+		return 1.0
+	var u := clampf((elapsed - SLIME_SPLIT_UNTIL) / SLIME_LATE_FIRE_SECONDS, 0.0, 1.0)
+	return lerpf(1.0, SLIME_LATE_FIRE_SCALE, u)
+
+static func enemy_cap(elapsed: float) -> int:
+	if _flappy() or elapsed < SHOT_CAP_LATE_SECONDS:
+		return MAX_ENEMIES
+	return MAX_ENEMIES_LATE
+
+static func enemy_shot_cap(elapsed: float) -> int:
+	if _flappy() or elapsed < SHOT_CAP_LATE_SECONDS:
+		return MAX_ENEMY_SHOTS
+	if elapsed < SHOT_CAP_PEAK_SECONDS:
+		return MAX_ENEMY_SHOTS_LATE
+	return MAX_ENEMY_SHOTS_PEAK
 
 static func telegraph_for(speed: float) -> float:
 	if speed >= FAST_SHOT:
@@ -288,15 +354,66 @@ static func telegraph_for(speed: float) -> float:
 
 static func rake_gap(elapsed: float) -> float:
 	var u := clampf(elapsed / RAKE_GAP_SECONDS, 0.0, 1.0)
-	return lerpf(RAKE_GAP_START, RAKE_GAP_END, u)
+	var floor := RAKE_GAP_FLOOR
+	# The opening keeps the narrow-but-legal lane. After that the lane opens
+	# a little so a large body can still sit in it while other fire is in the air.
+	if elapsed > SHOT_CAP_LATE_SECONDS:
+		var open := clampf((elapsed - SHOT_CAP_LATE_SECONDS) / 30.0, 0.0, 1.0)
+		floor = lerpf(RAKE_GAP_FLOOR, 130.0, open)
+	return maxf(lerpf(RAKE_GAP_START, RAKE_GAP_END, u), floor)
 
 static func rake_speed(elapsed: float) -> float:
-	var u := clampf(elapsed / RAKE_GAP_SECONDS, 0.0, 1.0)
-	return lerpf(RAKE_SPEED_START, RAKE_SPEED_END, u)
+	if elapsed <= RAKE_GAP_SECONDS:
+		var u := clampf(elapsed / RAKE_GAP_SECONDS, 0.0, 1.0)
+		return lerpf(RAKE_SPEED_START, RAKE_SPEED_END, u)
+	var creep := clampf((elapsed - RAKE_GAP_SECONDS) / 180.0, 0.0, 1.0)
+	return lerpf(RAKE_SPEED_END, RAKE_SPEED_CAP, creep * creep)
 
 static func rake_every(elapsed: float) -> float:
 	var u := clampf(elapsed / RAKE_GAP_SECONDS, 0.0, 1.0)
-	return lerpf(RAKE_EVERY_START, RAKE_EVERY_END, u)
+	var cadence := lerpf(RAKE_EVERY_START, RAKE_EVERY_END, u)
+	if elapsed > RAKE_GAP_SECONDS:
+		var creep := clampf((elapsed - RAKE_GAP_SECONDS) / 180.0, 0.0, 1.0)
+		cadence = lerpf(RAKE_EVERY_END, RAKE_EVERY_FLOOR, creep * creep)
+	# A new wall waits until the last one has passed the player, so two
+	# holes cannot cross and erase each other.
+	var pass_time := 370.0 / maxf(rake_speed(elapsed), 1.0)
+	return maxf(cadence, pass_time + 0.2)
+
+static func bolt_half_height() -> float:
+	var span := HitLibrary.vertical_span(RAKE_BOLT, "threat")
+	return maxf(absf(span.x), absf(span.y))
+
+## Bullet rows for the rake, plus the empty lane they leave. The lane is at
+## least the closing curve, the fixed floor, and this body's height plus slack.
+static func build_rake(elapsed: float, player_y: float, hurt_height: float) -> Dictionary:
+	var clear := maxf(rake_gap(elapsed), hurt_height + PATTERN_GAP_SLACK)
+	var span := RAKE_BOTTOM - RAKE_TOP
+	if clear > span - 8.0:
+		clear = span - 8.0
+	var half := clear * 0.5
+	var min_c := RAKE_TOP + half
+	var max_c := RAKE_BOTTOM - half
+	var shift := RAKE_SHIFT if player_y < (RAKE_TOP + RAKE_BOTTOM) * 0.5 else -RAKE_SHIFT
+	var center := clampf(player_y + shift, min_c, max_c)
+	var bolt := bolt_half_height()
+	var lane_top := center - half
+	var lane_bottom := center + half
+	var ys: Array[float] = []
+	var y := RAKE_TOP
+	while y <= RAKE_BOTTOM + 0.1:
+		var overlaps := (y + bolt) > lane_top and (y - bolt) < lane_bottom
+		if not overlaps:
+			ys.append(y)
+		y += RAKE_STEP
+	return {
+		"center": center,
+		"clear": lane_bottom - lane_top,
+		"lane_top": lane_top,
+		"lane_bottom": lane_bottom,
+		"ys": ys,
+		"speed": rake_speed(elapsed),
+	}
 
 static func _legacy_spawn_interval(elapsed: float) -> float:
 	if elapsed <= 20.0:

@@ -402,17 +402,23 @@ func _report() -> void:
 	var style_at := args.find("--style")
 	if style_at >= 0 and style_at + 1 < args.size():
 		styles = [str(args[style_at + 1])]
+	var forms: Array[int] = []
+	forms.assign(FormCatalog.IDS)
+	var form_at := args.find("--form")
+	if form_at >= 0 and form_at + 1 < args.size():
+		forms = [FormCatalog.id_from_key(str(args[form_at + 1]))]
 	var seeds: Array[int] = []
 	for i in count:
 		seeds.append(20261101 + i * 7)
 	for style in styles:
-		for form in FormCatalog.IDS:
+		for form in forms:
 			var deaths: Array[float] = []
 			var r2: Array[float] = []
 			var r3: Array[float] = []
 			var powers := 0
 			var dead10 := 0
 			var dead30 := 0
+			var dead60 := 0
 			var reached2 := 0
 			var reached3 := 0
 			for seed_value in seeds:
@@ -425,6 +431,8 @@ func _report() -> void:
 					dead10 += 1
 				if death <= 30.0:
 					dead30 += 1
+				if death <= 60.0:
+					dead60 += 1
 				if float(result["rank2"]) >= 0.0:
 					reached2 += 1
 					r2.append(float(result["rank2"]))
@@ -451,7 +459,7 @@ func _report() -> void:
 					str(result["killer"]),
 				])
 			var n := seeds.size()
-			print("REPORT %s %s n %d med %.2f p90 %.2f dead10 %.1f dead30 %.1f rank2 %.1f rank3 %.1f rank2_med %s rank3_med %s powers %.2f" % [
+			print("REPORT %s %s n %d med %.2f p90 %.2f dead10 %.1f dead30 %.1f dead60 %.1f rank2 %.1f rank3 %.1f rank2_med %s rank3_med %s powers %.2f" % [
 				style,
 				FormCatalog.display_name(form),
 				n,
@@ -459,6 +467,7 @@ func _report() -> void:
 				_percentile(deaths, 0.90),
 				100.0 * float(dead10) / float(n),
 				100.0 * float(dead30) / float(n),
+				100.0 * float(dead60) / float(n),
 				100.0 * float(reached2) / float(n),
 				100.0 * float(reached3) / float(n),
 				"%.2f" % _median(r2) if not r2.is_empty() else "never",
