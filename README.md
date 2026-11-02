@@ -16,9 +16,9 @@ Sound is a test mix (Hibiki, 1 Nov 2026), not the final one. Music loops for the
 
 The field is 480×270 and scales up by whole pixels, so the art stays sharp. On a desktop the window opens at 960×540, which is that field at 2×.
 
-The form order and the enemy spawns come from the UTC date. Everyone gets the same order and the same spawns that day. Your place in the order is remembered in the browser. There is no leaderboard yet.
+The form order and the enemy spawns come from the UTC date. Everyone gets the same order and the same spawns that day. Your place in the order is remembered in the browser.
 
-Score is kills, a combo when kills are chained, near-misses, and survival time. The form does not multiply it. The death card shows your best as that form and your best overall. Those two numbers stay in the browser. There is no online leaderboard.
+Score is kills, a combo when kills are chained, near-misses, and survival time. The form does not multiply it. The death card shows your best as that form and your best overall. Those two numbers stay in the browser. The same run is also posted to an online board: all-time and the UTC day, overall or for that form. You pick a short name the first time. A device id in the browser keeps your row. **Reincarnate** stays the big button. The board can be opened from the title card or the death card, and a miss on the network just says the leaderboard is offline.
 
 - **Slime.** Blue jelly cube. Shots fly right and split in two when they hit. Movement keeps sliding after you stop. Its trait, not an extra life: the hit that would kill a full-size Slime swaps in the small slime of the same rank, with a short moment of safety and a `SPLIT!` pop. Stay alive 15 seconds and it grows back at the same rank, trait included. A hit while small ends the run. One life still holds. Ranks: Slime, Gel Knight, Ooze Titan.
 - **Goblin.** Tiny crown. Stones lob forward and drop. Each rock hits harder than a slime shot and pierces one target. Rank 2 and rank 3 use the larger stones and a wider arc. Movement snaps to the finger. Kills can drop a gem that drifts left. Touch one to add score and evolution points. The slingshot does not level from a pickup count. Ranks: Goblin, Goblin Chief, Goblin King.
