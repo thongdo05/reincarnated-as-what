@@ -1,8 +1,7 @@
 extends RefCounted
 class_name Difficulty
 
-## Pacing for the default drag shooter. Flappy mode keeps the previous curve
-## (see the legacy_* helpers) so ?mode=flappy stays on its own tuning.
+## Pacing for the drag shooter.
 ##
 ## The opening stays brutal: the first ten seconds still match the short
 ## curve that kills an average dodge in 5–10 s. Danger then climbs to a hard
@@ -78,7 +77,6 @@ const RANK2_KILL_KEEP := 0.40
 const RANK2_CHAIN_WEIGHT := 0.45
 
 ## Gem points, not kill score. One gem reaches rank 2. Nine reach rank 3.
-## Both stay above the flappy rank-2 gate (640).
 const GATE_RANK2 := 720
 const GATE_RANK3 := 6480
 const GEM_EVO := 720
@@ -87,7 +85,7 @@ const GEM_CHANCE := 0.8
 const GEM_LIFE := 3.05
 const GEM_DRIFT := 36.0
 
-## Goblin loot trait. Applied only in the default game.
+## Goblin loot trait.
 const GOBLIN_MAGNET := 40.0
 const GOBLIN_MAGNET_SPEED := 90.0
 
@@ -137,37 +135,7 @@ const POPUP_MIN := 200
 const POPUP_LIFE := 0.32
 const MAX_FX := 18
 
-const LEGACY_FIRST_SPAWN := 0.72
-const LEGACY_SPAWN_START := 1.85
-const LEGACY_SPAWN_AT_20 := 1.45
-const LEGACY_SPAWN_AT_50 := 0.52
-const LEGACY_SPAWN_FLOOR := 0.36
-const LEGACY_SPEED_AT_20 := 1.20
-const LEGACY_SPEED_AT_50 := 1.95
-const LEGACY_SPEED_CAP := 2.40
-const LEGACY_AIM_START := 0.18
-const LEGACY_AIM_ARM := 8.0
-const LEGACY_AIM_FULL := 36.0
-const LEGACY_WOLF_ARM := 16.0
-const LEGACY_WOLF_START := 0.35
-const LEGACY_WOLF_FULL := 0.85
-const LEGACY_WOLF_RAMP := 20.0
-const LEGACY_BURST_PAIR_AFTER := 15.0
-const LEGACY_BURST_TRIPLE_AFTER := 32.0
-const LEGACY_BURST_PAIR := 0.62
-const LEGACY_BURST_TRIPLE := 0.38
-const LEGACY_HAZARD_START := 8.0
-const LEGACY_HAZARD_RAMP := 42.0
-const LEGACY_HAZARD_WARN := 0.4
-const LEGACY_ANVIL_FALL := 96.0
-const LEGACY_PIANO_FALL := 62.0
-
-static func _flappy() -> bool:
-	return FlappyMode.is_active()
-
 static func first_spawn() -> float:
-	if _flappy():
-		return LEGACY_FIRST_SPAWN
 	return FIRST_SPAWN
 
 static func _creep(elapsed: float, knee: float, span: float) -> float:
@@ -175,8 +143,6 @@ static func _creep(elapsed: float, knee: float, span: float) -> float:
 	return u * u * (3.0 - 2.0 * u)
 
 static func spawn_interval(elapsed: float) -> float:
-	if _flappy():
-		return _legacy_spawn_interval(elapsed)
 	if elapsed <= SPAWN_EASE_SECONDS:
 		return lerpf(SPAWN_INTERVAL_START, SPAWN_INTERVAL_AT_20, clampf(elapsed / SPAWN_EASE_SECONDS, 0.0, 1.0))
 	if elapsed <= 50.0:
@@ -188,8 +154,6 @@ static func spawn_interval(elapsed: float) -> float:
 	return lerpf(SPAWN_INTERVAL_PEAK, SPAWN_INTERVAL_FLOOR, _creep(elapsed, SPAWN_PEAK_SECONDS, SPAWN_CREEP_SECONDS))
 
 static func speed_scale(elapsed: float) -> float:
-	if _flappy():
-		return _legacy_speed_scale(elapsed)
 	if elapsed <= SPEED_EASE_SECONDS:
 		return lerpf(1.0, SPEED_AT_20, clampf(elapsed / SPEED_EASE_SECONDS, 0.0, 1.0))
 	if elapsed <= 50.0:
@@ -207,32 +171,16 @@ static func scroll_scale(elapsed: float) -> float:
 	return lerpf(SCROLL_AT_45, SCROLL_CAP, extra)
 
 static func aim_amount(elapsed: float) -> float:
-	if _flappy():
-		if elapsed < LEGACY_AIM_ARM:
-			return LEGACY_AIM_START
-		var legacy_u := clampf((elapsed - LEGACY_AIM_ARM) / LEGACY_AIM_FULL, 0.0, 1.0)
-		return lerpf(LEGACY_AIM_START, 1.0, legacy_u)
 	if elapsed < AIM_ARM_SECONDS:
 		return AIM_START
 	var u := clampf((elapsed - AIM_ARM_SECONDS) / AIM_FULL_SECONDS, 0.0, 1.0)
 	return lerpf(AIM_START, 1.0, u)
 
 static func wolf_chase(elapsed: float) -> float:
-	if _flappy():
-		if elapsed < LEGACY_WOLF_ARM:
-			return 0.0
-		var legacy_u := clampf((elapsed - LEGACY_WOLF_ARM) / LEGACY_WOLF_RAMP, 0.0, 1.0)
-		return lerpf(LEGACY_WOLF_START, LEGACY_WOLF_FULL, legacy_u)
 	var u := clampf(elapsed / WOLF_CHASE_RAMP_SECONDS, 0.0, 1.0)
 	return lerpf(WOLF_CHASE_START, WOLF_CHASE_FULL, u)
 
 static func burst_count(elapsed: float, roll: float) -> int:
-	if _flappy():
-		if elapsed < LEGACY_BURST_PAIR_AFTER or roll > LEGACY_BURST_PAIR:
-			return 1
-		if elapsed >= LEGACY_BURST_TRIPLE_AFTER and roll < LEGACY_BURST_PAIR * LEGACY_BURST_TRIPLE:
-			return 3
-		return 2
 	if elapsed < BURST_PAIR_AFTER or roll > BURST_PAIR_CHANCE:
 		return 1
 	if elapsed >= BURST_TRIPLE_AFTER and roll < BURST_PAIR_CHANCE * BURST_TRIPLE_CHANCE:
@@ -240,8 +188,6 @@ static func burst_count(elapsed: float, roll: float) -> int:
 	return 2
 
 static func kind_weights(elapsed: float) -> Array[float]:
-	if _flappy():
-		return _legacy_kind_weights(elapsed)
 	var pace := clampf(elapsed / 22.0, 0.0, 1.0)
 	var hazard := clampf((elapsed - HAZARD_START_SECONDS) / HAZARD_RAMP_SECONDS, 0.0, 1.0)
 	var wyvern := clampf((elapsed - 6.5) / 12.0, 0.0, 1.0)
@@ -255,17 +201,11 @@ static func kind_weights(elapsed: float) -> Array[float]:
 	]
 
 static func fall_speed(kind: int) -> float:
-	if _flappy():
-		if kind == SpawnDirector.PIANO:
-			return LEGACY_PIANO_FALL
-		return LEGACY_ANVIL_FALL
 	if kind == SpawnDirector.PIANO:
 		return PIANO_FALL
 	return ANVIL_FALL
 
 static func hazard_warn() -> float:
-	if _flappy():
-		return LEGACY_HAZARD_WARN
 	return HAZARD_WARN
 
 static func graze_points(rank_index: int) -> int:
@@ -323,12 +263,12 @@ static func pattern_speed(kind: int, elapsed: float) -> float:
 	return base * opening * extra
 
 static func enemy_cap(elapsed: float) -> int:
-	if _flappy() or elapsed < SHOT_CAP_LATE_SECONDS:
+	if elapsed < SHOT_CAP_LATE_SECONDS:
 		return MAX_ENEMIES
 	return MAX_ENEMIES_LATE
 
 static func enemy_shot_cap(elapsed: float) -> int:
-	if _flappy() or elapsed < SHOT_CAP_LATE_SECONDS:
+	if elapsed < SHOT_CAP_LATE_SECONDS:
 		return MAX_ENEMY_SHOTS
 	if elapsed < SHOT_CAP_PEAK_SECONDS:
 		return MAX_ENEMY_SHOTS_LATE
@@ -401,34 +341,3 @@ static func build_rake(elapsed: float, player_y: float, hurt_height: float) -> D
 		"ys": ys,
 		"speed": rake_speed(elapsed),
 	}
-
-static func _legacy_spawn_interval(elapsed: float) -> float:
-	if elapsed <= 20.0:
-		return lerpf(LEGACY_SPAWN_START, LEGACY_SPAWN_AT_20, clampf(elapsed / 20.0, 0.0, 1.0))
-	if elapsed <= 50.0:
-		var u := clampf((elapsed - 20.0) / 30.0, 0.0, 1.0)
-		return lerpf(LEGACY_SPAWN_AT_20, LEGACY_SPAWN_AT_50, u)
-	var extra := clampf((elapsed - 50.0) / 40.0, 0.0, 1.0)
-	return lerpf(LEGACY_SPAWN_AT_50, LEGACY_SPAWN_FLOOR, extra)
-
-static func _legacy_speed_scale(elapsed: float) -> float:
-	if elapsed <= 20.0:
-		return lerpf(1.0, LEGACY_SPEED_AT_20, clampf(elapsed / 20.0, 0.0, 1.0))
-	if elapsed <= 50.0:
-		var u := clampf((elapsed - 20.0) / 30.0, 0.0, 1.0)
-		return lerpf(LEGACY_SPEED_AT_20, LEGACY_SPEED_AT_50, u)
-	var extra := clampf((elapsed - 50.0) / 40.0, 0.0, 1.0)
-	return lerpf(LEGACY_SPEED_AT_50, LEGACY_SPEED_CAP, extra)
-
-static func _legacy_kind_weights(elapsed: float) -> Array[float]:
-	var pace := clampf(elapsed / 60.0, 0.0, 1.0)
-	var hazard := clampf((elapsed - LEGACY_HAZARD_START) / LEGACY_HAZARD_RAMP, 0.0, 1.0)
-	var wyvern := clampf((elapsed - 8.0) / 18.0, 0.0, 1.0)
-	return [
-		lerpf(0.70, 0.16, pace),
-		lerpf(0.10, 0.16, pace),
-		lerpf(0.20, 0.16, pace),
-		lerpf(0.00, 0.15, pace) * wyvern,
-		lerpf(0.00, 0.22, hazard),
-		lerpf(0.00, 0.16, hazard),
-	]

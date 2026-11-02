@@ -1,7 +1,6 @@
 extends RefCounted
 class_name Replay
 
-## Default-mode replay pass. Flappy and hop do not read this.
 ## The first run of a page load keeps the full title card. A retry in that
 ## same visit flashes the next form. The very first run on a device is a
 ## short wordless lesson; the flag lives in user:// with the other saves.
@@ -13,7 +12,6 @@ const JUICE_SHAKE_PX := 2.0
 const JUICE_SHAKE_REDUCED := 1.0
 const JUICE_SHAKE_SECONDS := 0.12
 const BULLET_Z := 20
-const BULLET_Z_FLAPPY := 6
 const SEEN_PATH := "user://tutorial_seen.json"
 const PAGE := "https://thongdo05.github.io/reincarnated-as-what/"
 
@@ -21,9 +19,7 @@ static var _motion_known := false
 static var _motion := false
 static var _force_motion := -1
 
-static func bullet_z(flappy: bool) -> int:
-	if flappy:
-		return BULLET_Z_FLAPPY
+static func bullet_z() -> int:
 	return BULLET_Z
 
 static func shake_cap() -> float:
