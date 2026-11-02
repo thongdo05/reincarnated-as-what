@@ -46,13 +46,6 @@ const MAX_ENEMY_SHOTS_LATE := 6
 const MAX_ENEMY_SHOTS_PEAK := 8
 const SHOT_CAP_PEAK_SECONDS := 50.0
 const SHOT_CAP_LATE_SECONDS := 14.0
-## Slime's hit-split is an opening clear. After this, a shot stays one bullet
-## so a long run does not vacuum the field. Flappy keeps the split.
-const SLIME_SPLIT_UNTIL := 14.0
-## After the opening, the slime stream slows so it no longer erases the field.
-## 1 until SLIME_SPLIT_UNTIL, then up to this multiple.
-const SLIME_LATE_FIRE_SCALE := 9.0
-const SLIME_LATE_FIRE_SECONDS := 24.0
 
 const SCROLL_AT_45 := 1.18
 const SCROLL_CAP := 1.30
@@ -328,12 +321,6 @@ static func pattern_speed(kind: int, elapsed: float) -> float:
 	if elapsed > 42.0:
 		extra = lerpf(1.05, 1.24, clampf((elapsed - 42.0) / 48.0, 0.0, 1.0))
 	return base * opening * extra
-
-static func slime_fire_scale(elapsed: float) -> float:
-	if _flappy() or elapsed <= SLIME_SPLIT_UNTIL:
-		return 1.0
-	var u := clampf((elapsed - SLIME_SPLIT_UNTIL) / SLIME_LATE_FIRE_SECONDS, 0.0, 1.0)
-	return lerpf(1.0, SLIME_LATE_FIRE_SCALE, u)
 
 static func enemy_cap(elapsed: float) -> int:
 	if _flappy() or elapsed < SHOT_CAP_LATE_SECONDS:
