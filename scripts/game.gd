@@ -743,18 +743,13 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		_player.invulnerable = true
 	if _player.ready_to_fire():
 		var interval := float(FormCatalog.rank_spec(form_id, rank_index)["fire_interval"])
-		if form_id == FormCatalog.Id.SLIME:
-			interval *= Difficulty.slime_fire_scale(elapsed)
 		if rapid_left > 0.0 and not FlappyMode.is_active():
 			interval *= Difficulty.RAPID_FIRE_SCALE
 		var shot_event := AudioCues.shot_event_for_form(form_id)
 		if _sound != null and shot_event != "":
 			_sound.play_event(shot_event)
 		var crowd := _crowd_size()
-		var fired: Array[Dictionary] = FormCatalog.player_shots(form_id, _player.position, rank_index)
-		if _slime_one_lane() and fired.size() > 1:
-			fired = [_center_lane(fired)]
-		for spec in fired:
+		for spec in FormCatalog.player_shots(form_id, _player.position, rank_index):
 			if form_id == FormCatalog.Id.DEMON and not FlappyMode.is_active():
 				var speed := FormCatalog.demon_speed(rank_index, crowd)
 				spec["velocity"] = Vector2(speed, 0.0)
@@ -873,24 +868,6 @@ func _spawn_overlaps_player(enemy: EnemyActor) -> bool:
 	var enemy_file := SpawnDirector.sprite_for(enemy.kind)
 	return HitLibrary.overlaps(_player.position, _player.sprite_name(), "hurt", enemy.position, enemy_file, "threat", FormCatalog.play_scale(form_id), 1.0)
 
-func _slime_shot_splits() -> bool:
-	if FlappyMode.is_active():
-		return true
-	return elapsed < Difficulty.SLIME_SPLIT_UNTIL
-
-func _slime_one_lane() -> bool:
-	return form_id == FormCatalog.Id.SLIME and not FlappyMode.is_active() and elapsed >= Difficulty.SLIME_SPLIT_UNTIL
-
-func _center_lane(shots: Array[Dictionary]) -> Dictionary:
-	var best: Dictionary = shots[0]
-	var best_off := absf(float(best["position"].y) - _player.position.y)
-	for spec in shots:
-		var off := absf(float(spec["position"].y) - _player.position.y)
-		if off < best_off:
-			best = spec
-			best_off = off
-	return best
-
 func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
 	var shot: Shot
 	if _shot_pool.is_empty():
@@ -928,7 +905,7 @@ func _collide() -> void:
 				continue
 			enemy.hurt(shot.damage)
 			shot.hit_ids.append(enemy.id)
-			if shot.splits > 0 and _slime_shot_splits():
+			if shot.splits > 0:
 				for spec in FormCatalog.split_shots(shot.velocity, shot.position):
 					spec["ignore_id"] = enemy.id
 					splits.append(spec)
