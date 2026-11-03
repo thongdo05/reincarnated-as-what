@@ -2923,16 +2923,16 @@
       12
     ]
   },
-    {
+  {
     "file": "vending_machine_r4_body.png",
     "size": [
       40,
-      57
+      52
     ],
     "frames": 1,
     "anchor": [
       20,
-      28
+      26
     ],
     "anchor_type": "center",
     "category": "player_form",
@@ -2940,27 +2940,27 @@
     "form": "vending_machine",
     "rank": 4,
     "rank_name": "Vending Citadel",
-    "note": "Batch 6 final static sprite. No idle sheet yet. Scaled up so this rank stays at least as large as the restored rank 3 body.",
+    "note": "Final original-scale body. No idle sheet. Hurt shapes are fit to this file. Rank 5 uses the same shapes. The twin cannons and the bracket between them are body.",
     "art_bbox": [
-      40,
-      57
+      36,
+      51
     ],
     "idle": false,
     "was_art_bbox": [
-      35,
-      52
+      36,
+      51
     ]
   },
-    {
+  {
     "file": "vending_machine_r4_aura.png",
     "size": [
-      61,
-      79
+      56,
+      68
     ],
     "frames": 1,
     "anchor": [
-      30,
-      39
+      28,
+      34
     ],
     "anchor_type": "center",
     "category": "fx_aura",
@@ -2968,22 +2968,22 @@
     "form": "vending_machine",
     "rank": 4,
     "rank_name": "Vending Citadel",
-    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale. Scaled up so this rank stays at least as large as the restored rank 3 body.",
+    "note": "Aura only. No hitbox. Beacon flicks. Draw under enemy bullets.",
     "body_offset": [
-      11,
-      11
+      8,
+      8
     ]
   },
-    {
+  {
     "file": "vending_machine_r4.png",
     "size": [
-      61,
-      79
+      56,
+      68
     ],
     "frames": 1,
     "anchor": [
-      30,
-      39
+      28,
+      34
     ],
     "anchor_type": "center",
     "category": "player_form_reference",
@@ -2991,22 +2991,22 @@
     "form": "vending_machine",
     "rank": 4,
     "rank_name": "Vending Citadel",
-    "note": "Combined aura+body reference. Game draws the body and aura files separately. Scaled up so this rank stays at least as large as the restored rank 3 body.",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
     "body_offset": [
-      11,
-      11
+      8,
+      8
     ]
   },
-    {
+  {
     "file": "vending_machine_r5_body.png",
     "size": [
       40,
-      57
+      52
     ],
     "frames": 1,
     "anchor": [
       20,
-      28
+      26
     ],
     "anchor_type": "center",
     "category": "player_form",
@@ -3014,27 +3014,27 @@
     "form": "vending_machine",
     "rank": 5,
     "rank_name": "Golden Jackpot",
-    "note": "Batch 6 final static sprite. No idle sheet yet. Scaled up so this rank stays at least as large as the restored rank 3 body.",
+    "note": "Final original-scale body. Same silhouette as rank 4, so it uses the rank 4 hurt shapes. No idle sheet.",
     "art_bbox": [
-      40,
-      57
+      36,
+      51
     ],
     "idle": false,
     "was_art_bbox": [
-      35,
-      52
+      36,
+      51
     ]
   },
-    {
+  {
     "file": "vending_machine_r5_aura.png",
     "size": [
-      72,
-      89
+      64,
+      76
     ],
     "frames": 1,
     "anchor": [
-      36,
-      44
+      32,
+      38
     ],
     "anchor_type": "center",
     "category": "fx_aura",
@@ -3042,22 +3042,22 @@
     "form": "vending_machine",
     "rank": 5,
     "rank_name": "Golden Jackpot",
-    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale. Scaled up so this rank stays at least as large as the restored rank 3 body.",
+    "note": "Aura only. No hitbox. Jackpot rays, the biggest aura in the set. Draw under enemies and enemy bullets.",
     "body_offset": [
-      16,
-      16
+      12,
+      12
     ]
   },
-    {
+  {
     "file": "vending_machine_r5.png",
     "size": [
-      72,
-      89
+      64,
+      76
     ],
     "frames": 1,
     "anchor": [
-      36,
-      44
+      32,
+      38
     ],
     "anchor_type": "center",
     "category": "player_form_reference",
@@ -3065,10 +3065,10 @@
     "form": "vending_machine",
     "rank": 5,
     "rank_name": "Golden Jackpot",
-    "note": "Combined aura+body reference. Game draws the body and aura files separately. Scaled up so this rank stays at least as large as the restored rank 3 body.",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
     "body_offset": [
-      16,
-      16
+      12,
+      12
     ]
   },
   {
