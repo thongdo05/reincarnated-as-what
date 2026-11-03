@@ -48,6 +48,7 @@ var fx_show_rim := false
 var shield_hits := 0
 var _evolve_fx: EvolveFx
 var _banner: Texture2D
+var _aura_layer: Node2D
 
 const REGROW_SECONDS := 15.0
 
@@ -94,6 +95,10 @@ const SLIME_IDLE_RATE := 2.6
 const SLIME_SQUASH := 0.06
 const SLIME_BREATHE := 0.04
 const SLIME_BREATHE_RATE := 3.2
+## Jackpot rays are the widest aura. They sit under enemies and enemy shots,
+## and they are dimmed so a bullet in front of a ray still reads.
+const VENDING_RAY_ALPHA := 0.6
+const VENDING_RAY_Z := 1
 
 func setup(id: int, start: Vector2) -> void:
 	form_id = id
@@ -104,6 +109,13 @@ func setup(id: int, start: Vector2) -> void:
 	_evolve_fx = EvolveFx.new()
 	_evolve_fx.z_index = 2
 	add_child(_evolve_fx)
+	_aura_layer = Node2D.new()
+	_aura_layer.name = "BackAura"
+	_aura_layer.z_as_relative = false
+	_aura_layer.z_index = VENDING_RAY_Z
+	_aura_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_aura_layer.draw.connect(_draw_back_aura)
+	add_child(_aura_layer)
 	_banner = PixelFont.outlined_texture("FINAL FORM!", Color("ffe56a"))
 	_apply_radius()
 
@@ -192,6 +204,8 @@ func tick(delta: float, bounds: Rect2) -> void:
 		modulate.a = 1.0
 	if is_inside_tree():
 		queue_redraw()
+		if _aura_layer != null:
+			_aura_layer.queue_redraw()
 
 func _pursue(delta: float) -> void:
 	if form_id == FormCatalog.Id.CAT:
@@ -362,7 +376,7 @@ func _draw() -> void:
 			ArtLibrary.draw_anchored(self, rim)
 	else:
 		var aura := FormCatalog.aura_file(form_id, rank_index)
-		if aura != "":
+		if aura != "" and not _aura_draws_behind():
 			ArtLibrary.draw_loop(self, aura, 0.0)
 		_draw_body(sprite_name())
 	var hurt := hurt_draw_pose()
@@ -373,6 +387,22 @@ func _draw() -> void:
 	if HitLibrary.show:
 		HitLibrary.draw(self, sprite_name(), "hurt", Color(0.35, 1.0, 0.55, 0.95))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+## Rank 5 jackpot rays are a separate canvas item so they render under
+## enemies (z 3) and enemy shots (z 20). The body stays on the ship.
+func _aura_draws_behind() -> bool:
+	return form_id == FormCatalog.Id.VENDING and rank_index == 4
+
+func _draw_back_aura() -> void:
+	if _aura_layer == null or not _aura_draws_behind() or fx_mode != "":
+		return
+	var aura := FormCatalog.aura_file(form_id, rank_index)
+	if aura == "":
+		return
+	var pose := cosmetic_pose()
+	_aura_layer.draw_set_transform(pose["offset"], float(pose["rotation"]), pose["scale"])
+	ArtLibrary.draw_loop(_aura_layer, aura, 0.0, Vector2.ZERO, Color(1, 1, 1, VENDING_RAY_ALPHA))
+	_aura_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 ## Cosmetic transform for the body only. Rank 4 and 5 have no idle sheet, so
 ## this bob is what keeps them from looking frozen.
