@@ -47,7 +47,6 @@ jobs:
           set -euo pipefail
           godot --headless --path . --import --quit
           godot --headless --path . -s res://tests/smoke.gd
-          godot --headless --path . -s res://tests/hop_smoke.gd
           log="$(mktemp)"
           set +e
           godot --headless --path . --quit-after 240 >"$log" 2>&1

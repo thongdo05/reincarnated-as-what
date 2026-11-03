@@ -19,8 +19,6 @@ class_name FormCatalog
 enum Id { SLIME, GOBLIN, VENDING, CAT, DEMON }
 
 const IDS: Array[int] = [Id.SLIME, Id.GOBLIN, Id.VENDING, Id.CAT, Id.DEMON]
-## Flappy and hop stay on this pair. The default game uses IDS.
-const SIDE_IDS: Array[int] = [Id.SLIME, Id.GOBLIN]
 
 const SLIME_FIRE_INTERVAL := 0.16
 const SLIME_SHOT_SPEED := 700.0
@@ -336,22 +334,6 @@ static func id_for_run_avoiding(day_seed: int, run_index: int, avoid: int) -> in
 	if natural != avoid:
 		return natural
 	return _pick(day_seed, run_index, avoid, IDS)
-
-## Slime/Goblin cycle used by flappy. Run 2 repeats run 0. Hop rolls this pair too.
-static func id_for_side_run(day_seed: int, run_index: int) -> int:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = day_seed
-	var forms: Array[int] = []
-	forms.assign(SIDE_IDS)
-	for i in range(forms.size() - 1, 0, -1):
-		var j := rng.randi_range(0, i)
-		var swap := forms[i]
-		forms[i] = forms[j]
-		forms[j] = swap
-	var index := run_index % forms.size()
-	if index < 0:
-		index += forms.size()
-	return forms[index]
 
 static func _pick(day_seed: int, run_index: int, force_avoid: int, roster: Array[int]) -> int:
 	var rng := RandomNumberGenerator.new()

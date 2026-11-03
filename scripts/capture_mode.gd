@@ -114,9 +114,6 @@ static func boot(game: Node) -> void:
 	_piano_connected = false
 	_holding = false
 	_spawn_at = -1.0
-	if FlappyMode.is_active():
-		_boot_side(game)
-		return
 	if not _active:
 		game.day_seed = DailyRun.date_seed()
 		game.run_index = DailyRun.consume_run_index()
@@ -143,24 +140,6 @@ static func note_player_retry(form_played: int) -> void:
 	if _form_key != "":
 		_forced_spent = true
 		_run_offset += 1
-
-## Flappy stays on Slime and Goblin, including the old two-form cycle.
-static func _boot_side(game: Node) -> void:
-	if not _active:
-		game.day_seed = DailyRun.date_seed()
-		game.run_index = DailyRun.consume_run_index()
-		game.form_id = FormCatalog.id_for_side_run(game.day_seed, game.run_index)
-		return
-	var seed := _seed_value if _has_seed else DailyRun.date_seed()
-	var run := DailyRun.peek_run_index() + _run_offset
-	var form := FormCatalog.id_for_side_run(seed, run)
-	if _form_key == "slime":
-		form = FormCatalog.Id.SLIME
-	elif _form_key == "goblin":
-		form = FormCatalog.Id.GOBLIN
-	game.day_seed = seed
-	game.run_index = run
-	game.form_id = form
 
 static func finish_boot(game: Node) -> void:
 	if not _active:
@@ -353,8 +332,6 @@ static func _reset_run_state() -> void:
 
 static func _points_to_next(game: Node) -> int:
 	var gate := FormCatalog.gate_for_next_rank(int(game.rank_index))
-	if FlappyMode.is_active():
-		gate = FlappyMode.gate_for_next_rank(int(game.rank_index))
 	if gate < 0:
 		return 0
 	return maxi(gate - int(game.evo_points), 0)

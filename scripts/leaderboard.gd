@@ -13,11 +13,7 @@ const REJECTED_NAME := "That name isn't allowed, try another"
 const RETRY_SECONDS := 3.2
 
 static func should_submit() -> bool:
-	# Flappy and hop are test modes. Challenge links are real runs of that form.
-	if FlappyMode.is_active():
-		return false
-	if HopMode.requested():
-		return false
+	# Every finished run can post, including a challenged form.
 	return true
 
 static func clean_name(raw: String) -> String:

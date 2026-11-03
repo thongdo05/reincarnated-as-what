@@ -6,7 +6,7 @@ GitHub Pages sends Cache-Control: max-age=600 and the export uses fixed names
 This renames every engine file with the commit sha, points index.html at the
 new names, and refuses to boot a page whose baked sha is older than version.json.
 
-Query params already on the URL (?mode=flappy, ?mode=hop, ?seed=, ?form=) are
+Query params already on the URL (?seed=, ?form=, and any other page query) are
 left in place. v= and sw= are only cache-bust keys; the game ignores them.
 """
 

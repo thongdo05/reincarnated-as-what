@@ -73,7 +73,7 @@ func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: Fi
 			position = Vector2(field.x + radius + 20.0, FieldBackground.GROUND_FEET)
 	else:
 		position = Vector2(field.x + radius + 20.0, origin_y)
-	if not FlappyMode.is_active() and kind != SpawnDirector.ANVIL and kind != SpawnDirector.PIANO:
+	if kind != SpawnDirector.ANVIL and kind != SpawnDirector.PIANO:
 		shot_cooldown = 0.5
 
 func hurt(amount: int) -> void:
@@ -106,10 +106,7 @@ func tick(delta: float, player_pos: Vector2, run_time: float = 0.0, scale: float
 		SpawnDirector.EYE:
 			position.x -= speed * delta
 			position.y = origin_y + sin(age * 1.5 + phase) * wave_amp
-			if FlappyMode.is_active():
-				_try_fire(fired, delta, 2.8, _lead(position + Vector2(-12, 0), player_pos, player_vel, 88.0 * speed_scale, run_time), "floating_eye_bolt.png", Vector2(-12, 0))
-			else:
-				_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.15, Vector2(-12, 0), "floating_eye_bolt.png")
+			_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.15, Vector2(-12, 0), "floating_eye_bolt.png")
 		SpawnDirector.WOLF:
 			position.x -= speed * delta
 			var chase := Difficulty.wolf_chase(run_time) * speed
@@ -119,10 +116,7 @@ func tick(delta: float, player_pos: Vector2, run_time: float = 0.0, scale: float
 		SpawnDirector.WYVERN:
 			position.x -= speed * delta
 			position.y = origin_y + sin(age * 2.1 + phase) * wave_amp
-			if FlappyMode.is_active():
-				_try_fire(fired, delta, 2.3, _lead(position + Vector2(-20, 4), player_pos, player_vel, 104.0 * speed_scale, run_time), "wyvern_shot.png", Vector2(-20, 4))
-			else:
-				_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.45, Vector2(-20, 4), "wyvern_shot.png")
+			_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.45, Vector2(-20, 4), "wyvern_shot.png")
 		SpawnDirector.ANVIL, SpawnDirector.PIANO:
 			position.y += Difficulty.fall_speed(kind) * speed_scale * delta
 	if kind == SpawnDirector.EYE or kind == SpawnDirector.WOLF or kind == SpawnDirector.WYVERN:
@@ -145,7 +139,7 @@ func _mount_island() -> void:
 		screen -= FieldBackground.TILE_W
 	ride_tex_x = screen + background.scroll_far
 	position = Vector2(screen, feet)
-	shot_cooldown = 1.8 if FlappyMode.is_active() else 0.85
+	shot_cooldown = 0.85
 
 func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, player_vel: Vector2, run_time: float) -> void:
 	var muzzle := Vector2(-16, -26)
@@ -156,10 +150,7 @@ func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, p
 		if position.x < -40.0:
 			alive = false
 			return
-		if FlappyMode.is_active():
-			_try_fire(fired, delta, 1.9, _lead(position + muzzle, player_pos, player_vel, arrow_speed, run_time), "arrow.png", muzzle)
-		else:
-			_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.25, muzzle, "arrow.png")
+		_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.25, muzzle, "arrow.png")
 		return
 	if not stopped:
 		position.x -= speed * delta
@@ -168,7 +159,7 @@ func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, p
 			position.x = stop_x
 			stopped = true
 			planted_scroll = background.scroll_near if background != null else 0.0
-			shot_cooldown = 1.15 if FlappyMode.is_active() else 0.7
+			shot_cooldown = 0.7
 	else:
 		if background != null:
 			position.x = stop_x - (background.scroll_near - planted_scroll)
@@ -176,10 +167,7 @@ func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, p
 		if position.x < -40.0:
 			alive = false
 			return
-		if FlappyMode.is_active():
-			_try_fire(fired, delta, 1.9, _lead(position + muzzle, player_pos, player_vel, arrow_speed, run_time), "arrow.png", muzzle)
-		else:
-			_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.25, muzzle, "arrow.png")
+		_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.25, muzzle, "arrow.png")
 
 func _pattern_fire(fired: Array[Dictionary], delta: float, player_pos: Vector2, player_vel: Vector2, run_time: float, interval: float, offset: Vector2, sprite: String) -> void:
 	if hold_fire or charmed > 0.0:
@@ -228,16 +216,6 @@ func _release_telegraphs(fired: Array[Dictionary], delta: float) -> void:
 			item["left"] = left
 			still.append(item)
 	telegraphs = still
-
-func _try_fire(fired: Array[Dictionary], delta: float, interval: float, bolt_velocity: Vector2, sprite: String, offset: Vector2) -> void:
-	if hold_fire or charmed > 0.0:
-		return
-	# shot_cooldown starts above zero, so a spawn on the right edge cannot snipe.
-	shot_cooldown -= delta
-	if shot_cooldown > 0.0:
-		return
-	shot_cooldown = interval
-	fired.append(_bolt(bolt_velocity, offset, sprite))
 
 func _lead(from: Vector2, player_pos: Vector2, player_vel: Vector2, shot_speed: float, run_time: float) -> Vector2:
 	var speed_abs := maxf(shot_speed, 1.0)

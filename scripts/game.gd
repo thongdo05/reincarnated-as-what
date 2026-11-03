@@ -65,7 +65,6 @@ var _power_pool: Array[PowerDrop] = []
 var _pattern_layer: Node2D
 var _death_fx: DeathFx
 var _tease: Control
-var _loot_spawned := 0
 var _primary_touch := -1
 var _mouse_down := false
 
@@ -134,11 +133,6 @@ var _saved_scale_aspect := 0
 var _saved_window_size := Vector2i.ZERO
 
 func _ready() -> void:
-	# Experimental modes leave this boot untouched unless their flag is set.
-	# Hop (?mode=hop / --mode=hop) swaps the scene and returns.
-	# Flappy stays on this scene and attaches later in this boot, only when hop did not.
-	if HopMode.redirect(self):
-		return
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	# Touch drags stay raw. Accumulated motion would smooth the finger and
 	# add a frame before the body can follow.
@@ -155,7 +149,6 @@ func _ready() -> void:
 	_build_world()
 	_build_hud()
 	CaptureMode.finish_boot(self)
-	FlappyMode.attach(self)
 	_sound.play_title_card(CaptureMode.title_card(form_id))
 	print("Reincarnated as %s (seed %d, run %d)" % [CaptureMode.announce_name(form_id), day_seed, run_index])
 	if CaptureMode.is_active():
@@ -590,8 +583,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	if _paused or wants_rotate(_viewport_size()):
 		return
-	if FlappyMode.is_active() and FlappyMode.consume_pointer(self, event):
-		return
 	if event is InputEventScreenTouch:
 		_on_screen_touch(event)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -623,8 +614,6 @@ func _on_screen_touch(event: InputEventScreenTouch) -> void:
 		_primary_touch = -1
 
 func _on_screen_drag(event: InputEventScreenDrag) -> bool:
-	if FlappyMode.is_active():
-		return false
 	if phase != PHASE_PLAY or event.index != _primary_touch or _player == null:
 		return false
 	_player.nudge(event.relative, _play_bounds(_viewport_size()))
@@ -645,8 +634,6 @@ func _on_mouse_button(event: InputEventMouseButton) -> void:
 		_try_skip_reveal()
 
 func _on_mouse_motion(event: InputEventMouseMotion) -> bool:
-	if FlappyMode.is_active():
-		return false
 	if phase != PHASE_PLAY or _primary_touch != -1 or not _mouse_down or _player == null:
 		return false
 	_player.nudge(event.relative, _play_bounds(_viewport_size()))
@@ -661,12 +648,6 @@ func _try_skip_reveal() -> void:
 func _try_skip_tease() -> bool:
 	if phase != PHASE_DEAD or game_over_visible:
 		return false
-	# Flappy keeps the old tease-only skip. The default sting can be tapped through.
-	if FlappyMode.is_active():
-		if FxTimeline.death_stage(death_elapsed) != "tease":
-			return false
-		_show_game_over()
-		return true
 	_skip_death_to_card()
 	return true
 
@@ -680,8 +661,6 @@ func _skip_death_to_card() -> void:
 	_present_death()
 
 func _on_death_pointer(event: InputEvent) -> void:
-	if FlappyMode.is_active():
-		return
 	var pressed := false
 	if event is InputEventMouseButton:
 		var mouse := event as InputEventMouseButton
@@ -725,7 +704,7 @@ func _process(delta: float) -> void:
 		return
 	delta = clampf(delta, 0.0, 0.033)
 	# A few frozen frames. Elapsed does not move, so the spawn clock stays put.
-	if phase == PHASE_PLAY and _hit_stop_frames > 0 and not FlappyMode.is_active():
+	if phase == PHASE_PLAY and _hit_stop_frames > 0:
 		_hit_stop_frames -= 1
 		return
 	var world_delta := delta
@@ -787,11 +766,10 @@ func _begin_play() -> void:
 
 func _play_frame(delta: float, size: Vector2) -> void:
 	var bounds := _play_bounds(size)
-	# Pointer drag is applied in _input. Keys stay on this tick. Flappy ignores both.
-	if not FlappyMode.is_active():
-		var key := _key_vector()
-		if key != Vector2.ZERO:
-			_player.add_drag(key * FormCatalog.max_speed(form_id) * delta, bounds)
+	# Pointer drag is applied in _input. Keys stay on this tick.
+	var key := _key_vector()
+	if key != Vector2.ZERO:
+		_player.add_drag(key * FormCatalog.max_speed(form_id) * delta, bounds)
 	invuln = maxf(invuln - delta, 0.0)
 	_player.invulnerable = invuln > 0.0
 	_player.tick(delta, bounds)
@@ -800,14 +778,14 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		_player.invulnerable = true
 	if _player.ready_to_fire():
 		var interval := float(FormCatalog.rank_spec(form_id, rank_index)["fire_interval"])
-		if rapid_left > 0.0 and not FlappyMode.is_active():
+		if rapid_left > 0.0:
 			interval *= Difficulty.RAPID_FIRE_SCALE
 		var shot_event := AudioCues.shot_event_for_form(form_id)
 		if _sound != null and shot_event != "":
 			_sound.play_event(shot_event)
 		var crowd := _crowd_size()
 		for spec in FormCatalog.player_shots(form_id, _player.position, rank_index):
-			if form_id == FormCatalog.Id.DEMON and not FlappyMode.is_active():
+			if form_id == FormCatalog.Id.DEMON:
 				var speed := FormCatalog.demon_speed(rank_index, crowd)
 				spec["velocity"] = Vector2(speed, 0.0)
 				spec["homing"] = FormCatalog.demon_homing(rank_index, crowd)
@@ -823,14 +801,12 @@ func _play_frame(delta: float, size: Vector2) -> void:
 			_finish_tutorial()
 		var enemy_room := Difficulty.enemy_cap(elapsed) - _alive_enemy_count()
 		for event in _director.pop_due(elapsed):
-			if not FlappyMode.is_active() and enemy_room <= 0:
+			if enemy_room <= 0:
 				continue
 			if _spawn_enemy(event, size):
 				enemy_room -= 1
 	var player_pos := _player.position
-	var shot_room := -1
-	if not FlappyMode.is_active():
-		shot_room = maxi(Difficulty.enemy_shot_cap(elapsed) - _reserved_enemy_shots(), 0)
+	var shot_room := maxi(Difficulty.enemy_shot_cap(elapsed) - _reserved_enemy_shots(), 0)
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
@@ -845,8 +821,6 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		shot.tick(delta)
 	_tick_patterns(delta, size)
 	_collide()
-	if FlappyMode.is_active():
-		FlappyMode.tick(self, delta, size, bounds)
 	_tick_loot(delta)
 	_tick_powers(delta)
 	if rapid_left > 0.0:
@@ -918,7 +892,7 @@ func _reserved_enemy_shots() -> int:
 ## A spawn that is already touching the player is not a dodge. Pushing it
 ## would desync an archer from its island, so the beat is skipped instead.
 func _spawn_overlaps_player(enemy: EnemyActor) -> bool:
-	if FlappyMode.is_active() or CaptureMode.is_active() or _player == null:
+	if CaptureMode.is_active() or _player == null:
 		return false
 	if enemy.position.distance_to(_player.position) > enemy.radius + _player.radius + 6.0:
 		return false
@@ -933,7 +907,7 @@ func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
 	else:
 		shot = _shot_pool.pop_back() as Shot
 	# Enemy bullets sit above FX, popups, evolve art, and the overdrive flash.
-	shot.z_index = 3 if from_player else Replay.bullet_z(FlappyMode.is_active())
+	shot.z_index = 3 if from_player else Replay.bullet_z()
 	shot.setup(data, from_player)
 	_shots.append(shot)
 	return shot
@@ -1009,22 +983,16 @@ func _award_kill(enemy: EnemyActor, drop_loot: bool = true) -> void:
 	combo = int(result["combo"])
 	combo_left = float(result["combo_left"])
 	var points := int(result["points"])
-	if FlappyMode.is_active():
-		_gain_skill(points)
-		_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-8, -18), Color("241428"))
-		if form_id == FormCatalog.Id.GOBLIN:
-			_spawn_loot(enemy.position)
-	else:
-		score += points
-		if points >= Difficulty.POPUP_MIN:
-			_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-6, -12), Color("241428"), Difficulty.POPUP_LIFE)
-		if drop_loot:
-			_roll_drops(enemy.position)
+	score += points
+	if points >= Difficulty.POPUP_MIN:
+		_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-6, -12), Color("241428"), Difficulty.POPUP_LIFE)
+	if drop_loot:
+		_roll_drops(enemy.position)
 	if _sound != null:
 		_sound.play_event("enemy_killed")
-	if drop_loot and not _winner_busy and not FlappyMode.is_active() and form_id == FormCatalog.Id.VENDING:
+	if drop_loot and not _winner_busy and form_id == FormCatalog.Id.VENDING:
 		_charge_winner()
-	if not FlappyMode.is_active() and enemy.max_hp >= 3:
+	if enemy.max_hp >= 3:
 		_request_hit_stop(3)
 		_bump_shake()
 
@@ -1035,22 +1003,16 @@ func _graze_gap(hazard: Object, separation: float) -> void:
 		return
 	hazard.grazed = true
 	var grazed := ScoreRules.graze_points(rank_index)
-	if FlappyMode.is_active():
-		_gain_skill(grazed)
-		var at: Vector2 = hazard.position
-		_combat.push("+%d" % ScoreRules.GRAZE, at + Vector2(6, -8), Color("ffe08a"))
-		_spawn_fx("graze_sparkle.png", at, 0.34, 0.45, 1.45)
-	else:
-		score += grazed
-		if form_id == FormCatalog.Id.CAT:
-			_note_cat_graze()
+	score += grazed
+	if form_id == FormCatalog.Id.CAT:
+		_note_cat_graze()
 
 func _hurt_player(killer: String) -> void:
 	if CaptureMode.ignore_hit(self, killer):
 		return
 	if phase != PHASE_PLAY or not _player.alive:
 		return
-	if not FlappyMode.is_active() and _player.shield_hits > 0:
+	if _player.shield_hits > 0:
 		_player.shield_hits = 0
 		invuln = maxf(invuln, Difficulty.SHIELD_IFRAMES)
 		_player.invulnerable = true
@@ -1065,22 +1027,6 @@ func _hurt_player(killer: String) -> void:
 		_spawn_fx("hit_flash.png", _player.position, 0.22, 0.6, 1.4)
 		return
 	_kill_player(killer)
-
-func _spawn_loot(at: Vector2) -> void:
-	if not FlappyMode.is_active():
-		_spawn_evo_gem(at)
-		return
-	var gem := _take_gem()
-	var file := "coin.png" if _loot_spawned % 2 == 0 else "gem.png"
-	_loot_spawned += 1
-	gem.setup(file)
-	gem.life = 99.0
-	gem.drift = 42.0
-	gem.age = 0.0
-	gem.position = at
-	gem.modulate = Color.WHITE
-	gem.z_index = 7
-	_loot.append(gem)
 
 func _spawn_evo_gem(at: Vector2) -> void:
 	var gem := _take_gem()
@@ -1111,17 +1057,12 @@ func _release_gem(gem: LootGem) -> void:
 func _tick_loot(delta: float) -> void:
 	var magnet := 0.0
 	var magnet_speed := 0.0
-	if FlappyMode.is_active():
-		if form_id == FormCatalog.Id.GOBLIN:
-			magnet = FormCatalog.goblin_f("loot_magnet")
-			magnet_speed = FormCatalog.goblin_f("loot_magnet_speed")
-	else:
-		if form_id == FormCatalog.Id.GOBLIN:
-			magnet = Difficulty.GOBLIN_MAGNET
-			magnet_speed = Difficulty.GOBLIN_MAGNET_SPEED
-		if magnet_left > 0.0:
-			magnet = maxf(magnet, Difficulty.MAGNET_RADIUS)
-			magnet_speed = maxf(magnet_speed, Difficulty.MAGNET_SPEED)
+	if form_id == FormCatalog.Id.GOBLIN:
+		magnet = Difficulty.GOBLIN_MAGNET
+		magnet_speed = Difficulty.GOBLIN_MAGNET_SPEED
+	if magnet_left > 0.0:
+		magnet = maxf(magnet, Difficulty.MAGNET_RADIUS)
+		magnet_speed = maxf(magnet_speed, Difficulty.MAGNET_SPEED)
 	var write := 0
 	for gem in _loot:
 		if not is_instance_valid(gem):
@@ -1148,11 +1089,6 @@ func _collect_gem(gem: LootGem) -> void:
 	var at := gem.position
 	_release_gem(gem)
 	loot_count += 1
-	if FlappyMode.is_active():
-		var picked := FormCatalog.loot_points()
-		_gain_skill(picked)
-		_combat.push("+%d" % picked, at + Vector2(-8, -14), Color("8a4b12"))
-		return
 	score += Difficulty.GEM_SCORE
 	_spawn_fx("graze_sparkle.png", at, 0.22, 0.6, 1.2)
 	if FormCatalog.gate_for_next_rank(rank_index) < 0:
@@ -1168,8 +1104,6 @@ func _loot_reached(gem: LootGem, magnet: float) -> bool:
 		return true
 	if magnet <= 0.0 or not _player.alive:
 		return false
-	if FlappyMode.is_active():
-		return form_id == FormCatalog.Id.GOBLIN and _player.position.distance_to(gem.position) <= magnet
 	return _player.position.distance_to(gem.position) <= magnet
 
 func _roll_drops(at: Vector2) -> void:
@@ -1203,7 +1137,7 @@ func _spawn_power(at: Vector2, kind: String) -> void:
 	power_spawned += 1
 
 func _tick_powers(delta: float) -> void:
-	if FlappyMode.is_active() or _powers.is_empty():
+	if _powers.is_empty():
 		return
 	var magnet := Difficulty.MAGNET_RADIUS if magnet_left > 0.0 else 0.0
 	var write := 0
@@ -1306,8 +1240,6 @@ func _winner_clear() -> void:
 	_winner_busy = false
 
 func _note_cat_graze() -> void:
-	if FlappyMode.is_active():
-		return
 	_graze_left = FormCatalog.CAT_GRAZE_WINDOW
 	_graze_streak += 1
 	if _graze_streak < FormCatalog.CAT_GRAZE_NEED:
@@ -1343,7 +1275,7 @@ func _tick_charm(delta: float) -> void:
 		_graze_left = maxf(_graze_left - delta, 0.0)
 		if _graze_left <= 0.0:
 			_graze_streak = 0
-	if form_id != FormCatalog.Id.CAT or FlappyMode.is_active():
+	if form_id != FormCatalog.Id.CAT:
 		return
 	for enemy in _enemies:
 		if not is_instance_valid(enemy) or enemy.charmed <= 0.0:
@@ -1464,7 +1396,7 @@ func _clear_enemy_shots() -> void:
 	pattern_shots.clear()
 
 func _tick_patterns(delta: float, size: Vector2) -> void:
-	if FlappyMode.is_active() or _player == null:
+	if _player == null:
 		return
 	if phase == PHASE_PLAY and elapsed + 0.00001 >= _next_rake:
 		# The lesson keeps the rake clock moving so the wall does not land in a pile at 10s.
@@ -1521,12 +1453,8 @@ func _add_evo(points: int) -> void:
 
 func _try_rank() -> void:
 	var reached := FormCatalog.rank_for_points(evo_points)
-	if FlappyMode.is_active():
-		reached = FlappyMode.rank_for_points(evo_points)
 	if reached > rank_index:
 		var gate_count := FormCatalog.rank_gates().size()
-		if FlappyMode.is_active():
-			gate_count = 2
 		var final := reached >= gate_count
 		var old_sprite := _player.sprite_name()
 		rank_index = reached
@@ -1536,13 +1464,12 @@ func _try_rank() -> void:
 		if final:
 			_slow_left = Difficulty.FINAL_SLOWMO_SECONDS
 			_shake_left = Difficulty.FINAL_SHAKE_SECONDS
-		if not FlappyMode.is_active():
-			_request_hit_stop(3)
-			_bump_shake()
-			var pop_at := 5.0 / FxTimeline.FPS
-			_queue_chain(pop_at, "evolved_burst.png", Vector2(0, -28), "")
-			_queue_chain(pop_at + 0.1, "graze_sparkle.png", Vector2(14, -16), "")
-			_queue_chain(pop_at + 0.18, "graze_sparkle.png", Vector2(-12, -22), "")
+		_request_hit_stop(3)
+		_bump_shake()
+		var pop_at := 5.0 / FxTimeline.FPS
+		_queue_chain(pop_at, "evolved_burst.png", Vector2(0, -28), "")
+		_queue_chain(pop_at + 0.1, "graze_sparkle.png", Vector2(14, -16), "")
+		_queue_chain(pop_at + 0.18, "graze_sparkle.png", Vector2(-12, -22), "")
 		if _sound != null:
 			_sound.play_event("evolve", Difficulty.FINAL_STING_DB if final else 0.0)
 	_refresh_hud()
@@ -1604,33 +1531,10 @@ func _show_game_over() -> void:
 		_death_fx.visible = false
 	var form_name := FormCatalog.display_name(form_id)
 	var reached_rank := FormCatalog.rank_name(form_id, rank_index)
-	if FlappyMode.is_active():
-		_set_flappy_death(form_name, reached_rank)
-	else:
-		_set_default_death(form_name, reached_rank)
+	_set_default_death(form_name, reached_rank)
 	_layout_death_card()
 	_game_over.visible = true
 	_present_online_score()
-
-func _set_flappy_death(form_name: String, reached_rank: String) -> void:
-	_new_best = false
-	if _score_label != null:
-		_score_label.text = ""
-		_score_label.visible = false
-	if _new_best_label != null:
-		_new_best_label.text = ""
-		_new_best_label.visible = false
-		_new_best_label.scale = Vector2.ONE
-	_share_label.text = ScoreRules.share_line(form_name, reached_rank, elapsed, killer_name, score)
-	var saved := FlappyMode.record_score(form_name, score)
-	_best_label.text = "Flappy best as %s: %s / Flappy best: %s" % [
-		form_name,
-		ScoreRules.format_score(int(saved["form"])),
-		ScoreRules.format_score(int(saved["overall"])),
-	]
-	_seed_label.text = _seed_line()
-	if _beat_button != null:
-		_beat_button.visible = false
 
 func _set_default_death(form_name: String, reached_rank: String) -> void:
 	var prior := BestScores.read()
@@ -1859,10 +1763,9 @@ func _apply_shake(delta: float) -> void:
 	if _juice_shake > 0.0:
 		_juice_shake = maxf(_juice_shake - delta, 0.0)
 		mag = maxf(mag, Replay.JUICE_SHAKE_PX * clampf(_juice_shake / Replay.JUICE_SHAKE_SECONDS, 0.0, 1.0))
-	# Flappy keeps the rank-3 shake it already had. Default mode stays inside a 2px cap
-	# (1px when the platform asks for reduced motion) so a bullet cannot leave the eye.
-	if not FlappyMode.is_active():
-		mag = minf(mag, Replay.shake_cap())
+	# Stay inside a 2px cap (1px when the platform asks for reduced motion)
+	# so a bullet cannot leave the eye.
+	mag = minf(mag, Replay.shake_cap())
 	if mag <= 0.05:
 		if position != Vector2.ZERO:
 			position = Vector2.ZERO
@@ -1876,13 +1779,11 @@ func _refresh_hud() -> void:
 	if _hud_view == null:
 		return
 	var fill := HudLayout.fill_px(evo_points, rank_index)
-	if FlappyMode.is_active():
-		fill = FlappyMode.fill_px(evo_points, rank_index)
 	var overdrive_px := -1
-	if not FlappyMode.is_active() and FormCatalog.gate_for_next_rank(rank_index) < 0:
+	if FormCatalog.gate_for_next_rank(rank_index) < 0:
 		overdrive_px = int(round(float(HudLayout.FILL_FULL) * clampf(float(overdrive) / float(Difficulty.OVERDRIVE_GEMS), 0.0, 1.0)))
 	var winner_px := -1
-	if not FlappyMode.is_active() and form_id == FormCatalog.Id.VENDING:
+	if form_id == FormCatalog.Id.VENDING:
 		var need := float(FormCatalog.vending_winner_kills())
 		winner_px = int(round(float(HudLayout.FILL_FULL) * clampf(float(winner) / need, 0.0, 1.0)))
 	_hud_view.set_run(
@@ -1935,11 +1836,10 @@ func _on_share() -> void:
 func _on_restart() -> void:
 	_force_close_board()
 	_dismiss_name_prompt()
-	if FlappyMode.is_active() or CaptureMode.is_active():
-		# Flappy keeps its own form rules. A challenged form sticks for that
-		# one run; the retry rolls, and does not repeat the form you died as.
-		if CaptureMode.is_active() and not FlappyMode.is_active():
-			CaptureMode.note_player_retry(form_id)
+	if CaptureMode.is_active():
+		# A challenged form sticks for that one run; the retry rolls, and
+		# does not repeat the form you died as.
+		CaptureMode.note_player_retry(form_id)
 		get_tree().reload_current_scene()
 		return
 	if phase != PHASE_DEAD or not game_over_visible:
@@ -2142,8 +2042,6 @@ func _toggle_pause() -> void:
 	_paused = not _paused
 	_mouse_down = false
 	_primary_touch = -1
-	if FlappyMode.is_active():
-		FlappyMode.clear_flap()
 	if _sound != null:
 		_sound.set_music_paused(_paused)
 	_layout_pause(_viewport_size())
@@ -2219,7 +2117,7 @@ func _present_reveal() -> void:
 		_skip_label.text = "Tap to skip" if reveal_elapsed > 0.35 else ""
 
 func _wants_tutorial() -> bool:
-	if _short_reveal or FlappyMode.is_active() or CaptureMode.is_active():
+	if _short_reveal or CaptureMode.is_active():
 		return false
 	return not Replay.seen()
 
@@ -2295,7 +2193,6 @@ func _reincarnate() -> void:
 	rapid_left = 0.0
 	magnet_left = 0.0
 	power_spawned = 0
-	_loot_spawned = 0
 	_drop_seeded = false
 	_final_evolve = false
 	_slow_left = 0.0
@@ -2384,14 +2281,12 @@ func _silence_death() -> void:
 	_sound.stop_event("reborn_tease")
 
 func _request_hit_stop(frames: int) -> void:
-	if FlappyMode.is_active() or _hit_stop_cooldown > 0.0:
+	if _hit_stop_cooldown > 0.0:
 		return
 	_hit_stop_frames = clampi(frames, 2, 4)
 	_hit_stop_cooldown = 0.2
 
 func _bump_shake() -> void:
-	if FlappyMode.is_active():
-		return
 	_juice_shake = Replay.JUICE_SHAKE_SECONDS
 
 func _queue_chain(delay: float, fx_file: String, offset: Vector2, text: String) -> void:
