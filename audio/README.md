@@ -8,7 +8,8 @@ The reborn tease ships as `sting_reborn_tease.ogg` (about 15 KB). The same sting
 
 | File | When |
 | --- | --- |
-| `music_gameplay_loop.ogg` | Every run, from the title card on. `loop` on, `loop_offset` 0. Desktop streams the ogg. The web export plays that same file as a sample. |
+| `music_gameplay_loop.ogg` | Sky Castle, from the title card on, and any world whose own loop is not imported yet. `loop` on, `loop_offset` 0. Desktop streams the ogg. The web export plays that same file as a sample. Volume, mute, and the loop stay as they are. |
+| `music/world_<slug>.ogg` | Neon Tokyo, Office Hell, Underworld, Candy Kingdom, Ice Tundra, and Sunken Ruins. A reincarnation crossfades to that world's loop in about 0.4 seconds. Each file is looped from the start (`LOOPSTART=0`, `LOOPLENGTH` is the whole file). A slug with no file still falls back to `music_gameplay_loop.ogg`. |
 | `sfx_shot_slime.wav` | Slime auto-fire, once per volley (a rank 3 triple is still one bloop). Heard at most about 4 times a second, -10 dB on the player, pitch +/- 8%. |
 | `sfx_shot_goblin.wav` | Goblin auto-fire. Same cap, trim, and pitch as the slime shot. |
 | `sfx_shot_vending_machine.wav` | Vending Machine auto-fire. Same cap, trim, and pitch. The file sits at about -20.8 LUFS. |

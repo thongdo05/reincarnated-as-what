@@ -16,6 +16,7 @@ func _initialize() -> void:
 	_unit_failed += _check_art()
 	_unit_failed += _check_idle()
 	_unit_failed += _check_parallax()
+	_unit_failed += _check_worlds()
 	_unit_failed += _check_titles()
 	_unit_failed += _check_facing()
 	_unit_failed += _check_polish()
@@ -644,6 +645,186 @@ func _check_parallax() -> int:
 		push_error("cloud layer art missing")
 		failed += 1
 	bg.free()
+	return failed
+
+func _check_worlds() -> int:
+	var failed := 0
+	var ids := WorldCatalog.ids()
+	if ids.size() != 7 or ids[0] != WorldCatalog.SKY_CASTLE:
+		push_error("sky castle should be world 1 of 7, got %s" % str(ids))
+		failed += 1
+	if WorldCatalog.flash_name("neon_tokyo") != "NEON TOKYO" or WorldCatalog.flash_name("sunken_ruins") != "SUNKEN RUINS":
+		push_error("world flash should be short capitals, got %s / %s" % [WorldCatalog.flash_name("neon_tokyo"), WorldCatalog.flash_name("sunken_ruins")])
+		failed += 1
+	if absf(FieldBackground.GROUND_FEET - 234.0) > 0.01 or FieldBackground.ISLANDS[0] != Vector2(63, 43) or FieldBackground.ISLANDS[1] != Vector2(227, 59):
+		push_error("decks or the ground line moved")
+		failed += 1
+	for id in ids:
+		var choices := WorldCatalog.candidates(id)
+		if choices.has(id) or choices.size() != ids.size() - 1:
+			push_error("the next world should skip %s" % id)
+			failed += 1
+		var set := WorldCatalog.layers(id)
+		if set.size() != 4 or set[0] == null or set[2] == null or set[3] == null:
+			push_error("%s is missing a background layer" % id)
+			failed += 1
+			continue
+		var far := set[2].get_image()
+		var near := set[3].get_image()
+		if far == null or near == null:
+			push_error("%s layer did not decode" % id)
+			failed += 1
+			continue
+		for island in FieldBackground.ISLANDS:
+			var grass := far.get_pixel(int(island.x), int(island.y))
+			if grass.a < 0.5 or grass.g <= grass.r or grass.g <= grass.b:
+				push_error("%s deck feet missed the grass at %s (%s)" % [id, str(island), str(grass)])
+				failed += 1
+		var solid := 0
+		for sample_x in range(0, 480, 8):
+			if near.get_pixel(sample_x, int(FieldBackground.GROUND_FEET)).a > 0.8:
+				solid += 1
+		if solid < 50:
+			push_error("%s ground feet should sit in the near layer" % id)
+			failed += 1
+		var speeds := WorldCatalog.factors(id)
+		if speeds.size() != 4 or absf(speeds[0] - 0.05) > 0.0001 or absf(speeds[1] - 0.15) > 0.0001 or absf(speeds[2] - 0.3) > 0.0001 or absf(speeds[3] - 0.6) > 0.0001:
+			push_error("%s scroll factors drifted from the manifest: %s" % [id, str(speeds)])
+			failed += 1
+		var bg := FieldBackground.new()
+		bg.apply_world(id)
+		bg.tick(1.0, Vector2(480, 270))
+		if absf(bg.scroll_near - 28.0) > 0.02 or absf(bg.scroll_far - 14.0) > 0.02:
+			push_error("%s parallax drifted (near %s far %s)" % [id, bg.scroll_near, bg.scroll_far])
+			failed += 1
+		bg.free()
+		var own := "res://audio/music/world_%s.ogg" % id
+		var music := WorldCatalog.music_path(id)
+		if id == WorldCatalog.SKY_CASTLE:
+			if music != WorldCatalog.FALLBACK_MUSIC:
+				push_error("sky castle should keep the current music loop")
+				failed += 1
+		elif ResourceLoader.exists(own):
+			if music != own:
+				push_error("%s should play %s" % [id, own])
+				failed += 1
+		elif music != WorldCatalog.FALLBACK_MUSIC:
+			push_error("a missing %s track should fall back to the current loop" % id)
+			failed += 1
+	WorldCatalog.last_id = ""
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	var previous := ""
+	for _i in 80:
+		var rolled := WorldCatalog.roll(rng)
+		if rolled == previous:
+			push_error("rolled %s twice in a row" % rolled)
+			failed += 1
+			break
+		previous = rolled
+	if SoundRig.CROSSFADE_SECONDS < 0.3 or SoundRig.CROSSFADE_SECONDS > 0.5:
+		push_error("world music crossfade should be about 0.3 to 0.5 s")
+		failed += 1
+	var fade_start := SoundRig.crossfade_db(0.0)
+	var fade_mid := SoundRig.crossfade_db(0.5)
+	var fade_end := SoundRig.crossfade_db(1.0)
+	if absf(fade_start.x) > 0.05 or fade_start.y > -40.0 or absf(fade_end.y) > 0.05 or fade_end.x > -40.0 or absf(fade_mid.x - fade_mid.y) > 0.05:
+		push_error("crossfade should hand the old track to the new one, got %s %s %s" % [fade_start, fade_mid, fade_end])
+		failed += 1
+	var rig := SoundRig.new()
+	rig.setup()
+	rig.play_world_music(WorldCatalog.SKY_CASTLE)
+	if rig.music_path() != WorldCatalog.FALLBACK_MUSIC:
+		push_error("the opening track should be the current loop")
+		failed += 1
+	var music_player := rig.player_for("gameplay_music")
+	var opening := rig.music_stream() as AudioStreamOggVorbis
+	if music_player == null or opening == null or not opening.loop or absf(opening.loop_offset) > 0.001 or absf(music_player.volume_db) > 0.01:
+		push_error("world music should keep the loop, the offset, and the bus trim")
+		failed += 1
+	if WorldCatalog.music_path("missing_world") != WorldCatalog.FALLBACK_MUSIC:
+		push_error("an unknown world should fall back to the current loop")
+		failed += 1
+	var music_text := FileAccess.get_file_as_string("res://audio/music/manifest.json")
+	var music_parsed: Variant = JSON.parse_string(music_text)
+	if typeof(music_parsed) != TYPE_DICTIONARY:
+		push_error("world music manifest did not parse")
+		failed += 1
+	else:
+		var music_body: Dictionary = music_parsed
+		var listed: Array = music_body.get("files", [])
+		if listed.size() != 6:
+			push_error("world music manifest should list 6 tracks")
+			failed += 1
+		for entry in listed:
+			var spec: Dictionary = entry
+			var file_name := str(spec.get("file", ""))
+			var track_path := "res://audio/music/" + file_name
+			if not ResourceLoader.exists(track_path):
+				push_error("world track missing from the import: %s" % track_path)
+				failed += 1
+				continue
+			var track := load(track_path) as AudioStreamOggVorbis
+			if track == null or not track.loop or absf(track.loop_offset) > 0.001:
+				push_error("%s should loop from the start" % file_name)
+				failed += 1
+			elif absf(track.get_length() - float(spec.get("duration", -1))) > 0.05:
+				push_error("%s length should match its manifest" % file_name)
+				failed += 1
+			elif int(spec.get("loop_start", -1)) != 0:
+				push_error("%s loop tag should start at 0" % file_name)
+				failed += 1
+			elif absf(float(spec.get("loop_length", 0)) / 48000.0 - track.get_length()) > 0.05:
+				push_error("%s loop length should cover the whole file" % file_name)
+				failed += 1
+	if WorldCatalog.music_path("neon_tokyo") == WorldCatalog.FALLBACK_MUSIC:
+		rig.play_world_music("neon_tokyo")
+		if rig.is_crossfading():
+			push_error("a missing world track should keep the loop that is already playing")
+			failed += 1
+	elif opening != null and music_player != null:
+		rig.play_world_music("neon_tokyo")
+		var incoming := rig.music_stream() as AudioStreamOggVorbis
+		var leaving := rig.fade_player()
+		if not rig.is_crossfading() or rig.music_path() != "res://audio/music/world_neon_tokyo.ogg":
+			push_error("neon tokyo should crossfade onto its own loop")
+			failed += 1
+		elif incoming == null or not incoming.loop or absf(incoming.loop_offset) > 0.001 or leaving == null or absf(leaving.volume_db) > 0.05 or music_player.volume_db > -40.0:
+			push_error("crossfade should start with the sky castle loop up and the new loop down")
+			failed += 1
+		else:
+			rig.tick_crossfade_for_test(SoundRig.CROSSFADE_SECONDS)
+			if rig.is_crossfading() or absf(music_player.volume_db) > 0.05 or rig.music_stream() != incoming or leaving.playing:
+				push_error("crossfade should end on the new world track at full volume")
+				failed += 1
+	var named := 0
+	for child in rig.get_children():
+		if str(child.name) == "gameplay_music":
+			named += 1
+	if named != 1:
+		push_error("a run should still have one gameplay_music player")
+		failed += 1
+	rig.free()
+	var wolf := EnemyActor.new()
+	var wolf_bg := FieldBackground.new()
+	wolf.setup(9, {
+		"kind": SpawnDirector.WOLF,
+		"x_ratio": 0.5,
+		"phase": 0.2,
+		"stop_ratio": 0.4,
+	}, Vector2(480, 270), wolf_bg)
+	var anchor := ArtLibrary.anchor("dire_wolf.png")
+	var wolf_size: Array = ArtLibrary.entry("dire_wolf.png")["size"]
+	var feet_offset := float(wolf_size[1]) - 1.0 - anchor.y
+	var lowest_feet := (270.0 - 78.0) + feet_offset
+	if absf(anchor.x - 28.0) > 0.01 or absf(anchor.y - 20.0) > 0.01:
+		push_error("dire wolf anchor should stay the centre (28, 20)")
+		failed += 1
+	if absf(wolf.position.y - FieldBackground.GROUND_FEET) < 1.0 or lowest_feet >= FieldBackground.GROUND_FEET - 0.5:
+		push_error("dire wolf is planted on the ground (pos %.1f, lowest feet %.1f)" % [wolf.position.y, lowest_feet])
+		failed += 1
+	wolf.free()
+	wolf_bg.free()
 	return failed
 
 func _check_titles() -> int:

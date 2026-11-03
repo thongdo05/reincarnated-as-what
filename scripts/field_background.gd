@@ -25,22 +25,54 @@ const ISLANDS: Array[Vector2] = [
 ]
 
 var field_size := Vector2(TILE_W, TILE_H)
+var world_id := WorldCatalog.SKY_CASTLE
 var scroll_sky := 0.0
 var scroll_clouds := 0.0
 var scroll_far := 0.0
 var scroll_near := 0.0
+var factor_sky := SKY_FACTOR
+var factor_clouds := CLOUDS_FACTOR
+var factor_far := FAR_FACTOR
+var factor_near := NEAR_FACTOR
+var tex_sky: Texture2D
+var tex_clouds: Texture2D
+var tex_far: Texture2D
+var tex_near: Texture2D
 
 func setup(_seed_value: int, size: Vector2) -> void:
 	field_size = size
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
+## Swap the four painted layers. Decks and the ground line stay put.
+## Scroll restarts so the new tile is not already half off the left edge.
+func apply_world(id: String) -> void:
+	world_id = id
+	var set := WorldCatalog.layers(id)
+	if set.size() == 4:
+		tex_sky = set[0]
+		tex_clouds = set[1]
+		tex_far = set[2]
+		tex_near = set[3]
+	var speeds := WorldCatalog.factors(id)
+	if speeds.size() == 4:
+		factor_sky = speeds[0]
+		factor_clouds = speeds[1]
+		factor_far = speeds[2]
+		factor_near = speeds[3]
+	scroll_sky = 0.0
+	scroll_clouds = 0.0
+	scroll_far = 0.0
+	scroll_near = 0.0
+	if is_inside_tree():
+		queue_redraw()
+
 func tick(delta: float, size: Vector2, scroll_scale: float = 1.0) -> void:
 	field_size = size
 	var scale := maxf(scroll_scale, 0.0)
-	scroll_sky += delta * SCROLL_BASE * SKY_FACTOR * scale
-	scroll_clouds += delta * SCROLL_BASE * CLOUDS_FACTOR * scale
-	scroll_far += delta * SCROLL_BASE * FAR_FACTOR * scale
-	scroll_near += delta * SCROLL_BASE * NEAR_FACTOR * scale
+	scroll_sky += delta * SCROLL_BASE * factor_sky * scale
+	scroll_clouds += delta * SCROLL_BASE * factor_clouds * scale
+	scroll_far += delta * SCROLL_BASE * factor_far * scale
+	scroll_near += delta * SCROLL_BASE * factor_near * scale
 	if is_inside_tree():
 		queue_redraw()
 
@@ -48,13 +80,14 @@ func island_feet(index: int) -> float:
 	return ISLANDS[clampi(index, 0, ISLANDS.size() - 1)].y
 
 func _draw() -> void:
-	_blit("bg_sky.png", scroll_sky)
-	_blit("bg_clouds.png", scroll_clouds)
-	_blit("bg_far.png", scroll_far)
-	_blit("bg_near.png", scroll_near)
+	_blit(tex_sky, "bg_sky.png", scroll_sky)
+	_blit(tex_clouds, "bg_clouds.png", scroll_clouds)
+	_blit(tex_far, "bg_far.png", scroll_far)
+	_blit(tex_near, "bg_near.png", scroll_near)
 
-func _blit(file_name: String, scroll: float) -> void:
-	var tex := ArtLibrary.texture(file_name)
+func _blit(tex: Texture2D, fallback: String, scroll: float) -> void:
+	if tex == null:
+		tex = ArtLibrary.texture(fallback)
 	if tex == null:
 		return
 	var offset := fposmod(scroll, TILE_W)

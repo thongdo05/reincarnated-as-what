@@ -11,6 +11,8 @@ const PAUSE_MIN_PT := 44.0
 const CHALLENGE_LABEL := "CHALLENGE A FRIEND"
 const CHALLENGE_COPIED := "LINK COPIED!"
 const COPY_FEEDBACK := 1.4
+## The world name stays up with the form card, then for this long once play starts.
+const WORLD_NAME_HOLD := 0.9
 
 const PHASE_REVEAL := 0
 const PHASE_PLAY := 1
@@ -109,6 +111,8 @@ var _score_label: Label
 var _new_best_label: Label
 var _beat_button: Button
 var _form_flash: Label
+var _world_flash: Label
+var _world_flash_left := 0.0
 var _death_shade: ColorRect
 var _hit_stop_frames := 0
 var _hit_stop_cooldown := 0.0
@@ -149,12 +153,12 @@ func _ready() -> void:
 	# button still stops the music through stream_paused.
 	_sound.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_sound)
-	_sound.start_gameplay_music()
 	_build_world()
+	_sound.play_world_music(_background.world_id)
 	_build_hud()
 	CaptureMode.finish_boot(self)
 	_sound.play_title_card(CaptureMode.title_card(form_id))
-	print("Reincarnated as %s (seed %d, run %d)" % [CaptureMode.announce_name(form_id), day_seed, run_index])
+	print("Reincarnated as %s in %s (seed %d, run %d)" % [CaptureMode.announce_name(form_id), WorldCatalog.flash_name(_background.world_id), day_seed, run_index])
 	if CaptureMode.is_active():
 		print(CaptureMode.summary())
 	if CaptureMode.wants_hitbox():
@@ -166,6 +170,7 @@ func _build_world() -> void:
 	var size := _viewport_size()
 	_background = FieldBackground.new()
 	_background.setup(day_seed, size)
+	_background.apply_world(_roll_world())
 	add_child(_background)
 
 	_player = PlayerShip.new()
@@ -265,6 +270,20 @@ func _build_hud() -> void:
 	_form_flash.offset_bottom = -22.0
 	_form_flash.visible = false
 	_reveal.add_child(_form_flash)
+	_world_flash = _make_label(18, Color("ffe56a"))
+	_world_flash.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_world_flash.anchor_left = 0.5
+	_world_flash.anchor_right = 0.5
+	_world_flash.anchor_top = 1.0
+	_world_flash.anchor_bottom = 1.0
+	_world_flash.offset_left = -140.0
+	_world_flash.offset_right = 140.0
+	_world_flash.offset_top = -70.0
+	_world_flash.offset_bottom = -48.0
+	_world_flash.visible = false
+	_world_flash.z_index = 2
+	_hud.add_child(_world_flash)
+	_sync_world_flash()
 
 	_tease = Control.new()
 	_tease.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -730,6 +749,9 @@ func _process(delta: float) -> void:
 			_begin_play()
 		return
 	if phase == PHASE_DEAD:
+		if _world_flash != null and _world_flash.visible:
+			_world_flash.visible = false
+			_world_flash_left = 0.0
 		death_elapsed += delta
 		if game_over_visible:
 			_card_age += delta
@@ -737,6 +759,10 @@ func _process(delta: float) -> void:
 			_tick_new_best_pop()
 		_present_death()
 		return
+	if _world_flash_left > 0.0:
+		_world_flash_left = maxf(_world_flash_left - delta, 0.0)
+		if _world_flash_left <= 0.0 and _world_flash != null:
+			_world_flash.visible = false
 	_play_frame(world_delta, size)
 
 func _animate_title_card() -> void:
@@ -760,6 +786,8 @@ func _begin_play() -> void:
 	_reveal.visible = false
 	if _form_flash != null:
 		_form_flash.visible = false
+	_world_flash_left = WORLD_NAME_HOLD
+	_sync_world_flash()
 	_hint_label.visible = true
 	if _wants_tutorial():
 		_tutorial_active = true
@@ -1547,6 +1575,9 @@ func _kill_player(name: String) -> void:
 	phase = PHASE_DEAD
 	_paused = false
 	_death_audio_stage = ""
+	if _world_flash != null:
+		_world_flash.visible = false
+		_world_flash_left = 0.0
 	if _sound != null:
 		_sound.set_music_paused(false)
 	if _pause_overlay != null:
@@ -2173,6 +2204,17 @@ func _prewarm() -> void:
 			ArtLibrary.texture("fx/forms/%s_flash.png" % str(spec["sprite"]).trim_suffix(".png"))
 			ArtLibrary.texture("fx/forms/%s_rim.png" % str(spec["sprite"]).trim_suffix(".png"))
 
+func _roll_world() -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	return WorldCatalog.roll(rng)
+
+func _sync_world_flash() -> void:
+	if _world_flash == null or _background == null:
+		return
+	_world_flash.text = WorldCatalog.flash_name(_background.world_id)
+	_world_flash.visible = phase != PHASE_DEAD
+
 func _present_reveal() -> void:
 	if _form_flash == null or _skip_label == null:
 		return
@@ -2182,6 +2224,7 @@ func _present_reveal() -> void:
 		_skip_label.text = "Tap"
 	else:
 		_skip_label.text = "Tap to skip" if reveal_elapsed > 0.35 else ""
+	_sync_world_flash()
 
 func _wants_tutorial() -> bool:
 	if _short_reveal or CaptureMode.is_active():
@@ -2301,6 +2344,10 @@ func _reincarnate() -> void:
 	_director = SpawnDirector.new(day_seed)
 	if _player != null:
 		_player.respawn(form_id, Vector2(size.x * 0.28, size.y * 0.5))
+	if _background != null:
+		_background.apply_world(_roll_world())
+	if _sound != null and _background != null:
+		_sound.play_world_music(_background.world_id)
 	if _title_card != null:
 		_title_card.texture = ArtLibrary.texture(FormCatalog.title_card(form_id))
 		_title_card.scale = Vector2(0.84, 0.84)
@@ -2314,6 +2361,7 @@ func _reincarnate() -> void:
 	_present_reveal()
 	if _sound != null:
 		_sound.play_title_card(FormCatalog.title_card(form_id))
+	print("Reincarnated as %s in %s (seed %d, run %d)" % [FormCatalog.display_name(form_id), WorldCatalog.flash_name(_background.world_id), day_seed, run_index])
 	if _pattern_layer != null:
 		_pattern_layer.queue_redraw()
 	_refresh_hud()

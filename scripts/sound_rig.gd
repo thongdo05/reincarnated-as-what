@@ -27,8 +27,24 @@ var _web_state := ""
 var _music_silent_for := 0.0
 var _music_sources := 0
 var _music: AudioStreamPlayer
+## Holds the track that is leaving during a world change. Not named
+## gameplay_music, so a run still has one player under that name.
+var _music_fade: AudioStreamPlayer
+var _music_path := ""
+var _music_started := false
+var _fade_left := 0.0
+var _fade_total := 0.0
 var _pools: Dictionary = {}
 var _cursors: Dictionary = {}
+
+## Equal-power crossfade when a reincarnation lands in a different track.
+const CROSSFADE_SECONDS := 0.4
+
+static func crossfade_db(unit: float) -> Vector2:
+	var t := clampf(unit, 0.0, 1.0)
+	var out_amp := cos(t * PI * 0.5)
+	var in_amp := sin(t * PI * 0.5)
+	return Vector2(linear_to_db(maxf(out_amp, 0.0001)), linear_to_db(maxf(in_amp, 0.0001)))
 
 func _ready() -> void:
 	setup()
@@ -50,8 +66,47 @@ func setup() -> void:
 		_unlocked = true
 
 func start_gameplay_music() -> void:
+	if _music_path == "":
+		play_world_music(WorldCatalog.SKY_CASTLE)
+		return
 	_music_wanted = true
 	_ensure_music()
+
+## Play this world's loop. The first track starts clean. A later world whose
+## file is different crossfades over CROSSFADE_SECONDS. The same file (Sky
+## Castle, or a world whose track is not imported yet) keeps playing.
+func play_world_music(world_id: String) -> void:
+	_music_wanted = true
+	if _music == null:
+		return
+	var path := WorldCatalog.music_path(world_id)
+	if _music_started and path == _music_path:
+		_ensure_music()
+		return
+	var stream := _load_loop(path)
+	if stream == null:
+		return
+	if not _music_started:
+		_assign_music(stream, path)
+		_music_started = true
+		_ensure_music()
+		return
+	begin_crossfade(stream, path)
+
+func music_path() -> String:
+	return _music_path
+
+func is_crossfading() -> bool:
+	return _fade_left > 0.0
+
+func fade_player() -> AudioStreamPlayer:
+	return _music_fade
+
+func begin_crossfade(incoming: AudioStream, path: String) -> void:
+	_begin_crossfade(incoming, path)
+
+func tick_crossfade_for_test(delta: float) -> void:
+	_tick_crossfade(delta)
 
 func unlock_from_gesture() -> void:
 	_resume_web_audio()
@@ -93,6 +148,8 @@ func poll_web_gesture(delta: float = 0.0) -> void:
 
 func _restart_music_from_web() -> void:
 	_music_silent_for = 0.0
+	if _fade_left > 0.0:
+		_finish_crossfade()
 	if not _music_wanted or not enabled or _music == null:
 		return
 	# Pause already owns the player. Coming back to the tab must not unpause it.
@@ -129,6 +186,7 @@ func _update_output_blocked(delta: float) -> void:
 	output_blocked = _music_silent_for >= 0.6
 
 func _process(delta: float) -> void:
+	_tick_crossfade(delta)
 	if _shot_lockout > 0.0:
 		_shot_lockout = maxf(_shot_lockout - delta, 0.0)
 	var gap_keys: Array = _gaps.keys()
@@ -200,6 +258,8 @@ func set_enabled(on: bool) -> void:
 func set_music_paused(paused: bool) -> void:
 	if _music != null:
 		_music.stream_paused = paused
+	if _music_fade != null and (_fade_left > 0.0 or _music_fade.playing):
+		_music_fade.stream_paused = paused
 
 func music_is_playing() -> bool:
 	return _music != null and _music.playing and not _music.stream_paused
@@ -255,6 +315,11 @@ func _build_players() -> void:
 			# single-threaded export does not garble the loop. loop_offset stays 0.
 			_music.playback_type = AudioCues.music_playback_type(OS.has_feature("web"))
 			_music.max_polyphony = 1
+			_music_fade = _make_player(event, stream)
+			_music_fade.name = "world_music_fade"
+			_music_fade.playback_type = _music.playback_type
+			_music_fade.max_polyphony = 1
+			_music_fade.volume_db = 0.0
 			continue
 		var voices := 1
 		if float(data.get("pitch_semitones", 0.0)) > 0.0 or bool(data.get("pitch_chain", false)):
@@ -331,6 +396,77 @@ func _claim_shot(event: String) -> bool:
 		return false
 	_shot_lockout = float(AudioCues.spec(event).get("min_interval", AudioCues.SHOT_MIN_INTERVAL))
 	return true
+
+func _load_loop(path: String) -> AudioStream:
+	if not ResourceLoader.exists(path):
+		path = WorldCatalog.FALLBACK_MUSIC
+	if not ResourceLoader.exists(path):
+		return null
+	var stream := load(path) as AudioStream
+	if stream == null:
+		return null
+	AudioCues.prepare_stream(stream, "gameplay_music")
+	return stream
+
+func _assign_music(stream: AudioStream, path: String) -> void:
+	_music.stream = stream
+	_music.volume_db = 0.0
+	_music_path = path
+	_fade_left = 0.0
+	if _music_fade != null:
+		_music_fade.stop()
+		_music_fade.volume_db = 0.0
+
+func _begin_crossfade(incoming: AudioStream, path: String) -> void:
+	var outgoing := _music.stream
+	var from := _music.get_playback_position() if _music.playing else 0.0
+	var paused := _music.stream_paused
+	_music_path = path
+	_music_started = true
+	_fade_total = CROSSFADE_SECONDS
+	_fade_left = CROSSFADE_SECONDS
+	if _music_fade != null and outgoing != null:
+		_music_fade.stream = outgoing
+		_music_fade.pitch_scale = 1.0
+		if _can_play_audio():
+			_music_fade.play(from)
+			_music_fade.stream_paused = paused
+	_music.stream = incoming
+	if _can_play_audio():
+		if _music.playing:
+			_music.stop()
+		_music.play()
+		_music.stream_paused = paused
+	_apply_fade_gains(0.0)
+
+func _tick_crossfade(delta: float) -> void:
+	if _fade_left <= 0.0:
+		return
+	_fade_left = maxf(_fade_left - delta, 0.0)
+	var unit := 1.0
+	if _fade_total > 0.0:
+		unit = 1.0 - _fade_left / _fade_total
+	_apply_fade_gains(unit)
+	if _fade_left <= 0.0:
+		_finish_crossfade()
+
+func _apply_fade_gains(unit: float) -> void:
+	var gains := crossfade_db(unit)
+	if _music_fade != null:
+		_music_fade.volume_db = gains.x
+	if _music != null:
+		_music.volume_db = gains.y
+
+func _finish_crossfade() -> void:
+	_fade_left = 0.0
+	if _music_fade != null:
+		_music_fade.stop()
+		_music_fade.volume_db = 0.0
+	if _music != null:
+		_music.volume_db = 0.0
+
+func _can_play_audio() -> bool:
+	return DisplayServer.get_name() != "headless"
 
 func _ensure_music() -> void:
 	if not _music_wanted or _music == null:
