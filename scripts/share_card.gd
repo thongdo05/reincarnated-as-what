@@ -17,6 +17,9 @@ const GAGS := {
 	"dire_wolf": "Hostile takeover failed.",
 	"floating_eye": "Lost a staring contest.",
 	"wyvern": "A bad time to look up.",
+	"lich_king": "The crown stayed.",
+	"death_knight": "Outlasted.",
+	"great_dragon": "The sky caught fire.",
 }
 
 const NAME_TO_KILLER := {
@@ -32,6 +35,9 @@ const NAME_TO_KILLER := {
 	"a Floating Eye": "floating_eye",
 	"a Skeleton Archer": "skeleton_archer",
 	"a Wyvern": "wyvern",
+	"Lich King": "lich_king",
+	"Death Knight": "death_knight",
+	"Great Dragon": "great_dragon",
 	"shot": "floating_eye",
 	"something": "floating_eye",
 	"Thing": "floating_eye",

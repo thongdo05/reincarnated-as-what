@@ -22,6 +22,12 @@ The reborn tease ships as `sting_reborn_tease.ogg` (about 15 KB). The same sting
 | `sting_reborn_tease.ogg` | Death frame 11 (0.92 s), as `REBORN AS...?` starts. |
 | `sfx_evolve.wav` | Evolve frame 0. The fanfare hit is at 0.42 s, on the `EVOLVED!` pop (frame 5). |
 | `sting_reveal_vending_machine.wav` | The Vending Machine title card. A run that opens as that form plays it. `SoundRig.debug_play_vending_reveal()` plays it anyway. |
+| `sfx_boss_lich_king_enter.wav` | Lich King enters. Same bus level as the other stings. No pitch shift. |
+| `sfx_boss_lich_king_death.wav` | Lich King dies. Same level, no pitch shift. A timeout flee stays silent. |
+| `sfx_boss_death_knight_enter.wav` | Death Knight enters. Same level, no pitch shift. |
+| `sfx_boss_death_knight_death.wav` | Death Knight dies. Same level, no pitch shift. A timeout flee stays silent. |
+| `sfx_boss_great_dragon_enter.wav` | Great Dragon enters. Same level, no pitch shift. |
+| `sfx_boss_great_dragon_death.wav` | Great Dragon dies. Same level, no pitch shift. |
 
 Each form uses its own shot file. The slime bloop is not reused.
 

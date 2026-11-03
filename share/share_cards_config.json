@@ -218,6 +218,21 @@
    "name": "a Wyvern",
    "sprite": "wyvern.png",
    "note": "56 px tall: taller than the 44 px killer slot, so it is drawn cropped to its head and wing (top 44 rows)"
+  },
+  "lich_king": {
+   "label": "LICH KING",
+   "name": "the Lich King",
+   "sprite": "lich_king.png"
+  },
+  "death_knight": {
+   "label": "DEATH KNIGHT",
+   "name": "the Death Knight",
+   "sprite": "death_knight.png"
+  },
+  "great_dragon": {
+   "label": "GREAT DRAGON",
+   "name": "the Great Dragon",
+   "sprite": "great_dragon.png"
   }
  }
 }

@@ -129,9 +129,11 @@ static func kind_name(kind: int) -> String:
 static func max_hp(kind: int) -> int:
 	match kind:
 		ARCHER:
-			return 6
+			return 4
 		WYVERN:
-			return 3
+			return 6
+		WOLF:
+			return 4
 		ANVIL:
 			return 4
 		PIANO:
