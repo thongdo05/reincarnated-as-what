@@ -322,6 +322,7 @@ func _build_hud() -> void:
 	_rank_label = _make_label(9, Color("8ecbff"))
 	_rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_rank_label.visible = false
+	_rank_label.gui_input.connect(_on_rank_retry_input)
 	_game_over.add_child(_rank_label)
 	_restart_button = Button.new()
 	_restart_button.text = "Reincarnate"
@@ -2551,7 +2552,11 @@ func _on_renamed(parsed: Dictionary, attempted: String, gen: int) -> void:
 		return
 	if not bool(parsed.get("ok", false)):
 		_revert_board_name()
-		_name_prompt.show_error("leaderboard offline")
+		if Leaderboard.is_network_error(parsed):
+			_name_prompt.show_error(Leaderboard.UNREACHABLE)
+		else:
+			var err_text := str(parsed.get("error", ""))
+			_name_prompt.show_error(err_text if err_text != "" else Leaderboard.SCORE_NOT_POSTED)
 		return
 	var renamed := str(parsed.get("data", {}).get("name", attempted))
 	_name_prompt.close()
@@ -2611,34 +2616,50 @@ func _on_submit_parsed(parsed: Dictionary, gen: int) -> void:
 		_set_rank_text("", Color("8ecbff"))
 		return
 	if not bool(parsed.get("ok", false)):
-		_set_rank_text("leaderboard offline", Color("a49fcf"))
+		if Leaderboard.is_network_error(parsed):
+			_rank_retry = "submit"
+			_set_rank_text(Leaderboard.UNREACHABLE, Color("a49fcf"))
+		else:
+			_rank_retry = ""
+			_set_rank_text(Leaderboard.SCORE_NOT_POSTED, Color("a49fcf"))
 		return
 	_fetch_ranks(str(_pending_score.get("form", "")), gen)
 
 func _fetch_ranks(form: String, gen: int) -> void:
 	if _leaderboard == null:
 		return
+	_rank_serial += 1
+	var serial := _rank_serial
 	_daily_rank = -1
 	_all_rank = -1
 	_rank_parts = 0
-	_leaderboard.fetch_rank(form, "daily", _on_rank_part.bind("daily", gen))
-	_leaderboard.fetch_rank(form, "all", _on_rank_part.bind("all", gen))
+	_rank_network = 0
+	_rank_form = form
+	_leaderboard.fetch_rank(form, "daily", _on_rank_part.bind("daily", gen, serial))
+	_leaderboard.fetch_rank(form, "all", _on_rank_part.bind("all", gen, serial))
 
 var _daily_rank := -1
 var _all_rank := -1
 var _rank_parts := 0
+var _rank_network := 0
+var _rank_serial := 0
+var _rank_retry := ""
+var _rank_form := ""
 
-func _on_rank_part(parsed: Dictionary, period: String, gen: int) -> void:
-	if gen != _lb_gen:
+func _on_rank_part(parsed: Dictionary, period: String, gen: int, serial: int) -> void:
+	if gen != _lb_gen or serial != _rank_serial:
 		return
 	_rank_parts += 1
-	var rows: Array = parsed.get("rows", [])
-	if bool(parsed.get("ok", false)) and not rows.is_empty() and typeof(rows[0]) == TYPE_DICTIONARY:
-		var rank := int((rows[0] as Dictionary).get("rank", 0))
-		if period == "daily":
-			_daily_rank = rank
-		else:
-			_all_rank = rank
+	if Leaderboard.is_network_error(parsed):
+		_rank_network += 1
+	else:
+		var rows: Array = parsed.get("rows", [])
+		if bool(parsed.get("ok", false)) and not rows.is_empty() and typeof(rows[0]) == TYPE_DICTIONARY:
+			var rank := int((rows[0] as Dictionary).get("rank", 0))
+			if period == "daily":
+				_daily_rank = rank
+			else:
+				_all_rank = rank
 	if _rank_parts < 2:
 		return
 	_rank_parts = 0
@@ -2647,16 +2668,48 @@ func _on_rank_part(parsed: Dictionary, period: String, gen: int) -> void:
 		bits.append("#%d today" % _daily_rank)
 	if _all_rank > 0:
 		bits.append("#%d all-time" % _all_rank)
-	if bits.is_empty():
-		_set_rank_text("leaderboard offline", Color("a49fcf"))
+	if not bits.is_empty():
+		_rank_retry = ""
+		_set_rank_text(" - ".join(bits), Color("8ecbff"))
 		return
-	_set_rank_text(" - ".join(bits), Color("8ecbff"))
+	if _rank_network > 0:
+		_rank_retry = "ranks"
+		_set_rank_text(Leaderboard.UNREACHABLE, Color("a49fcf"))
+		return
+	_rank_retry = ""
+	_set_rank_text("", Color("8ecbff"))
+
+func _on_rank_retry_input(event: InputEvent) -> void:
+	if _rank_label == null or _rank_label.text != Leaderboard.UNREACHABLE or _rank_retry == "":
+		return
+	if not _is_pointer_press(event) or _is_emulated_mouse(event):
+		return
+	_rank_label.accept_event()
+	var mode := _rank_retry
+	_rank_retry = ""
+	_set_rank_text("...", Color("a49fcf"))
+	if mode == "submit":
+		_send_submit(_lb_gen)
+	else:
+		_fetch_ranks(_rank_form, _lb_gen)
+
+func _is_pointer_press(event: InputEvent) -> bool:
+	if event is InputEventMouseButton:
+		var mouse := event as InputEventMouseButton
+		return mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT
+	if event is InputEventScreenTouch:
+		return (event as InputEventScreenTouch).pressed
+	return false
+
+func _is_emulated_mouse(event: InputEvent) -> bool:
+	return event is InputEventMouseButton and event.device == InputEvent.DEVICE_ID_EMULATION
 
 func _set_rank_text(text: String, color: Color) -> void:
 	if _rank_label == null:
 		return
 	_rank_label.text = text
 	_rank_label.visible = text != "" or (_board_button != null and _board_button.visible and Leaderboard.should_submit())
+	_rank_label.mouse_filter = Control.MOUSE_FILTER_STOP if text == Leaderboard.UNREACHABLE else Control.MOUSE_FILTER_IGNORE
 	_rank_label.add_theme_color_override("font_color", color)
 	if game_over_visible:
 		_layout_death_card()

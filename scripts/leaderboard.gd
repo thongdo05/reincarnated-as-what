@@ -10,7 +10,12 @@ const URL := "https://piayoqekmrhqfuhhvexg.supabase.co"
 const PUBLISHABLE_KEY := "sb_publishable_0p0UqM_GPBLuLohH9d5q1Q_ode-jvwM"
 const FORMAT_HINT := "Use 1-12 letters, numbers, spaces, _ or -."
 const REJECTED_NAME := "That name isn't allowed, try another"
+const UNREACHABLE := "Can't reach leaderboard - tap to retry"
+const SCORE_NOT_POSTED := "score not posted"
 const RETRY_SECONDS := 3.2
+const REQUEST_TIMEOUT := 15.0
+## Two extra tries after the first failure. Transport, timeout, 5xx, and 429 only.
+const NETWORK_BACKOFF: Array[float] = [0.8, 2.0]
 
 static func should_submit() -> bool:
 	# Every finished run can post, including a challenged form.
@@ -143,17 +148,22 @@ func call_later(seconds: float, action: Callable) -> void:
 	, CONNECT_ONE_SHOT)
 	timer.start()
 
-func _rpc(method: String, body: Dictionary, done: Callable) -> void:
+## One HTTPRequest node per call. The node only runs a single request, and
+## use_threads stays off so the non-threaded web export polls on the main
+## thread instead of failing to start a worker. application/json plus the
+## apikey header need a CORS preflight; Supabase allows that, and a dropped
+## preflight is a transport error, which retries below.
+func _rpc(method: String, body: Dictionary, done: Callable, attempt: int = 0) -> void:
 	var http := HTTPRequest.new()
-	http.timeout = 12.0
+	http.timeout = REQUEST_TIMEOUT
+	http.use_threads = false
 	http.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(http)
 	http.request_completed.connect(func(result: int, code: int, _headers: PackedStringArray, resp: PackedByteArray) -> void:
-		var parsed := _parse(result, code, resp)
+		var parsed := parse_response(result, code, resp)
 		if is_instance_valid(http):
 			http.queue_free()
-		if done.is_valid():
-			done.call(parsed)
+		_finish_rpc(method, body, done, attempt, parsed)
 	, CONNECT_ONE_SHOT)
 	var err := http.request(
 		"%s/rest/v1/rpc/%s" % [URL, method],
@@ -163,15 +173,49 @@ func _rpc(method: String, body: Dictionary, done: Callable) -> void:
 	)
 	if err != OK:
 		http.queue_free()
-		if done.is_valid():
-			done.call({"ok": false, "error": "offline", "rows": [], "data": {}})
+		_finish_rpc(method, body, done, attempt, {"ok": false, "error": "offline", "rows": [], "data": {}})
 
-func _parse(result: int, code: int, resp: PackedByteArray) -> Dictionary:
-	if result != HTTPRequest.RESULT_SUCCESS or code < 200 or code >= 300:
+func _finish_rpc(method: String, body: Dictionary, done: Callable, attempt: int, parsed: Dictionary) -> void:
+	var delay := next_retry_delay(attempt) if is_network_error(parsed) else -1.0
+	if delay >= 0.0:
+		call_later(delay, func() -> void:
+			_rpc(method, body, done, attempt + 1)
+		)
+		return
+	if done.is_valid():
+		done.call(parsed)
+
+static func is_network_error(parsed: Dictionary) -> bool:
+	return str(parsed.get("error", "")) == "offline"
+
+## Seconds to wait before extra attempt `attempt` (0 then 1). -1 when the
+## two extra tries are already used.
+static func next_retry_delay(attempt: int) -> float:
+	if attempt < 0 or attempt >= NETWORK_BACKOFF.size():
+		return -1.0
+	return float(NETWORK_BACKOFF[attempt])
+
+static func parse_response(result: int, code: int, resp: PackedByteArray) -> Dictionary:
+	if result != HTTPRequest.RESULT_SUCCESS or code == 429 or code >= 500:
 		return {"ok": false, "error": "offline", "rows": [], "data": {}}
 	var text := resp.get_string_from_utf8().strip_edges()
+	if code < 200 or code >= 300:
+		return _http_error(code, text)
 	if text == "":
 		return {"ok": true, "error": "", "rows": [], "data": {}}
+	return _parse_body(text)
+
+static func _http_error(code: int, text: String) -> Dictionary:
+	var parsed: Variant = JSON.parse_string(text)
+	if typeof(parsed) == TYPE_DICTIONARY:
+		var data: Dictionary = parsed
+		var err := _error_field(data)
+		if err == "":
+			err = "http_%d" % code
+		return {"ok": false, "error": err, "rows": [], "data": data}
+	return {"ok": false, "error": "http_%d" % code, "rows": [], "data": {}}
+
+static func _parse_body(text: String) -> Dictionary:
 	var parsed: Variant = JSON.parse_string(text)
 	if typeof(parsed) == TYPE_ARRAY:
 		return {"ok": true, "error": "", "rows": parsed, "data": {}}
@@ -184,8 +228,18 @@ func _parse(result: int, code: int, resp: PackedByteArray) -> Dictionary:
 				"rows": [],
 				"data": data,
 			}
-		return {"ok": false, "error": "offline", "rows": [], "data": data}
-	return {"ok": false, "error": "offline", "rows": [], "data": {}}
+		var err := _error_field(data)
+		if err == "":
+			err = "bad_response"
+		return {"ok": false, "error": err, "rows": [], "data": data}
+	return {"ok": false, "error": "bad_response", "rows": [], "data": {}}
+
+static func _error_field(data: Dictionary) -> String:
+	if data.has("error") and str(data["error"]) != "":
+		return str(data["error"])
+	if data.has("message") and str(data["message"]) != "":
+		return str(data["message"])
+	return ""
 
 func _mark_posted(name: String) -> void:
 	var data := _read()
