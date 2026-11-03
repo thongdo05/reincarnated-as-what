@@ -37,7 +37,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play()
+	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -1496,6 +1496,42 @@ func _check_leaderboard() -> int:
 	if Leaderboard.clean_name("  A  B  ") != "A B":
 		push_error("names should trim and collapse spaces, got %s" % Leaderboard.clean_name("  A  B  "))
 		failed += 1
+	# Web name entry: window.prompt, then the same clean / format rules.
+	# Cancel and a blank box leave the saved name alone. Headless Chrome
+	# stubs window.prompt itself; this checks the contract Godot applies.
+	if str(NamePrompt.interpret_prompt(null).get("action", "")) != "cancel":
+		push_error("a dismissed prompt should leave the name unchanged")
+		failed += 1
+	if str(NamePrompt.interpret_prompt("").get("action", "")) != "cancel":
+		push_error("an empty prompt should leave the name unchanged")
+		failed += 1
+	if str(NamePrompt.interpret_prompt("   ").get("action", "")) != "cancel":
+		push_error("a blank prompt should leave the name unchanged")
+		failed += 1
+	var prompted: Dictionary = NamePrompt.interpret_prompt("  Ace  2  ")
+	if str(prompted.get("action", "")) != "submit" or str(prompted.get("name", "")) != "Ace 2":
+		push_error("prompt text should trim and collapse spaces, got %s" % prompted)
+		failed += 1
+	var prompt_call := NamePrompt.prompt_js("A\"B")
+	if not prompt_call.begins_with("window.prompt(") or prompt_call.find(NamePrompt.PROMPT_MESSAGE) < 0:
+		push_error("web name entry should call window.prompt, got %s" % prompt_call)
+		failed += 1
+	if prompt_call.find("A\\\"B") < 0:
+		push_error("prompt text should escape quotes, got %s" % prompt_call)
+		failed += 1
+	var name_src := FileAccess.get_file_as_string("res://scripts/name_prompt.gd")
+	if name_src.find("JavaScriptBridge.eval(prompt_js(") < 0 or name_src.find("lbShowNameField") >= 0:
+		push_error("the web prompt should replace the overlay text field")
+		failed += 1
+	var decided_src := FileAccess.get_file_as_string("res://scripts/game.gd")
+	var decided_at := decided_src.find("func _on_name_decided")
+	var decided_end := decided_src.find("func _on_name_cancelled")
+	var decided_body := decided_src.substr(decided_at, decided_end - decided_at)
+	var label_at := decided_body.find("set_player_name")
+	var send_at := decided_body.find("_send_rename")
+	if label_at < 0 or send_at < 0 or label_at > send_at or decided_src.find("set_remote_name") < 0:
+		push_error("the board name should update before set_name")
+		failed += 1
 	if Leaderboard.REJECTED_NAME != "That name isn't allowed, try another":
 		push_error("rejection copy changed")
 		failed += 1
@@ -1546,6 +1582,57 @@ func _check_leaderboard() -> int:
 	if CaptureMode.is_active():
 		push_error("leaderboard checks left a mode flag on")
 		failed += 1
+	return failed
+
+## The in-game dialog stays for desktop. A filtered name uses the existing
+## rejection line and does not stick. An accepted name updates the footer
+## before any server round trip.
+func _check_name_entry() -> int:
+	var failed := 0
+	var path := Leaderboard.PROFILE_PATH
+	var had := FileAccess.file_exists(path)
+	var backup := FileAccess.get_file_as_string(path) if had else ""
+	var profile := FileAccess.open(path, FileAccess.WRITE)
+	if profile == null:
+		push_error("could not write a name-entry profile")
+		return 1
+	profile.store_string(JSON.stringify({"device_id": "name-entry-test", "name": "TEST", "posted": false}))
+	profile.close()
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	if game._leaderboard == null or game._leaderboard.player_name() != "TEST":
+		push_error("name prompt check lost the saved name")
+		failed += 1
+	else:
+		game._on_name_decided("!!!", "board")
+		if game._leaderboard.player_name() != "TEST" or not game._name_prompt.visible or game._name_prompt._error.text != Leaderboard.FORMAT_HINT:
+			push_error("a bad prompt should keep the name and show the format hint")
+			failed += 1
+		game._board.set_player_name("TEMP")
+		game._on_renamed({"ok": false, "error": "name_not_allowed"}, "Nope", game._rename_gen)
+		if game._board._name_label.text != "TEST" or game._name_prompt._error.text != Leaderboard.REJECTED_NAME:
+			push_error("a filtered name should revert the label and show the in-game rejection")
+			failed += 1
+		game._on_name_decided("ACE", "board")
+		if game._board._name_label.text != "ACE" or game._leaderboard.player_name() != "ACE":
+			push_error("an accepted name should update the board immediately, got %s / %s" % [game._board._name_label.text, game._leaderboard.player_name()])
+			failed += 1
+		game._name_prompt.open("Zed", "death")
+		if not game._name_prompt.visible or game._name_prompt.current_text() != "Zed":
+			push_error("desktop name entry should keep the in-game field")
+			failed += 1
+		game._name_prompt.close()
+	root.remove_child(game)
+	game.free()
+	if had:
+		var restore := FileAccess.open(path, FileAccess.WRITE)
+		if restore != null:
+			restore.store_string(backup)
+			restore.close()
+	else:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	return failed
 
 func _check_pause() -> int:
@@ -2737,8 +2824,11 @@ func _check_replay_rules() -> int:
 	if shell.find("shareRunText") < 0 or shell.find("navigator.share") < 0 or shell.find("clipboard") < 0:
 		push_error("the web shell should share text and fall back to the clipboard")
 		failed += 1
-	if shell.find("lbShowNameField") < 0 or shell.find("lb-name-input") < 0 or shell.find("lbSetCover") < 0:
-		push_error("the web shell should host the leaderboard name field")
+	if shell.find("lbReleaseInput") < 0 or shell.find("lbSetCover") < 0 or shell.find(".ime") < 0 or shell.find("tabindex=\"0\"") < 0:
+		push_error("the web shell should release a stuck IME and keep the canvas focusable")
+		failed += 1
+	if shell.find("lb-name-input") >= 0 or shell.find("lbShowNameField") >= 0:
+		push_error("the overlay name field eats taps after the iOS keyboard closes")
 		failed += 1
 	return failed
 

@@ -129,6 +129,7 @@ var _board_button: Button
 var _title_board_button: Button
 var _pending_score: Dictionary = {}
 var _lb_gen := 0
+var _rename_gen := 0
 var _died_in_play := false
 var _board_scaled := false
 var _saved_scale_mode := 0
@@ -2472,13 +2473,13 @@ func _present_online_score() -> void:
 		return
 	_submit_pending()
 
-func _open_name_prompt(source: String) -> void:
+func _open_name_prompt(source: String, ask := true) -> void:
 	if _name_prompt == null or _leaderboard == null:
 		return
 	_name_prompt.place_for(_viewport_size())
-	_name_prompt.open(_leaderboard.player_name(), source)
-	if _leaderboard != null:
-		_leaderboard.set_page_cover(true)
+	# Cover first. On the web export the prompt can finish before open() returns.
+	_leaderboard.set_page_cover(true)
+	_name_prompt.open(_leaderboard.player_name(), source, ask)
 
 func _dismiss_name_prompt() -> void:
 	if _name_prompt != null and _name_prompt.visible:
@@ -2493,15 +2494,17 @@ func _on_name_decided(clean: String, source: String) -> void:
 	if local_err != "":
 		_name_prompt.show_error(local_err)
 		return
+	if source == "board" and _board != null:
+		_board.set_player_name(clean)
 	if source == "board" and _leaderboard.has_posted():
-		_leaderboard.set_remote_name(clean, _on_renamed)
+		_name_prompt.close()
+		_send_rename(clean)
 		return
 	_leaderboard.set_local_name(clean)
 	_name_prompt.close()
 	if _leaderboard != null and (_board == null or not _board.visible):
 		_leaderboard.set_page_cover(false)
-	if source == "board" and _board != null:
-		_board.set_player_name(clean)
+	if source == "board":
 		return
 	if source == "death" and not _pending_score.is_empty():
 		_submit_pending()
@@ -2512,45 +2515,62 @@ func _on_name_cancelled() -> void:
 	if _name_prompt != null and _name_prompt.source == "death":
 		_set_rank_text("Name this run to post it", Color("a49fcf"))
 
-func _on_renamed(parsed: Dictionary) -> void:
-	if _name_prompt == null:
+func _send_rename(clean: String) -> void:
+	_rename_gen += 1
+	var gen := _rename_gen
+	_leaderboard.set_remote_name(clean, func(parsed: Dictionary) -> void:
+		_on_renamed(parsed, clean, gen)
+	)
+
+func _on_renamed(parsed: Dictionary, attempted: String, gen: int) -> void:
+	if _name_prompt == null or gen != _rename_gen:
 		return
 	var err := str(parsed.get("error", ""))
 	if err == "rate_limited":
 		if _leaderboard != null:
 			_leaderboard.call_later(Leaderboard.RETRY_SECONDS, func() -> void:
-				if _name_prompt != null and _name_prompt.visible:
-					_leaderboard.set_remote_name(_name_prompt.current_text(), _on_renamed)
+				if _leaderboard != null and gen == _rename_gen and attempted != "":
+					_leaderboard.set_remote_name(attempted, func(again: Dictionary) -> void:
+						_on_renamed(again, attempted, gen)
+					)
 			)
 		return
 	if err == "name_not_allowed":
+		_revert_board_name()
 		_name_prompt.show_error(Leaderboard.REJECTED_NAME)
 		return
 	if err == "bad_name":
+		_revert_board_name()
 		_name_prompt.show_error(Leaderboard.FORMAT_HINT)
 		return
 	if err == "no_scores_yet":
-		var kept := _leaderboard.set_local_name(_name_prompt.current_text())
+		var kept := _leaderboard.set_local_name(attempted)
 		_name_prompt.close()
 		if _board != null:
 			_board.set_player_name(kept)
 		return
 	if not bool(parsed.get("ok", false)):
+		_revert_board_name()
 		_name_prompt.show_error("leaderboard offline")
 		return
-	var renamed := str(parsed.get("data", {}).get("name", _leaderboard.player_name()))
+	var renamed := str(parsed.get("data", {}).get("name", attempted))
 	_name_prompt.close()
 	if _board != null:
 		_board.set_player_name(renamed)
 		if _board.visible:
 			_board.open()
 
+func _revert_board_name() -> void:
+	if _board == null or _leaderboard == null:
+		return
+	_board.set_player_name(_leaderboard.player_name())
+
 func _submit_pending() -> void:
 	if _leaderboard == null or _pending_score.is_empty():
 		return
 	var local_err := Leaderboard.local_name_error(_leaderboard.player_name())
 	if local_err != "":
-		_open_name_prompt("death")
+		_open_name_prompt("death", false)
 		_name_prompt.show_error(local_err)
 		return
 	if _name_prompt != null:
@@ -2581,12 +2601,12 @@ func _on_submit_parsed(parsed: Dictionary, gen: int) -> void:
 			)
 		return
 	if err == "name_not_allowed":
-		_open_name_prompt("death")
+		_open_name_prompt("death", false)
 		_name_prompt.show_error(Leaderboard.REJECTED_NAME)
 		_set_rank_text("", Color("8ecbff"))
 		return
 	if err == "bad_name":
-		_open_name_prompt("death")
+		_open_name_prompt("death", false)
 		_name_prompt.show_error(Leaderboard.FORMAT_HINT)
 		_set_rank_text("", Color("8ecbff"))
 		return

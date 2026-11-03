@@ -1,18 +1,21 @@
 extends Control
 class_name NamePrompt
 
-## Name entry. On a phone the web shell puts a real text field over this one
-## so iPhone Safari can open its keyboard. The server accepts or rejects the name.
+## Name entry. The web export asks with window.prompt. iOS Safari does not
+## deliver keystrokes into a Godot LineEdit, and while that field is editing
+## the web shell refocuses a hidden IME node, so OK, CANCEL, and other buttons
+## miss taps after the keyboard closes. Desktop builds keep this dialog.
 
 signal decided(clean: String, source: String)
 signal cancelled
+
+const PROMPT_MESSAGE := "Your leaderboard name (1-12 letters, numbers, spaces, or -)"
 
 var source := ""
 var _font: Font
 var _edit: LineEdit
 var _error: Label
-var _web_open := false
-var _bound := false
+var _asking := false
 
 func setup(font: Font) -> void:
 	_font = font
@@ -52,6 +55,7 @@ func setup(font: Font) -> void:
 	box.add_child(hint)
 	_edit = LineEdit.new()
 	_edit.virtual_keyboard_enabled = not OS.has_feature("web")
+	_edit.virtual_keyboard_show_on_focus = not OS.has_feature("web")
 	_edit.max_length = 12
 	_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_edit.caret_blink = true
@@ -60,6 +64,7 @@ func setup(font: Font) -> void:
 	_edit.add_theme_font_override("font", _font)
 	_edit.add_theme_font_size_override("font_size", 18)
 	_edit.add_theme_color_override("font_color", Color("f2fbff"))
+	_edit.add_theme_color_override("font_uneditable_color", Color("f2fbff"))
 	_edit.add_theme_color_override("font_placeholder_color", Color("a49fcf"))
 	_edit.add_theme_color_override("caret_color", Color("f0d78c"))
 	var field := StyleBoxFlat.new()
@@ -70,10 +75,15 @@ func setup(font: Font) -> void:
 	field.set_corner_radius_all(0)
 	for state in ["normal", "focus", "read_only"]:
 		_edit.add_theme_stylebox_override(state, field)
-	_edit.text_submitted.connect(func(_text: String) -> void:
-		_confirm()
-	)
-	_edit.gui_input.connect(_on_edit_input)
+	if _browser_prompt():
+		# A focused LineEdit on the web export starts Godot's IME focus timer.
+		_edit.editable = false
+		_edit.focus_mode = Control.FOCUS_NONE
+		_edit.gui_input.connect(_on_web_edit_tap)
+	else:
+		_edit.text_submitted.connect(func(_text: String) -> void:
+			_confirm()
+		)
 	box.add_child(_edit)
 	_error = _label("", 9, Color("ffd84a"))
 	_error.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -90,31 +100,39 @@ func setup(font: Font) -> void:
 	cancel.pressed.connect(_cancel)
 	row.add_child(ok)
 	row.add_child(cancel)
-	_bind_web()
 
-func open(current: String, from: String) -> void:
+func open(current: String, from: String, ask := true) -> void:
 	source = from
-	visible = true
 	_error.text = ""
 	_edit.text = Leaderboard.clean_name(current)
+	if _browser_prompt():
+		# Pass ask=false when the caller is about to show_error. The prompt
+		# would cover that message, and a filter rejection is not a fresh tap.
+		_release_stuck_input()
+		if ask:
+			_ask_browser()
+		return
+	visible = true
 	_edit.grab_focus()
 	_edit.caret_column = _edit.text.length()
-	_sync_web_field(true)
 
 func close() -> void:
 	visible = false
-	_web_open = false
-	_hide_web_field()
+	if _browser_prompt():
+		_release_stuck_input()
+	elif _edit != null and _edit.has_focus():
+		_edit.release_focus()
 
 func show_error(message: String) -> void:
+	# The filter message stays on this dialog. OK asks again on the web export.
 	visible = true
 	_error.text = message
+	if _browser_prompt():
+		_release_stuck_input()
 
 func current_text() -> String:
-	if _web_open:
-		var web: Variant = _web_value()
-		if web != null:
-			return str(web)
+	if _edit == null:
+		return ""
 	return _edit.text
 
 func place_for(viewport: Vector2) -> void:
@@ -124,11 +142,45 @@ func place_for(viewport: Vector2) -> void:
 	size = Vector2(width, height)
 	custom_minimum_size = size
 
-func _process(_delta: float) -> void:
-	if visible and _web_open:
-		_sync_web_field(false)
+## null and blank mean the player dismissed the prompt. Anything else is a
+## candidate for the same clean_name / local_name_error rules as the dialog.
+static func interpret_prompt(raw: Variant) -> Dictionary:
+	if raw == null:
+		return {"action": "cancel", "name": ""}
+	var clean := Leaderboard.clean_name(str(raw))
+	if clean == "":
+		return {"action": "cancel", "name": ""}
+	return {"action": "submit", "name": clean}
+
+static func prompt_js(current: String) -> String:
+	return "window.prompt(%s, %s)" % [
+		JSON.stringify(PROMPT_MESSAGE),
+		JSON.stringify(Leaderboard.clean_name(current)),
+	]
+
+func _browser_prompt() -> bool:
+	return OS.has_feature("web")
+
+func _ask_browser() -> void:
+	if _asking or not _browser_prompt():
+		return
+	_asking = true
+	var result: Variant = JavaScriptBridge.eval(prompt_js(_edit.text), true)
+	_asking = false
+	_release_stuck_input()
+	var parsed := interpret_prompt(result)
+	if str(parsed.get("action", "")) == "cancel":
+		if not visible:
+			cancelled.emit()
+		return
+	var clean := str(parsed.get("name", ""))
+	_edit.text = clean
+	decided.emit(clean, source)
 
 func _confirm() -> void:
+	if _browser_prompt():
+		_ask_browser()
+		return
 	var clean := Leaderboard.clean_name(current_text())
 	_edit.text = clean
 	decided.emit(clean, source)
@@ -137,15 +189,55 @@ func _cancel() -> void:
 	close()
 	cancelled.emit()
 
-func _on_edit_input(event: InputEvent) -> void:
-	var press := false
+func _on_web_edit_tap(event: InputEvent) -> void:
+	if not _browser_prompt() or not _is_press(event) or _is_emulated_mouse(event):
+		return
+	accept_event()
+	_ask_browser()
+
+func _is_press(event: InputEvent) -> bool:
 	if event is InputEventMouseButton:
 		var mouse := event as InputEventMouseButton
-		press = mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT
-	elif event is InputEventScreenTouch:
-		press = (event as InputEventScreenTouch).pressed
-	if press:
-		_sync_web_field(true)
+		return mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT
+	if event is InputEventScreenTouch:
+		return (event as InputEventScreenTouch).pressed
+	return false
+
+func _is_emulated_mouse(event: InputEvent) -> bool:
+	return event is InputEventMouseButton and event.device == InputEvent.DEVICE_ID_EMULATION
+
+func _release_stuck_input() -> void:
+	if _edit != null:
+		_edit.release_focus()
+		if _edit.has_method("unedit"):
+			_edit.unedit()
+		if _edit.has_method("cancel_ime"):
+			_edit.cancel_ime()
+	var viewport := get_viewport()
+	if viewport != null:
+		viewport.gui_release_focus()
+	if not _browser_prompt() or not is_inside_tree():
+		return
+	DisplayServer.virtual_keyboard_hide()
+	JavaScriptBridge.eval("if (window.lbReleaseInput) window.lbReleaseInput();", true)
+	call_deferred("_flush_stuck_pointer")
+
+func _flush_stuck_pointer() -> void:
+	if not is_inside_tree():
+		return
+	var viewport := get_viewport()
+	var pos := viewport.get_mouse_position() if viewport != null else Vector2.ZERO
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.position = pos
+	Input.parse_input_event(release)
+	for index in 3:
+		var touch := InputEventScreenTouch.new()
+		touch.index = index
+		touch.pressed = false
+		touch.position = pos
+		Input.parse_input_event(touch)
 
 func _label(text: String, size: int, color: Color) -> Label:
 	var label := Label.new()
@@ -179,61 +271,6 @@ func _button(caption: String, bg: Color, ink: Color) -> Button:
 		button.add_theme_stylebox_override(state, style)
 	return button
 
-func _coarse_pointer() -> bool:
-	if not OS.has_feature("web"):
-		return false
-	var value: Variant = JavaScriptBridge.eval(
-		"!!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)",
-		true
-	)
-	return bool(value)
-
-func _bind_web() -> void:
-	if _bound or not OS.has_feature("web"):
-		return
-	_bound = true
-	var on_input := JavaScriptBridge.create_callback(_on_web_input)
-	var on_submit := JavaScriptBridge.create_callback(_on_web_submit)
-	var win = JavaScriptBridge.get_interface("window")
-	win.__lbOnNameInput = on_input
-	win.__lbOnNameSubmit = on_submit
-
-func _on_web_input(args: Array) -> void:
-	if args.is_empty():
-		return
-	_edit.text = str(args[0])
-	_edit.caret_column = _edit.text.length()
-
-func _on_web_submit(args: Array) -> void:
-	if not args.is_empty():
-		_edit.text = str(args[0])
-	_confirm()
-
-func _sync_web_field(set_text: bool) -> void:
-	if not _coarse_pointer() or _edit == null:
-		return
-	var rect := _edit.get_global_rect()
-	var view := get_viewport_rect().size
-	var text := "null"
-	if set_text:
-		text = JSON.stringify(_edit.text)
-	_web_open = true
-	JavaScriptBridge.eval(
-		"if (window.lbShowNameField) window.lbShowNameField(%s,%s,%s,%s,%s,%s,%s);" % [
-			rect.position.x, rect.position.y, rect.size.x, rect.size.y, view.x, view.y, text
-		],
-		true
-	)
-
-func _hide_web_field() -> void:
-	if not OS.has_feature("web"):
-		return
-	JavaScriptBridge.eval("if (window.lbHideNameField) window.lbHideNameField();", true)
-
-func _web_value() -> Variant:
-	if not OS.has_feature("web"):
-		return null
-	return JavaScriptBridge.eval("window.lbNameValue ? window.lbNameValue() : null", true)
-
 func _exit_tree() -> void:
-	_hide_web_field()
+	if _browser_prompt():
+		JavaScriptBridge.eval("if (window.lbReleaseInput) window.lbReleaseInput();", true)
