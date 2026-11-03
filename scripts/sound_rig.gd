@@ -2,7 +2,8 @@ extends Node
 class_name SoundRig
 
 ## TEST audio player. Music sits at -6 dB and SFX at -12 dB so the loop is
-## above the stings. The slime shot is another -10 dB and at most about 4/s.
+## above the stings. Form shots are another -10 dB and at most about 4/s.
+## A cue whose wav is missing is skipped, with no error.
 ## The web export plays the loop as a sample. Godot 4.7 does not put GodotAudio
 ## on the page, so iOS Safari can be running for WAV shots while this rig still
 ## thinks the context is missing and never starts the loop. The shell publishes
@@ -15,7 +16,11 @@ var played: Array[String] = []
 var _music_wanted := false
 var _unlocked := false
 var _shot_lockout := 0.0
+var _gaps: Dictionary = {}
+var _gem_step := 0
+var _gem_quiet := 0.0
 var last_gain_db := 0.0
+var last_pitch_scale := 1.0
 ## True while the web context is locked, or the loop was asked for and did not start.
 var output_blocked := false
 var _web_state := ""
@@ -126,6 +131,16 @@ func _update_output_blocked(delta: float) -> void:
 func _process(delta: float) -> void:
 	if _shot_lockout > 0.0:
 		_shot_lockout = maxf(_shot_lockout - delta, 0.0)
+	var gap_keys: Array = _gaps.keys()
+	for key in gap_keys:
+		var left := float(_gaps[key]) - delta
+		if left <= 0.0:
+			_gaps.erase(key)
+		else:
+			_gaps[key] = left
+	_gem_quiet = minf(_gem_quiet + delta, AudioCues.GEM_CHAIN_RESET)
+	if _gem_quiet >= AudioCues.GEM_CHAIN_RESET:
+		_gem_step = 0
 	poll_web_gesture(delta)
 
 func play_title_card(card: String) -> void:
@@ -139,12 +154,15 @@ func debug_play_vending_reveal() -> void:
 	play_event("reveal_vending_machine")
 
 func play_event(event: String, gain_db: float = 0.0) -> void:
-	if AudioCues.spec(event).is_empty():
+	var data := AudioCues.spec(event)
+	if data.is_empty():
 		return
-	if event == "slime_shot" and not _claim_shot():
+	if not _claim_event(event):
 		return
+	var pitch := _pitch_for(event)
 	played.append(event)
 	last_gain_db = gain_db
+	last_pitch_scale = pitch
 	if not enabled:
 		return
 	# Same reason as the music player: a stream left running at process
@@ -154,8 +172,8 @@ func play_event(event: String, gain_db: float = 0.0) -> void:
 	var player := _take_player(event)
 	if player == null:
 		return
-	player.pitch_scale = _pitch_for(event)
-	var base_db := float(AudioCues.spec(event).get("volume_db", 0.0))
+	player.pitch_scale = pitch
+	var base_db := float(data.get("volume_db", 0.0))
 	player.volume_db = base_db + gain_db
 	player.play()
 
@@ -191,6 +209,9 @@ func music_stream() -> AudioStream:
 		return null
 	return _music.stream
 
+func voice_count(event: String) -> int:
+	return _pool(event).size()
+
 func player_for(event: String) -> AudioStreamPlayer:
 	if event == "gameplay_music":
 		return _music
@@ -216,9 +237,15 @@ func _pool(event: String) -> Array:
 func _build_players() -> void:
 	for event in AudioCues.all_events():
 		var data := AudioCues.spec(event)
-		var stream := load(str(data["file"])) as AudioStream
+		var path := str(data["file"])
+		if not FileAccess.file_exists(path):
+			if AudioCues.should_report_missing(data):
+				push_error("missing test audio %s" % path)
+			continue
+		var stream := load(path) as AudioStream
 		if stream == null:
-			push_error("missing test audio %s" % str(data["file"]))
+			if not bool(data.get("optional", false)):
+				push_error("missing test audio %s" % path)
 			continue
 		AudioCues.prepare_stream(stream, event)
 		if event == "gameplay_music":
@@ -229,7 +256,7 @@ func _build_players() -> void:
 			_music.max_polyphony = 1
 			continue
 		var voices := 1
-		if float(data.get("pitch_semitones", 0.0)) > 0.0:
+		if float(data.get("pitch_semitones", 0.0)) > 0.0 or bool(data.get("pitch_chain", false)):
 			voices = int(data.get("polyphony", 1))
 		var pool: Array[AudioStreamPlayer] = []
 		for _i in voices:
@@ -271,6 +298,13 @@ func _take_player(event: String) -> AudioStreamPlayer:
 	return stolen
 
 func _pitch_for(event: String) -> float:
+	if event == "gem_pickup":
+		if _gem_quiet >= AudioCues.GEM_CHAIN_RESET:
+			_gem_step = 0
+		var semis := AudioCues.gem_chain_semitones(_gem_step)
+		_gem_step = mini(_gem_step + 1, AudioCues.GEM_CHAIN_CAP)
+		_gem_quiet = 0.0
+		return AudioCues.semitone_to_pitch(semis)
 	var ratio := float(AudioCues.spec(event).get("pitch_ratio", 0.0))
 	if ratio > 0.0:
 		return AudioCues.shot_pitch_scale(randf())
@@ -279,10 +313,22 @@ func _pitch_for(event: String) -> float:
 		return 1.0
 	return AudioCues.semitone_to_pitch(AudioCues.pop_semitones(randf(), randf()))
 
-func _claim_shot() -> bool:
+func _claim_event(event: String) -> bool:
+	var data := AudioCues.spec(event)
+	if AudioCues.is_shot_event(event):
+		return _claim_shot(event)
+	var interval := float(data.get("min_interval", 0.0))
+	if interval <= 0.0:
+		return true
+	if float(_gaps.get(event, 0.0)) > 0.0:
+		return false
+	_gaps[event] = interval
+	return true
+
+func _claim_shot(event: String) -> bool:
 	if _shot_lockout > 0.0:
 		return false
-	_shot_lockout = float(AudioCues.spec("slime_shot").get("min_interval", AudioCues.SHOT_MIN_INTERVAL))
+	_shot_lockout = float(AudioCues.spec(event).get("min_interval", AudioCues.SHOT_MIN_INTERVAL))
 	return true
 
 func _ensure_music() -> void:

@@ -5,8 +5,8 @@ class_name PlayerShip
 ## The ship never jumps to the finger, so the thumb can stay out of the way.
 ## Snap forms arrive in about 1-3 frames, with no slide. Vending trails the
 ## aim for a few frames and still finishes a flick quickly. Cat blinks a short
-## dash when the aim jumps, then snaps the rest. A slime squash and a goblin
-## lean are drawn only. They do not lag the hurtbox.
+## dash when the aim jumps, then snaps the rest. Squash, bob, rock, and recoil
+## are drawn only. They do not move the hurt circle.
 
 var form_id := FormCatalog.Id.SLIME
 var aim := Vector2.ZERO
@@ -24,6 +24,13 @@ var _wobble := 0.0
 var _trail_timer := 0.0
 var _trail: Array[Vector2] = []
 var _pose := 0.0
+var _recoil := 0.0
+var _recoil_lock := 0.0
+var _clunk := 0.0
+var _was_stepping := false
+var _dash_flick := 0.0
+var _dash_lean := 0.0
+var _dash_offset := Vector2.ZERO
 var small := false
 var regrow_left := 0.0
 var regrew := false
@@ -52,6 +59,41 @@ const TRAIL_ALPHA_NEAR := 0.38
 const SPLIT_TRAIL_COPIES := 3
 const SPLIT_TRAIL_ALPHA_FAR := 0.08
 const SPLIT_TRAIL_ALPHA_NEAR := 0.25
+
+## Draw-only motion, about 1–2 px. The hurt overlay is drawn after this pose
+## is cleared, so the HitLibrary circle stays on the collision.
+const RECOIL_PX := 1.0
+const RECOIL_RETURN := 16.0
+const RECOIL_LOCK := 0.12
+const GOBLIN_HOP_PX := 2.0
+const GOBLIN_PLANT_PX := 1.0
+const GOBLIN_IDLE_PX := 1.0
+const GOBLIN_HOP_RATE := 11.0
+const GOBLIN_IDLE_RATE := 2.8
+const VENDING_ROCK_IDLE := 0.04
+const VENDING_ROCK_MOVE := 0.07
+const VENDING_SWAY_IDLE := 1.0
+const VENDING_SWAY_MOVE := 2.0
+const VENDING_RATE_IDLE := 1.35
+const VENDING_RATE_MOVE := 2.05
+const VENDING_CLUNK_PX := 2.0
+const VENDING_CLUNK_TILT := 0.07
+const VENDING_CLUNK_DECAY := 6.0
+const CAT_IDLE_PX := 1.0
+const CAT_IDLE_RATE := 2.1
+const CAT_IDLE_TILT := 0.07
+const CAT_IDLE_TILT_RATE := 1.7
+const CAT_DASH_PX := 1.0
+const CAT_DASH_TILT := 0.14
+const CAT_FLICK_RETURN := 10.0
+const DEMON_IDLE_PX := 1.0
+const DEMON_MOVE_PX := 2.0
+const DEMON_FLOAT_RATE := 1.7
+const SLIME_IDLE_BOB := 1.0
+const SLIME_IDLE_RATE := 2.6
+const SLIME_SQUASH := 0.06
+const SLIME_BREATHE := 0.04
+const SLIME_BREATHE_RATE := 3.2
 
 func setup(id: int, start: Vector2) -> void:
 	form_id = id
@@ -92,6 +134,13 @@ func ready_to_fire() -> bool:
 func did_fire(interval: float) -> void:
 	_cooldown = interval
 
+## One kick per volley, and not on every bullet of a fast stream.
+func note_shot() -> void:
+	if _recoil_lock > 0.0:
+		return
+	_recoil = 1.0
+	_recoil_lock = RECOIL_LOCK
+
 func tick(delta: float, bounds: Rect2) -> void:
 	_wobble += delta
 	regrew = false
@@ -116,10 +165,22 @@ func tick(delta: float, bounds: Rect2) -> void:
 		sprinting = stride < FormCatalog.goblin_f("stride") * FormCatalog.goblin_f("sprint_fraction")
 	var before := position
 	_pursue(delta)
-	if position.distance_to(before) > 0.2:
+	var stepped := position.distance_to(before) > 0.2
+	if stepped:
 		_pose = 1.0
 	else:
 		_pose = maxf(_pose - delta * 7.0, 0.0)
+	if form_id == FormCatalog.Id.VENDING and _was_stepping and not stepped:
+		_clunk = 1.0
+	_was_stepping = stepped
+	if _clunk > 0.0:
+		_clunk = maxf(_clunk - delta * VENDING_CLUNK_DECAY, 0.0)
+	if _recoil_lock > 0.0:
+		_recoil_lock = maxf(_recoil_lock - delta, 0.0)
+	if _recoil > 0.0:
+		_recoil = maxf(_recoil - delta * RECOIL_RETURN, 0.0)
+	if _dash_flick > 0.0:
+		_dash_flick = maxf(_dash_flick - delta * CAT_FLICK_RETURN, 0.0)
 	if form_id == FormCatalog.Id.SLIME:
 		_record_trail(delta)
 	elif form_id == FormCatalog.Id.CAT:
@@ -162,6 +223,10 @@ func _try_blink(delta: float) -> void:
 	if dist < FormCatalog.CAT_BLINK_MIN:
 		return
 	var hop := to_aim / dist * minf(dist, FormCatalog.cat_blink_dist(rank_index, power_level))
+	var dash_dir := hop / hop.length()
+	_dash_lean = clampf(dash_dir.y, -1.0, 1.0) * CAT_DASH_TILT
+	_dash_offset = dash_dir * CAT_DASH_PX
+	_dash_flick = 1.0
 	_trail.push_front(position)
 	_trim_trail()
 	position += hop
@@ -231,6 +296,13 @@ func respawn(id: int, start: Vector2) -> void:
 	blink_guard = 0.0
 	_wobble = 0.0
 	_pose = 0.0
+	_recoil = 0.0
+	_recoil_lock = 0.0
+	_clunk = 0.0
+	_was_stepping = false
+	_dash_flick = 0.0
+	_dash_lean = 0.0
+	_dash_offset = Vector2.ZERO
 	_trail.clear()
 	_trail_timer = 0.0
 	modulate = Color.WHITE
@@ -276,7 +348,8 @@ func _apply_evolve_visual() -> void:
 		_evolve_fx.play(99.0 if evolve_t < 0.0 else evolve_t, evolve_hold)
 
 func _draw() -> void:
-	_begin_pose()
+	var pose := cosmetic_pose()
+	draw_set_transform(pose["offset"], float(pose["rotation"]), pose["scale"])
 	if fx_mode == "flash":
 		if ArtLibrary.has_file(fx_sprite):
 			ArtLibrary.draw_anchored(self, fx_sprite)
@@ -292,27 +365,55 @@ func _draw() -> void:
 		if aura != "":
 			ArtLibrary.draw_loop(self, aura, 0.0)
 		_draw_body(sprite_name())
-	var fitted := FormCatalog.play_scale(form_id)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(fitted, fitted))
+	var hurt := hurt_draw_pose()
+	draw_set_transform(hurt["offset"], float(hurt["rotation"]), hurt["scale"])
 	if shield_hits > 0:
+		var fitted := FormCatalog.play_scale(form_id)
 		draw_arc(Vector2.ZERO, radius / maxf(fitted, 0.01) + 5.0, 0.0, TAU, 22, Color("f2fbff"), 1.5, true)
 	if HitLibrary.show:
 		HitLibrary.draw(self, sprite_name(), "hurt", Color(0.35, 1.0, 0.55, 0.95))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
-## Squash and lean stay under about a pixel on these sprites, and the hurt
-## overlay is drawn after the pose is cleared so it matches the collision.
-func _begin_pose() -> void:
+## Cosmetic transform for the body only. Rank 4 and 5 have no idle sheet, so
+## this bob is what keeps them from looking frozen.
+func cosmetic_pose() -> Dictionary:
 	var fitted := FormCatalog.play_scale(form_id)
-	if _pose <= 0.01:
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(fitted, fitted))
-		return
-	if form_id == FormCatalog.Id.SLIME:
-		var squash := 0.06 * _pose
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(fitted * (1.0 + squash), fitted * (1.0 - squash * 0.75)))
-	else:
-		var lean := (-0.045 if sprinting else 0.025) * _pose
-		draw_set_transform(Vector2.ZERO, lean, Vector2(fitted, fitted))
+	var offset := Vector2.ZERO
+	var rotation := 0.0
+	var scale := Vector2(fitted, fitted)
+	var moving := clampf(_pose, 0.0, 1.0)
+	match form_id:
+		FormCatalog.Id.SLIME:
+			var breathe := sin(_wobble * SLIME_BREATHE_RATE) * SLIME_BREATHE * (1.0 - moving)
+			var squash := SLIME_SQUASH * moving + breathe
+			scale = Vector2(fitted * (1.0 + squash), fitted * (1.0 - squash * 0.75))
+			offset.y = sin(_wobble * SLIME_IDLE_RATE) * SLIME_IDLE_BOB * (1.0 - moving)
+		FormCatalog.Id.GOBLIN:
+			var hop_px := GOBLIN_HOP_PX if sprinting else GOBLIN_PLANT_PX
+			var hop := -absf(sin(_wobble * GOBLIN_HOP_RATE)) * hop_px
+			var idle := sin(_wobble * GOBLIN_IDLE_RATE) * GOBLIN_IDLE_PX
+			offset.y = lerpf(idle, hop, moving)
+		FormCatalog.Id.VENDING:
+			var rate := lerpf(VENDING_RATE_IDLE, VENDING_RATE_MOVE, moving)
+			rotation = sin(_wobble * rate) * lerpf(VENDING_ROCK_IDLE, VENDING_ROCK_MOVE, moving)
+			offset.x = sin(_wobble * rate * 0.8) * lerpf(VENDING_SWAY_IDLE, VENDING_SWAY_MOVE, moving)
+			offset.y += _clunk * VENDING_CLUNK_PX
+			rotation += _clunk * VENDING_CLUNK_TILT
+		FormCatalog.Id.CAT:
+			offset.y = sin(_wobble * CAT_IDLE_RATE) * CAT_IDLE_PX
+			rotation = sin(_wobble * CAT_IDLE_TILT_RATE) * CAT_IDLE_TILT
+			rotation += _dash_lean * _dash_flick
+			offset += _dash_offset * _dash_flick
+		FormCatalog.Id.DEMON:
+			var amp := lerpf(DEMON_IDLE_PX, DEMON_MOVE_PX, moving)
+			offset.y = sin(_wobble * DEMON_FLOAT_RATE) * amp
+	offset.x -= RECOIL_PX * _recoil
+	return {"offset": offset, "rotation": rotation, "scale": scale}
+
+## Shield ring and the hurt overlay. No bob, so the drawn circle matches collision.
+func hurt_draw_pose() -> Dictionary:
+	var fitted := FormCatalog.play_scale(form_id)
+	return {"offset": Vector2.ZERO, "rotation": 0.0, "scale": Vector2(fitted, fitted)}
 
 func _draw_final_banner() -> void:
 	if not evolve_final or evolve_t < 0.0:

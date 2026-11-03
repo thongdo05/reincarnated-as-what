@@ -27,6 +27,7 @@ func _initialize() -> void:
 	_unit_failed += _check_icons()
 	_unit_failed += _check_pressure()
 	_unit_failed += _check_audio()
+	_unit_failed += _check_motion()
 	_unit_failed += _check_replay_rules()
 	_unit_failed += _check_leaderboard()
 	_unit_failed += _check_lb_parse()
@@ -516,7 +517,7 @@ func _check_art() -> int:
 		push_error("slime's hitbox should stay larger than the goblin's")
 		failed += 1
 	var kept := ArtLibrary.radius_for("vending_machine_r1.png", 0.62)
-	var from_old := 0.62 * (17.0 + 31.0) * 0.25
+	var from_old := 0.62 * (23.0 + 40.0) * 0.25
 	if absf(kept - from_old) > 0.01:
 		push_error("a radius taken from art_bbox should stay on the pre-ring box")
 		failed += 1
@@ -2482,6 +2483,129 @@ func _check_evolve_play() -> int:
 	final_run.free()
 	return failed
 
+func _check_motion() -> int:
+	var failed := 0
+	var ship := PlayerShip.new()
+	ship.setup(FormCatalog.Id.SLIME, Vector2(80, 80))
+	for id in FormCatalog.IDS:
+		ship.form_id = id
+		ship.rank_index = 4
+		ship._recoil = 0.0
+		ship._recoil_lock = 0.0
+		ship._clunk = 0.0
+		ship._dash_flick = 0.0
+		ship._pose = 0.0
+		ship._wobble = 0.2
+		var early: Dictionary = ship.cosmetic_pose()
+		ship._wobble = 1.1
+		var later: Dictionary = ship.cosmetic_pose()
+		var early_offset: Vector2 = early["offset"]
+		var later_offset: Vector2 = later["offset"]
+		var early_scale: Vector2 = early["scale"]
+		var later_scale: Vector2 = later["scale"]
+		var shifted := early_offset.distance_to(later_offset) > 0.2 or absf(float(early["rotation"]) - float(later["rotation"])) > 0.01 or absf(early_scale.x - later_scale.x) > 0.01
+		if not shifted:
+			push_error("%s rank 5 should keep moving while it stands still" % FormCatalog.display_name(id))
+			failed += 1
+		if later_offset.length() > 3.2:
+			push_error("%s motion should stay within a couple of pixels, got %s" % [FormCatalog.display_name(id), later_offset])
+			failed += 1
+		var hurt: Dictionary = ship.hurt_draw_pose()
+		var hurt_offset: Vector2 = hurt["offset"]
+		var hurt_scale: Vector2 = hurt["scale"]
+		var fitted := FormCatalog.play_scale(id)
+		if hurt_offset.length() > 0.001 or absf(float(hurt["rotation"])) > 0.001 or hurt_scale.distance_to(Vector2(fitted, fitted)) > 0.001:
+			push_error("%s hurt overlay should stay on the collision" % FormCatalog.display_name(id))
+			failed += 1
+	ship.form_id = FormCatalog.Id.SLIME
+	ship._pose = 0.0
+	ship._wobble = 0.0
+	ship._recoil = 0.0
+	ship._recoil_lock = 0.0
+	var rested: Vector2 = ship.cosmetic_pose()["offset"]
+	var held := ship.position
+	var held_radius := ship.radius
+	ship.note_shot()
+	var kicked: Vector2 = ship.cosmetic_pose()["offset"]
+	if kicked.x > rested.x - 0.8 or ship.position.distance_to(held) > 0.001 or absf(ship.radius - held_radius) > 0.001:
+		push_error("a shot should kick the sprite back without moving the hurt circle")
+		failed += 1
+	ship._recoil = 0.25
+	ship.note_shot()
+	if absf(ship._recoil - 0.25) > 0.001:
+		push_error("rapid fire should not restart the recoil kick")
+		failed += 1
+	ship._recoil_lock = 0.0
+	ship.note_shot()
+	if absf(ship._recoil - 1.0) > 0.001:
+		push_error("a shot after the lockout should kick again")
+		failed += 1
+	ship.form_id = FormCatalog.Id.GOBLIN
+	ship._recoil = 0.0
+	ship.sprinting = true
+	ship._pose = 1.0
+	ship._wobble = PI / (2.0 * PlayerShip.GOBLIN_HOP_RATE)
+	var hop: Vector2 = ship.cosmetic_pose()["offset"]
+	ship.sprinting = false
+	var plant: Vector2 = ship.cosmetic_pose()["offset"]
+	ship._pose = 0.0
+	ship._wobble = PI / (2.0 * PlayerShip.GOBLIN_IDLE_RATE)
+	var goblin_idle: Vector2 = ship.cosmetic_pose()["offset"]
+	if absf(hop.y + PlayerShip.GOBLIN_HOP_PX) > 0.05 or absf(plant.y + PlayerShip.GOBLIN_PLANT_PX) > 0.05 or absf(absf(goblin_idle.y) - PlayerShip.GOBLIN_IDLE_PX) > 0.05:
+		push_error("goblin should hop while moving and bob while idle, got %s %s %s" % [hop, plant, goblin_idle])
+		failed += 1
+	ship.form_id = FormCatalog.Id.VENDING
+	ship._pose = 0.0
+	ship._wobble = 0.0
+	ship._recoil = 0.0
+	ship._clunk = 1.0
+	var clunk: Dictionary = ship.cosmetic_pose()
+	var clunk_offset: Vector2 = clunk["offset"]
+	if clunk_offset.y < PlayerShip.VENDING_CLUNK_PX - 0.05 or absf(float(clunk["rotation"]) - PlayerShip.VENDING_CLUNK_TILT) > 0.01:
+		push_error("vending machine should clunk when it settles")
+		failed += 1
+	ship.form_id = FormCatalog.Id.CAT
+	ship.position = Vector2(100, 100)
+	ship.aim = Vector2(150, 60)
+	ship._blink_cd = 0.0
+	ship._dash_flick = 0.0
+	ship._recoil = 0.0
+	ship._pose = 0.0
+	ship._wobble = 0.0
+	ship._clunk = 0.0
+	var cat_radius := ship.radius
+	ship._try_blink(0.016)
+	var cat_pose: Dictionary = ship.cosmetic_pose()
+	var cat_offset: Vector2 = cat_pose["offset"]
+	if ship._dash_flick < 0.99 or absf(float(cat_pose["rotation"])) < 0.05 or cat_offset.length() > 2.2 or absf(ship.radius - cat_radius) > 0.01:
+		push_error("cat should flick into a dash without resizing the hurt circle")
+		failed += 1
+	ship.form_id = FormCatalog.Id.DEMON
+	ship._dash_flick = 0.0
+	ship._recoil = 0.0
+	ship._wobble = PI / (2.0 * PlayerShip.DEMON_FLOAT_RATE)
+	ship._pose = 0.0
+	var demon_idle: Vector2 = ship.cosmetic_pose()["offset"]
+	ship._pose = 1.0
+	var demon_move: Vector2 = ship.cosmetic_pose()["offset"]
+	var demon_scale: Vector2 = ship.cosmetic_pose()["scale"]
+	if absf(demon_idle.y - PlayerShip.DEMON_IDLE_PX) > 0.05 or absf(demon_move.y - PlayerShip.DEMON_MOVE_PX) > 0.05 or demon_move.y <= demon_idle.y:
+		push_error("demon lord should hover, and float a little more while moving")
+		failed += 1
+	if absf(demon_scale.x - FormCatalog.DEMON_PLAY_SCALE) > 0.001 or absf(demon_scale.y - FormCatalog.DEMON_PLAY_SCALE) > 0.001:
+		push_error("demon lord should stay at 0.75 play scale")
+		failed += 1
+	var previous_hurt := 0.0
+	for rank in 5:
+		var sprite := str(FormCatalog.rank_spec(FormCatalog.Id.VENDING, rank)["sprite"])
+		var hurt_radius := HitLibrary.bounds_radius(sprite, "hurt")
+		if rank > 0 and hurt_radius + 0.05 < previous_hurt:
+			push_error("vending rank %d hurtbox shrank (%.2f -> %.2f)" % [rank + 1, previous_hurt, hurt_radius])
+			failed += 1
+		previous_hurt = hurt_radius
+	ship.free()
+	return failed
+
 func _check_audio() -> int:
 	var failed := 0
 	var text := FileAccess.get_file_as_string("res://audio/manifest.json")
@@ -2547,9 +2671,29 @@ func _check_audio() -> int:
 	if AudioCues.shot_event_for_form(FormCatalog.Id.SLIME) != "slime_shot":
 		push_error("slime auto-fire should use the slime shot")
 		failed += 1
-	if AudioCues.shot_event_for_form(FormCatalog.Id.GOBLIN) != "":
-		push_error("goblin shots should stay silent")
-		failed += 1
+	var shot_for_form := {
+		FormCatalog.Id.GOBLIN: "goblin_shot",
+		FormCatalog.Id.VENDING: "vending_machine_shot",
+		FormCatalog.Id.CAT: "cat_shot",
+		FormCatalog.Id.DEMON: "demon_lord_shot",
+	}
+	for form_id in shot_for_form:
+		var shot_name := str(shot_for_form[form_id])
+		if AudioCues.shot_event_for_form(form_id) != shot_name:
+			push_error("%s should use %s" % [FormCatalog.display_name(form_id), shot_name])
+			failed += 1
+		var shot_spec := AudioCues.spec(shot_name)
+		var slime_spec := AudioCues.spec("slime_shot")
+		for key in ["polyphony", "volume_db", "min_interval", "pitch_ratio"]:
+			if absf(float(shot_spec[key]) - float(slime_spec[key])) > 0.001:
+				push_error("%s should keep the slime shot %s" % [shot_name, key])
+				failed += 1
+		if not bool(shot_spec.get("optional", false)):
+			push_error("%s should skip a missing file" % shot_name)
+			failed += 1
+		if not FileAccess.file_exists(str(shot_spec["file"])):
+			push_error("%s wav should be in the project" % shot_name)
+			failed += 1
 	for id in FormCatalog.IDS:
 		var reveal := AudioCues.reveal_event_for_card(FormCatalog.title_card(id))
 		if id == FormCatalog.Id.VENDING:
@@ -2558,10 +2702,6 @@ func _check_audio() -> int:
 				failed += 1
 		elif reveal != "":
 			push_error("only the vending machine card plays a reveal sting")
-			failed += 1
-	for quiet in [FormCatalog.Id.GOBLIN, FormCatalog.Id.VENDING, FormCatalog.Id.CAT, FormCatalog.Id.DEMON]:
-		if AudioCues.shot_event_for_form(quiet) != "":
-			push_error("%s shots should stay silent" % FormCatalog.display_name(quiet))
 			failed += 1
 	if AudioCues.reveal_event_for_card(AudioCues.VENDING_TITLE) != "reveal_vending_machine":
 		push_error("vending machine title card should map to its sting")
@@ -2628,6 +2768,22 @@ func _check_audio() -> int:
 		failed += 1
 	if absf(float(AudioCues.spec("slime_shot")["volume_db"]) - AudioCues.SHOT_VOLUME_DB) > 0.01 or absf(AudioCues.SHOT_VOLUME_DB + 10.0) > 0.01:
 		push_error("slime shot should be -10 dB on its player")
+		failed += 1
+	var gem_spec := AudioCues.spec("gem_pickup")
+	var power_spec := AudioCues.spec("power_pickup")
+	if int(gem_spec["polyphony"]) != AudioCues.GEM_POLYPHONY or absf(float(gem_spec["min_interval"]) - AudioCues.GEM_MIN_INTERVAL) > 0.001 or not bool(gem_spec.get("pitch_chain", false)):
+		push_error("gem pickup should be a short rising chain")
+		failed += 1
+	if int(power_spec["polyphony"]) != AudioCues.POWER_POLYPHONY or not bool(power_spec.get("optional", false)):
+		push_error("power pickup should be one voice and optional")
+		failed += 1
+	if absf(AudioCues.gem_chain_semitones(0)) > 0.001 or absf(AudioCues.gem_chain_semitones(7) - 7.0) > 0.001 or absf(AudioCues.gem_chain_semitones(9) - 7.0) > 0.001:
+		push_error("gem pitch should rise one semitone and cap at +7")
+		failed += 1
+	var missing := {"file": "res://audio/sfx_shot_does_not_exist.wav", "optional": true}
+	var required := {"file": "res://audio/sfx_shot_does_not_exist.wav", "optional": false}
+	if AudioCues.should_report_missing(missing) or not AudioCues.should_report_missing(required):
+		push_error("a missing optional cue should be skipped and a required one reported")
 		failed += 1
 	if absf(AudioCues.SHOT_MIN_INTERVAL - 0.25) > 0.001:
 		push_error("shot sfx should be capped at about 4 per second")
@@ -2818,12 +2974,27 @@ func _check_audio_play() -> int:
 	game.form_id = FormCatalog.Id.GOBLIN
 	game._player.form_id = FormCatalog.Id.GOBLIN
 	game._sound.played.clear()
-	for _i in 20:
+	game._sound._shot_lockout = 0.0
+	game._player._cooldown = 0.0
+	game._process(step)
+	if game._sound.play_count("slime_shot") != 0 or game._sound.play_count("goblin_shot") != 1:
+		push_error("goblin fire should play the goblin shot, not the slime bloop")
+		failed += 1
+	for form_id in [FormCatalog.Id.VENDING, FormCatalog.Id.CAT, FormCatalog.Id.DEMON]:
+		var event_name := AudioCues.shot_event_for_form(form_id)
+		game.form_id = form_id
+		game._player.form_id = form_id
+		game._sound.played.clear()
+		game._sound._shot_lockout = 0.0
 		game._player._cooldown = 0.0
 		game._process(step)
-	if game._sound.play_count("slime_shot") != 0:
-		push_error("goblin fire should not play the slime shot")
-		failed += 1
+		if game._sound.play_count(event_name) != 1 or game._sound.play_count("slime_shot") != 0:
+			push_error("%s fire should play %s once" % [FormCatalog.display_name(form_id), event_name])
+			failed += 1
+		var form_shot: AudioStreamPlayer = game._sound.player_for(event_name)
+		if form_shot == null or absf(form_shot.volume_db - AudioCues.SHOT_VOLUME_DB) > 0.01 or form_shot.max_polyphony != AudioCues.SHOT_POLYPHONY:
+			push_error("%s should be armed at -10 dB with polyphony %d" % [event_name, AudioCues.SHOT_POLYPHONY])
+			failed += 1
 	game.form_id = FormCatalog.Id.SLIME
 	game._player.form_id = FormCatalog.Id.SLIME
 	game._player._cooldown = 0.0
@@ -2903,6 +3074,65 @@ func _check_audio_play() -> int:
 	game._sound.play_title_card(FormCatalog.title_card(FormCatalog.Id.GOBLIN))
 	if game._sound.play_count("reveal_vending_machine") != 0:
 		push_error("slime and goblin cards should not play the vending sting")
+		failed += 1
+	game._sound.played.clear()
+	game._sound._gem_step = 0
+	game._sound._gem_quiet = AudioCues.GEM_CHAIN_RESET
+	game._sound._gaps.clear()
+	var gem := LootGem.new()
+	gem.setup("gem.png")
+	game.add_child(gem)
+	var loot_before := int(game.loot_count)
+	game._collect_gem(gem)
+	if game._sound.play_count("gem_pickup") != 1 or int(game.loot_count) != loot_before + 1:
+		push_error("picking up a gem should play the gem cue")
+		failed += 1
+	if absf(game._sound.last_pitch_scale - 1.0) > 0.001:
+		push_error("the first gem in a chain should stay at the recorded pitch")
+		failed += 1
+	for step_i in 7:
+		game._sound._process(0.06)
+		game._sound.play_event("gem_pickup")
+		var expect := AudioCues.semitone_to_pitch(float(step_i + 1))
+		if absf(game._sound.last_pitch_scale - expect) > 0.001:
+			push_error("gem %d should be +%d semitones" % [step_i + 2, step_i + 1])
+			failed += 1
+			break
+	game._sound._process(0.06)
+	game._sound.play_event("gem_pickup")
+	if absf(game._sound.last_pitch_scale - AudioCues.semitone_to_pitch(7.0)) > 0.001:
+		push_error("a long gem chain should cap at +7 semitones")
+		failed += 1
+	var chained := int(game._sound.play_count("gem_pickup"))
+	game._sound.play_event("gem_pickup")
+	if game._sound.play_count("gem_pickup") != chained:
+		push_error("gems closer than 0.05 s should not retrigger")
+		failed += 1
+	game._sound._process(AudioCues.GEM_CHAIN_RESET)
+	game._sound.play_event("gem_pickup")
+	if absf(game._sound.last_pitch_scale - 1.0) > 0.001:
+		push_error("the gem chain should reset after 0.6 s of quiet")
+		failed += 1
+	if game._sound.voice_count("gem_pickup") != AudioCues.GEM_POLYPHONY:
+		push_error("gem pickup should have %d voices, found %d" % [AudioCues.GEM_POLYPHONY, game._sound.voice_count("gem_pickup")])
+		failed += 1
+	game._sound.played.clear()
+	var drop := PowerDrop.new()
+	drop.setup("overdrive")
+	game.add_child(drop)
+	game._collect_power(drop)
+	if game._sound.play_count("power_pickup") != 1:
+		push_error("OVERDRIVE should play the power pickup")
+		failed += 1
+	var shield := PowerDrop.new()
+	shield.setup("shield")
+	game.add_child(shield)
+	game._collect_power(shield)
+	if game._sound.play_count("power_pickup") != 2:
+		push_error("a shield drop should play the power pickup too")
+		failed += 1
+	if game._sound.voice_count("power_pickup") != 1 or game._sound.player_for("power_pickup").max_polyphony != AudioCues.POWER_POLYPHONY:
+		push_error("power pickup should be a single voice")
 		failed += 1
 	game._sound.debug_play_vending_reveal()
 	game._sound.play_title_card(AudioCues.VENDING_TITLE)

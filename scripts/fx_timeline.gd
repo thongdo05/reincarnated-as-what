@@ -31,7 +31,7 @@ static func death_stage(t: float) -> String:
 	return "card"
 
 ## The readability ring adds 2 px. 36 keeps slime r3 (art box 34), the batch-6
-## slime r4 box (35), cat r3, and the new small vending r1 on the small pop.
+## slime r4 box (35) and cat r3 on the small pop. The restored vending body is taller.
 ## Goblin r2 (37) and the big bodies stay on the large pop.
 const POP_LARGE_ABOVE := 36.0
 

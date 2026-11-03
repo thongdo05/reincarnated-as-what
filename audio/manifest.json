@@ -78,5 +78,65 @@
     "lufs": -19.3,
     "true_peak": -1.7,
     "notes": "Heavy CLUNK (0-0.25 s), ~0.4 s silent comedic beat, can clang at 0.74 s, bigger can hit/rattle at 1.14 s, out by 1.6 s. No voice. Max momentary -16.0 LUFS. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_shot_goblin.wav",
+    "type": "sfx",
+    "duration": 0.15,
+    "loop": false,
+    "event": "Goblin auto-fire shot",
+    "lufs": -20.0,
+    "true_peak": -3.6,
+    "notes": "3 Nov 2026 form shot. Same player trim as the slime bloop: -10 dB, pitch +/- 8%, at most about 4 plays a second. 48000 Hz, 16-bit mono. lufs is the designer's integrated loudness; the file is shorter than an R128 gate. true_peak in dBTP."
+  },
+  {
+    "file": "sfx_shot_vending_machine.wav",
+    "type": "sfx",
+    "duration": 0.16,
+    "loop": false,
+    "event": "Vending Machine auto-fire shot",
+    "lufs": -20.8,
+    "true_peak": -1.0,
+    "notes": "3 Nov 2026 form shot. Same -10 dB player trim, +/- 8% pitch, and 0.25 s cap as the slime bloop. A little quieter than the other shots. 48000 Hz, 16-bit mono. true_peak in dBTP."
+  },
+  {
+    "file": "sfx_shot_cat.wav",
+    "type": "sfx",
+    "duration": 0.21,
+    "loop": false,
+    "event": "Cat auto-fire shot",
+    "lufs": -20.0,
+    "true_peak": -5.7,
+    "notes": "3 Nov 2026 form shot. Same -10 dB player trim, +/- 8% pitch, and 0.25 s cap as the slime bloop. 48000 Hz, 16-bit mono. true_peak in dBTP."
+  },
+  {
+    "file": "sfx_shot_demon_lord.wav",
+    "type": "sfx",
+    "duration": 0.23,
+    "loop": false,
+    "event": "Demon Lord auto-fire shot",
+    "lufs": -20.0,
+    "true_peak": -2.2,
+    "notes": "3 Nov 2026 form shot. Same -10 dB player trim, +/- 8% pitch, and 0.25 s cap as the slime bloop. 48000 Hz, 16-bit mono. true_peak in dBTP."
+  },
+  {
+    "file": "sfx_pickup_gem.wav",
+    "type": "sfx",
+    "duration": 0.13,
+    "loop": false,
+    "event": "gem pickup",
+    "lufs": -19.0,
+    "true_peak": -1.7,
+    "notes": "3 Nov 2026 pickup. Polyphony 4. Plays at most about every 0.05 s. Pitch rises one semitone per gem in a chain, resets after 0.6 s with no pickup, and caps at +7 semitones. 48000 Hz, 16-bit mono. true_peak in dBTP."
+  },
+  {
+    "file": "sfx_pickup_power.wav",
+    "type": "sfx",
+    "duration": 0.8,
+    "loop": false,
+    "event": "power pickup (OVERDRIVE, bomb, shield, rapid, magnet)",
+    "lufs": -16.0,
+    "true_peak": -9.8,
+    "notes": "3 Nov 2026 pickup for OVERDRIVE and the other rare power drops. One voice. 48000 Hz, 16-bit mono. lufs = integrated (gated) loudness; true_peak in dBTP."
   }
 ]

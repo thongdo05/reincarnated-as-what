@@ -792,6 +792,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 			interval = FormCatalog.power_fire_interval(interval, level)
 		if rapid_left > 0.0:
 			interval *= Difficulty.RAPID_FIRE_SCALE
+		_player.note_shot()
 		var shot_event := AudioCues.shot_event_for_form(form_id)
 		if _sound != null and shot_event != "":
 			_sound.play_event(shot_event)
@@ -1112,6 +1113,8 @@ func _collect_gem(gem: LootGem) -> void:
 	_release_gem(gem)
 	loot_count += 1
 	score += Difficulty.GEM_SCORE
+	if _sound != null:
+		_sound.play_event("gem_pickup")
 	_spawn_fx("graze_sparkle.png", at, 0.22, 0.6, 1.2)
 	_add_evo(Difficulty.GEM_EVO)
 
@@ -1201,6 +1204,8 @@ func _collect_power(drop: PowerDrop) -> void:
 	var kind := drop.kind
 	var at := drop.position
 	_release_power(drop)
+	if _sound != null:
+		_sound.play_event("power_pickup")
 	_spawn_fx("graze_sparkle.png", at, 0.2, 0.5, 1.3)
 	match kind:
 		"bomb":
