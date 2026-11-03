@@ -188,7 +188,7 @@ func _board_ready() -> bool:
 		if status == "..." :
 			return false
 		return _game._board._list.get_child_count() > 0
-	if status == "leaderboard offline" or status == "No scores yet.":
+	if status == Leaderboard.UNREACHABLE or status == "leaderboard offline" or status == "No scores yet.":
 		push_error("board status %s" % status)
 		quit(1)
 	return false

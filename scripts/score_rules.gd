@@ -27,6 +27,44 @@ static func format_time(seconds: float) -> String:
 	var total := maxi(int(floor(seconds)), 0)
 	return "%d:%02d" % [int(total / 60.0), total % 60]
 
+## Live SQL rejects a submit when score > 50000 + survival_ms * 10.
+static func server_score_cap(survival_ms: int) -> int:
+	return 50000 + survival_ms * 10
+
+## Points in `seconds` if a rank-5 vending run kills every spawned enemy.
+## Combo is capped, bodies are priced as archers (the best non-heavy), and
+## each kill also pays the rank-5 WINNER share, a gem, and a graze.
+## Power and the final form add no score of their own.
+static func vending_clear_score(seconds: float) -> int:
+	var elapsed := maxf(seconds, 0.0)
+	var mult := Difficulty.kill_multiplier(COMBO_CAP, 1)
+	var per_kill := 220.0 * mult + 2000.0 / 3.0 + Difficulty.GEM_CHANCE * float(Difficulty.GEM_SCORE) + float(Difficulty.GRAZE_RANK2)
+	var total := 0.0
+	var whole := int(ceil(elapsed))
+	for second in whole:
+		var at := float(second)
+		var dt := 1.0
+		if at + 1.0 > elapsed:
+			dt = elapsed - at
+		if dt <= 0.0:
+			continue
+		var gap := Difficulty.spawn_interval(at)
+		if gap <= 0.0:
+			continue
+		var kills := _expected_burst(at) / gap * dt
+		total += kills * per_kill + dt * float(SURVIVAL_PER_SECOND)
+	if elapsed > 0.0:
+		var overdrives: float = 1.0 + floor(elapsed / Difficulty.OVERDRIVE_DROP_COOLDOWN)
+		total += overdrives * float(Difficulty.OVERDRIVE_SCORE)
+	return int(floor(total))
+
+static func _expected_burst(elapsed: float) -> float:
+	var total := 0.0
+	var steps := 200
+	for i in steps:
+		total += float(Difficulty.burst_count(elapsed, (float(i) + 0.5) / float(steps)))
+	return total / float(steps)
+
 static func format_score(value: int) -> String:
 	var sign := ""
 	var number := value

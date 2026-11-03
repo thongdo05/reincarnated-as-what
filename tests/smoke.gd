@@ -29,6 +29,7 @@ func _initialize() -> void:
 	_unit_failed += _check_audio()
 	_unit_failed += _check_replay_rules()
 	_unit_failed += _check_leaderboard()
+	_unit_failed += _check_lb_parse()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -37,7 +38,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows()
+	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows() + _check_rank_fallback()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -1479,6 +1480,67 @@ func _check_death_card() -> int:
 	game.free()
 	return failed
 
+func _check_lb_parse() -> int:
+	var failed := 0
+	var bad := '{"ok":false,"error":"bad_score"}'.to_utf8_buffer()
+	var kept := Leaderboard.parse_response(HTTPRequest.RESULT_SUCCESS, 200, bad)
+	if str(kept.get("error", "")) != "bad_score" or Leaderboard.is_network_error(kept):
+		push_error("a 200 bad_score must stay bad_score, got %s" % kept)
+		failed += 1
+	var form_err := Leaderboard.parse_response(HTTPRequest.RESULT_SUCCESS, 200, '{"ok":false,"error":"bad_form"}'.to_utf8_buffer())
+	if str(form_err.get("error", "")) != "bad_form":
+		push_error("bad_form was collapsed, got %s" % form_err)
+		failed += 1
+	var http_bad := Leaderboard.parse_response(HTTPRequest.RESULT_SUCCESS, 400, bad)
+	if str(http_bad.get("error", "")) != "bad_score" or Leaderboard.is_network_error(http_bad):
+		push_error("a 400 bad_score is not a network error, got %s" % http_bad)
+		failed += 1
+	var server := Leaderboard.parse_response(HTTPRequest.RESULT_SUCCESS, 503, bad)
+	if not Leaderboard.is_network_error(server):
+		push_error("a 5xx response should retry as a network error")
+		failed += 1
+	var limited := Leaderboard.parse_response(HTTPRequest.RESULT_SUCCESS, 429, PackedByteArray())
+	if not Leaderboard.is_network_error(limited):
+		push_error("429 should count as a network error")
+		failed += 1
+	var timeout := Leaderboard.parse_response(HTTPRequest.RESULT_TIMEOUT, 0, PackedByteArray())
+	if not Leaderboard.is_network_error(timeout):
+		push_error("a timeout should count as a network error")
+		failed += 1
+	var weird := Leaderboard.parse_response(HTTPRequest.RESULT_SUCCESS, 200, '{"nope":1}'.to_utf8_buffer())
+	if str(weird.get("error", "")) != "bad_response" or Leaderboard.is_network_error(weird):
+		push_error("unexpected JSON is not offline, got %s" % weird)
+		failed += 1
+	var rows := Leaderboard.parse_response(HTTPRequest.RESULT_SUCCESS, 200, '[{"rank":3}]'.to_utf8_buffer())
+	if not bool(rows.get("ok", false)) or (rows.get("rows", []) as Array).size() != 1:
+		push_error("a rank row should parse, got %s" % rows)
+		failed += 1
+	if absf(Leaderboard.next_retry_delay(0) - 0.8) > 0.001 or absf(Leaderboard.next_retry_delay(1) - 2.0) > 0.001 or Leaderboard.next_retry_delay(2) >= 0.0:
+		push_error("network backoff should be 0.8s then 2s, then stop")
+		failed += 1
+	if Leaderboard.REQUEST_TIMEOUT < 15.0:
+		push_error("request timeout should be at least 15s on cellular")
+		failed += 1
+	var http := HTTPRequest.new()
+	http.use_threads = false
+	http.timeout = Leaderboard.REQUEST_TIMEOUT
+	if http.use_threads or absf(http.timeout - Leaderboard.REQUEST_TIMEOUT) > 0.01:
+		push_error("web requests should poll on the main thread with the longer timeout")
+		failed += 1
+	http.free()
+	var cap_180 := ScoreRules.server_score_cap(180000)
+	var clear_180 := ScoreRules.vending_clear_score(180.0)
+	var cap_300 := ScoreRules.server_score_cap(300000)
+	var clear_300 := ScoreRules.vending_clear_score(300.0)
+	print("SCORE_CAP 180s bound=%d clear=%d 300s bound=%d clear=%d" % [cap_180, clear_180, cap_300, clear_300])
+	if clear_180 > cap_180:
+		push_error("a 3:00 vending clear should still fit the server cap (%d vs %d)" % [clear_180, cap_180])
+		failed += 1
+	if clear_300 <= cap_300:
+		push_error("a 5:00 full vending clear should be able to pass the server cap (%d vs %d)" % [clear_300, cap_300])
+		failed += 1
+	return failed
+
 func _check_leaderboard() -> int:
 	var failed := 0
 	if Leaderboard.local_name_error("Fuuuck") != "":
@@ -1637,6 +1699,44 @@ func _check_name_entry() -> int:
 
 ## Rows are hard Kaito pixels in columns, not one tinted outlined string.
 ## A 12-character name and a 7-digit score have to fit the 480-wide board.
+func _check_rank_fallback() -> int:
+	var failed := 0
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game._lb_gen = 4
+	game._rank_serial = 7
+	game._rank_form = "slime"
+	game._daily_rank = -1
+	game._all_rank = -1
+	game._rank_parts = 0
+	game._rank_network = 0
+	game._on_rank_part({"ok": true, "rows": [{"rank": 4}]}, "daily", 4, 7)
+	game._on_rank_part({"ok": false, "error": "offline", "rows": []}, "all", 4, 7)
+	if game._rank_label.text != "#4 today":
+		push_error("one good rank should show even if the other fetch fails, got %s" % game._rank_label.text)
+		failed += 1
+	game._lb_gen = 5
+	game._rank_serial = 8
+	game._daily_rank = -1
+	game._all_rank = -1
+	game._rank_parts = 0
+	game._rank_network = 0
+	game._on_rank_part({"ok": false, "error": "offline", "rows": []}, "daily", 5, 8)
+	game._on_rank_part({"ok": false, "error": "offline", "rows": []}, "all", 5, 8)
+	if game._rank_label.text != Leaderboard.UNREACHABLE or game._rank_retry != "ranks":
+		push_error("two failed rank fetches should offer a tap retry, got %s" % game._rank_label.text)
+		failed += 1
+	game._lb_gen = 6
+	game._on_submit_parsed({"ok": false, "error": "bad_score", "rows": []}, 6)
+	if game._rank_label.text != Leaderboard.SCORE_NOT_POSTED:
+		push_error("a rejected score should not say the leaderboard is offline, got %s" % game._rank_label.text)
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
 func _check_board_rows() -> int:
 	var failed := 0
 	var width := 468.0

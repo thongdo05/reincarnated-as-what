@@ -39,6 +39,7 @@ var _period_row: HBoxContainer
 var _form_row: HBoxContainer
 var _footer: HBoxContainer
 var _list_ready := false
+var _can_retry := false
 var _list_has_me := false
 var _my_rank := -1
 var _pin: Dictionary = {}
@@ -88,6 +89,8 @@ func setup(client: Leaderboard, font: Font) -> void:
 		_form_buttons.append(form_button)
 	_status = _label("", 9, Color("a49fcf"))
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status.gui_input.connect(_on_status_input)
 	add_child(_status)
 	_scroll = ScrollContainer.new()
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -170,6 +173,8 @@ func _reload() -> void:
 		return
 	_token += 1
 	var token := _token
+	_can_retry = false
+	_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_status.text = "..."
 	_status.add_theme_color_override("font_color", Color("a49fcf"))
 	_clear_rows()
@@ -185,13 +190,21 @@ func _on_board(parsed: Dictionary, token: int) -> void:
 	if token != _token or not visible:
 		return
 	if not bool(parsed.get("ok", false)):
-		_status.text = "leaderboard offline"
-		_status.add_theme_color_override("font_color", Color("a49fcf"))
 		_clear_rows()
+		if Leaderboard.is_network_error(parsed):
+			_show_unreachable()
+		else:
+			_can_retry = false
+			_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_status.text = str(parsed.get("error", ""))
+			_status.add_theme_color_override("font_color", Color("a49fcf"))
+		_layout()
 		return
 	var rows: Array = parsed.get("rows", [])
 	_clear_rows()
 	_list_ready = true
+	_can_retry = false
+	_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if rows.is_empty():
 		_status.text = "No scores yet."
 		_sync_pin()
@@ -437,9 +450,10 @@ func _layout() -> void:
 		if child is Control:
 			(child as Control).custom_minimum_size.y = tab_h
 	y += tab_h + 2.0
+	var status_h := 28.0 if _can_retry else 14.0
 	_status.position = Vector2(pad, y)
-	_status.size = Vector2(width - pad * 2.0, 14)
-	y += 14.0
+	_status.size = Vector2(width - pad * 2.0, status_h)
+	y += status_h
 	var footer_h := tab_h
 	var me_h := float(m["row"]) + 6.0 if _me.visible else 0.0
 	var bottom := size.y - pad - footer_h
@@ -452,7 +466,31 @@ func _layout() -> void:
 	_scroll.position = Vector2(pad, y)
 	_scroll.size = Vector2(width - pad * 2.0, maxf(bottom - y, 24.0))
 
+func _show_unreachable() -> void:
+	_can_retry = true
+	_status.text = Leaderboard.UNREACHABLE
+	_status.mouse_filter = Control.MOUSE_FILTER_STOP
+	_status.add_theme_color_override("font_color", Color("a49fcf"))
+
+func _on_status_input(event: InputEvent) -> void:
+	if not _can_retry or not _is_press(event):
+		return
+	_status.accept_event()
+	_reload()
+
+func _is_press(event: InputEvent) -> bool:
+	if event is InputEventMouseButton:
+		var mouse := event as InputEventMouseButton
+		return mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT and mouse.device != InputEvent.DEVICE_ID_EMULATION
+	if event is InputEventScreenTouch:
+		return (event as InputEventScreenTouch).pressed
+	return false
+
 func _on_scroll_input(event: InputEvent) -> void:
+	if _can_retry and _is_press(event):
+		_scroll.accept_event()
+		_reload()
+		return
 	if event is InputEventScreenDrag:
 		var drag := event as InputEventScreenDrag
 		_scroll.scroll_vertical -= int(drag.relative.y)
