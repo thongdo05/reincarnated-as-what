@@ -7,6 +7,11 @@ class_name LeaderboardScreen
 signal closed
 signal rename_requested
 
+const ROW_GAP := 8
+const ROW_PAD := 4
+const ROW_INK := Color("f2fbff")
+const ROW_MINE_INK := Color("100c14")
+
 const PERIODS: Array = [["all", "ALL-TIME"], ["daily", "DAILY"]]
 const FORMS: Array = [
 	["", "ALL"],
@@ -26,7 +31,6 @@ var _status: Label
 var _list: VBoxContainer
 var _scroll: ScrollContainer
 var _me: Control
-var _me_label: Label
 var _name_label: Label
 var _period_buttons: Array[Button] = []
 var _form_buttons: Array[Button] = []
@@ -99,14 +103,9 @@ func setup(client: Leaderboard, font: Font) -> void:
 	_me = Panel.new()
 	_me.visible = false
 	_me.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_me.clip_contents = true
 	_me.add_theme_stylebox_override("panel", _row_style(true))
 	add_child(_me)
-	_me_label = _label("", 9, Color("241428"))
-	_me_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_me_label.offset_left = 6
-	_me_label.offset_right = -6
-	_me_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_me.add_child(_me_label)
 	_footer = HBoxContainer.new()
 	_footer.add_theme_constant_override("separation", 8)
 	add_child(_footer)
@@ -150,6 +149,18 @@ func show_form(form: String) -> void:
 func set_player_name(player_name: String) -> void:
 	_refresh_name(player_name)
 
+## Local rows for a screenshot or a layout check. Does not call the server.
+func preview(rows: Array, player_name: String = "") -> void:
+	visible = true
+	_period = "all"
+	_form = ""
+	_style_tabs()
+	if _name_label != null and player_name != "":
+		_name_label.text = player_name
+	_token += 1
+	_layout()
+	_on_board({"ok": true, "rows": rows}, _token)
+
 func _on_back() -> void:
 	visible = false
 	closed.emit()
@@ -187,13 +198,14 @@ func _on_board(parsed: Dictionary, token: int) -> void:
 		return
 	_status.text = ""
 	var row_h := float(_metrics()["row"])
+	var row_w := _scroll.size.x
 	var mine := -1
 	for i in rows.size():
 		var row: Dictionary = rows[i]
 		var mine_row := bool(row.get("is_me", false))
 		if mine_row:
 			mine = i
-		_list.add_child(_make_row(row, mine_row, row_h, _form == ""))
+		_list.add_child(_make_row(row, mine_row, row_h, _form == "", row_w))
 	_list_has_me = mine >= 0
 	_sync_pin()
 	if mine >= 0:
@@ -217,39 +229,117 @@ func _on_rank(parsed: Dictionary, token: int) -> void:
 func _sync_pin() -> void:
 	if not _list_ready or _list_has_me or _my_rank <= 0 or _pin.is_empty():
 		_me.visible = false
+		_clear_drawn(_me)
 		_layout()
 		return
 	_me.visible = true
-	_me_label.text = _row_text(_pin, true, _form == "")
 	_layout()
+	_fill_row(_me, _pin, true, _me.size.y, _form == "", _me.size.x)
 
-func _make_row(row: Dictionary, mine: bool, row_h: float, overall: bool) -> Control:
+func _make_row(row: Dictionary, mine: bool, row_h: float, overall: bool, width: float) -> Control:
 	var panel := Panel.new()
 	panel.custom_minimum_size = Vector2(0, row_h)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.clip_contents = true
 	panel.add_theme_stylebox_override("panel", _row_style(mine))
 	if mine:
 		panel.name = "me"
-	var label := _label(_row_text(row, mine, overall), 9, Color("241428") if mine else Color("f2fbff"))
-	label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	label.offset_left = 4
-	label.offset_right = -4
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.clip_text = true
-	panel.add_child(label)
+	_fill_row(panel, row, mine, row_h, overall, width)
 	return panel
 
-func _row_text(row: Dictionary, mine: bool, overall: bool) -> String:
-	var rank := int(row.get("rank", 0))
+## Rank, name, score, and form are separate pixel-snapped strings. The yellow
+## row uses the plain face so the outlined stroke cannot fatten the letters.
+static func column_boxes(width: float, overall: bool) -> Dictionary:
+	var scale := 2 if width + 0.5 >= _min_row_width(2, overall) else 1
+	var rank_w := PixelFont.plain_advance("#9999") * scale
+	var score_w := PixelFont.plain_advance("9,999,999") * scale
+	var form_w := PixelFont.plain_advance("GOBLIN") * scale if overall else 0
+	var you_w := PixelFont.plain_advance("YOU")
+	var rank_x := float(ROW_PAD)
+	var name_x := rank_x + rank_w + ROW_GAP
+	var you_x := width - ROW_PAD - you_w
+	var right := you_x - ROW_GAP
+	var form_x := right
+	if overall:
+		form_x = right - form_w
+		right = form_x - ROW_GAP
+	var score_x := right - score_w
+	var name_w := score_x - ROW_GAP - name_x
+	return {
+		"scale": scale,
+		"rank_x": rank_x,
+		"rank_w": float(rank_w),
+		"name_x": name_x,
+		"name_w": name_w,
+		"score_x": score_x,
+		"score_w": float(score_w),
+		"form_x": form_x,
+		"form_w": float(form_w),
+		"you_x": you_x,
+		"you_w": float(you_w),
+	}
+
+static func _min_row_width(scale: int, overall: bool) -> float:
+	var rank_w := PixelFont.plain_advance("#9999") * scale
+	var name_w := PixelFont.plain_advance("MMMMMMMMMMMM") * scale
+	var score_w := PixelFont.plain_advance("9,999,999") * scale
+	var form_w := PixelFont.plain_advance("GOBLIN") * scale if overall else 0
+	var you_w := PixelFont.plain_advance("YOU")
+	var gaps := 4 if overall else 3
+	return float(ROW_PAD * 2 + rank_w + name_w + score_w + form_w + you_w + ROW_GAP * gaps)
+
+func _fill_row(panel: Control, row: Dictionary, mine: bool, row_h: float, overall: bool, width: float) -> void:
+	_clear_drawn(panel)
+	if width < 32.0:
+		return
+	var boxes := column_boxes(width, overall)
+	var scale := int(boxes["scale"])
+	var ink := ROW_MINE_INK if mine else ROW_INK
+	var outlined := not mine
+	var rank := "#%d" % int(row.get("rank", 0))
 	var who := str(row.get("name", ""))
 	var points := ScoreRules.format_score(int(row.get("score", 0)))
 	var form := Leaderboard.short_form(str(row.get("form", ""))) if overall else ""
-	var text := "#%d  %s  %s" % [rank, who, points]
+	_place_text(panel, rank, ink, outlined, scale, float(boxes["rank_x"]), row_h, "Rank")
+	var name_clip := Control.new()
+	name_clip.name = "Name"
+	name_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_clip.clip_contents = true
+	name_clip.position = Vector2(float(boxes["name_x"]) - scale, 0)
+	name_clip.size = Vector2(float(boxes["name_w"]) + scale * 2.0, row_h)
+	panel.add_child(name_clip)
+	_place_text(name_clip, who, ink, outlined, scale, float(scale), row_h, "NameText")
+	var score_pen := float(boxes["score_x"]) + float(boxes["score_w"]) - PixelFont.plain_advance(points) * scale
+	_place_text(panel, points, ink, outlined, scale, score_pen, row_h, "Score")
 	if form != "":
-		text += "  " + form
+		_place_text(panel, form, ink, outlined, scale, float(boxes["form_x"]), row_h, "Form")
 	if mine:
-		text += "  YOU"
-	return text
+		_place_text(panel, "YOU", ink, false, 1, float(boxes["you_x"]), row_h, "You")
+
+func _place_text(parent: Control, text: String, fill: Color, outlined: bool, scale: int, pen_x: float, row_h: float, node_name: String) -> void:
+	if text.is_empty():
+		return
+	var texture := PixelFont.row_texture(text, fill, outlined, scale)
+	var rect := TextureRect.new()
+	rect.name = node_name
+	rect.texture = texture
+	rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.size = texture.get_size()
+	rect.custom_minimum_size = rect.size
+	var y := int((row_h - rect.size.y) * 0.5)
+	rect.position = Vector2(floorf(pen_x) - scale, y)
+	parent.add_child(rect)
+
+func _clear_drawn(panel: Control) -> void:
+	if panel == null:
+		return
+	for child in panel.get_children():
+		panel.remove_child(child)
+		child.free()
 
 func _row_style(mine: bool) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -308,7 +398,7 @@ func _metrics() -> Dictionary:
 	var tall := size.y >= 420.0
 	return {
 		"tab": 44.0 if tall else 36.0,
-		"row": 32.0 if tall else 22.0,
+		"row": 32.0 if tall else 26.0,
 		"header": 44.0 if tall else 36.0,
 		"pad": 8.0 if tall else 6.0,
 	}
