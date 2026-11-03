@@ -40,6 +40,7 @@ var _form_row: HBoxContainer
 var _footer: HBoxContainer
 var _list_ready := false
 var _can_retry := false
+var _load_watch: Timer
 var _list_has_me := false
 var _my_rank := -1
 var _pin: Dictionary = {}
@@ -185,10 +186,12 @@ func _reload() -> void:
 	_pin = {}
 	_client.fetch_board(_form, _period, _on_board.bind(token))
 	_client.fetch_rank(_form, _period, _on_rank.bind(token))
+	_arm_load_watch()
 
 func _on_board(parsed: Dictionary, token: int) -> void:
 	if token != _token or not visible:
 		return
+	_stop_load_watch()
 	if not bool(parsed.get("ok", false)):
 		_clear_rows()
 		if Leaderboard.is_network_error(parsed):
@@ -466,7 +469,29 @@ func _layout() -> void:
 	_scroll.position = Vector2(pad, y)
 	_scroll.size = Vector2(width - pad * 2.0, maxf(bottom - y, 24.0))
 
+func _arm_load_watch() -> void:
+	if _load_watch == null:
+		_load_watch = Timer.new()
+		_load_watch.one_shot = true
+		_load_watch.process_mode = Node.PROCESS_MODE_ALWAYS
+		_load_watch.timeout.connect(_on_load_watch)
+		add_child(_load_watch)
+	_load_watch.stop()
+	_load_watch.wait_time = maxf(Leaderboard.loading_limit(), 0.1)
+	_load_watch.start()
+
+func _stop_load_watch() -> void:
+	if _load_watch != null:
+		_load_watch.stop()
+
+func _on_load_watch() -> void:
+	if not visible or _status == null or _status.text != "...":
+		return
+	_show_unreachable()
+	_layout()
+
 func _show_unreachable() -> void:
+	_stop_load_watch()
 	_can_retry = true
 	_status.text = Leaderboard.UNREACHABLE
 	_status.mouse_filter = Control.MOUSE_FILTER_STOP
