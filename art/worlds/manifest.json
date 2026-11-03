@@ -1,0 +1,654 @@
+{
+ "generated": "2026-11-03",
+ "status": "FINAL (approved by Thong via Gon/Kaito chat, Nov 3 2026)",
+ "tile": [
+  480,
+  270
+ ],
+ "loader": "scripts/field_background.gd loads bg_sky.png, bg_clouds.png, bg_far.png, bg_near.png by name",
+ "decks_feet": [
+  [
+   63,
+   43
+  ],
+  [
+   227,
+   59
+  ]
+ ],
+ "deck_spans_x": {
+  "63,43": [
+   37,
+   89
+  ],
+  "227,59": [
+   210,
+   244
+  ]
+ },
+ "ground_feet_y": 234,
+ "worlds": [
+  {
+   "world": "neon_tokyo",
+   "title": "Neon Tokyo",
+   "files": [
+    {
+     "file": "neon_tokyo/bg_sky.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.05,
+     "type": "opaque"
+    },
+    {
+     "file": "neon_tokyo/bg_clouds.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.15,
+     "type": "transparent"
+    },
+    {
+     "file": "neon_tokyo/bg_far.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.3,
+     "type": "transparent"
+    },
+    {
+     "file": "neon_tokyo/bg_near.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.6,
+     "type": "transparent"
+    }
+   ],
+   "decks_feet": [
+    [
+     63,
+     43
+    ],
+    [
+     227,
+     59
+    ]
+   ],
+   "deck_feet_rgb": {
+    "63,43": "#57857c",
+    "227,59": "#57857c"
+   },
+   "ground_feet_y": 234,
+   "n_colours": 55,
+   "new_palette_colours": [
+    "#42425e",
+    "#464668",
+    "#4a4a71",
+    "#4e4e75",
+    "#4f4d7a",
+    "#4f4e79",
+    "#504f7d",
+    "#53527e",
+    "#545181",
+    "#555584",
+    "#565583",
+    "#568489",
+    "#575788",
+    "#57857c",
+    "#585786",
+    "#595976",
+    "#5a5b8c",
+    "#5b5588",
+    "#5c5b78",
+    "#5d5d92",
+    "#5e5e92",
+    "#5f5e7f",
+    "#60618e",
+    "#606192",
+    "#609085",
+    "#625a8b",
+    "#626287",
+    "#626594",
+    "#636285",
+    "#648f93",
+    "#656692",
+    "#6575a2",
+    "#676894",
+    "#679795",
+    "#686990",
+    "#6a6a97",
+    "#6a6b95",
+    "#6c6d94",
+    "#6e6a93",
+    "#6e6f9a",
+    "#709f99",
+    "#7482b2",
+    "#74a5a5",
+    "#757c97",
+    "#7679a0",
+    "#7968a1",
+    "#7c7ca4",
+    "#7e80aa",
+    "#8575ad",
+    "#8b85ab",
+    "#9181b5",
+    "#9785c4",
+    "#9895b4",
+    "#9c9ab7",
+    "#a5a2bd"
+   ]
+  },
+  {
+   "world": "office_hell",
+   "title": "Office Hell",
+   "files": [
+    {
+     "file": "office_hell/bg_sky.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.05,
+     "type": "opaque"
+    },
+    {
+     "file": "office_hell/bg_clouds.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.15,
+     "type": "transparent"
+    },
+    {
+     "file": "office_hell/bg_far.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.3,
+     "type": "transparent"
+    },
+    {
+     "file": "office_hell/bg_near.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.6,
+     "type": "transparent"
+    }
+   ],
+   "decks_feet": [
+    [
+     63,
+     43
+    ],
+    [
+     227,
+     59
+    ]
+   ],
+   "deck_feet_rgb": {
+    "63,43": "#62846c",
+    "227,59": "#62846c"
+   },
+   "ground_feet_y": 234,
+   "n_colours": 53,
+   "new_palette_colours": [
+    "#494456",
+    "#4e4a5c",
+    "#4f485b",
+    "#504f62",
+    "#534a5d",
+    "#565166",
+    "#575564",
+    "#59586c",
+    "#5a4c5e",
+    "#5d586e",
+    "#5f5151",
+    "#614856",
+    "#614f5d",
+    "#615f71",
+    "#627076",
+    "#62846c",
+    "#686579",
+    "#696377",
+    "#6b515a",
+    "#6b5b58",
+    "#6b6781",
+    "#6c4c5b",
+    "#6c687c",
+    "#6d6b80",
+    "#6d7b7f",
+    "#706f84",
+    "#739179",
+    "#755561",
+    "#75635f",
+    "#796460",
+    "#797587",
+    "#79778f",
+    "#7a8b72",
+    "#7e7a90",
+    "#7e7c92",
+    "#7f6f6b",
+    "#808177",
+    "#858093",
+    "#86716b",
+    "#8793a9",
+    "#88849c",
+    "#8a7773",
+    "#8b8c80",
+    "#8d8983",
+    "#918b7e",
+    "#928e6c",
+    "#929eb7",
+    "#939489",
+    "#949089",
+    "#9d9a92",
+    "#a5a17a",
+    "#a9a59c",
+    "#afab85"
+   ]
+  },
+  {
+   "world": "underworld",
+   "title": "Underworld",
+   "files": [
+    {
+     "file": "underworld/bg_sky.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.05,
+     "type": "opaque"
+    },
+    {
+     "file": "underworld/bg_clouds.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.15,
+     "type": "transparent"
+    },
+    {
+     "file": "underworld/bg_far.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.3,
+     "type": "transparent"
+    },
+    {
+     "file": "underworld/bg_near.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.6,
+     "type": "transparent"
+    }
+   ],
+   "decks_feet": [
+    [
+     63,
+     43
+    ],
+    [
+     227,
+     59
+    ]
+   ],
+   "deck_feet_rgb": {
+    "63,43": "#7a876a",
+    "227,59": "#7a876a"
+   },
+   "ground_feet_y": 234,
+   "n_colours": 34,
+   "new_palette_colours": [
+    "#4c4054",
+    "#524256",
+    "#52445a",
+    "#5b445d",
+    "#604c5e",
+    "#614959",
+    "#63475f",
+    "#644e64",
+    "#655061",
+    "#6a4d5f",
+    "#6a535e",
+    "#6a536f",
+    "#6b4d5f",
+    "#6d4a5e",
+    "#6d5e6f",
+    "#705164",
+    "#735863",
+    "#745366",
+    "#766577",
+    "#784e5e",
+    "#796674",
+    "#796679",
+    "#7a876a",
+    "#7d687a",
+    "#806571",
+    "#82535b",
+    "#857187",
+    "#877385",
+    "#899475",
+    "#8c6969",
+    "#8f6971",
+    "#9f716d",
+    "#a39296",
+    "#aa7870"
+   ]
+  },
+  {
+   "world": "candy_kingdom",
+   "title": "Candy Kingdom",
+   "files": [
+    {
+     "file": "candy_kingdom/bg_sky.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.05,
+     "type": "opaque"
+    },
+    {
+     "file": "candy_kingdom/bg_clouds.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.15,
+     "type": "transparent"
+    },
+    {
+     "file": "candy_kingdom/bg_far.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.3,
+     "type": "transparent"
+    },
+    {
+     "file": "candy_kingdom/bg_near.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.6,
+     "type": "transparent"
+    }
+   ],
+   "decks_feet": [
+    [
+     63,
+     43
+    ],
+    [
+     227,
+     59
+    ]
+   ],
+   "deck_feet_rgb": {
+    "63,43": "#b2dcc0",
+    "227,59": "#b2dcc0"
+   },
+   "ground_feet_y": 234,
+   "n_colours": 53,
+   "new_palette_colours": [
+    "#6c4e4a",
+    "#7a5a54",
+    "#a4c4b8",
+    "#b0c8c4",
+    "#b2dcc0",
+    "#b4a0cc",
+    "#b6aad2",
+    "#b8a8d4",
+    "#b8d2c4",
+    "#bcaed6",
+    "#bcd8cc",
+    "#bdb2d8",
+    "#c4aa8c",
+    "#c4b29e",
+    "#c4cfe0",
+    "#c4d8d4",
+    "#c6ead2",
+    "#c8b4e0",
+    "#c8bede",
+    "#cbb6d6",
+    "#cbbcae",
+    "#cdbfe2",
+    "#cfb698",
+    "#cfc2dc",
+    "#cfc4e2",
+    "#d0dae8",
+    "#d2c0ae",
+    "#d2c8e4",
+    "#d6cbec",
+    "#d6e6dc",
+    "#d8c8b4",
+    "#d8cfe8",
+    "#d9c2a6",
+    "#dcd2f0",
+    "#ddd0c4",
+    "#ddd0ea",
+    "#e0d4d8",
+    "#e2cfe2",
+    "#e2d8f2",
+    "#e4dcee",
+    "#e6dcea",
+    "#e8dccc",
+    "#e9def2",
+    "#ece2f2",
+    "#ecf0e2",
+    "#efe4d4",
+    "#efe4e4",
+    "#efe4ee",
+    "#efe8ee",
+    "#efe8f2",
+    "#f2eae6",
+    "#f2eef4",
+    "#f8f2f8"
+   ]
+  },
+  {
+   "world": "ice_tundra",
+   "title": "Ice Tundra",
+   "files": [
+    {
+     "file": "ice_tundra/bg_sky.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.05,
+     "type": "opaque"
+    },
+    {
+     "file": "ice_tundra/bg_clouds.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.15,
+     "type": "transparent"
+    },
+    {
+     "file": "ice_tundra/bg_far.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.3,
+     "type": "transparent"
+    },
+    {
+     "file": "ice_tundra/bg_near.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.6,
+     "type": "transparent"
+    }
+   ],
+   "decks_feet": [
+    [
+     63,
+     43
+    ],
+    [
+     227,
+     59
+    ]
+   ],
+   "deck_feet_rgb": {
+    "63,43": "#c8ddd0",
+    "227,59": "#c8ddd0"
+   },
+   "ground_feet_y": 234,
+   "n_colours": 33,
+   "new_palette_colours": [
+    "#4a545e",
+    "#5e6e78",
+    "#8293b0",
+    "#8a96b2",
+    "#8c9cb8",
+    "#8f9ab8",
+    "#959eba",
+    "#9aa5c2",
+    "#9aa6c0",
+    "#9fb0c8",
+    "#9fb8b8",
+    "#a2abc6",
+    "#a6b0ca",
+    "#a6bcc0",
+    "#a9b2cc",
+    "#b2bbd2",
+    "#b4c4d8",
+    "#b6bfd4",
+    "#b8bdd0",
+    "#bcc4d8",
+    "#bec6da",
+    "#c4c9da",
+    "#c8ccdb",
+    "#c8ddd0",
+    "#cad0e0",
+    "#d2d6e4",
+    "#d6dae6",
+    "#d8dbe6",
+    "#dcebe2",
+    "#dfe2ec",
+    "#e2e5ee",
+    "#e6e8f0",
+    "#e8eaf2"
+   ]
+  },
+  {
+   "world": "sunken_ruins",
+   "title": "Sunken Ruins",
+   "files": [
+    {
+     "file": "sunken_ruins/bg_sky.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.05,
+     "type": "opaque"
+    },
+    {
+     "file": "sunken_ruins/bg_clouds.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.15,
+     "type": "transparent"
+    },
+    {
+     "file": "sunken_ruins/bg_far.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.3,
+     "type": "transparent"
+    },
+    {
+     "file": "sunken_ruins/bg_near.png",
+     "size": [
+      480,
+      270
+     ],
+     "scroll_factor": 0.6,
+     "type": "transparent"
+    }
+   ],
+   "decks_feet": [
+    [
+     63,
+     43
+    ],
+    [
+     227,
+     59
+    ]
+   ],
+   "deck_feet_rgb": {
+    "63,43": "#3d6551",
+    "227,59": "#3d6551"
+   },
+   "ground_feet_y": 234,
+   "n_colours": 34,
+   "new_palette_colours": [
+    "#254d55",
+    "#264851",
+    "#265158",
+    "#274049",
+    "#27444d",
+    "#27565b",
+    "#285759",
+    "#295a5e",
+    "#2b5d5f",
+    "#2e4f50",
+    "#2f5b5d",
+    "#32504d",
+    "#325355",
+    "#335553",
+    "#345553",
+    "#355756",
+    "#365f61",
+    "#36605e",
+    "#385a58",
+    "#3a5d59",
+    "#3a6968",
+    "#3d6551",
+    "#3d6665",
+    "#476753",
+    "#486c57",
+    "#556062",
+    "#5d6668",
+    "#5f6058",
+    "#63655d",
+    "#66715b",
+    "#6a6b5f",
+    "#6f6054",
+    "#74655a",
+    "#756679"
+   ]
+  }
+ ]
+}
