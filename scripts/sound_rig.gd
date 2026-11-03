@@ -3,7 +3,7 @@ class_name SoundRig
 
 ## TEST audio player. Music sits at -6 dB and SFX at -12 dB so the loop is
 ## above the stings. Form shots are another -10 dB and at most about 4/s.
-## A cue whose wav is missing is skipped, with no error.
+## A cue whose imported sample is missing is skipped, with no error.
 ## The web export plays the loop as a sample. Godot 4.7 does not put GodotAudio
 ## on the page, so iOS Safari can be running for WAV shots while this rig still
 ## thinks the context is missing and never starts the loop. The shell publishes
@@ -238,7 +238,8 @@ func _build_players() -> void:
 	for event in AudioCues.all_events():
 		var data := AudioCues.spec(event)
 		var path := str(data["file"])
-		if not FileAccess.file_exists(path):
+		# The exported pack has the imported sample, not the source wav.
+		if not ResourceLoader.exists(path):
 			if AudioCues.should_report_missing(data):
 				push_error("missing test audio %s" % path)
 			continue

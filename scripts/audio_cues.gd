@@ -5,8 +5,8 @@ class_name AudioCues
 ## plus the 3 Nov 2026 form shots and pickups. Files are already at the loudness
 ## in audio/manifest.json. The buses pull the loop above the stings: Music at
 ## -6 dB, SFX at -12 dB. Each form shot is another -10 dB on its player, and
-## it is capped at about 4 plays a second. A cue whose file is not in the
-## project yet is skipped. See audio/README.md.
+## it is capped at about 4 plays a second. A cue whose imported sample is
+## not in the project yet is skipped. See audio/README.md.
 
 const MUSIC_BUS := "Music"
 const SFX_BUS := "SFX"
@@ -171,10 +171,13 @@ static func is_shot_event(event: String) -> bool:
 	return event == "slime_shot" or event == "goblin_shot" or event == "vending_machine_shot" or event == "cat_shot" or event == "demon_lord_shot"
 
 ## Missing designer files are skipped. A required cue still reports the gap.
+## ResourceLoader sees the imported sample inside an exported pck. FileAccess
+## only sees the source wav, which the pack does not contain, so that check
+## would skip every cue in the web build.
 static func should_report_missing(data: Dictionary) -> bool:
 	if data.is_empty():
 		return false
-	if FileAccess.file_exists(str(data.get("file", ""))):
+	if ResourceLoader.exists(str(data.get("file", ""))):
 		return false
 	return not bool(data.get("optional", false))
 
