@@ -145,7 +145,7 @@ static func finish_boot(game: Node) -> void:
 	if not _active:
 		return
 	if _rank > 0 and not _unplayable():
-		var index := clampi(_rank - 1, 0, 2)
+		var index := clampi(_rank - 1, 0, FormCatalog.rank_gates().size())
 		var gates := FormCatalog.rank_gates()
 		game.rank_index = index
 		game.evo_points = 0 if index <= 0 or index - 1 >= gates.size() else int(gates[index - 1])

@@ -47,6 +47,8 @@ var _effects: Array[PixelEffect] = []
 var pattern_shots: Array[Dictionary] = []
 var power_spawned := 0
 var overdrive := 0
+var overdrive_spawned := 0
+var _overdrive_lock := 0.0
 var winner := 0
 var winner_pops := 0
 var _graze_streak := 0
@@ -56,6 +58,7 @@ var rapid_left := 0.0
 var magnet_left := 0.0
 var _next_rake := Difficulty.RAKE_FIRST
 var _overdrive_flash := 0.0
+var _final_flash := 0.0
 var _drop_rng := RandomNumberGenerator.new()
 var _drop_seeded := false
 var _shot_pool: Array[Shot] = []
@@ -778,6 +781,13 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		_player.invulnerable = true
 	if _player.ready_to_fire():
 		var interval := float(FormCatalog.rank_spec(form_id, rank_index)["fire_interval"])
+		var level := _power_level()
+		if form_id == FormCatalog.Id.DEMON:
+			# Orbs already clear crowds. Power only nudges them, so a long run
+			# cannot turn the final form into a screen wipe.
+			interval *= pow(0.995, float(level))
+		else:
+			interval = FormCatalog.power_fire_interval(interval, level)
 		if rapid_left > 0.0:
 			interval *= Difficulty.RAPID_FIRE_SCALE
 		var shot_event := AudioCues.shot_event_for_form(form_id)
@@ -787,9 +797,12 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		for spec in FormCatalog.player_shots(form_id, _player.position, rank_index):
 			if form_id == FormCatalog.Id.DEMON:
 				var speed := FormCatalog.demon_speed(rank_index, crowd)
-				spec["velocity"] = Vector2(speed, 0.0)
-				spec["homing"] = FormCatalog.demon_homing(rank_index, crowd)
-				spec["damage"] = FormCatalog.demon_damage(rank_index, crowd)
+				var aim: Vector2 = spec["velocity"]
+				spec["velocity"] = Vector2(speed, aim.y)
+				spec["homing"] = FormCatalog.demon_homing(rank_index, crowd) + float(level) * 0.5
+				spec["damage"] = FormCatalog.demon_damage(rank_index, crowd) + level / 8
+			elif level > 0:
+				spec["damage"] = int(spec["damage"]) + FormCatalog.power_damage_bonus(form_id, level)
 			_spawn_shot(spec, true)
 		_player.did_fire(interval)
 	CaptureMode.tick_play(self, delta)
@@ -829,6 +842,8 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		magnet_left = maxf(magnet_left - delta, 0.0)
 	if _overdrive_flash > 0.0:
 		_overdrive_flash = maxf(_overdrive_flash - delta, 0.0)
+	if _final_flash > 0.0:
+		_final_flash = maxf(_final_flash - delta, 0.0)
 	_sweep(size)
 	_bank_survival(delta)
 	if combo_left > 0.0:
@@ -937,7 +952,7 @@ func _collide() -> void:
 			enemy.hurt(shot.damage)
 			shot.hit_ids.append(enemy.id)
 			if shot.splits > 0:
-				for spec in FormCatalog.split_shots(shot.velocity, shot.position):
+				for spec in FormCatalog.split_shots(shot.velocity, shot.position, shot.splits):
 					spec["ignore_id"] = enemy.id
 					splits.append(spec)
 			if not enemy.alive:
@@ -1091,12 +1106,6 @@ func _collect_gem(gem: LootGem) -> void:
 	loot_count += 1
 	score += Difficulty.GEM_SCORE
 	_spawn_fx("graze_sparkle.png", at, 0.22, 0.6, 1.2)
-	if FormCatalog.gate_for_next_rank(rank_index) < 0:
-		overdrive += 1
-		if overdrive >= Difficulty.OVERDRIVE_GEMS:
-			overdrive = 0
-			_overdrive_blast()
-		return
 	_add_evo(Difficulty.GEM_EVO)
 
 func _loot_reached(gem: LootGem, magnet: float) -> bool:
@@ -1109,10 +1118,27 @@ func _loot_reached(gem: LootGem, magnet: float) -> bool:
 func _roll_drops(at: Vector2) -> void:
 	if _drop_unit() < Difficulty.GEM_CHANCE:
 		_spawn_evo_gem(at)
+	if _try_overdrive_drop(at):
+		return
 	if _drop_unit() < Difficulty.POWER_CHANCE:
 		var kinds: Array[String] = ["bomb", "shield", "rapid", "magnet"]
 		var index := _drop_rng.randi() % kinds.size()
 		_spawn_power(at + Vector2(8, -6), kinds[index])
+
+func _try_overdrive_drop(at: Vector2) -> bool:
+	if elapsed < _overdrive_lock or _overdrive_live():
+		return false
+	if _drop_unit() >= Difficulty.overdrive_drop_chance(elapsed):
+		return false
+	_spawn_power(at + Vector2(10, -8), "overdrive")
+	_overdrive_lock = elapsed + Difficulty.OVERDRIVE_DROP_COOLDOWN
+	return true
+
+func _overdrive_live() -> bool:
+	for drop in _powers:
+		if is_instance_valid(drop) and drop.visible and drop.kind == "overdrive":
+			return true
+	return false
 
 func _drop_unit() -> float:
 	if not _drop_seeded:
@@ -1135,6 +1161,8 @@ func _spawn_power(at: Vector2, kind: String) -> void:
 	drop.visible = true
 	_powers.append(drop)
 	power_spawned += 1
+	if kind == "overdrive":
+		overdrive_spawned += 1
 
 func _tick_powers(delta: float) -> void:
 	if _powers.is_empty():
@@ -1176,6 +1204,8 @@ func _collect_power(drop: PowerDrop) -> void:
 			rapid_left = Difficulty.POWER_DURATION
 		"magnet":
 			magnet_left = Difficulty.POWER_DURATION
+		"overdrive":
+			_overdrive_blast()
 
 func _release_power(drop: PowerDrop) -> void:
 	if not is_instance_valid(drop):
@@ -1186,7 +1216,7 @@ func _release_power(drop: PowerDrop) -> void:
 func _detonate() -> void:
 	_clear_enemy_shots()
 	score += Difficulty.BOMB_SCORE
-	_combat.push("BOMB", _player.position + Vector2(-16, -20), Color("ffe56a"), 0.4)
+	_combat.push_callout("BOMB", _player.position + Vector2(-16, -20), Color("ffe56a"), 0.4)
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
@@ -1199,7 +1229,8 @@ func _overdrive_blast() -> void:
 	_clear_enemy_shots()
 	score += Difficulty.OVERDRIVE_SCORE
 	_overdrive_flash = 0.32
-	_combat.push("OVERDRIVE", _player.position + Vector2(-32, -24), Color("ffe56a"), 0.45)
+	_clear_banner_fx()
+	_combat.push_callout("OVERDRIVE", _player.position + Vector2(-32, -24), Color("ffe56a"), 0.45)
 	_spawn_fx("evolved_burst.png", _player.position + Vector2(40, -8), 0.45, 0.6, 1.4)
 	_request_hit_stop(4)
 	_bump_shake()
@@ -1212,7 +1243,7 @@ func _overdrive_blast() -> void:
 
 func _charge_winner() -> void:
 	winner += 1
-	if winner < FormCatalog.vending_winner_kills():
+	if winner < FormCatalog.vending_winner_kills(rank_index):
 		return
 	winner = 0
 	_winner_clear()
@@ -1224,8 +1255,10 @@ func _winner_clear() -> void:
 	_winner_busy = true
 	winner_pops += 1
 	_clear_enemy_shots()
+	score += FormCatalog.vending_winner_bonus(rank_index)
 	_overdrive_flash = 0.28
-	_combat.push("WINNER!", _player.position + Vector2(-28, -28), Color("ffe56a"), 0.5)
+	_clear_banner_fx()
+	_combat.push_callout("WINNER!", _player.position + Vector2(-28, -28), Color("ffe56a"), 0.5)
 	var field := _viewport_size()
 	_spawn_fx("winner_burst.png", field * 0.5, 0.55, 1.2, 2.4)
 	_request_hit_stop(4)
@@ -1242,7 +1275,7 @@ func _winner_clear() -> void:
 func _note_cat_graze() -> void:
 	_graze_left = FormCatalog.CAT_GRAZE_WINDOW
 	_graze_streak += 1
-	if _graze_streak < FormCatalog.CAT_GRAZE_NEED:
+	if _graze_streak < FormCatalog.cat_graze_need(rank_index):
 		return
 	_graze_streak = 0
 	_charm_nearby()
@@ -1254,7 +1287,7 @@ func _charm_nearby() -> void:
 			continue
 		if enemy.kind == SpawnDirector.ANVIL or enemy.kind == SpawnDirector.PIANO:
 			continue
-		if enemy.position.distance_to(_player.position) > FormCatalog.CAT_CHARM_RADIUS:
+		if enemy.position.distance_to(_player.position) > FormCatalog.cat_charm_radius(rank_index):
 			continue
 		ranked.append(enemy)
 	ranked.sort_custom(func(a: EnemyActor, b: EnemyActor) -> bool:
@@ -1265,7 +1298,7 @@ func _charm_nearby() -> void:
 		enemy.charmed = FormCatalog.CAT_CHARM_TIME
 		enemy.charm_cd = 0.12
 		turned += 1
-		if turned >= FormCatalog.CAT_CHARM_MAX:
+		if turned >= FormCatalog.cat_charm_max(rank_index):
 			break
 	if turned > 0 and _combat != null:
 		_combat.push("TAKEOVER!", _player.position + Vector2(-36, -26), Color("ff9ad8"), 0.4)
@@ -1450,6 +1483,19 @@ func _add_evo(points: int) -> void:
 		return
 	evo_points += points
 	_try_rank()
+	_sync_power()
+
+func _power_level() -> int:
+	return Difficulty.power_level(evo_points)
+
+func _sync_power() -> void:
+	if _player == null:
+		return
+	var level := _power_level()
+	var before := int(_player.power_level)
+	_player.power_level = level
+	if level > before and phase == PHASE_PLAY and _combat != null:
+		_combat.push_callout("POWER +%d" % level, _player.position + Vector2(-28, -22), Color("ffe56a"), 0.36)
 
 func _try_rank() -> void:
 	var reached := FormCatalog.rank_for_points(evo_points)
@@ -1464,12 +1510,16 @@ func _try_rank() -> void:
 		if final:
 			_slow_left = Difficulty.FINAL_SLOWMO_SECONDS
 			_shake_left = Difficulty.FINAL_SHAKE_SECONDS
-		_request_hit_stop(3)
+			_final_flash = Difficulty.FINAL_FLASH
+		_request_hit_stop(4 if final else 3)
 		_bump_shake()
-		var pop_at := 5.0 / FxTimeline.FPS
-		_queue_chain(pop_at, "evolved_burst.png", Vector2(0, -28), "")
-		_queue_chain(pop_at + 0.1, "graze_sparkle.png", Vector2(14, -16), "")
-		_queue_chain(pop_at + 0.18, "graze_sparkle.png", Vector2(-12, -22), "")
+		# Rank 5 is the FINAL FORM banner, not another EVOLVED! on the pile.
+		# Rank 4 keeps a smaller pop. Earlier ranks keep the normal one.
+		if not final:
+			var pop_at := 5.0 / FxTimeline.FPS
+			var pop_scale := 0.62 if reached == 3 else 1.0
+			_clear_banner_fx()
+			_queue_chain(pop_at, "evolved_burst.png", Vector2(0, -28), "", pop_scale)
 		if _sound != null:
 			_sound.play_event("evolve", Difficulty.FINAL_STING_DB if final else 0.0)
 	_refresh_hud()
@@ -1779,25 +1829,26 @@ func _refresh_hud() -> void:
 	if _hud_view == null:
 		return
 	var fill := HudLayout.fill_px(evo_points, rank_index)
-	var overdrive_px := -1
-	if FormCatalog.gate_for_next_rank(rank_index) < 0:
-		overdrive_px = int(round(float(HudLayout.FILL_FULL) * clampf(float(overdrive) / float(Difficulty.OVERDRIVE_GEMS), 0.0, 1.0)))
 	var winner_px := -1
 	if form_id == FormCatalog.Id.VENDING:
-		var need := float(FormCatalog.vending_winner_kills())
+		var need := float(FormCatalog.vending_winner_kills(rank_index))
 		winner_px = int(round(float(HudLayout.FILL_FULL) * clampf(float(winner) / need, 0.0, 1.0)))
+	var rank_label := FormCatalog.rank_name(form_id, rank_index).to_upper()
+	var level := _power_level()
+	if level > 0:
+		rank_label += " +%d" % level
 	_hud_view.set_run(
 		ScoreRules.format_score(score),
 		ScoreRules.format_time(elapsed),
 		loot_count,
-		FormCatalog.rank_name(form_id, rank_index).to_upper(),
+		rank_label,
 		rank_index,
 		fill,
 		form_id == FormCatalog.Id.GOBLIN,
 		_player != null and _player.shield_hits > 0,
 		int(ceil(rapid_left)) if rapid_left > 0.0 else 0,
 		int(ceil(magnet_left)) if magnet_left > 0.0 else 0,
-		overdrive_px,
+		-1,
 		winner_px
 	)
 
@@ -2094,6 +2145,7 @@ func _tick_effects(delta: float) -> void:
 func _prewarm() -> void:
 	PixelFont.outlined_texture("FINAL FORM!", Color("ffe56a"))
 	PixelFont.outlined_texture("OVERDRIVE", Color("ffe56a"))
+	PixelFont.outlined_texture("POWER +1", Color("ffe56a"))
 	PixelFont.outlined_texture("WINNER!", Color("ffe56a"))
 	PixelFont.outlined_texture("NEW BEST!", Color("ffe56a"))
 	PixelFont.outlined_texture("BOMB", Color("ffe56a"))
@@ -2186,6 +2238,8 @@ func _reincarnate() -> void:
 	evo_points = 0
 	rank_index = 0
 	overdrive = 0
+	overdrive_spawned = 0
+	_overdrive_lock = 0.0
 	winner = 0
 	_graze_streak = 0
 	_graze_left = 0.0
@@ -2199,6 +2253,7 @@ func _reincarnate() -> void:
 	_shake_left = 0.0
 	_juice_shake = 0.0
 	_overdrive_flash = 0.0
+	_final_flash = 0.0
 	_hit_stop_frames = 0
 	_hit_stop_cooldown = 0.0
 	_next_rake = Difficulty.RAKE_FIRST
@@ -2289,13 +2344,27 @@ func _request_hit_stop(frames: int) -> void:
 func _bump_shake() -> void:
 	_juice_shake = Replay.JUICE_SHAKE_SECONDS
 
-func _queue_chain(delay: float, fx_file: String, offset: Vector2, text: String) -> void:
+func _queue_chain(delay: float, fx_file: String, offset: Vector2, text: String, scale: float = 1.0) -> void:
 	_chains.append({
 		"t": delay,
 		"fx": fx_file,
 		"off": offset,
 		"text": text,
+		"scale": scale,
 	})
+
+func _clear_banner_fx() -> void:
+	var keep: Array[PixelEffect] = []
+	for fx in _effects:
+		if not is_instance_valid(fx):
+			continue
+		var name := str(fx.sprite_name)
+		if name == "evolved_burst.png" or name == "winner_burst.png":
+			fx.visible = false
+			_fx_pool.append(fx)
+			continue
+		keep.append(fx)
+	_effects = keep
 
 func _tick_chains(delta: float) -> void:
 	if _chains.is_empty() or _player == null:
@@ -2310,7 +2379,8 @@ func _tick_chains(delta: float) -> void:
 		var at: Vector2 = _player.position + item["off"]
 		var fx_file := str(item["fx"])
 		if not fx_file.is_empty():
-			_spawn_fx(fx_file, at, 0.28, 0.75, 1.15)
+			var scale := float(item.get("scale", 1.0))
+			_spawn_fx(fx_file, at, 0.28, 0.75 * scale, 1.15 * scale)
 		var text := str(item["text"])
 		if not text.is_empty():
 			_combat.push(text, at, Color("ffe56a"), 0.36)
@@ -2332,10 +2402,25 @@ class PatternLayer extends Node2D:
 			var dir := vel.normalized()
 			draw_line(pos, pos + dir * 14.0, ink, 1.0)
 			draw_arc(pos, 2.5, 0.0, TAU, 8, ink, 1.0, true)
+		var field: Vector2 = host._viewport_size()
+		var final_flash := float(host._final_flash)
+		if final_flash > 0.0:
+			draw_rect(Rect2(Vector2.ZERO, field), Color(1.0, 0.97, 0.86, clampf(final_flash * 1.35, 0.0, 0.72)))
 		var flash := float(host._overdrive_flash)
 		if flash > 0.0:
-			var field: Vector2 = host._viewport_size()
 			draw_rect(Rect2(Vector2.ZERO, field), Color(1.0, 0.93, 0.62, clampf(flash * 1.4, 0.0, 0.55)))
+		_draw_final_banner(field)
+
+	func _draw_final_banner(field: Vector2) -> void:
+		var player = host._player
+		if player == null or not player.evolve_final or player.evolve_t < 0.0:
+			return
+		if FxTimeline.evolve_stage(player.evolve_t, player.evolve_hold) != "pop":
+			return
+		var tex := PixelFont.outlined_texture("FINAL FORM!", Color("ffe56a"))
+		var size := tex.get_size() * 4.0
+		var at := Vector2((field.x - size.x) * 0.5, 18.0)
+		draw_texture_rect(tex, Rect2(at, size), false)
 
 class SpeakerOffMark extends Control:
 	func _draw() -> void:

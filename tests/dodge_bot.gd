@@ -6,6 +6,15 @@ extends SceneTree
 const STEP := 1.0 / 60.0
 const CAP := 120.0
 
+func _cap_for(style: String) -> float:
+	var args := OS.get_cmdline_user_args()
+	var at := args.find("--cap")
+	if at >= 0 and at + 1 < args.size():
+		return float(args[at + 1])
+	if style == "strong":
+		return 240.0
+	return CAP
+
 var _done := false
 var _held_y := {}
 
@@ -89,8 +98,11 @@ func _run(seed_value: int, form: int, style: String) -> Dictionary:
 	var start: Vector2 = game._player.position
 	var rank2 := -1.0
 	var rank3 := -1.0
+	var rank4 := -1.0
+	var rank5 := -1.0
 	var frames := 0
-	while int(game.phase) == 1 and float(game.elapsed) < CAP and frames < 9000:
+	var cap := _cap_for(style)
+	while int(game.phase) == 1 and float(game.elapsed) < cap and frames < 20000:
 		_steer(game, style, start)
 		game._process(STEP)
 		frames += 1
@@ -98,18 +110,26 @@ func _run(seed_value: int, form: int, style: String) -> Dictionary:
 			rank2 = float(game.elapsed)
 		if rank3 < 0.0 and int(game.rank_index) >= 2:
 			rank3 = float(game.elapsed)
+		if rank4 < 0.0 and int(game.rank_index) >= 3:
+			rank4 = float(game.elapsed)
+		if rank5 < 0.0 and int(game.rank_index) >= 4:
+			rank5 = float(game.elapsed)
 	var death := float(game.elapsed)
 	if int(game.phase) != 2:
-		death = CAP
+		death = cap
 	var result := {
 		"death": death,
 		"rank2": rank2,
 		"rank3": rank3,
+		"rank4": rank4,
+		"rank5": rank5,
 		"points": int(game.evo_points),
 		"score": int(game.score),
 		"killer": str(game.killer_name),
 		"powers": int(game.power_spawned),
 		"loot": int(game.loot_count),
+		"power": int(Difficulty.power_level(int(game.evo_points))) if int(game.rank_index) >= 4 else 0,
+		"overdrive": int(game.overdrive_spawned),
 	}
 	root.remove_child(game)
 	game.free()
@@ -417,10 +437,16 @@ func _report() -> void:
 			var r3: Array[float] = []
 			var powers := 0
 			var dead10 := 0
-			var dead30 := 0
-			var dead60 := 0
+			var past30 := 0
+			var past60 := 0
+			var past120 := 0
+			var past180 := 0
 			var reached2 := 0
 			var reached3 := 0
+			var reached4 := 0
+			var reached5 := 0
+			var power_sum := 0
+			var overdrive_sum := 0
 			for seed_value in seeds:
 				print("RUN %s %s %d" % [style, FormCatalog.display_name(form), seed_value])
 				var result := _run(seed_value, form, style)
@@ -429,16 +455,26 @@ func _report() -> void:
 				powers += int(result["powers"])
 				if death <= 10.0:
 					dead10 += 1
-				if death <= 30.0:
-					dead30 += 1
-				if death <= 60.0:
-					dead60 += 1
+				if death > 30.0:
+					past30 += 1
+				if death > 60.0:
+					past60 += 1
+				if death > 120.0:
+					past120 += 1
+				if death > 180.0:
+					past180 += 1
 				if float(result["rank2"]) >= 0.0:
 					reached2 += 1
 					r2.append(float(result["rank2"]))
 				if float(result["rank3"]) >= 0.0:
 					reached3 += 1
 					r3.append(float(result["rank3"]))
+				if float(result["rank4"]) >= 0.0:
+					reached4 += 1
+				if float(result["rank5"]) >= 0.0:
+					reached5 += 1
+					power_sum += int(result["power"])
+				overdrive_sum += int(result["overdrive"])
 				var rank2_text := "never"
 				var rank3_text := "never"
 				if float(result["rank2"]) >= 0.0:
@@ -459,17 +495,26 @@ func _report() -> void:
 					str(result["killer"]),
 				])
 			var n := seeds.size()
-			print("REPORT %s %s n %d med %.2f p90 %.2f dead10 %.1f dead30 %.1f dead60 %.1f rank2 %.1f rank3 %.1f rank2_med %s rank3_med %s powers %.2f" % [
+			var power_avg := 0.0
+			if reached5 > 0:
+				power_avg = float(power_sum) / float(reached5)
+			print("REPORT %s %s n %d med %.2f p90 %.2f dead10 %.1f past30 %.1f past60 %.1f past120 %.1f past180 %.1f rank2 %.1f rank3 %.1f rank4 %.1f rank5 %.1f power_avg %.2f overdrive_per_run %.2f rank2_med %s rank3_med %s powers %.2f" % [
 				style,
 				FormCatalog.display_name(form),
 				n,
 				_median(deaths),
 				_percentile(deaths, 0.90),
 				100.0 * float(dead10) / float(n),
-				100.0 * float(dead30) / float(n),
-				100.0 * float(dead60) / float(n),
+				100.0 * float(past30) / float(n),
+				100.0 * float(past60) / float(n),
+				100.0 * float(past120) / float(n),
+				100.0 * float(past180) / float(n),
 				100.0 * float(reached2) / float(n),
 				100.0 * float(reached3) / float(n),
+				100.0 * float(reached4) / float(n),
+				100.0 * float(reached5) / float(n),
+				power_avg,
+				float(overdrive_sum) / float(n),
 				"%.2f" % _median(r2) if not r2.is_empty() else "never",
 				"%.2f" % _median(r3) if not r3.is_empty() else "never",
 				float(powers) / float(n),

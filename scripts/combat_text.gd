@@ -3,6 +3,24 @@ class_name CombatText
 
 var items: Array[Dictionary] = []
 
+const CALLOUTS: Array[String] = ["WINNER!", "OVERDRIVE", "BOMB", "TAKEOVER!"]
+
+## One banner at a time. A new WINNER! / OVERDRIVE / POWER replaces the one
+## on screen so the pops do not stack on the ship.
+func push_callout(text: String, at: Vector2, color: Color, life: float = 0.4) -> void:
+	var kept: Array[Dictionary] = []
+	for item in items:
+		if _is_callout(str(item["text"])):
+			continue
+		kept.append(item)
+	items = kept
+	push(text, at, color, life)
+
+func _is_callout(text: String) -> bool:
+	if CALLOUTS.has(text):
+		return true
+	return text.begins_with("POWER")
+
 func push(text: String, at: Vector2, color: Color, life: float = 0.34) -> void:
 	if items.size() >= 6:
 		items.remove_at(0)

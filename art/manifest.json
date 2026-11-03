@@ -84,13 +84,13 @@
   {
     "file": "vending_machine_r1.png",
     "size": [
-      30,
-      42
+      21,
+      35
     ],
     "frames": 1,
     "anchor": [
-      15,
-      21
+      10,
+      17
     ],
     "anchor_type": "center",
     "category": "player_form",
@@ -100,25 +100,25 @@
     "rank_name": "Vending Machine",
     "rescaled": true,
     "art_bbox": [
-      25,
-      42
+      21,
+      35
     ],
     "was_art_bbox": [
-      23,
-      40
+      17,
+      31
     ],
-    "note": "Rescaled redraw"
+    "note": "Batch 6: smaller Vending Machine. Hurtbox is derived from this sprite."
   },
   {
     "file": "vending_machine_r2.png",
     "size": [
-      34,
-      46
+      23,
+      38
     ],
     "frames": 1,
     "anchor": [
-      17,
-      23
+      11,
+      19
     ],
     "anchor_type": "center",
     "category": "player_form",
@@ -128,25 +128,25 @@
     "rank_name": "Mega Vendor",
     "rescaled": true,
     "art_bbox": [
-      28,
-      46
+      23,
+      38
     ],
     "was_art_bbox": [
-      26,
-      44
+      19,
+      34
     ],
-    "note": "Rescaled redraw"
+    "note": "Batch 6: smaller Vending Machine. Hurtbox is derived from this sprite."
   },
   {
     "file": "vending_machine_r3.png",
     "size": [
-      38,
-      50
+      30,
+      41
     ],
     "frames": 1,
     "anchor": [
-      19,
-      25
+      15,
+      20
     ],
     "anchor_type": "center",
     "category": "player_form",
@@ -156,14 +156,14 @@
     "rank_name": "Vending Fortress",
     "rescaled": true,
     "art_bbox": [
-      36,
-      49
+      30,
+      41
     ],
     "was_art_bbox": [
-      34,
-      47
+      26,
+      37
     ],
-    "note": "Rescaled redraw"
+    "note": "Batch 6: smaller Vending Machine. Hurtbox is derived from this sprite."
   },
   {
     "file": "goblin_r1.png",
@@ -1169,71 +1169,74 @@
   {
     "file": "vending_machine_r1_idle.png",
     "frame_size": [
+      21,
+      35
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      10,
+      17
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "vending_machine_r1.png",
+    "motion": "still frames of the batch-6 body until a new idle sheet is drawn",
+    "size": [
+      84,
+      35
+    ],
+    "note": "Rebuilt from the smaller static sprite so the idle sheet matches the body."
+  },
+  {
+    "file": "vending_machine_r2_idle.png",
+    "frame_size": [
+      23,
+      38
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      11,
+      19
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "vending_machine_r2.png",
+    "motion": "still frames of the batch-6 body until a new idle sheet is drawn",
+    "size": [
+      92,
+      38
+    ],
+    "note": "Rebuilt from the smaller static sprite so the idle sheet matches the body."
+  },
+  {
+    "file": "vending_machine_r3_idle.png",
+    "frame_size": [
       30,
-      42
+      41
     ],
     "frames": 4,
     "fps": 6,
     "loop": true,
     "anchor": [
       15,
-      21
-    ],
-    "anchor_type": "center",
-    "facing": "right",
-    "category": "player_form",
-    "base_sprite": "vending_machine_r1.png",
-    "motion": "1 px clunk on frame 2 + chase light along the sign bulbs (r2/r3 marquee border also blinks)",
-    "size": [
-      120,
-      42
-    ]
-  },
-  {
-    "file": "vending_machine_r2_idle.png",
-    "frame_size": [
-      34,
-      46
-    ],
-    "frames": 4,
-    "fps": 6,
-    "loop": true,
-    "anchor": [
-      17,
-      23
-    ],
-    "anchor_type": "center",
-    "facing": "right",
-    "category": "player_form",
-    "base_sprite": "vending_machine_r2.png",
-    "motion": "1 px clunk on frame 2 + chase light along the sign bulbs (r2/r3 marquee border also blinks)",
-    "size": [
-      136,
-      46
-    ]
-  },
-  {
-    "file": "vending_machine_r3_idle.png",
-    "frame_size": [
-      38,
-      50
-    ],
-    "frames": 4,
-    "fps": 6,
-    "loop": true,
-    "anchor": [
-      19,
-      25
+      20
     ],
     "anchor_type": "center",
     "facing": "right",
     "category": "player_form",
     "base_sprite": "vending_machine_r3.png",
-    "motion": "1 px clunk on frame 2 + chase light along the sign bulbs (r2/r3 marquee border also blinks)",
+    "motion": "still frames of the batch-6 body until a new idle sheet is drawn",
     "size": [
-      152,
-      50
-    ]
+      120,
+      41
+    ],
+    "note": "Rebuilt from the smaller static sprite so the idle sheet matches the body."
   },
   {
     "file": "goblin_r1_idle.png",
@@ -1898,134 +1901,134 @@
   {
     "file": "fx/forms/vending_machine_r1_flash.png",
     "size": [
-      32,
-      44
+      23,
+      37
     ],
     "frames": 1,
     "frame_size": [
-      32,
-      44
+      23,
+      37
     ],
     "fps": 12,
     "loop": false,
     "anchor": [
-      16,
-      22
+      11,
+      18
     ],
     "anchor_type": "center",
     "category": "fx_form_overlay",
     "facing": "none",
-    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
   },
   {
     "file": "fx/forms/vending_machine_r1_rim.png",
     "size": [
+      23,
+      37
+    ],
+    "frames": 1,
+    "frame_size": [
+      23,
+      37
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      11,
+      18
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
+  },
+  {
+    "file": "fx/forms/vending_machine_r2_flash.png",
+    "size": [
+      25,
+      40
+    ],
+    "frames": 1,
+    "frame_size": [
+      25,
+      40
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      12,
+      20
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
+  },
+  {
+    "file": "fx/forms/vending_machine_r2_rim.png",
+    "size": [
+      25,
+      40
+    ],
+    "frames": 1,
+    "frame_size": [
+      25,
+      40
+    ],
+    "fps": 12,
+    "loop": false,
+    "anchor": [
+      12,
+      20
+    ],
+    "anchor_type": "center",
+    "category": "fx_form_overlay",
+    "facing": "none",
+    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
+  },
+  {
+    "file": "fx/forms/vending_machine_r3_flash.png",
+    "size": [
       32,
-      44
+      43
     ],
     "frames": 1,
     "frame_size": [
       32,
-      44
+      43
     ],
     "fps": 12,
     "loop": false,
     "anchor": [
       16,
-      22
+      21
     ],
     "anchor_type": "center",
     "category": "fx_form_overlay",
     "facing": "none",
-    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
-  },
-  {
-    "file": "fx/forms/vending_machine_r2_flash.png",
-    "size": [
-      36,
-      48
-    ],
-    "frames": 1,
-    "frame_size": [
-      36,
-      48
-    ],
-    "fps": 12,
-    "loop": false,
-    "anchor": [
-      18,
-      24
-    ],
-    "anchor_type": "center",
-    "category": "fx_form_overlay",
-    "facing": "none",
-    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
-  },
-  {
-    "file": "fx/forms/vending_machine_r2_rim.png",
-    "size": [
-      36,
-      48
-    ],
-    "frames": 1,
-    "frame_size": [
-      36,
-      48
-    ],
-    "fps": 12,
-    "loop": false,
-    "anchor": [
-      18,
-      24
-    ],
-    "anchor_type": "center",
-    "category": "fx_form_overlay",
-    "facing": "none",
-    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
-  },
-  {
-    "file": "fx/forms/vending_machine_r3_flash.png",
-    "size": [
-      40,
-      52
-    ],
-    "frames": 1,
-    "frame_size": [
-      40,
-      52
-    ],
-    "fps": 12,
-    "loop": false,
-    "anchor": [
-      20,
-      26
-    ],
-    "anchor_type": "center",
-    "category": "fx_form_overlay",
-    "facing": "none",
-    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
+    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
   },
   {
     "file": "fx/forms/vending_machine_r3_rim.png",
     "size": [
-      40,
-      52
+      32,
+      43
     ],
     "frames": 1,
     "frame_size": [
-      40,
-      52
+      32,
+      43
     ],
     "fps": 12,
     "loop": false,
     "anchor": [
-      20,
-      26
+      16,
+      21
     ],
     "anchor_type": "center",
     "category": "fx_form_overlay",
     "facing": "none",
-    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
+    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
   },
   {
     "file": "fx/forms/goblin_r1_flash.png",
@@ -2774,5 +2777,833 @@
     "category": "fx_screen_overlay",
     "facing": "none",
     "note": "same text + card without the dither, if Gon prefers to dim in-engine (CanvasModulate / ColorRect)"
+  },
+  {
+    "file": "slime_r4_body.png",
+    "size": [
+      36,
+      36
+    ],
+    "frames": 1,
+    "anchor": [
+      18,
+      18
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "slime",
+    "rank": 4,
+    "rank_name": "Gel Paladin",
+    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "art_bbox": [
+      34,
+      35
+    ],
+    "idle": false,
+    "was_art_bbox": [
+      32,
+      33
+    ]
+  },
+  {
+    "file": "slime_r4_aura.png",
+    "size": [
+      52,
+      52
+    ],
+    "frames": 1,
+    "anchor": [
+      26,
+      26
+    ],
+    "anchor_type": "center",
+    "category": "fx_aura",
+    "facing": "right",
+    "form": "slime",
+    "rank": 4,
+    "rank_name": "Gel Paladin",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "body_offset": [
+      8,
+      8
+    ]
+  },
+  {
+    "file": "slime_r4.png",
+    "size": [
+      52,
+      52
+    ],
+    "frames": 1,
+    "anchor": [
+      26,
+      26
+    ],
+    "anchor_type": "center",
+    "category": "player_form_reference",
+    "facing": "right",
+    "form": "slime",
+    "rank": 4,
+    "rank_name": "Gel Paladin",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "body_offset": [
+      8,
+      8
+    ]
+  },
+  {
+    "file": "slime_r5_body.png",
+    "size": [
+      36,
+      36
+    ],
+    "frames": 1,
+    "anchor": [
+      18,
+      18
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "slime",
+    "rank": 5,
+    "rank_name": "Prism Ooze",
+    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "art_bbox": [
+      34,
+      35
+    ],
+    "idle": false,
+    "was_art_bbox": [
+      32,
+      33
+    ]
+  },
+  {
+    "file": "slime_r5_aura.png",
+    "size": [
+      60,
+      60
+    ],
+    "frames": 1,
+    "anchor": [
+      30,
+      30
+    ],
+    "anchor_type": "center",
+    "category": "fx_aura",
+    "facing": "right",
+    "form": "slime",
+    "rank": 5,
+    "rank_name": "Prism Ooze",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "body_offset": [
+      12,
+      12
+    ]
+  },
+  {
+    "file": "slime_r5.png",
+    "size": [
+      60,
+      60
+    ],
+    "frames": 1,
+    "anchor": [
+      30,
+      30
+    ],
+    "anchor_type": "center",
+    "category": "player_form_reference",
+    "facing": "right",
+    "form": "slime",
+    "rank": 5,
+    "rank_name": "Prism Ooze",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "body_offset": [
+      12,
+      12
+    ]
+  },
+  {
+    "file": "vending_machine_r4_body.png",
+    "size": [
+      30,
+      43
+    ],
+    "frames": 1,
+    "anchor": [
+      15,
+      21
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "vending_machine",
+    "rank": 4,
+    "rank_name": "Vending Citadel",
+    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "art_bbox": [
+      30,
+      43
+    ],
+    "idle": false,
+    "was_art_bbox": [
+      26,
+      39
+    ]
+  },
+  {
+    "file": "vending_machine_r4_aura.png",
+    "size": [
+      46,
+      59
+    ],
+    "frames": 1,
+    "anchor": [
+      23,
+      29
+    ],
+    "anchor_type": "center",
+    "category": "fx_aura",
+    "facing": "right",
+    "form": "vending_machine",
+    "rank": 4,
+    "rank_name": "Vending Citadel",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "body_offset": [
+      8,
+      8
+    ]
+  },
+  {
+    "file": "vending_machine_r4.png",
+    "size": [
+      46,
+      59
+    ],
+    "frames": 1,
+    "anchor": [
+      23,
+      29
+    ],
+    "anchor_type": "center",
+    "category": "player_form_reference",
+    "facing": "right",
+    "form": "vending_machine",
+    "rank": 4,
+    "rank_name": "Vending Citadel",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "body_offset": [
+      8,
+      8
+    ]
+  },
+  {
+    "file": "vending_machine_r5_body.png",
+    "size": [
+      30,
+      43
+    ],
+    "frames": 1,
+    "anchor": [
+      15,
+      21
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "vending_machine",
+    "rank": 5,
+    "rank_name": "Golden Jackpot",
+    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "art_bbox": [
+      30,
+      43
+    ],
+    "idle": false,
+    "was_art_bbox": [
+      26,
+      39
+    ]
+  },
+  {
+    "file": "vending_machine_r5_aura.png",
+    "size": [
+      54,
+      67
+    ],
+    "frames": 1,
+    "anchor": [
+      27,
+      33
+    ],
+    "anchor_type": "center",
+    "category": "fx_aura",
+    "facing": "right",
+    "form": "vending_machine",
+    "rank": 5,
+    "rank_name": "Golden Jackpot",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "body_offset": [
+      12,
+      12
+    ]
+  },
+  {
+    "file": "vending_machine_r5.png",
+    "size": [
+      54,
+      67
+    ],
+    "frames": 1,
+    "anchor": [
+      27,
+      33
+    ],
+    "anchor_type": "center",
+    "category": "player_form_reference",
+    "facing": "right",
+    "form": "vending_machine",
+    "rank": 5,
+    "rank_name": "Golden Jackpot",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "body_offset": [
+      12,
+      12
+    ]
+  },
+  {
+    "file": "goblin_r4_body.png",
+    "size": [
+      40,
+      44
+    ],
+    "frames": 1,
+    "anchor": [
+      20,
+      22
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "goblin",
+    "rank": 4,
+    "rank_name": "Goblin Warlord",
+    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "art_bbox": [
+      36,
+      43
+    ],
+    "idle": false,
+    "was_art_bbox": [
+      34,
+      41
+    ]
+  },
+  {
+    "file": "goblin_r4_aura.png",
+    "size": [
+      56,
+      60
+    ],
+    "frames": 1,
+    "anchor": [
+      28,
+      30
+    ],
+    "anchor_type": "center",
+    "category": "fx_aura",
+    "facing": "right",
+    "form": "goblin",
+    "rank": 4,
+    "rank_name": "Goblin Warlord",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "body_offset": [
+      8,
+      8
+    ]
+  },
+  {
+    "file": "goblin_r4.png",
+    "size": [
+      56,
+      60
+    ],
+    "frames": 1,
+    "anchor": [
+      28,
+      30
+    ],
+    "anchor_type": "center",
+    "category": "player_form_reference",
+    "facing": "right",
+    "form": "goblin",
+    "rank": 4,
+    "rank_name": "Goblin Warlord",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "body_offset": [
+      8,
+      8
+    ]
+  },
+  {
+    "file": "goblin_r5_body.png",
+    "size": [
+      40,
+      44
+    ],
+    "frames": 1,
+    "anchor": [
+      20,
+      22
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "goblin",
+    "rank": 5,
+    "rank_name": "Goblin Emperor",
+    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "art_bbox": [
+      36,
+      43
+    ],
+    "idle": false,
+    "was_art_bbox": [
+      34,
+      41
+    ]
+  },
+  {
+    "file": "goblin_r5_aura.png",
+    "size": [
+      64,
+      68
+    ],
+    "frames": 1,
+    "anchor": [
+      32,
+      34
+    ],
+    "anchor_type": "center",
+    "category": "fx_aura",
+    "facing": "right",
+    "form": "goblin",
+    "rank": 5,
+    "rank_name": "Goblin Emperor",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "body_offset": [
+      12,
+      12
+    ]
+  },
+  {
+    "file": "goblin_r5.png",
+    "size": [
+      64,
+      68
+    ],
+    "frames": 1,
+    "anchor": [
+      32,
+      34
+    ],
+    "anchor_type": "center",
+    "category": "player_form_reference",
+    "facing": "right",
+    "form": "goblin",
+    "rank": 5,
+    "rank_name": "Goblin Emperor",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "body_offset": [
+      12,
+      12
+    ]
+  },
+  {
+    "file": "cat_r4_body.png",
+    "size": [
+      36,
+      36
+    ],
+    "frames": 1,
+    "anchor": [
+      18,
+      18
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "cat",
+    "rank": 4,
+    "rank_name": "Cat Tycoon",
+    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "art_bbox": [
+      32,
+      28
+    ],
+    "idle": false,
+    "was_art_bbox": [
+      30,
+      26
+    ]
+  },
+  {
+    "file": "cat_r4_aura.png",
+    "size": [
+      52,
+      52
+    ],
+    "frames": 1,
+    "anchor": [
+      26,
+      26
+    ],
+    "anchor_type": "center",
+    "category": "fx_aura",
+    "facing": "right",
+    "form": "cat",
+    "rank": 4,
+    "rank_name": "Cat Tycoon",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "body_offset": [
+      8,
+      8
+    ]
+  },
+  {
+    "file": "cat_r4.png",
+    "size": [
+      52,
+      52
+    ],
+    "frames": 1,
+    "anchor": [
+      26,
+      26
+    ],
+    "anchor_type": "center",
+    "category": "player_form_reference",
+    "facing": "right",
+    "form": "cat",
+    "rank": 4,
+    "rank_name": "Cat Tycoon",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "body_offset": [
+      8,
+      8
+    ]
+  },
+  {
+    "file": "cat_r5_body.png",
+    "size": [
+      36,
+      36
+    ],
+    "frames": 1,
+    "anchor": [
+      18,
+      18
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "cat",
+    "rank": 5,
+    "rank_name": "Briefcase Boss",
+    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "art_bbox": [
+      32,
+      28
+    ],
+    "idle": false,
+    "was_art_bbox": [
+      30,
+      26
+    ]
+  },
+  {
+    "file": "cat_r5_aura.png",
+    "size": [
+      60,
+      60
+    ],
+    "frames": 1,
+    "anchor": [
+      30,
+      30
+    ],
+    "anchor_type": "center",
+    "category": "fx_aura",
+    "facing": "right",
+    "form": "cat",
+    "rank": 5,
+    "rank_name": "Briefcase Boss",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "body_offset": [
+      12,
+      12
+    ]
+  },
+  {
+    "file": "cat_r5.png",
+    "size": [
+      60,
+      60
+    ],
+    "frames": 1,
+    "anchor": [
+      30,
+      30
+    ],
+    "anchor_type": "center",
+    "category": "player_form_reference",
+    "facing": "right",
+    "form": "cat",
+    "rank": 5,
+    "rank_name": "Briefcase Boss",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "body_offset": [
+      12,
+      12
+    ]
+  },
+  {
+    "file": "demon_lord_r4_body.png",
+    "size": [
+      58,
+      56
+    ],
+    "frames": 1,
+    "anchor": [
+      29,
+      28
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "demon_lord",
+    "rank": 4,
+    "rank_name": "Demon Overlord",
+    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "art_bbox": [
+      56,
+      56
+    ],
+    "idle": false,
+    "was_art_bbox": [
+      54,
+      54
+    ]
+  },
+  {
+    "file": "demon_lord_r4_aura.png",
+    "size": [
+      78,
+      76
+    ],
+    "frames": 1,
+    "anchor": [
+      39,
+      38
+    ],
+    "anchor_type": "center",
+    "category": "fx_aura",
+    "facing": "right",
+    "form": "demon_lord",
+    "rank": 4,
+    "rank_name": "Demon Overlord",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "body_offset": [
+      10,
+      10
+    ]
+  },
+  {
+    "file": "demon_lord_r4.png",
+    "size": [
+      78,
+      76
+    ],
+    "frames": 1,
+    "anchor": [
+      39,
+      38
+    ],
+    "anchor_type": "center",
+    "category": "player_form_reference",
+    "facing": "right",
+    "form": "demon_lord",
+    "rank": 4,
+    "rank_name": "Demon Overlord",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "body_offset": [
+      10,
+      10
+    ]
+  },
+  {
+    "file": "demon_lord_r5_body.png",
+    "size": [
+      58,
+      56
+    ],
+    "frames": 1,
+    "anchor": [
+      29,
+      28
+    ],
+    "anchor_type": "center",
+    "category": "player_form",
+    "facing": "right",
+    "form": "demon_lord",
+    "rank": 5,
+    "rank_name": "Abyss Sovereign",
+    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "art_bbox": [
+      56,
+      56
+    ],
+    "idle": false,
+    "was_art_bbox": [
+      54,
+      54
+    ]
+  },
+  {
+    "file": "demon_lord_r5_aura.png",
+    "size": [
+      90,
+      88
+    ],
+    "frames": 1,
+    "anchor": [
+      45,
+      44
+    ],
+    "anchor_type": "center",
+    "category": "fx_aura",
+    "facing": "right",
+    "form": "demon_lord",
+    "rank": 5,
+    "rank_name": "Abyss Sovereign",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "body_offset": [
+      16,
+      16
+    ]
+  },
+  {
+    "file": "demon_lord_r5.png",
+    "size": [
+      90,
+      88
+    ],
+    "frames": 1,
+    "anchor": [
+      45,
+      44
+    ],
+    "anchor_type": "center",
+    "category": "player_form_reference",
+    "facing": "right",
+    "form": "demon_lord",
+    "rank": 5,
+    "rank_name": "Abyss Sovereign",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "body_offset": [
+      16,
+      16
+    ]
+  },
+  {
+    "file": "slime_small_r4.png",
+    "size": [
+      28,
+      28
+    ],
+    "frames": 1,
+    "anchor": [
+      14,
+      14
+    ],
+    "anchor_type": "center",
+    "category": "player_form_split",
+    "facing": "right",
+    "form": "slime",
+    "rank": 4,
+    "rank_name": "Gel Paladin",
+    "idle": false,
+    "art_bbox": [
+      28,
+      28
+    ],
+    "was_art_bbox": [
+      25,
+      26
+    ],
+    "note": "Split slime for this rank, scaled from the batch-6 body until a drawn small sprite lands."
+  },
+  {
+    "file": "slime_small_r5.png",
+    "size": [
+      28,
+      28
+    ],
+    "frames": 1,
+    "anchor": [
+      14,
+      14
+    ],
+    "anchor_type": "center",
+    "category": "player_form_split",
+    "facing": "right",
+    "form": "slime",
+    "rank": 5,
+    "rank_name": "Prism Ooze",
+    "idle": false,
+    "art_bbox": [
+      28,
+      28
+    ],
+    "was_art_bbox": [
+      25,
+      26
+    ],
+    "note": "Split slime for this rank, scaled from the batch-6 body until a drawn small sprite lands."
+  },
+  {
+    "file": "ui/hud_evo_meter_rank4_empty.png",
+    "size": [
+      94,
+      12
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "ui",
+    "facing": "none",
+    "note": "Evolve meter frame, rank 4 of 5 pips lit. Fill sits at (28, 3) inside the frame."
+  },
+  {
+    "file": "ui/hud_evo_meter_rank5_empty.png",
+    "size": [
+      94,
+      12
+    ],
+    "frames": 1,
+    "anchor": [
+      0,
+      0
+    ],
+    "anchor_type": "top_left",
+    "category": "ui",
+    "facing": "none",
+    "note": "Evolve meter frame, rank 5 of 5 pips lit. Fill sits at (28, 3) inside the frame."
   }
 ]

@@ -30,22 +30,38 @@ static func death_stage(t: float) -> String:
 		return "tease"
 	return "card"
 
-## The readability ring adds 2 px. 34 keeps slime r3, and cat r3 when the
-## frame size is used instead of art_bbox, on the small pop they had before.
-const POP_LARGE_ABOVE := 34.0
+## The readability ring adds 2 px. 36 keeps slime r3 (art box 34), the batch-6
+## slime r4 box (35), cat r3, and the new small vending r1 on the small pop.
+## Goblin r2 (37) and the big bodies stay on the large pop.
+const POP_LARGE_ABOVE := 36.0
 
 static func pop_file(box: Vector2) -> String:
 	if maxf(box.x, box.y) > POP_LARGE_ABOVE:
 		return "fx/fx_death_pop_l.png"
 	return "fx/fx_death_pop_s.png"
 
-## Goblins are crowned at every rank. Every rank-3 form is crowned,
-## including Cat r3 and Demon Lord r3.
+## Goblins are crowned at every rank. Rank 3 and above wear a crown,
+## including the batch-6 body files (`slime_r4_body`, `demon_lord_r5_body`).
 static func wears_crown(sprite_name: String) -> bool:
 	var stem := sprite_name.get_file().trim_suffix(".png")
 	if stem.begins_with("goblin"):
 		return true
-	return stem.ends_with("_r3")
+	return rank_number(stem) >= 3
+
+static func rank_number(stem: String) -> int:
+	var at := stem.rfind("_r")
+	if at < 0:
+		return 0
+	var digits := ""
+	var rest := stem.substr(at + 2)
+	for i in rest.length():
+		var ch := rest.substr(i, 1)
+		if ch < "0" or ch > "9":
+			break
+		digits += ch
+	if digits.is_empty():
+		return 0
+	return int(digits)
 
 static func flash_file(sprite_name: String) -> String:
 	return "fx/forms/%s_flash.png" % sprite_name.get_file().trim_suffix(".png")

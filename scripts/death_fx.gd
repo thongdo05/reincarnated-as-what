@@ -27,7 +27,10 @@ func _draw() -> void:
 	if frame < 0 or frame > 10:
 		return
 	if frame <= 1:
-		ArtLibrary.draw_anchored(self, flash_name)
+		if ArtLibrary.has_file(flash_name):
+			ArtLibrary.draw_anchored(self, flash_name)
+		else:
+			ArtLibrary.draw_loop(self, sprite_name, 0.0)
 		ArtLibrary.draw_loop(self, "fx/fx_death_hit.png", float(frame) / FxTimeline.FPS)
 	elif frame <= 4:
 		ArtLibrary.draw_loop(self, pop_name, float(frame - 2) / FxTimeline.FPS)

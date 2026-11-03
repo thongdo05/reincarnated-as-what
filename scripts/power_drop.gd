@@ -23,6 +23,9 @@ func setup(drop_kind: String) -> void:
 			sprite_name = "slime_shot.png"
 		"magnet":
 			sprite_name = "ui/hud_coin_icon.png"
+		"overdrive":
+			kind = "overdrive"
+			sprite_name = "gem.png"
 		_:
 			kind = "bomb"
 			sprite_name = "anvil.png"
@@ -47,6 +50,9 @@ func bob_offset() -> float:
 	return sin(age * 4.0) * 2.0
 
 func _draw() -> void:
+	if kind == "overdrive":
+		_draw_overdrive()
+		return
 	var bob := bob_offset()
 	draw_arc(Vector2(0.0, bob), 11.0, 0.0, TAU, 20, RING, 1.5, true)
 	draw_set_transform(Vector2(0.0, bob), 0.0, _icon_scale())
@@ -56,6 +62,20 @@ func _draw() -> void:
 	var spark := Vector2(cos(spin), sin(spin)) * 9.0 + Vector2(0.0, bob)
 	draw_set_transform(spark, 0.0, Vector2(0.8, 0.8))
 	ArtLibrary.draw_anchored(self, "graze_sparkle.png", Color(1, 1, 1, 0.9))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+## Stand-in for the screen-clear drop. A gold star and a gem, not a shot sprite.
+func _draw_overdrive() -> void:
+	var bob := bob_offset()
+	var origin := Vector2(0.0, bob)
+	draw_arc(origin, 13.0, 0.0, TAU, 22, Color("ffe56a"), 1.5, true)
+	draw_arc(origin, 9.0, 0.0, TAU, 16, Color("ff4d5e"), 1.0, true)
+	var spin := age * 3.0
+	for i in 8:
+		var dir := Vector2.from_angle(spin + float(i) * TAU / 8.0)
+		draw_rect(Rect2(origin + dir * 6.0 - Vector2(1.0, 1.0), Vector2(2.0, 2.0)), Color("fff3c4"))
+	draw_set_transform(origin, 0.0, Vector2(1.0, 1.0))
+	ArtLibrary.draw_anchored(self, "gem.png")
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 func _icon_scale() -> Vector2:

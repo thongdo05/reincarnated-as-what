@@ -176,9 +176,10 @@ func _check_evo() -> int:
 	if int(game.rank_index) != 1 or game._player.fx_mode != "glow":
 		push_error("E should reach rank 2 through the real evolve")
 		failed += 1
-	game._unhandled_input(key)
-	if int(game.rank_index) != 2 or not game._player.evolve_final:
-		push_error("a second E should reach the final form")
+	for _press in 3:
+		game._unhandled_input(key)
+	if int(game.rank_index) != 4 or not game._player.evolve_final:
+		push_error("four E presses should reach the final form, got rank %s" % str(game.rank_index))
 		failed += 1
 	game._hurt_player("falling anvil")
 	if int(game.phase) != game.PHASE_PLAY:

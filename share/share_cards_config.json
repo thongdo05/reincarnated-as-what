@@ -11,12 +11,16 @@
    "rank_names": [
     "SLIME",
     "GEL KNIGHT",
-    "OOZE TITAN"
+    "OOZE TITAN",
+    "GEL PALADIN",
+    "PRISM OOZE"
    ],
    "sprites": [
     "slime_r1.png",
     "slime_r2.png",
-    "slime_r3.png"
+    "slime_r3.png",
+    "slime_r4.png",
+    "slime_r5.png"
    ],
    "theme": {
     "bg": "#06cbfa",
@@ -43,12 +47,16 @@
    "rank_names": [
     "VENDING MACHINE",
     "MEGA VENDOR",
-    "VENDING FORTRESS"
+    "VENDING FORTRESS",
+    "VENDING CITADEL",
+    "GOLDEN JACKPOT"
    ],
    "sprites": [
     "vending_machine_r1.png",
     "vending_machine_r2.png",
-    "vending_machine_r3.png"
+    "vending_machine_r3.png",
+    "vending_machine_r4.png",
+    "vending_machine_r5.png"
    ],
    "theme": {
     "bg": "#f0a52a",
@@ -75,12 +83,16 @@
    "rank_names": [
     "GOBLIN",
     "GOBLIN CHIEF",
-    "GOBLIN KING"
+    "GOBLIN KING",
+    "GOBLIN WARLORD",
+    "GOBLIN EMPEROR"
    ],
    "sprites": [
     "goblin_r1.png",
     "goblin_r2.png",
-    "goblin_r3.png"
+    "goblin_r3.png",
+    "goblin_r4.png",
+    "goblin_r5.png"
    ],
    "theme": {
     "bg": "#5cc94a",
@@ -107,12 +119,16 @@
    "rank_names": [
     "CAT (EX-CEO)",
     "CAT CHAIRMAN",
-    "CAT OVERLORD"
+    "CAT OVERLORD",
+    "CAT TYCOON",
+    "BRIEFCASE BOSS"
    ],
    "sprites": [
     "cat_r1.png",
     "cat_r2.png",
-    "cat_r3.png"
+    "cat_r3.png",
+    "cat_r4.png",
+    "cat_r5.png"
    ],
    "theme": {
     "bg": "#fe65dd",
@@ -139,12 +155,16 @@
    "rank_names": [
     "DEMON LORD",
     "DEMON EMPEROR",
-    "TRUE DEMON KING"
+    "TRUE DEMON KING",
+    "DEMON OVERLORD",
+    "ABYSS SOVEREIGN"
    ],
    "sprites": [
     "demon_lord_r1.png",
     "demon_lord_r2.png",
-    "demon_lord_r3.png"
+    "demon_lord_r3.png",
+    "demon_lord_r4.png",
+    "demon_lord_r5.png"
    ],
    "theme": {
     "bg": "#c2213f",

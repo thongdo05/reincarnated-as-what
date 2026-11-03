@@ -3,10 +3,11 @@ class_name Difficulty
 
 ## Pacing for the drag shooter.
 ##
-## The opening stays brutal: the first ten seconds still match the short
-## curve that kills an average dodge in 5–10 s. Danger then climbs to a hard
-## ceiling around a minute. After that, spawn rate and speed only creep, and
-## the sweeping rake never closes past a lane a body can sit in.
+## The first ten seconds are the old short curve, the one that kills an
+## average dodge in 5–10 s. After that the field climbs smoothly and is
+## extremely hard at 3:00. Past 3:00 it holds, with at most a tiny creep.
+## Rake and fan gaps stay wider than every hurtbox, aimed shots stay
+## telegraphed, and enemy and bullet counts stay capped.
 
 const FIRST_SPAWN := 0.34
 
@@ -20,6 +21,12 @@ const SPAWN_PEAK_SECONDS := 60.0
 const SPAWN_CREEP_SECONDS := 240.0
 const SPAWN_JITTER_MIN := 0.94
 const SPAWN_JITTER_MAX := 1.06
+## Opening is frozen at 10 s. The extreme is the 3:00 mark. After that, creep.
+const OPENING_SECONDS := 10.0
+const EXTREME_SECONDS := 180.0
+const CREEP_SECONDS := 180.0
+const SPAWN_EXTREME := 0.24
+const SPAWN_CREEP_END := 0.228
 
 const BURST_PAIR_AFTER := 6.0
 const BURST_TRIPLE_AFTER := 26.0
@@ -33,6 +40,8 @@ const SPEED_CAP := 2.08
 const SPEED_EASE_SECONDS := 20.0
 const SPEED_PEAK_SECONDS := 60.0
 const SPEED_CREEP_SECONDS := 240.0
+const SPEED_EXTREME := 2.42
+const SPEED_CREEP_END := 2.48
 
 ## Live caps so a bad seed cannot tile the field. The rake is not part of the
 ## bullet cap; it is a designed lane, not leftover fire.
@@ -50,6 +59,8 @@ const SCROLL_AT_45 := 1.18
 const SCROLL_CAP := 1.30
 const SCROLL_RAMP_SECONDS := 45.0
 const SCROLL_CAP_SECONDS := 75.0
+const SCROLL_EXTREME := 1.58
+const SCROLL_CREEP_END := 1.64
 
 ## Aimed from the opening. 1 is a full lead.
 const AIM_START := 0.82
@@ -76,9 +87,12 @@ const GRAZE_RANK2 := 55
 const RANK2_KILL_KEEP := 0.40
 const RANK2_CHAIN_WEIGHT := 0.45
 
-## Gem points, not kill score. One gem reaches rank 2. Nine reach rank 3.
-const GATE_RANK2 := 720
+## Gem points, not kill score. Each rank costs more gems than the last.
+## Two gems reach rank 2. Rank 3, 4, and 5 step up from there.
+const GATE_RANK2 := 1440
 const GATE_RANK3 := 6480
+const GATE_RANK4 := 14400
+const GATE_RANK5 := 25920
 const GEM_EVO := 720
 const GEM_SCORE := 40
 const GEM_CHANCE := 0.8
@@ -100,8 +114,17 @@ const BOMB_DAMAGE := 8
 const BOMB_SCORE := 400
 const SHIELD_IFRAMES := 0.22
 
-const OVERDRIVE_GEMS := 4
+## OVERDRIVE is a rare monster drop, not a gem meter. It pays more than Bomb
+## and kills what Bomb only chips. The chance climbs a little toward 3:00.
+## A cooldown keeps two from landing back to back.
 const OVERDRIVE_SCORE := 2500
+const OVERDRIVE_DROP_START := 0.008
+const OVERDRIVE_DROP_EXTREME := 0.018
+const OVERDRIVE_DROP_COOLDOWN := 80.0
+## After rank 5, gems buy Power levels. The first costs 3 gems. Each later
+## level costs 2 gems more than the one before it, so it cannot snowball.
+const POWER_FIRST_GEMS := 3
+const POWER_GEM_STEP := 2
 
 ## Full-height rake. The hole starts wide and closes on the old early slope,
 ## then stops at a lane the largest body can sit in. It does not keep closing.
@@ -124,9 +147,10 @@ const RAKE_STEP := 26.0
 const PATTERN_GAP_SLACK := 12.0
 const RAKE_BOLT := "floating_eye_bolt.png"
 
-const FINAL_HOLD := 1.85
-const FINAL_SLOWMO_SECONDS := 0.3
+const FINAL_HOLD := 1.7
+const FINAL_SLOWMO_SECONDS := 0.65
 const FINAL_SLOWMO_SCALE := 0.4
+const FINAL_FLASH := 0.48
 const FINAL_SHAKE_SECONDS := 0.38
 const FINAL_SHAKE_PX := 3.0
 const FINAL_STING_DB := 6.0
@@ -143,32 +167,28 @@ static func _creep(elapsed: float, knee: float, span: float) -> float:
 	return u * u * (3.0 - 2.0 * u)
 
 static func spawn_interval(elapsed: float) -> float:
-	if elapsed <= SPAWN_EASE_SECONDS:
-		return lerpf(SPAWN_INTERVAL_START, SPAWN_INTERVAL_AT_20, clampf(elapsed / SPAWN_EASE_SECONDS, 0.0, 1.0))
-	if elapsed <= 50.0:
-		var u := clampf((elapsed - SPAWN_EASE_SECONDS) / 30.0, 0.0, 1.0)
-		return lerpf(SPAWN_INTERVAL_AT_20, SPAWN_INTERVAL_AT_50, u)
-	if elapsed <= SPAWN_PEAK_SECONDS:
-		var to_peak := clampf((elapsed - 50.0) / 10.0, 0.0, 1.0)
-		return lerpf(SPAWN_INTERVAL_AT_50, SPAWN_INTERVAL_PEAK, to_peak)
-	return lerpf(SPAWN_INTERVAL_PEAK, SPAWN_INTERVAL_FLOOR, _creep(elapsed, SPAWN_PEAK_SECONDS, SPAWN_CREEP_SECONDS))
+	if elapsed <= OPENING_SECONDS:
+		return _opening_spawn(elapsed)
+	var opened := _opening_spawn(OPENING_SECONDS)
+	if elapsed <= EXTREME_SECONDS:
+		return lerpf(opened, SPAWN_EXTREME, _climb(elapsed))
+	return lerpf(SPAWN_EXTREME, SPAWN_CREEP_END, _creep(elapsed, EXTREME_SECONDS, CREEP_SECONDS))
 
 static func speed_scale(elapsed: float) -> float:
-	if elapsed <= SPEED_EASE_SECONDS:
-		return lerpf(1.0, SPEED_AT_20, clampf(elapsed / SPEED_EASE_SECONDS, 0.0, 1.0))
-	if elapsed <= 50.0:
-		var u := clampf((elapsed - SPEED_EASE_SECONDS) / 30.0, 0.0, 1.0)
-		return lerpf(SPEED_AT_20, SPEED_AT_50, u)
-	if elapsed <= SPEED_PEAK_SECONDS:
-		var to_peak := clampf((elapsed - 50.0) / 10.0, 0.0, 1.0)
-		return lerpf(SPEED_AT_50, SPEED_PEAK, to_peak)
-	return lerpf(SPEED_PEAK, SPEED_CAP, _creep(elapsed, SPEED_PEAK_SECONDS, SPEED_CREEP_SECONDS))
+	if elapsed <= OPENING_SECONDS:
+		return _opening_speed(elapsed)
+	var opened := _opening_speed(OPENING_SECONDS)
+	if elapsed <= EXTREME_SECONDS:
+		return lerpf(opened, SPEED_EXTREME, _climb(elapsed))
+	return lerpf(SPEED_EXTREME, SPEED_CREEP_END, _creep(elapsed, EXTREME_SECONDS, CREEP_SECONDS))
 
 static func scroll_scale(elapsed: float) -> float:
-	if elapsed <= SCROLL_RAMP_SECONDS:
-		return lerpf(1.0, SCROLL_AT_45, clampf(elapsed / SCROLL_RAMP_SECONDS, 0.0, 1.0))
-	var extra := clampf((elapsed - SCROLL_RAMP_SECONDS) / SCROLL_CAP_SECONDS, 0.0, 1.0)
-	return lerpf(SCROLL_AT_45, SCROLL_CAP, extra)
+	if elapsed <= OPENING_SECONDS:
+		return _opening_scroll(elapsed)
+	var opened := _opening_scroll(OPENING_SECONDS)
+	if elapsed <= EXTREME_SECONDS:
+		return lerpf(opened, SCROLL_EXTREME, _climb(elapsed))
+	return lerpf(SCROLL_EXTREME, SCROLL_CREEP_END, _creep(elapsed, EXTREME_SECONDS, CREEP_SECONDS))
 
 static func aim_amount(elapsed: float) -> float:
 	if elapsed < AIM_ARM_SECONDS:
@@ -181,13 +201,23 @@ static func wolf_chase(elapsed: float) -> float:
 	return lerpf(WOLF_CHASE_START, WOLF_CHASE_FULL, u)
 
 static func burst_count(elapsed: float, roll: float) -> int:
-	if elapsed < BURST_PAIR_AFTER or roll > BURST_PAIR_CHANCE:
+	# The first ten seconds keep the old pair chance. After that, pairs and
+	# triples become common, and stop climbing once the 3:00 extreme is reached.
+	var pair := BURST_PAIR_CHANCE
+	var triple_after := BURST_TRIPLE_AFTER
+	var triple := BURST_TRIPLE_CHANCE
+	if elapsed > OPENING_SECONDS:
+		var u := _climb(minf(elapsed, EXTREME_SECONDS))
+		pair = lerpf(BURST_PAIR_CHANCE, 0.86, u)
+		triple_after = lerpf(BURST_TRIPLE_AFTER, 16.0, u)
+		triple = lerpf(BURST_TRIPLE_CHANCE, 0.55, u)
+	if elapsed < BURST_PAIR_AFTER or roll > pair:
 		return 1
-	if elapsed >= BURST_TRIPLE_AFTER and roll < BURST_PAIR_CHANCE * BURST_TRIPLE_CHANCE:
+	if elapsed >= triple_after and roll < pair * triple:
 		return 3
 	return 2
 
-static func kind_weights(elapsed: float) -> Array[float]:
+static func _opening_kind_weights(elapsed: float) -> Array[float]:
 	var pace := clampf(elapsed / 22.0, 0.0, 1.0)
 	var hazard := clampf((elapsed - HAZARD_START_SECONDS) / HAZARD_RAMP_SECONDS, 0.0, 1.0)
 	var wyvern := clampf((elapsed - 6.5) / 12.0, 0.0, 1.0)
@@ -199,6 +229,17 @@ static func kind_weights(elapsed: float) -> Array[float]:
 		lerpf(0.00, 0.14, hazard),
 		lerpf(0.00, 0.10, hazard),
 	]
+
+static func kind_weights(elapsed: float) -> Array[float]:
+	if elapsed <= OPENING_SECONDS:
+		return _opening_kind_weights(elapsed)
+	var opened := _opening_kind_weights(OPENING_SECONDS)
+	var extreme: Array[float] = [0.12, 0.16, 0.18, 0.20, 0.18, 0.16]
+	var u := _climb(minf(elapsed, EXTREME_SECONDS))
+	var mixed: Array[float] = []
+	for i in opened.size():
+		mixed.append(lerpf(float(opened[i]), extreme[i], u))
+	return mixed
 
 static func fall_speed(kind: int) -> float:
 	if kind == SpawnDirector.PIANO:
@@ -220,16 +261,74 @@ static func kill_multiplier(combo: int, rank_index: int) -> float:
 	return RANK2_KILL_KEEP + float(step - 1) * RANK2_CHAIN_WEIGHT
 
 static func gates() -> Array[int]:
-	return [GATE_RANK2, GATE_RANK3]
+	return [GATE_RANK2, GATE_RANK3, GATE_RANK4, GATE_RANK5]
+
+## Gems in one Power step. Level 1 is the first step after the final form.
+static func power_step_gems(next_level: int) -> int:
+	return POWER_FIRST_GEMS + maxi(next_level - 1, 0) * POWER_GEM_STEP
+
+static func power_step_points(next_level: int) -> int:
+	return power_step_gems(next_level) * GEM_EVO
+
+## Uncapped. 0 at the moment rank 5 is reached.
+static func power_level(points: int) -> int:
+	var extra := points - GATE_RANK5
+	if extra <= 0:
+		return 0
+	var level := 0
+	var spent := 0
+	while level < 80:
+		var cost := power_step_points(level + 1)
+		if extra < spent + cost:
+			return level
+		spent += cost
+		level += 1
+	return level
+
+## Absolute meter points where this Power level starts, and where the next one starts.
+static func power_bounds(points: int) -> Vector2:
+	var level := power_level(points)
+	var start := GATE_RANK5
+	for step in level:
+		start += power_step_points(step + 1)
+	return Vector2(float(start), float(start + power_step_points(level + 1)))
+
+static func power_progress(points: int) -> float:
+	var bounds := power_bounds(points)
+	var span := bounds.y - bounds.x
+	if span <= 0.0:
+		return 0.0
+	return clampf((float(points) - bounds.x) / span, 0.0, 1.0)
+
+static func overdrive_drop_chance(elapsed: float) -> float:
+	var u := 0.0
+	if elapsed > OPENING_SECONDS:
+		u = _climb(minf(elapsed, EXTREME_SECONDS))
+	return lerpf(OVERDRIVE_DROP_START, OVERDRIVE_DROP_EXTREME, u)
+
+## 0 at the end of the opening, 1 at 3:00. Smooth, so the climb has no knee.
+static func _climb(elapsed: float) -> float:
+	var u := clampf((elapsed - OPENING_SECONDS) / (EXTREME_SECONDS - OPENING_SECONDS), 0.0, 1.0)
+	return u * u * (3.0 - 2.0 * u)
+
+static func _opening_spawn(elapsed: float) -> float:
+	return lerpf(SPAWN_INTERVAL_START, SPAWN_INTERVAL_AT_20, clampf(elapsed / SPAWN_EASE_SECONDS, 0.0, 1.0))
+
+static func _opening_speed(elapsed: float) -> float:
+	return lerpf(1.0, SPEED_AT_20, clampf(elapsed / SPEED_EASE_SECONDS, 0.0, 1.0))
+
+static func _opening_scroll(elapsed: float) -> float:
+	return lerpf(1.0, SCROLL_AT_45, clampf(elapsed / SCROLL_RAMP_SECONDS, 0.0, 1.0))
 
 ## Y offsets for an aimed fan. Early fire is one shot. Later fans keep a
 ## lane between the streams wider than the largest hurtbox.
 static func fan_offsets(elapsed: float) -> Array:
-	# One stream through the opening. A second stream, then a third, only
-	# once an average run is already over, and each gap stays body-wide.
+	# One stream through the opening. Later fans keep a body-wide gap.
+	# The third stream arrives earlier than the old one-minute ceiling, and
+	# the spacing never tightens past what the gap check allows.
 	if elapsed < 18.0:
 		return [0.0]
-	if elapsed < 70.0:
+	if elapsed < 48.0:
 		return [0.0, -110.0]
 	return [-110.0, 0.0, 110.0]
 
@@ -257,22 +356,18 @@ static func pattern_speed(kind: int, elapsed: float) -> float:
 	var opening := lerpf(1.0, 1.55, clampf(minf(elapsed, 10.0) / 18.0, 0.0, 1.0)) * speed_scale(minf(elapsed, 10.0))
 	if elapsed <= 10.0:
 		return base * opening
-	var extra := lerpf(1.0, 1.05, clampf((elapsed - 10.0) / 35.0, 0.0, 1.0))
-	if elapsed > 42.0:
-		extra = lerpf(1.05, 1.24, clampf((elapsed - 42.0) / 48.0, 0.0, 1.0))
+	var extra := lerpf(1.0, 1.62, _climb(elapsed))
+	if elapsed > EXTREME_SECONDS:
+		extra = lerpf(1.62, 1.68, _creep(elapsed, EXTREME_SECONDS, CREEP_SECONDS))
 	return base * opening * extra
 
-static func enemy_cap(elapsed: float) -> int:
-	if elapsed < SHOT_CAP_LATE_SECONDS:
-		return MAX_ENEMIES
-	return MAX_ENEMIES_LATE
+static func enemy_cap(_elapsed: float) -> int:
+	# The cap stays the opening cap. Density climbs by speed and interval,
+	# not by adding a ninth body.
+	return MAX_ENEMIES
 
-static func enemy_shot_cap(elapsed: float) -> int:
-	if elapsed < SHOT_CAP_LATE_SECONDS:
-		return MAX_ENEMY_SHOTS
-	if elapsed < SHOT_CAP_PEAK_SECONDS:
-		return MAX_ENEMY_SHOTS_LATE
-	return MAX_ENEMY_SHOTS_PEAK
+static func enemy_shot_cap(_elapsed: float) -> int:
+	return MAX_ENEMY_SHOTS
 
 static func telegraph_for(speed: float) -> float:
 	if speed >= FAST_SHOT:
@@ -281,20 +376,18 @@ static func telegraph_for(speed: float) -> float:
 
 static func rake_gap(elapsed: float) -> float:
 	var u := clampf(elapsed / RAKE_GAP_SECONDS, 0.0, 1.0)
-	var floor := RAKE_GAP_FLOOR
-	# The opening keeps the narrow-but-legal lane. After that the lane opens
-	# a little so a large body can still sit in it while other fire is in the air.
-	if elapsed > SHOT_CAP_LATE_SECONDS:
-		var open := clampf((elapsed - SHOT_CAP_LATE_SECONDS) / 30.0, 0.0, 1.0)
-		floor = lerpf(RAKE_GAP_FLOOR, 130.0, open)
-	return maxf(lerpf(RAKE_GAP_START, RAKE_GAP_END, u), floor)
+	# The lane closes to the legal floor and stays there. build_rake still
+	# widens it to the hurtbox plus slack, so it cannot become impossible.
+	return maxf(lerpf(RAKE_GAP_START, RAKE_GAP_END, u), RAKE_GAP_FLOOR)
 
 static func rake_speed(elapsed: float) -> float:
-	if elapsed <= RAKE_GAP_SECONDS:
+	if elapsed <= OPENING_SECONDS:
 		var u := clampf(elapsed / RAKE_GAP_SECONDS, 0.0, 1.0)
 		return lerpf(RAKE_SPEED_START, RAKE_SPEED_END, u)
-	var creep := clampf((elapsed - RAKE_GAP_SECONDS) / 180.0, 0.0, 1.0)
-	return lerpf(RAKE_SPEED_END, RAKE_SPEED_CAP, creep * creep)
+	var opened := lerpf(RAKE_SPEED_START, RAKE_SPEED_END, clampf(OPENING_SECONDS / RAKE_GAP_SECONDS, 0.0, 1.0))
+	if elapsed <= EXTREME_SECONDS:
+		return lerpf(opened, 268.0, _climb(elapsed))
+	return lerpf(268.0, 276.0, _creep(elapsed, EXTREME_SECONDS, CREEP_SECONDS))
 
 static func rake_every(elapsed: float) -> float:
 	var u := clampf(elapsed / RAKE_GAP_SECONDS, 0.0, 1.0)

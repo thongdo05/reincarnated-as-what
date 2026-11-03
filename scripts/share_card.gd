@@ -57,7 +57,8 @@ static func resolve(run: Dictionary) -> Dictionary:
 	if not forms.has(form):
 		form = "slime"
 	var spec: Dictionary = forms[form]
-	var rank := clampi(int(run.get("rank_reached", 1)), 1, 3)
+	var names: Array = spec["rank_names"]
+	var rank := clampi(int(run.get("rank_reached", 1)), 1, names.size())
 	var killers: Dictionary = _config["killers"]
 	var killer := str(run.get("killer", spec["example_killer"]))
 	if not killers.has(killer):
@@ -71,7 +72,6 @@ static func resolve(run: Dictionary) -> Dictionary:
 	if typeof(score_value) != TYPE_STRING:
 		score_text = ScoreRules.format_score(int(score_value))
 	var time_text := str(run.get("time", "0:00"))
-	var names: Array = spec["rank_names"]
 	var sprites: Array = spec["sprites"]
 	return {
 		"form": form,
