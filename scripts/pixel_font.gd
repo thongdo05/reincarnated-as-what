@@ -211,6 +211,76 @@ static func outlined_image(text: String, fill: Color) -> Image:
 	_cache[key] = image
 	return image
 
+static func plain_advance(text: String) -> int:
+	_ensure()
+	var glyphs: Dictionary = _plain["glyphs"]
+	var width := 0
+	for i in text.length():
+		var ch := text.substr(i, 1)
+		if not glyphs.has(ch):
+			ch = "?"
+		width += int(glyphs[ch]["advance"])
+	return width
+
+## Hard pixels of the Kaito face. Outlined keeps the 1px stroke the tab labels
+## use. Plain is the same letters with no stroke, so a dark tint on the yellow
+## "you" row does not turn into a blurry bold.
+static func row_image(text: String, fill: Color, outlined: bool, scale: int) -> Image:
+	_ensure()
+	var step := maxi(scale, 1)
+	var key := "row|%s|%s|%s|%d" % [text, fill.to_html(false), "o" if outlined else "p", step]
+	if _cache.has(key):
+		return _cache[key]
+	var glyphs: Dictionary = _out["glyphs"] if outlined else _plain["glyphs"]
+	var atlas := _out_img if outlined else _plain_img
+	var margin := 1
+	var width := margin
+	for i in text.length():
+		var ch := text.substr(i, 1)
+		if not glyphs.has(ch):
+			ch = "?"
+		width += int(glyphs[ch]["advance"])
+	width += margin
+	# 11 covers the outlined cell (offset -1, height 11). Plain glyphs sit one
+	# pixel in so their fill lines up with the outlined fill.
+	var image := Image.create(maxi(width, 1), 11, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0, 0, 0, 0))
+	var pen := margin
+	for i in text.length():
+		var ch := text.substr(i, 1)
+		if not glyphs.has(ch):
+			ch = "?"
+		var glyph: Dictionary = glyphs[ch]
+		var origin := Vector2i(int(glyph["x"]), int(glyph["y"]))
+		var size := Vector2i(int(glyph["w"]), int(glyph["h"]))
+		var off: Array = glyph["offset"]
+		for yy in size.y:
+			for xx in size.x:
+				var src := sample_color(atlas, origin.x + xx, origin.y + yy)
+				if src.a <= 0.5:
+					continue
+				var color := fill
+				if outlined and (src.r <= 0.9 or src.g <= 0.9 or src.b <= 0.9):
+					color = INK
+				var dx := pen + int(off[0]) + xx
+				var dy := margin + int(off[1]) + yy
+				if dx < 0 or dy < 0 or dx >= image.get_width() or dy >= image.get_height():
+					continue
+				image.set_pixel(dx, dy, color)
+		pen += int(glyph["advance"])
+	if step > 1:
+		image.resize(image.get_width() * step, image.get_height() * step, Image.INTERPOLATE_NEAREST)
+	_cache[key] = image
+	return image
+
+static func row_texture(text: String, fill: Color, outlined: bool, scale: int) -> Texture2D:
+	var key := "rowt|%s|%s|%s|%d" % [text, fill.to_html(false), "o" if outlined else "p", maxi(scale, 1)]
+	if _cache.has(key):
+		return _cache[key]
+	var texture := ImageTexture.create_from_image(row_image(text, fill, outlined, scale))
+	_cache[key] = texture
+	return texture
+
 static func outlined_texture(text: String, fill: Color) -> Texture2D:
 	var key := "ot|" + text + "|" + fill.to_html(false)
 	if _cache.has(key):

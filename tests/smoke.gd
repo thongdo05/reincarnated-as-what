@@ -37,7 +37,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry()
+	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -1634,6 +1634,126 @@ func _check_name_entry() -> int:
 	else:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	return failed
+
+## Rows are hard Kaito pixels in columns, not one tinted outlined string.
+## A 12-character name and a 7-digit score have to fit the 480-wide board.
+func _check_board_rows() -> int:
+	var failed := 0
+	var width := 468.0
+	var boxes := LeaderboardScreen.column_boxes(width, true)
+	if int(boxes["scale"]) != 2:
+		push_error("480-wide rows should use the double pixel size, got %s" % boxes["scale"])
+		failed += 1
+	var name_need := PixelFont.plain_advance("MMMMMMMMMMMM") * 2
+	var score_need := PixelFont.plain_advance("9,999,999") * 2
+	if float(boxes["name_w"]) + 0.1 < name_need:
+		push_error("a 12-character name does not fit (%s < %s)" % [boxes["name_w"], name_need])
+		failed += 1
+	if float(boxes["score_w"]) + 0.1 < score_need:
+		push_error("a 7-digit score does not fit")
+		failed += 1
+	if float(boxes["name_x"]) + float(boxes["name_w"]) > float(boxes["score_x"]) + 0.1:
+		push_error("the name column overlaps the score")
+		failed += 1
+	if float(boxes["score_x"]) + float(boxes["score_w"]) > float(boxes["form_x"]) + 0.1:
+		push_error("the score column overlaps the form")
+		failed += 1
+	if float(boxes["form_x"]) + float(boxes["form_w"]) > float(boxes["you_x"]) + 0.1:
+		push_error("the form column overlaps the you tag")
+		failed += 1
+	var screen := LeaderboardScreen.new()
+	var client := Leaderboard.new()
+	screen.setup(client, load("res://ui/font_kaito5x7_outlined.fnt"))
+	root.add_child(screen)
+	screen.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	screen.position = Vector2.ZERO
+	screen.size = Vector2(480, 270)
+	screen.preview([
+		{"rank": 1, "name": "Spyral", "score": 68566, "form": "demon_lord", "is_me": true},
+		{"rank": 2, "name": "MMMMMMMMMMMM", "score": 9999999, "form": "goblin", "is_me": false},
+		{"rank": 3, "name": "Gel Knight", "score": 42100, "form": "slime", "is_me": false},
+	], "Spyral")
+	var mine := screen._list.get_node_or_null("me") as Control
+	if mine == null:
+		push_error("the highlighted row is missing")
+		failed += 1
+	else:
+		failed += _check_row_pixels(mine.get_node_or_null("Rank"), true)
+		failed += _check_row_gap(mine)
+	if screen._list.get_child_count() < 2:
+		push_error("sample rows were not drawn")
+		failed += 1
+	else:
+		var wide := screen._list.get_child(1) as Control
+		failed += _check_row_gap(wide)
+		failed += _check_row_pixels(wide.get_node_or_null("Rank"), false)
+		var name_box := wide.get_node_or_null("Name") as Control
+		var name_text := wide.get_node_or_null("Name/NameText") as Control
+		var score := wide.get_node_or_null("Score") as Control
+		if name_box == null or name_text == null or score == null:
+			push_error("the wide row is missing a column")
+			failed += 1
+		else:
+			var name_right := name_box.position.x + name_text.position.x + name_text.size.x
+			if name_right > score.position.x + 0.1:
+				push_error("a 12-character name overlaps its score (%s vs %s)" % [name_right, score.position.x])
+				failed += 1
+	root.remove_child(screen)
+	screen.free()
+	client.free()
+	return failed
+
+func _check_row_pixels(rank: Node, mine: bool) -> int:
+	var rect := rank as TextureRect
+	if rect == null or rect.texture == null:
+		push_error("row has no rank glyphs")
+		return 1
+	if rect.texture.get_height() < 16:
+		push_error("row glyphs should be the larger pixel size, height %s" % rect.texture.get_height())
+		return 1
+	var image := rect.texture.get_image()
+	if image == null:
+		push_error("row texture has no image")
+		return 1
+	var soft := 0
+	var saw := false
+	for y in image.get_height():
+		for x in image.get_width():
+			var pixel := image.get_pixel(x, y)
+			if pixel.a <= 0.02:
+				continue
+			if pixel.a < 0.98:
+				soft += 1
+				continue
+			saw = true
+			if mine:
+				var ink := LeaderboardScreen.ROW_MINE_INK
+				if absf(pixel.r - ink.r) > 0.04 or absf(pixel.g - ink.g) > 0.04 or absf(pixel.b - ink.b) > 0.04:
+					push_error("highlighted row should be flat dark pixels, got %s" % pixel)
+					return 1
+	if not saw or soft > 0:
+		push_error("row glyphs should be hard pixels, soft %d" % soft)
+		return 1
+	return 0
+
+func _check_row_gap(panel: Control) -> int:
+	var rank := panel.get_node_or_null("Rank") as Control
+	var name_box := panel.get_node_or_null("Name") as Control
+	var score := panel.get_node_or_null("Score") as Control
+	var form := panel.get_node_or_null("Form") as Control
+	if rank == null or name_box == null or score == null or form == null:
+		push_error("a row is missing a column")
+		return 1
+	var rank_right := rank.position.x + rank.size.x
+	var name_left := name_box.position.x
+	var name_right := name_box.position.x + name_box.size.x
+	var score_left := score.position.x
+	var score_right := score.position.x + score.size.x
+	var form_left := form.position.x
+	if rank_right > name_left + 0.1 or name_right > score_left + 0.1 or score_right > form_left + 0.1:
+		push_error("row columns overlap (rank %s name %s-%s score %s-%s form %s)" % [rank_right, name_left, name_right, score_left, score_right, form_left])
+		return 1
+	return 0
 
 func _check_pause() -> int:
 	var failed := 0
