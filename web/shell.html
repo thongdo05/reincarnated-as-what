@@ -132,28 +132,6 @@ body {
 	margin: 0 auto;
 }
 
-#lb-name-input {
-	display: none;
-	position: fixed;
-	z-index: 80;
-	margin: 0;
-	padding: 4px 8px;
-	border: 2px solid #f0d78c;
-	border-radius: 0;
-	background: #100c14;
-	color: #f2fbff;
-	font-size: 16px;
-	font-family: ui-monospace, "Courier New", monospace;
-	line-height: 1.2;
-	box-sizing: border-box;
-	touch-action: manipulation !important;
-	-webkit-user-select: text;
-	user-select: text;
-	-webkit-touch-callout: default;
-	caret-color: #f0d78c;
-	outline: none;
-}
-
 #status-notice {
 	background-color: #5b3943;
 	border-radius: 0.5rem;
@@ -171,10 +149,9 @@ body {
 		$GODOT_HEAD_INCLUDE
 	</head>
 	<body>
-		<canvas id="canvas">
+		<canvas id="canvas" tabindex="0">
 			Your browser does not support the canvas tag.
 		</canvas>
-		<input id="lb-name-input" type="text" maxlength="12" enterkeyhint="done" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" aria-label="Your name">
 		<div id="rotate-gate">
 			<strong>Rotate your phone</strong>
 			<span>This run flies sideways.</span>
@@ -193,9 +170,8 @@ body {
 		<script>
 			(function () {
 				var gate = document.getElementById("rotate-gate");
-				var input = document.getElementById("lb-name-input");
 				function syncRotateGate() {
-					if (window.__lbHoldGate || window.__lbFieldOpen) {
+					if (window.__lbHoldGate) {
 						gate.style.display = "none";
 						return;
 					}
@@ -207,66 +183,65 @@ body {
 					window.__lbHoldGate = !!on;
 					syncRotateGate();
 				};
-				window.lbShowNameField = function (vx, vy, vw, vh, viewW, viewH, text) {
-					var canvas = document.getElementById("canvas");
-					var rect = canvas.getBoundingClientRect();
-					var scale = Math.min(rect.width / viewW, rect.height / viewH);
-					if (!isFinite(scale) || scale <= 0) {
-						scale = 1;
+				// Godot's web IME is a contentEditable node that refocuses itself
+				// on a timer while a LineEdit is editing. On iPhone Safari that
+				// timer keeps the keyboard's focus after it closes, and the next
+				// taps never reach the canvas. Name entry uses window.prompt, so
+				// this node must not take focus. A leftover <input> would do the
+				// same: it sits over the buttons and swallows the tap.
+				window.lbReleaseInput = function () {
+					if (window.__lbReleasing) {
+						return;
 					}
-					var offX = rect.left + (rect.width - viewW * scale) / 2;
-					var offY = rect.top + (rect.height - viewH * scale) / 2;
-					input.style.left = (offX + vx * scale) + "px";
-					input.style.top = (offY + vy * scale) + "px";
-					input.style.width = Math.max(vw * scale, 120) + "px";
-					input.style.height = Math.max(vh * scale, 44) + "px";
-					if (typeof text === "string" && document.activeElement !== input) {
-						input.value = text;
-					}
-					input.style.display = "block";
-					window.__lbFieldOpen = true;
-					window.__lbPlace = { vx: vx, vy: vy, vw: vw, vh: vh, viewW: viewW, viewH: viewH };
-					syncRotateGate();
-				};
-				window.lbHideNameField = function () {
-					input.blur();
-					input.style.display = "none";
-					window.__lbFieldOpen = false;
-					syncRotateGate();
-				};
-				window.lbNameValue = function () {
-					if (!window.__lbFieldOpen) {
-						return null;
-					}
-					return input.value;
-				};
-				function stopTouch(event) {
-					event.stopPropagation();
-				}
-				input.addEventListener("touchstart", stopTouch, { passive: true });
-				input.addEventListener("touchmove", stopTouch, { passive: true });
-				input.addEventListener("touchend", stopTouch, { passive: true });
-				input.addEventListener("input", function () {
-					if (window.__lbOnNameInput) {
-						window.__lbOnNameInput(input.value);
-					}
-				});
-				input.addEventListener("keydown", function (event) {
-					if (event.key === "Enter") {
-						event.preventDefault();
-						if (window.__lbOnNameSubmit) {
-							window.__lbOnNameSubmit(input.value);
+					window.__lbReleasing = true;
+					try {
+						var canvas = document.getElementById("canvas");
+						var fields = document.querySelectorAll("input, textarea, .ime");
+						for (var i = 0; i < fields.length; i++) {
+							var el = fields[i];
+							el.style.pointerEvents = "none";
+							el.style.display = "none";
+							if (el.classList && el.classList.contains("ime")) {
+								el.contentEditable = "false";
+								el.setAttribute("inputmode", "none");
+								if (!el.__lbFocusBlocked) {
+									el.__lbFocusBlocked = true;
+									el.focus = function () {};
+								}
+							}
+							try { el.blur(); } catch (err) {}
 						}
-					}
-				});
-				if (window.visualViewport) {
-					window.visualViewport.addEventListener("resize", function () {
-						var place = window.__lbPlace;
-						if (!window.__lbFieldOpen || !place || !window.lbShowNameField) {
-							return;
+						var active = document.activeElement;
+						if (active && active !== document.body && active !== document.documentElement && active !== canvas) {
+							try { active.blur(); } catch (err) {}
 						}
-						window.lbShowNameField(place.vx, place.vy, place.vw, place.vh, place.viewW, place.viewH, null);
+						if (canvas && canvas.focus) {
+							try { canvas.focus({ preventScroll: true }); } catch (err) {
+								try { canvas.focus(); } catch (err2) {}
+							}
+						}
+					} finally {
+						window.__lbReleasing = false;
+					}
+				};
+				document.addEventListener("focusin", function (event) {
+					var el = event.target;
+					if (!el || !el.tagName) {
+						return;
+					}
+					var tag = el.tagName;
+					if (tag === "INPUT" || tag === "TEXTAREA" || (el.classList && el.classList.contains("ime"))) {
+						window.setTimeout(window.lbReleaseInput, 0);
+					}
+				}, true);
+				if (window.MutationObserver) {
+					var observer = new MutationObserver(function () {
+						var ime = document.querySelector(".ime");
+						if (ime && !ime.__lbFocusBlocked) {
+							window.lbReleaseInput();
+						}
 					});
+					observer.observe(document.documentElement, { childList: true, subtree: true });
 				}
 				window.addEventListener("resize", syncRotateGate);
 				window.addEventListener("orientationchange", syncRotateGate);
