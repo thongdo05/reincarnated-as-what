@@ -22,7 +22,7 @@ Score is kills, a combo when kills are chained, near-misses, and survival time. 
 
 - **Slime.** Blue jelly cube. Shots fly right and split when they hit. Later ranks add lanes and a wider split. Its trait, not an extra life: the hit that would kill a full-size Slime swaps in the small slime of the same rank, with a short moment of safety and a `SPLIT!` pop. Stay alive 15 seconds and it grows back at the same rank, trait included. A hit while small ends the run. One life still holds. Ranks: Slime, Gel Knight, Ooze Titan, Gel Paladin, Prism Ooze.
 - **Goblin.** Tiny crown. Stones lob forward and drop. Each rock hits harder than a slime shot and can pierce. Later ranks throw more rocks that hit harder. Movement snaps to the finger. Kills can drop a gem that drifts left. Touch one to add score and evolution points. The slingshot does not level from a pickup count. Ranks: Goblin, Goblin Chief, Goblin King, Goblin Warlord, Goblin Emperor.
-- **Vending Machine.** Heavy drift: it trails the finger for a few frames and still finishes a flick. Three cans fly forward in a spread. There is no random burst. Kills fill a WINNER! meter, and a full meter is the only WINNER! screen clear in the game. Later ranks pay a bigger WINNER!. Ranks: Vending Machine, Mega Vendor, Vending Fortress, Vending Citadel, Golden Jackpot.
+- **Vending Machine.** Heavy drift: it trails the finger for a few frames and still finishes a flick. Three cans fly forward in a spread. There is no random burst. Kills fill a WINNER! meter, and a full meter is the only WINNER! in the game. It hits every enemy hard and clears enemy shots. Later ranks pay a bigger WINNER!. Ranks: Vending Machine, Mega Vendor, Vending Fortress, Vending Citadel, Golden Jackpot.
 - **Cat (ex-CEO).** A hard flick blinks a short dash, then the body snaps the rest of the way. The swipe in front reflects enemy bullets. A streak of near-misses makes nearby enemies fight for you for a moment. Later ranks dash farther and charm more. Ranks: Cat (ex-CEO), Cat Chairman, Cat Overlord, Cat Tycoon, Briefcase Boss.
 - **Demon Lord.** Large body, drawn at three quarters of the source art. Big slow orbs home in, and they hit harder the more enemies are on screen. Rank 4 fires a pair. Rank 5 fires three. Ranks: Demon Lord, Demon Emperor, True Demon King, Demon Overlord, Abyss Sovereign.
 
@@ -38,7 +38,7 @@ Hit shapes are per sprite in `art/hitboxes.json`. A player shot connects when it
 
 Each run opens on a title card, then about 1.5 seconds where you cannot die.
 
-Demon Lord orbs are 4-frame pulse sheets, so a shot plays one cell at a time instead of the whole strip. The vending machine weapon has no random WINNER! burst. WINNER! is only that form's meter-triggered screen clear.
+Demon Lord orbs are 4-frame pulse sheets, so a shot plays one cell at a time instead of the whole strip. The vending machine weapon has no random WINNER! burst. WINNER! is only that form's meter-triggered blast.
 
 ## Run locally
 

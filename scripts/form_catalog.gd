@@ -34,7 +34,13 @@ const SNAP_MAX_SPEED := 22000.0
 const VENDING_ARRIVE := 62.0
 const VENDING_MAX_SPEED := 400.0
 ## Kills, not coins. A full meter is the only WINNER! in the game.
-const VENDING_WINNER_KILLS := 6
+## Rank-1 length. Play reads the per-rank list. This is the empty-list fallback.
+const VENDING_WINNER_KILLS := 10
+## Heavy hit for a WINNER! clear, read off SpawnDirector.max_hp.
+## Eye and wolf are 2. Wyvern is 3, anvil is 4, archer and piano are 6.
+## 2 kills a full ordinary body and leaves every tougher one up. A piano
+## or an archer takes the hit and is never removed by the clear alone.
+const VENDING_WINNER_DAMAGE := 2
 
 ## Short dash when the aim jumps. Fine corrections still use the snap.
 const CAT_BLINK_DIST := 34.0
@@ -82,16 +88,16 @@ const GOBLIN := {
 
 ## Three forward cans. Spread is degrees off the forward axis, +y down.
 ## Rank 1 is slow enough that the heavy body is the tax. Later ranks hit
-## harder and the WINNER! meter pays out more often, and for more points.
-## The body is the smaller batch-6 art, so the drift is a little heavier
-## than the old large machine, to keep survival in line with the other forms.
+## harder. WINNER! takes more kills as the rank climbs and no longer wipes
+## the screen. The body is the smaller batch-6 art, so the drift is a little
+## heavier than the old large machine, to keep survival in line with the other forms.
 const VENDING := {
 	"fire_interval": [0.24, 0.20, 0.16, 0.135, 0.115],
 	"shot_speed": [520.0, 580.0, 640.0, 700.0, 760.0],
 	"damage": [1, 1, 2, 2, 3],
 	"spread_deg": [16.0, 18.0, 20.0, 22.0, 24.0],
-	"winner_kills": [6, 6, 5, 4, 3],
-	"winner_bonus": [200, 400, 700, 1200, 2000],
+	"winner_kills": [10, 12, 14, 16, 18],
+	"winner_bonus": [200, 300, 400, 500, 600],
 }
 
 ## The swipe is short. Reflecting bullets is the defense, not a long stream.
@@ -148,7 +154,7 @@ const FORM_CARD := {
 		"used": "",
 	},
 	Id.VENDING: {
-		"trait": "Heavy drift. Kills fill a WINNER! meter. A full meter clears the screen. Later ranks pay a bigger WINNER!.",
+		"trait": "Heavy drift. Kills fill a WINNER! meter. A full meter blasts the field and clears shots. Later ranks pay a bigger WINNER!.",
 		"ready": "",
 		"used": "",
 	},
@@ -243,6 +249,8 @@ static func demon_homing(rank_index: int, enemies: int) -> float:
 
 static func vending_winner_kills(rank_index: int = 0) -> int:
 	var values: Array = VENDING["winner_kills"]
+	if values.is_empty():
+		return VENDING_WINNER_KILLS
 	return int(values[clampi(rank_index, 0, values.size() - 1)])
 
 static func vending_winner_bonus(rank_index: int) -> int:
