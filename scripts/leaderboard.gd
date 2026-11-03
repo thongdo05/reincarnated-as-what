@@ -120,7 +120,7 @@ func fetch_board(form: Variant, period: String, done: Callable) -> void:
 		"p_period": "daily" if period == "daily" else "all",
 		"p_limit": 50,
 		"p_device_id": device_id(),
-	}, done)
+	}, done, 0, "board", _bump("board"))
 
 func fetch_rank(form: Variant, period: String, done: Callable) -> void:
 	var form_value: Variant = null if form == null or str(form) == "" else form
@@ -128,7 +128,7 @@ func fetch_rank(form: Variant, period: String, done: Callable) -> void:
 		"p_device_id": device_id(),
 		"p_form": form_value,
 		"p_period": "daily" if period == "daily" else "all",
-	}, done)
+	}, done, 0, "rank", _bump("rank"))
 
 func set_page_cover(on: bool) -> void:
 	if not OS.has_feature("web"):
@@ -148,22 +148,122 @@ func call_later(seconds: float, action: Callable) -> void:
 	, CONNECT_ONE_SHOT)
 	timer.start()
 
-## One HTTPRequest node per call. The node only runs a single request, and
-## use_threads stays off so the non-threaded web export polls on the main
-## thread instead of failing to start a worker. application/json plus the
-## apikey header need a CORS preflight; Supabase allows that, and a dropped
-## preflight is a transport error, which retries below.
-func _rpc(method: String, body: Dictionary, done: Callable, attempt: int = 0) -> void:
+## How long "..." may stay up. A hung web request never calls back, so the
+## screen must give up on its own instead of waiting out every retry.
+static func loading_limit() -> float:
+	return REQUEST_TIMEOUT + 1.0
+
+var _js_http: JavaScriptObject
+var _js_wait: Dictionary = {}
+var _js_seq := 0
+var _live: Dictionary = {}
+var _kind_gen: Dictionary = {}
+
+func _bump(kind: String) -> int:
+	if _live.has(kind):
+		var node: Variant = _live[kind]
+		_live.erase(kind)
+		if typeof(node) == TYPE_OBJECT and is_instance_valid(node) and node is HTTPRequest:
+			(node as HTTPRequest).cancel_request()
+			(node as Node).queue_free()
+	_kind_gen[kind] = int(_kind_gen.get(kind, 0)) + 1
+	return int(_kind_gen[kind])
+
+func _current(kind: String, gen: int) -> bool:
+	return kind == "" or int(_kind_gen.get(kind, 0)) == gen
+
+## One request node at a time per kind. The web export posts with fetch().text()
+## because Godot's HTTP client reads response.body.getReader(), and iPhone
+## Safari can leave that read pending so request_completed never fires.
+func _rpc(method: String, body: Dictionary, done: Callable, attempt: int = 0, kind: String = "", gen: int = 0) -> void:
+	if not _current(kind, gen):
+		return
+	if OS.has_feature("web") and _web_post_ready():
+		_rpc_web(method, body, done, attempt, kind, gen)
+		return
+	_rpc_http(method, body, done, attempt, kind, gen)
+
+func _web_post_ready() -> bool:
+	var ready: Variant = JavaScriptBridge.eval("typeof window.lbPost === 'function'", true)
+	return bool(ready)
+
+func _rpc_web(method: String, body: Dictionary, done: Callable, attempt: int, kind: String, gen: int) -> void:
+	_bind_js_http()
+	_js_seq += 1
+	var id := _js_seq
+	_js_wait[id] = {
+		"method": method,
+		"body": body,
+		"done": done,
+		"attempt": attempt,
+		"kind": kind,
+		"gen": gen,
+	}
+	if kind != "":
+		_live[kind] = id
+	var url := "%s/rest/v1/rpc/%s" % [URL, method]
+	var headers := [
+		["apikey", PUBLISHABLE_KEY],
+		["Content-Type", "application/json"],
+		["Accept", "application/json"],
+	]
+	JavaScriptBridge.eval(
+		"window.lbPost(%s,%s,%s,%d,%d);" % [
+			JSON.stringify(url),
+			JSON.stringify(headers),
+			JSON.stringify(encode_rpc(body)),
+			int(REQUEST_TIMEOUT * 1000.0),
+			id,
+		],
+		true
+	)
+
+func _bind_js_http() -> void:
+	if _js_http != null:
+		return
+	_js_http = JavaScriptBridge.create_callback(_on_js_http)
+	JavaScriptBridge.get_interface("window").__lbHttp = _js_http
+
+func _on_js_http(args: Array) -> void:
+	if args.size() < 3:
+		return
+	var id := int(args[0])
+	if not _js_wait.has(id):
+		return
+	var job: Dictionary = _js_wait[id]
+	_js_wait.erase(id)
+	var kind := str(job.get("kind", ""))
+	var gen := int(job.get("gen", 0))
+	if kind != "" and _live.get(kind) == id:
+		_live.erase(kind)
+	if not _current(kind, gen):
+		return
+	var status := int(args[1])
+	var text := str(args[2])
+	var result := HTTPRequest.RESULT_SUCCESS if status > 0 else HTTPRequest.RESULT_CANT_CONNECT
+	var parsed := parse_response(result, status, text.to_utf8_buffer())
+	_finish_rpc(str(job.get("method", "")), job.get("body", {}), job.get("done", Callable()), int(job.get("attempt", 0)), parsed, kind, gen)
+
+func _rpc_http(method: String, body: Dictionary, done: Callable, attempt: int, kind: String, gen: int) -> void:
 	var http := HTTPRequest.new()
 	http.timeout = REQUEST_TIMEOUT
 	http.use_threads = false
+	http.accept_gzip = false
 	http.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(http)
+	for child in http.get_children():
+		child.process_mode = Node.PROCESS_MODE_ALWAYS
+	if kind != "":
+		_live[kind] = http
 	http.request_completed.connect(func(result: int, code: int, _headers: PackedStringArray, resp: PackedByteArray) -> void:
+		if kind != "" and _live.get(kind) == http:
+			_live.erase(kind)
 		var parsed := parse_response(result, code, resp)
 		if is_instance_valid(http):
 			http.queue_free()
-		_finish_rpc(method, body, done, attempt, parsed)
+		if not _current(kind, gen):
+			return
+		_finish_rpc(method, body, done, attempt, parsed, kind, gen)
 	, CONNECT_ONE_SHOT)
 	var err := http.request(
 		"%s/rest/v1/rpc/%s" % [URL, method],
@@ -172,14 +272,19 @@ func _rpc(method: String, body: Dictionary, done: Callable, attempt: int = 0) ->
 		encode_rpc(body)
 	)
 	if err != OK:
+		if kind != "" and _live.get(kind) == http:
+			_live.erase(kind)
 		http.queue_free()
-		_finish_rpc(method, body, done, attempt, {"ok": false, "error": "offline", "rows": [], "data": {}})
+		if _current(kind, gen):
+			_finish_rpc(method, body, done, attempt, {"ok": false, "error": "offline", "rows": [], "data": {}}, kind, gen)
 
-func _finish_rpc(method: String, body: Dictionary, done: Callable, attempt: int, parsed: Dictionary) -> void:
+func _finish_rpc(method: String, body: Dictionary, done: Callable, attempt: int, parsed: Dictionary, kind: String = "", gen: int = 0) -> void:
+	if not _current(kind, gen):
+		return
 	var delay := next_retry_delay(attempt) if is_network_error(parsed) else -1.0
 	if delay >= 0.0:
 		call_later(delay, func() -> void:
-			_rpc(method, body, done, attempt + 1)
+			_rpc(method, body, done, attempt + 1, kind, gen)
 		)
 		return
 	if done.is_valid():

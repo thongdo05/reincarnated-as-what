@@ -183,6 +183,43 @@ body {
 					window.__lbHoldGate = !!on;
 					syncRotateGate();
 				};
+				// Godot's web HTTP client reads the body with response.body.getReader().
+				// On iPhone Safari that read can stay pending, so request_completed
+				// never fires and the board sits on "...". response.text() finishes,
+				// and aborting at the timeout still calls back.
+				window.lbPost = function (url, headerList, body, timeoutMs, id) {
+					var headers = {};
+					if (headerList) {
+						for (var i = 0; i < headerList.length; i++) {
+							headers[headerList[i][0]] = headerList[i][1];
+						}
+					}
+					var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+					var timer = setTimeout(function () {
+						if (ctrl) {
+							ctrl.abort();
+						}
+					}, timeoutMs);
+					function finish(status, text) {
+						clearTimeout(timer);
+						if (window.__lbHttp) {
+							window.__lbHttp(id, status, text == null ? "" : String(text));
+						}
+					}
+					var opts = { method: "POST", headers: headers, body: body };
+					if (ctrl) {
+						opts.signal = ctrl.signal;
+					}
+					fetch(url, opts).then(function (res) {
+						return res.text().then(function (text) {
+							finish(res.status, text);
+						}, function () {
+							finish(0, "");
+						});
+					}).catch(function () {
+						finish(0, "");
+					});
+				};
 				// Godot's web IME is a contentEditable node that refocuses itself
 				// on a timer while a LineEdit is editing. On iPhone Safari that
 				// timer keeps the keyboard's focus after it closes, and the next

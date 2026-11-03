@@ -1521,10 +1521,18 @@ func _check_lb_parse() -> int:
 	if Leaderboard.REQUEST_TIMEOUT < 15.0:
 		push_error("request timeout should be at least 15s on cellular")
 		failed += 1
+	if Leaderboard.loading_limit() < Leaderboard.REQUEST_TIMEOUT or Leaderboard.loading_limit() > Leaderboard.REQUEST_TIMEOUT + 2.0:
+		push_error("the loading line should give up about a second after the request timeout")
+		failed += 1
+	var shell_lb := FileAccess.get_file_as_string("res://web/shell.html")
+	if shell_lb.find("window.lbPost") < 0 or shell_lb.find("res.text()") < 0:
+		push_error("the web shell should read fetch().text() so Safari cannot leave the board on ...")
+		failed += 1
 	var http := HTTPRequest.new()
 	http.use_threads = false
+	http.accept_gzip = false
 	http.timeout = Leaderboard.REQUEST_TIMEOUT
-	if http.use_threads or absf(http.timeout - Leaderboard.REQUEST_TIMEOUT) > 0.01:
+	if http.use_threads or http.accept_gzip or absf(http.timeout - Leaderboard.REQUEST_TIMEOUT) > 0.01:
 		push_error("web requests should poll on the main thread with the longer timeout")
 		failed += 1
 	http.free()
@@ -1798,6 +1806,12 @@ func _check_board_rows() -> int:
 			if name_right > score.position.x + 0.1:
 				push_error("a 12-character name overlaps its score (%s vs %s)" % [name_right, score.position.x])
 				failed += 1
+	screen.visible = true
+	screen._status.text = "..."
+	screen._on_load_watch()
+	if screen._status.text != Leaderboard.UNREACHABLE or not screen._can_retry:
+		push_error("a hung load should leave the tap-to-retry line, got %s" % screen._status.text)
+		failed += 1
 	root.remove_child(screen)
 	screen.free()
 	client.free()
@@ -3044,7 +3058,7 @@ func _check_replay_rules() -> int:
 	if shell.find("shareRunText") < 0 or shell.find("navigator.share") < 0 or shell.find("clipboard") < 0:
 		push_error("the web shell should share text and fall back to the clipboard")
 		failed += 1
-	if shell.find("lbReleaseInput") < 0 or shell.find("lbSetCover") < 0 or shell.find(".ime") < 0 or shell.find("tabindex=\"0\"") < 0:
+	if shell.find("lbReleaseInput") < 0 or shell.find("lbSetCover") < 0 or shell.find("lbPost") < 0 or shell.find(".ime") < 0 or shell.find("tabindex=\"0\"") < 0:
 		push_error("the web shell should release a stuck IME and keep the canvas focusable")
 		failed += 1
 	if shell.find("lb-name-input") >= 0 or shell.find("lbShowNameField") >= 0:
