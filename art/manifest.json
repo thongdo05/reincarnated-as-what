@@ -81,16 +81,16 @@
       32
     ]
   },
-  {
+    {
     "file": "vending_machine_r1.png",
     "size": [
-      21,
-      35
+      30,
+      42
     ],
     "frames": 1,
     "anchor": [
-      10,
-      17
+      15,
+      21
     ],
     "anchor_type": "center",
     "category": "player_form",
@@ -100,25 +100,25 @@
     "rank_name": "Vending Machine",
     "rescaled": true,
     "art_bbox": [
-      21,
-      35
+      25,
+      42
     ],
     "was_art_bbox": [
-      17,
-      31
+      23,
+      40
     ],
-    "note": "Batch 6: smaller Vending Machine. Hurtbox is derived from this sprite."
+    "note": "Rescaled redraw"
   },
-  {
+    {
     "file": "vending_machine_r2.png",
     "size": [
-      23,
-      38
+      34,
+      46
     ],
     "frames": 1,
     "anchor": [
-      11,
-      19
+      17,
+      23
     ],
     "anchor_type": "center",
     "category": "player_form",
@@ -128,25 +128,25 @@
     "rank_name": "Mega Vendor",
     "rescaled": true,
     "art_bbox": [
-      23,
-      38
+      28,
+      46
     ],
     "was_art_bbox": [
-      19,
-      34
+      26,
+      44
     ],
-    "note": "Batch 6: smaller Vending Machine. Hurtbox is derived from this sprite."
+    "note": "Rescaled redraw"
   },
-  {
+    {
     "file": "vending_machine_r3.png",
     "size": [
-      30,
-      41
+      38,
+      50
     ],
     "frames": 1,
     "anchor": [
-      15,
-      20
+      19,
+      25
     ],
     "anchor_type": "center",
     "category": "player_form",
@@ -156,14 +156,14 @@
     "rank_name": "Vending Fortress",
     "rescaled": true,
     "art_bbox": [
-      30,
-      41
+      36,
+      49
     ],
     "was_art_bbox": [
-      26,
-      37
+      34,
+      47
     ],
-    "note": "Batch 6: smaller Vending Machine. Hurtbox is derived from this sprite."
+    "note": "Rescaled redraw"
   },
   {
     "file": "goblin_r1.png",
@@ -1166,77 +1166,74 @@
       26
     ]
   },
-  {
+    {
     "file": "vending_machine_r1_idle.png",
     "frame_size": [
-      21,
-      35
-    ],
-    "frames": 4,
-    "fps": 6,
-    "loop": true,
-    "anchor": [
-      10,
-      17
-    ],
-    "anchor_type": "center",
-    "facing": "right",
-    "category": "player_form",
-    "base_sprite": "vending_machine_r1.png",
-    "motion": "still frames of the batch-6 body until a new idle sheet is drawn",
-    "size": [
-      84,
-      35
-    ],
-    "note": "Rebuilt from the smaller static sprite so the idle sheet matches the body."
-  },
-  {
-    "file": "vending_machine_r2_idle.png",
-    "frame_size": [
-      23,
-      38
-    ],
-    "frames": 4,
-    "fps": 6,
-    "loop": true,
-    "anchor": [
-      11,
-      19
-    ],
-    "anchor_type": "center",
-    "facing": "right",
-    "category": "player_form",
-    "base_sprite": "vending_machine_r2.png",
-    "motion": "still frames of the batch-6 body until a new idle sheet is drawn",
-    "size": [
-      92,
-      38
-    ],
-    "note": "Rebuilt from the smaller static sprite so the idle sheet matches the body."
-  },
-  {
-    "file": "vending_machine_r3_idle.png",
-    "frame_size": [
       30,
-      41
+      42
     ],
     "frames": 4,
     "fps": 6,
     "loop": true,
     "anchor": [
       15,
-      20
+      21
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "vending_machine_r1.png",
+    "motion": "1 px clunk on frame 2 + chase light along the sign bulbs (r2/r3 marquee border also blinks)",
+    "size": [
+      120,
+      42
+    ]
+  },
+    {
+    "file": "vending_machine_r2_idle.png",
+    "frame_size": [
+      34,
+      46
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      17,
+      23
+    ],
+    "anchor_type": "center",
+    "facing": "right",
+    "category": "player_form",
+    "base_sprite": "vending_machine_r2.png",
+    "motion": "1 px clunk on frame 2 + chase light along the sign bulbs (r2/r3 marquee border also blinks)",
+    "size": [
+      136,
+      46
+    ]
+  },
+    {
+    "file": "vending_machine_r3_idle.png",
+    "frame_size": [
+      38,
+      50
+    ],
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "anchor": [
+      19,
+      25
     ],
     "anchor_type": "center",
     "facing": "right",
     "category": "player_form",
     "base_sprite": "vending_machine_r3.png",
-    "motion": "still frames of the batch-6 body until a new idle sheet is drawn",
+    "motion": "1 px clunk on frame 2 + chase light along the sign bulbs (r2/r3 marquee border also blinks)",
     "size": [
-      120,
-      41
-    ],
-    "note": "Rebuilt from the smaller static sprite so the idle sheet matches the body."
+      152,
+      50
+    ]
   },
   {
     "file": "goblin_r1_idle.png",
@@ -1898,137 +1895,137 @@
     "facing": "none",
     "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
   },
-  {
+    {
     "file": "fx/forms/vending_machine_r1_flash.png",
     "size": [
-      23,
-      37
+      32,
+      44
     ],
     "frames": 1,
     "frame_size": [
-      23,
-      37
+      32,
+      44
     ],
     "fps": 12,
     "loop": false,
     "anchor": [
-      11,
-      18
+      16,
+      22
     ],
     "anchor_type": "center",
     "category": "fx_form_overlay",
     "facing": "none",
-    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
   },
-  {
+    {
     "file": "fx/forms/vending_machine_r1_rim.png",
     "size": [
-      23,
-      37
+      32,
+      44
     ],
     "frames": 1,
     "frame_size": [
-      23,
-      37
+      32,
+      44
     ],
     "fps": 12,
     "loop": false,
     "anchor": [
-      11,
-      18
+      16,
+      22
     ],
     "anchor_type": "center",
     "category": "fx_form_overlay",
     "facing": "none",
-    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
   },
-  {
+    {
     "file": "fx/forms/vending_machine_r2_flash.png",
     "size": [
-      25,
-      40
+      36,
+      48
     ],
     "frames": 1,
     "frame_size": [
-      25,
-      40
+      36,
+      48
     ],
     "fps": 12,
     "loop": false,
     "anchor": [
-      12,
-      20
+      18,
+      24
     ],
     "anchor_type": "center",
     "category": "fx_form_overlay",
     "facing": "none",
-    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
   },
-  {
+    {
     "file": "fx/forms/vending_machine_r2_rim.png",
     "size": [
-      25,
-      40
+      36,
+      48
     ],
     "frames": 1,
     "frame_size": [
-      25,
-      40
+      36,
+      48
     ],
     "fps": 12,
     "loop": false,
     "anchor": [
-      12,
-      20
+      18,
+      24
     ],
     "anchor_type": "center",
     "category": "fx_form_overlay",
     "facing": "none",
-    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
   },
-  {
+    {
     "file": "fx/forms/vending_machine_r3_flash.png",
     "size": [
-      32,
-      43
+      40,
+      52
     ],
     "frames": 1,
     "frame_size": [
-      32,
-      43
+      40,
+      52
     ],
     "fps": 12,
     "loop": false,
     "anchor": [
-      16,
-      21
+      20,
+      26
     ],
     "anchor_type": "center",
     "category": "fx_form_overlay",
     "facing": "none",
-    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
+    "note": "death HIT frames 0-1 and evolve FLASH frames 3-4 (new rank): draw INSTEAD of the sprite"
   },
-  {
+    {
     "file": "fx/forms/vending_machine_r3_rim.png",
     "size": [
-      32,
-      43
+      40,
+      52
     ],
     "frames": 1,
     "frame_size": [
-      32,
-      43
+      40,
+      52
     ],
     "fps": 12,
     "loop": false,
     "anchor": [
-      16,
-      21
+      20,
+      26
     ],
     "anchor_type": "center",
     "category": "fx_form_overlay",
     "facing": "none",
-    "note": "Refit to the smaller batch-6 Vending body. Anchor is the sprite anchor + (1, 1)."
+    "note": "evolve GLOW: draw OVER the sprite on frames 0 and 2 (blink off on 1)"
   },
   {
     "file": "fx/forms/goblin_r1_flash.png",
@@ -2926,16 +2923,16 @@
       12
     ]
   },
-  {
+    {
     "file": "vending_machine_r4_body.png",
     "size": [
-      30,
-      43
+      40,
+      57
     ],
     "frames": 1,
     "anchor": [
-      15,
-      21
+      20,
+      28
     ],
     "anchor_type": "center",
     "category": "player_form",
@@ -2943,27 +2940,27 @@
     "form": "vending_machine",
     "rank": 4,
     "rank_name": "Vending Citadel",
-    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "note": "Batch 6 final static sprite. No idle sheet yet. Scaled up so this rank stays at least as large as the restored rank 3 body.",
     "art_bbox": [
-      30,
-      43
+      40,
+      57
     ],
     "idle": false,
     "was_art_bbox": [
-      26,
-      39
+      35,
+      52
     ]
   },
-  {
+    {
     "file": "vending_machine_r4_aura.png",
     "size": [
-      46,
-      59
+      61,
+      79
     ],
     "frames": 1,
     "anchor": [
-      23,
-      29
+      30,
+      39
     ],
     "anchor_type": "center",
     "category": "fx_aura",
@@ -2971,22 +2968,22 @@
     "form": "vending_machine",
     "rank": 4,
     "rank_name": "Vending Citadel",
-    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale. Scaled up so this rank stays at least as large as the restored rank 3 body.",
     "body_offset": [
-      8,
-      8
+      11,
+      11
     ]
   },
-  {
+    {
     "file": "vending_machine_r4.png",
     "size": [
-      46,
-      59
+      61,
+      79
     ],
     "frames": 1,
     "anchor": [
-      23,
-      29
+      30,
+      39
     ],
     "anchor_type": "center",
     "category": "player_form_reference",
@@ -2994,22 +2991,22 @@
     "form": "vending_machine",
     "rank": 4,
     "rank_name": "Vending Citadel",
-    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately. Scaled up so this rank stays at least as large as the restored rank 3 body.",
     "body_offset": [
-      8,
-      8
+      11,
+      11
     ]
   },
-  {
+    {
     "file": "vending_machine_r5_body.png",
     "size": [
-      30,
-      43
+      40,
+      57
     ],
     "frames": 1,
     "anchor": [
-      15,
-      21
+      20,
+      28
     ],
     "anchor_type": "center",
     "category": "player_form",
@@ -3017,27 +3014,27 @@
     "form": "vending_machine",
     "rank": 5,
     "rank_name": "Golden Jackpot",
-    "note": "Batch 6 final static sprite. No idle sheet yet.",
+    "note": "Batch 6 final static sprite. No idle sheet yet. Scaled up so this rank stays at least as large as the restored rank 3 body.",
     "art_bbox": [
-      30,
-      43
+      40,
+      57
     ],
     "idle": false,
     "was_art_bbox": [
-      26,
-      39
+      35,
+      52
     ]
   },
-  {
+    {
     "file": "vending_machine_r5_aura.png",
     "size": [
-      54,
-      67
+      72,
+      89
     ],
     "frames": 1,
     "anchor": [
-      27,
-      33
+      36,
+      44
     ],
     "anchor_type": "center",
     "category": "fx_aura",
@@ -3045,22 +3042,22 @@
     "form": "vending_machine",
     "rank": 5,
     "rank_name": "Golden Jackpot",
-    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale.",
+    "note": "Aura only. No hitbox. Draw under enemy bullets, with the form's play scale. Scaled up so this rank stays at least as large as the restored rank 3 body.",
     "body_offset": [
-      12,
-      12
+      16,
+      16
     ]
   },
-  {
+    {
     "file": "vending_machine_r5.png",
     "size": [
-      54,
-      67
+      72,
+      89
     ],
     "frames": 1,
     "anchor": [
-      27,
-      33
+      36,
+      44
     ],
     "anchor_type": "center",
     "category": "player_form_reference",
@@ -3068,10 +3065,10 @@
     "form": "vending_machine",
     "rank": 5,
     "rank_name": "Golden Jackpot",
-    "note": "Combined aura+body reference. Game draws the body and aura files separately.",
+    "note": "Combined aura+body reference. Game draws the body and aura files separately. Scaled up so this rank stays at least as large as the restored rank 3 body.",
     "body_offset": [
-      12,
-      12
+      16,
+      16
     ]
   },
   {

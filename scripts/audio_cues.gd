@@ -1,11 +1,12 @@
 extends RefCounted
 class_name AudioCues
 
-## TEST audio from Hibiki, 1 Nov 2026 (ElevenLabs sample, not the final mix).
-## Files are already at the loudness in audio/manifest.json. The buses pull
-## the loop above the stings: Music at -6 dB, SFX at -12 dB. The slime shot
-## is another -10 dB on its player, and it is capped at about 4 plays a second.
-## See audio/README.md.
+## TEST audio from Hibiki, 1 Nov 2026 (ElevenLabs sample, not the final mix),
+## plus the 3 Nov 2026 form shots and pickups. Files are already at the loudness
+## in audio/manifest.json. The buses pull the loop above the stings: Music at
+## -6 dB, SFX at -12 dB. Each form shot is another -10 dB on its player, and
+## it is capped at about 4 plays a second. A cue whose file is not in the
+## project yet is skipped. See audio/README.md.
 
 const MUSIC_BUS := "Music"
 const SFX_BUS := "SFX"
@@ -28,6 +29,11 @@ const SHOT_DURATION := 0.22
 const POP_POLYPHONY := 4
 const POP_SEMITONE_MIN := 1.0
 const POP_SEMITONE_MAX := 2.0
+const GEM_POLYPHONY := 4
+const GEM_MIN_INTERVAL := 0.05
+const GEM_CHAIN_RESET := 0.6
+const GEM_CHAIN_CAP := 7
+const POWER_POLYPHONY := 1
 
 ## Fanfare chord inside sfx_evolve.wav. Evolve frame 5, the EVOLVED! pop.
 const EVOLVE_HIT_SECONDS := 0.42
@@ -48,17 +54,37 @@ static func spec(event: String) -> Dictionary:
 				"pitch_semitones": 0.0,
 			}
 		"slime_shot":
+			return _shot_spec("res://audio/sfx_shot_slime.wav", -20.0, 0.22, false)
+		"goblin_shot":
+			return _shot_spec("res://audio/sfx_shot_goblin.wav", -20.0, 0.15, true)
+		"vending_machine_shot":
+			return _shot_spec("res://audio/sfx_shot_vending_machine.wav", -20.8, 0.16, true)
+		"cat_shot":
+			return _shot_spec("res://audio/sfx_shot_cat.wav", -20.0, 0.21, true)
+		"demon_lord_shot":
+			return _shot_spec("res://audio/sfx_shot_demon_lord.wav", -20.0, 0.23, true)
+		"gem_pickup":
 			return {
-				"file": "res://audio/sfx_shot_slime.wav",
+				"file": "res://audio/sfx_pickup_gem.wav",
 				"bus": SFX_BUS,
 				"loop": false,
-				"lufs": -20.0,
-				"polyphony": SHOT_POLYPHONY,
+				"lufs": -19.0,
+				"polyphony": GEM_POLYPHONY,
+				"pitch_chain": true,
+				"min_interval": GEM_MIN_INTERVAL,
+				"duration": 0.13,
+				"optional": true,
+			}
+		"power_pickup":
+			return {
+				"file": "res://audio/sfx_pickup_power.wav",
+				"bus": SFX_BUS,
+				"loop": false,
+				"lufs": -16.0,
+				"polyphony": POWER_POLYPHONY,
 				"pitch_semitones": 0.0,
-				"pitch_ratio": SHOT_PITCH_RATIO,
-				"volume_db": SHOT_VOLUME_DB,
-				"min_interval": SHOT_MIN_INTERVAL,
-				"duration": SHOT_DURATION,
+				"duration": 0.80,
+				"optional": true,
 			}
 		"enemy_killed":
 			return {
@@ -109,10 +135,31 @@ static func spec(event: String) -> Dictionary:
 		_:
 			return {}
 
+static func _shot_spec(path: String, lufs: float, duration: float, optional: bool) -> Dictionary:
+	return {
+		"file": path,
+		"bus": SFX_BUS,
+		"loop": false,
+		"lufs": lufs,
+		"polyphony": SHOT_POLYPHONY,
+		"pitch_semitones": 0.0,
+		"pitch_ratio": SHOT_PITCH_RATIO,
+		"volume_db": SHOT_VOLUME_DB,
+		"min_interval": SHOT_MIN_INTERVAL,
+		"duration": duration,
+		"optional": optional,
+	}
+
 static func all_events() -> PackedStringArray:
 	return PackedStringArray([
 		"gameplay_music",
 		"slime_shot",
+		"goblin_shot",
+		"vending_machine_shot",
+		"cat_shot",
+		"demon_lord_shot",
+		"gem_pickup",
+		"power_pickup",
 		"enemy_killed",
 		"player_death",
 		"reborn_tease",
@@ -120,11 +167,35 @@ static func all_events() -> PackedStringArray:
 		"reveal_vending_machine",
 	])
 
-## Only the slime has a shot sample. The other forms stay silent.
+static func is_shot_event(event: String) -> bool:
+	return event == "slime_shot" or event == "goblin_shot" or event == "vending_machine_shot" or event == "cat_shot" or event == "demon_lord_shot"
+
+## Missing designer files are skipped. A required cue still reports the gap.
+static func should_report_missing(data: Dictionary) -> bool:
+	if data.is_empty():
+		return false
+	if FileAccess.file_exists(str(data.get("file", ""))):
+		return false
+	return not bool(data.get("optional", false))
+
 static func shot_event_for_form(form_id: int) -> String:
-	if form_id == FormCatalog.Id.SLIME:
-		return "slime_shot"
-	return ""
+	match form_id:
+		FormCatalog.Id.SLIME:
+			return "slime_shot"
+		FormCatalog.Id.GOBLIN:
+			return "goblin_shot"
+		FormCatalog.Id.VENDING:
+			return "vending_machine_shot"
+		FormCatalog.Id.CAT:
+			return "cat_shot"
+		FormCatalog.Id.DEMON:
+			return "demon_lord_shot"
+		_:
+			return ""
+
+## Step 0 is the recorded pitch. Each pickup in a chain adds one semitone.
+static func gem_chain_semitones(step: int) -> float:
+	return float(clampi(step, 0, GEM_CHAIN_CAP))
 
 static func reveal_event_for_card(card: String) -> String:
 	if card == VENDING_TITLE or card.ends_with(VENDING_TITLE):

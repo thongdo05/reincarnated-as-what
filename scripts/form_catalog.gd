@@ -4,14 +4,14 @@ class_name FormCatalog
 ## Launch roster. One life per run still holds. The Slime split is that form's
 ## trait, not an extra life.
 ## Vending Machine, Cat, and Demon Lord play with the art already in res://art/.
-## The vending machine title card plays its reveal sting. Goblin, Cat, and
-## Demon Lord shots stay silent. WINNER! is only the vending meter clear.
+## The vending machine title card plays its reveal sting. Each form has its
+## own shot cue. WINNER! is only the vending meter clear.
 ## Slime pays for a reliable forward stream with a big body.
 ## Goblin pays for stones that lob forward and only fully connect up close.
 ## Vending Machine trails the finger (heavier, still a flick, not a slog).
 ## Cat blinks a short dash on a hard flick. Demon Lord is the large body.
-## Slime, Goblin, Cat, and Demon Lord snap to the aim. A squash or a sprint
-## lean is cosmetic.
+## Slime, Goblin, Cat, and Demon Lord snap to the aim. Squash, bob, and lean
+## are cosmetic.
 ## Goblin's rocks hit harder than the slime stream because most of the arc misses.
 ## Every Goblin balance number lives in GOBLIN. The three new forms live in
 ## VENDING, CAT, and DEMON.
@@ -60,7 +60,7 @@ const CAT_CHARM_MAX := 2
 ## spread [±110], [±150, ±50], [±180, ±90, 0], damage 1, pierce 0,
 ## loot_points 40, loot_magnet 0, loot_magnet_speed 0.
 ## Movement used to sprint and then plant. Snap forms now use SNAP_ARRIVE.
-## Stride only drives the cosmetic lean. Loot points stay 40. A magnet was
+## Stride still clocks the goblin's drawn hop. Loot points stay 40. A magnet was
 ## measured and left at 0: it inflated score past the bot band without being
 ## what closed the survival gap.
 const GOBLIN := {
@@ -89,8 +89,8 @@ const GOBLIN := {
 ## Three forward cans. Spread is degrees off the forward axis, +y down.
 ## Rank 1 is slow enough that the heavy body is the tax. Later ranks hit
 ## harder. WINNER! takes more kills as the rank climbs and no longer wipes
-## the screen. The body is the smaller batch-6 art, so the drift is a little
-## heavier than the old large machine, to keep survival in line with the other forms.
+## the screen. The body is the original large art again. Drift, damage, and
+## the WINNER! meter are unchanged.
 const VENDING := {
 	"fire_interval": [0.24, 0.20, 0.16, 0.135, 0.115],
 	"shot_speed": [520.0, 580.0, 640.0, 700.0, 760.0],

@@ -181,11 +181,14 @@ static func _parts_scaled(file_name: String, role: String, scale: float) -> Arra
 		scaled.append(copy)
 	return scaled
 
-## Vending and the batch-6 bodies have no hand-authored circles. The hurt
-## shape is fit to the loaded pixels, so a smaller Vending PNG updates the
-## hitbox without a new table. Aura files are not hurt sources.
+## Ranks 1-3 of the Vending Machine keep the hand-authored circles from before
+## the batch-6 shrink. Later Vending ranks and the other batch-6 bodies have
+## no table, so the hurt shape is fit to the loaded pixels. Aura files are
+## not hurt sources.
 static func _wants_derived_hurt(file_name: String) -> bool:
 	if file_name.ends_with("_aura.png"):
+		return false
+	if _has_authored(file_name, "hurt"):
 		return false
 	if file_name.begins_with("vending_machine_"):
 		return true
@@ -194,6 +197,10 @@ static func _wants_derived_hurt(file_name: String) -> bool:
 	if file_name.begins_with("slime_small_r4") or file_name.begins_with("slime_small_r5"):
 		return true
 	return false
+
+static func _has_authored(file_name: String, role: String) -> bool:
+	var raw: Variant = entry(file_name).get(role, [])
+	return typeof(raw) == TYPE_ARRAY and not (raw as Array).is_empty()
 
 static func _derived_hurt(file_name: String) -> Array:
 	if _derived.has(file_name):
