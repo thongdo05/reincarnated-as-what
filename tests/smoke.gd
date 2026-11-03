@@ -187,6 +187,18 @@ func _check_forms() -> int:
 	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("cans") < 0 or FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("WINNER!") < 0:
 		push_error("vending weapon line should name the cans and no burst")
 		failed += 1
+	if FormCatalog.VENDING_WINNER_KILLS != 10 or FormCatalog.VENDING_WINNER_DAMAGE != 2:
+		push_error("vending winner fallback should be 10 kills and a 2-damage blast")
+		failed += 1
+	if FormCatalog.vending_winner_kills(0) != 10 or FormCatalog.vending_winner_kills(1) != 12 or FormCatalog.vending_winner_kills(2) != 14 or FormCatalog.vending_winner_kills(3) != 16 or FormCatalog.vending_winner_kills(4) != 18:
+		push_error("vending winner meter should be 10, 12, 14, 16, 18 kills")
+		failed += 1
+	if FormCatalog.vending_winner_bonus(0) != 200 or FormCatalog.vending_winner_bonus(1) != 300 or FormCatalog.vending_winner_bonus(2) != 400 or FormCatalog.vending_winner_bonus(3) != 500 or FormCatalog.vending_winner_bonus(4) != 600:
+		push_error("vending winner bonus should be 200, 300, 400, 500, 600")
+		failed += 1
+	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4).find("18") < 0:
+		push_error("rank 5 weapon line should quote the 18-kill meter")
+		failed += 1
 	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("WINNER!") < 0:
 		push_error("vending trait should name the WINNER meter")
 		failed += 1
@@ -2956,6 +2968,92 @@ func _check_roster_play() -> int:
 	if not saw_burst:
 		push_error("the vending clear should use winner_burst.png")
 		failed += 1
+	var field := Vector2(480, 270)
+	var eye_ok: bool = game._spawn_enemy({
+		"t": 0.0, "kind": SpawnDirector.EYE, "x_ratio": 0.8, "phase": 0.2,
+		"stop_ratio": 0.3, "y_bias": 0.0, "wave_amp": 4.0, "hold_fire": true,
+	}, field)
+	var wyvern_ok: bool = game._spawn_enemy({
+		"t": 0.0, "kind": SpawnDirector.WYVERN, "x_ratio": 0.7, "phase": 0.4,
+		"stop_ratio": 0.3, "y_bias": 20.0, "wave_amp": 8.0, "hold_fire": true,
+	}, field)
+	var piano_ok: bool = game._spawn_enemy({
+		"t": 0.0, "kind": SpawnDirector.PIANO, "x_ratio": 0.6, "phase": 0.1,
+		"stop_ratio": 0.3, "y_bias": 0.0, "wave_amp": 0.0, "hold_fire": true,
+	}, field)
+	if not eye_ok or not wyvern_ok or not piano_ok:
+		push_error("winner blast fixtures should spawn")
+		failed += 1
+	else:
+		var eye: EnemyActor
+		var wyvern: EnemyActor
+		var piano: EnemyActor
+		for enemy in game._enemies:
+			if int(enemy.kind) == SpawnDirector.EYE:
+				eye = enemy
+			elif int(enemy.kind) == SpawnDirector.WYVERN:
+				wyvern = enemy
+			elif int(enemy.kind) == SpawnDirector.PIANO:
+				piano = enemy
+		game.combo = 4
+		game.combo_left = 0.8
+		game.winner = 3
+		var loot_before: int = game._loot.size()
+		var powers_before: int = game._powers.size()
+		var score_before: int = game.score
+		var hostile = game._spawn_shot({
+			"position": Vector2(400, 40),
+			"velocity": Vector2(-90, 0),
+			"sprite": "arrow.png",
+			"radius": 4.0,
+			"damage": 1,
+			"killer_name": "Skeleton Archer",
+		}, false)
+		var friendly = game._spawn_shot({
+			"position": Vector2(80, 200),
+			"velocity": Vector2(200, 0),
+			"sprite": "vending_can.png",
+			"radius": 4.0,
+			"damage": 1,
+		}, true)
+		game.pattern_shots.append({
+			"pos": Vector2(420, 80),
+			"vel": Vector2(-120, 0),
+			"left": 0.4,
+			"sprite": "floating_eye_bolt.png",
+			"killer": "Floating Eye",
+		})
+		game._winner_clear()
+		var bonus := FormCatalog.vending_winner_bonus(game.rank_index)
+		var half := int(eye.score_value / 2)
+		if eye.alive or not wyvern.alive or wyvern.hp != wyvern.max_hp - FormCatalog.VENDING_WINNER_DAMAGE:
+			push_error("winner blast should kill an eye and leave a wyvern at %d, hp %d alive %s" % [wyvern.max_hp - FormCatalog.VENDING_WINNER_DAMAGE, wyvern.hp, wyvern.alive])
+			failed += 1
+		if not piano.alive or piano.hp != piano.max_hp - FormCatalog.VENDING_WINNER_DAMAGE or piano.hp <= 0:
+			push_error("winner blast should chip a piano, not delete it, hp %d" % piano.hp)
+			failed += 1
+		if game.combo != 4 or absf(game.combo_left - 0.8) > 0.001:
+			push_error("winner kills should not step or refresh the combo, got %s / %s" % [game.combo, game.combo_left])
+			failed += 1
+		if game.winner != 3:
+			push_error("winner kills should not refill the meter, got %s" % game.winner)
+			failed += 1
+		if game.score != score_before + bonus + half:
+			push_error("winner kill should pay the bonus plus half points, got %s want %s" % [game.score, score_before + bonus + half])
+			failed += 1
+		if game._loot.size() != loot_before or game._powers.size() != powers_before:
+			push_error("winner kills should not roll drops")
+			failed += 1
+		var hostile_left := false
+		var friendly_kept := false
+		for shot in game._shots:
+			if shot == hostile:
+				hostile_left = true
+			if shot == friendly:
+				friendly_kept = true
+		if hostile_left or not friendly_kept or not game.pattern_shots.is_empty():
+			push_error("winner blast should clear enemy shots and pattern shots, and keep the player's")
+			failed += 1
 	game._player.form_id = FormCatalog.Id.CAT
 	game._player.position = Vector2(140, 130)
 	var swipe_spec: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, game._player.position, 0)[0]

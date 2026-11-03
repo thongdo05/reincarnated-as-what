@@ -995,11 +995,16 @@ func _collide() -> void:
 			return
 		_graze_gap(shot, shot_gap)
 
-func _award_kill(enemy: EnemyActor, drop_loot: bool = true) -> void:
-	var result := ScoreRules.on_kill(enemy.score_value, combo, combo_left, rank_index)
-	combo = int(result["combo"])
-	combo_left = float(result["combo_left"])
-	var points := int(result["points"])
+func _award_kill(enemy: EnemyActor, drop_loot: bool = true, chain_combo: bool = true) -> void:
+	var points := 0
+	if chain_combo:
+		var result := ScoreRules.on_kill(enemy.score_value, combo, combo_left, rank_index)
+		combo = int(result["combo"])
+		combo_left = float(result["combo_left"])
+		points = int(result["points"])
+	else:
+		# WINNER clear. Half the listed value. The combo does not step or refresh.
+		points = int(enemy.score_value / 2)
 	score += points
 	if points >= Difficulty.POPUP_MIN:
 		_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-6, -12), Color("241428"), Difficulty.POPUP_LIFE)
@@ -1251,6 +1256,8 @@ func _charge_winner() -> void:
 	_winner_clear()
 
 ## The only WINNER! in the game. Kills fill it. Coins do not.
+## Flying enemy shots and pending pattern shots (the rake windup included)
+## are cleared. A survivor can still loose a telegraph it already started.
 func _winner_clear() -> void:
 	if _winner_busy:
 		return
@@ -1268,9 +1275,10 @@ func _winner_clear() -> void:
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
-		enemy.hurt(99)
+		enemy.hurt(FormCatalog.VENDING_WINNER_DAMAGE)
 		if not enemy.alive:
-			_award_kill(enemy, false)
+			# Half points, no combo step, no drop. Same no-drop path as OVERDRIVE.
+			_award_kill(enemy, false, false)
 			_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 	_winner_busy = false
 
