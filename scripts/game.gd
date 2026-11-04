@@ -1019,7 +1019,7 @@ func _spawn_overlaps_player(enemy: EnemyActor) -> bool:
 	if enemy.position.distance_to(_player.position) > enemy.radius + _player.radius + 6.0:
 		return false
 	var enemy_file := enemy.sprite_file()
-	return HitLibrary.overlaps(_player.position, _player.sprite_name(), "hurt", enemy.position, enemy_file, "threat", _player_scale(), 1.0)
+	return HitLibrary.overlaps(_player.position, _player.sprite_name(), "hurt", enemy.position, enemy_file, "threat", _player_scale(), 1.0, _player.anim_frame())
 
 func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
 	var shot: Shot
@@ -1098,7 +1098,7 @@ func _collide() -> void:
 		# Every hurt part, not the movement bounds radius.
 		if enemy.is_boss() and enemy.intro_left > 0.0:
 			continue
-		var enemy_gap := HitLibrary.gap(_player.position, player_file, "hurt", enemy.position, enemy_file, "threat", player_scale, 1.0)
+		var enemy_gap := HitLibrary.gap(_player.position, player_file, "hurt", enemy.position, enemy_file, "threat", player_scale, 1.0, _player.anim_frame())
 		if enemy_gap <= 0.0:
 			_hurt_player(enemy.kind_name)
 			return
@@ -1106,7 +1106,7 @@ func _collide() -> void:
 	for shot in _shots:
 		if shot.from_player or not is_instance_valid(shot):
 			continue
-		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat", player_scale, 1.0)
+		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat", player_scale, 1.0, _player.anim_frame())
 		if shot_gap <= 0.0:
 			_hurt_player(shot.killer_name if shot.killer_name != "" else "shot")
 			return

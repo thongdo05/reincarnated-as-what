@@ -115,15 +115,23 @@ static func frame_source(file_name: String, time_sec: float) -> Rect2:
 		return Rect2(Vector2.ZERO, art_bbox(file))
 	var frame_box: Array = data.get("frame_size", [1, 1])
 	var frame := Vector2(float(frame_box[0]), float(frame_box[1]))
+	var index := frame_index(file, time_sec)
+	return Rect2(frame.x * float(index), 0.0, frame.x, frame.y)
+
+## Same index draw_loop uses, so a hurt frame can follow the picture.
+static func frame_index(file_name: String, time_sec: float) -> int:
+	var file := loop_file(file_name)
+	var data := entry(file)
+	var frames := int(data.get("frames", 1))
+	if frames <= 1:
+		return 0
 	var fps := float(data.get("fps", 6))
 	if fps <= 0.0:
 		fps = 6.0
 	var index := int(floor(time_sec * fps))
 	if bool(data.get("loop", true)):
-		index = posmod(index, frames)
-	else:
-		index = clampi(index, 0, frames - 1)
-	return Rect2(frame.x * float(index), 0.0, frame.x, frame.y)
+		return posmod(index, frames)
+	return clampi(index, 0, frames - 1)
 
 ## Draw base_file, or its idle sheet, around origin. origin is the actor's
 ## anchor point in the canvas's local space (Vector2.ZERO for the actor itself).

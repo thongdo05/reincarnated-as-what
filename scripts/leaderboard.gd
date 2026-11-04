@@ -121,6 +121,8 @@ static func submit_body(device: String, name: String, form: String, score_value:
 
 ## Old submit_score has no p_dragon_slayer argument. PostgREST answers with
 ## PGRST202. The score is posted again without the flag.
+## The live board, applied Nov 4, 2026, accepts the flag. get_leaderboard and
+## get_my_rank return dragon_slayer on each row. row_is_slayer reads that key.
 static func rejects_dragon_flag(parsed: Dictionary) -> bool:
 	if bool(parsed.get("ok", false)) or is_network_error(parsed):
 		return false

@@ -3,10 +3,12 @@ class_name DragonShow
 
 ## Meteor Rain, timed at 15 fps on the 480x270 field.
 ## Charge-up is 1.0 s (15 frames). The rain itself is 3.0 s (45 frames).
-## One meteor is scheduled every 2 frames, which is 23 meteors. They are the
-## 26px cell drawn at 3x (78px) and step +9,+9 px each mock frame. Impacts are
-## the 58px cell at 3x (174px). At most POOL meteors fly at once. FX on this
-## node stay under the player and under enemy bullets.
+## One meteor is scheduled every 2 frames, which is 23 meteors. Barrage
+## meteors and impacts are the native 78px and 174px sheets drawn at 1x, so
+## they stay the same size on screen. They step +9,+9 px each mock frame.
+## The finale uses the native 168px meteor and 270px impact (each impact
+## frame held 2 ticks). At most POOL meteors fly at once. FX on this node
+## stay under the player and under enemy bullets.
 
 const FRAME := 1.0 / 15.0
 const CHARGE_FRAMES := 15
@@ -16,12 +18,13 @@ const METEOR_COUNT := 23
 const WARN_LEAD := 10
 const FALL_FRAMES := 16
 const IMPACT_ART_FRAMES := 8
+const GIANT_IMPACT_FRAMES := 10
 const IMPACT_HOLD := 2
 const FLASH_FRAMES := 6
 const AFTERMATH_FRAMES := 14
-const DRAW_SCALE := 3.0
-const METEOR_CELL := 26.0
-const IMPACT_CELL := 58.0
+const DRAW_SCALE := 1.0
+const METEOR_CELL := 78.0
+const IMPACT_CELL := 174.0
 const GIANT_METEOR := 168.0
 const GIANT_IMPACT := 270.0
 const STEP := 9.0
@@ -37,7 +40,12 @@ const BARRAGE_CHIP := 0.7
 const FLY := "dragon_form/dragon_fly.png"
 const METEOR := "dragon_form/dragon_meteor.png"
 const IMPACT := "dragon_form/dragon_meteor_impact.png"
+const GIANT_METEOR_ART := "dragon_form/dragon_meteor_giant.png"
+const GIANT_IMPACT_ART := "dragon_form/dragon_meteor_giant_impact.png"
+const WARNING := "dragon_form/dragon_meteor_warning.png"
 const EMBER := "dragon_form/dragon_ember.png"
+const EMBER_BIG := "dragon_form/dragon_ember_big.png"
+const DEBRIS := "dragon_form/dragon_debris.png"
 const TARGET_YS: Array[int] = [150, 190, 226, 226]
 
 const IDLE := 0
@@ -206,8 +214,8 @@ func _step_frame() -> void:
 		SLAM:
 			if _frame <= FLASH_FRAMES:
 				flash_frames = FLASH_FRAMES - _frame + 1
-			shock = clampf(float(_frame) / float(IMPACT_ART_FRAMES * IMPACT_HOLD), 0.0, 1.0)
-			if _frame >= IMPACT_ART_FRAMES * IMPACT_HOLD:
+			shock = clampf(float(_frame) / float(GIANT_IMPACT_FRAMES * IMPACT_HOLD), 0.0, 1.0)
+			if _frame >= GIANT_IMPACT_FRAMES * IMPACT_HOLD:
 				phase = AFTERMATH
 				_frame = 0
 				flash_frames = 0
@@ -256,7 +264,7 @@ func _launch_giant() -> void:
 		"age": 0,
 		"boom": -1,
 		"giant": true,
-		"scale": GIANT_METEOR / METEOR_CELL,
+		"scale": 1.0,
 	}
 
 func _move_meteors() -> void:
@@ -349,16 +357,18 @@ func _puff(at: Vector2, scale: float) -> void:
 	for i in _embers.size():
 		if _embers[i].get("on", false):
 			continue
+		var big := scale > 1.2
 		_embers[i] = {
 			"on": true,
 			"pos": at,
 			"vel": Vector2(_rng.randf_range(-18, 18), _rng.randf_range(-10, 28)),
 			"life": 8,
-			"scale": scale,
+			"scale": 1.0,
+			"art": EMBER_BIG if big else EMBER,
 		}
 		return
 
-func _throw_debris(at: Vector2, count: int, scale: float) -> void:
+func _throw_debris(at: Vector2, count: int, _scale: float) -> void:
 	var made := 0
 	for i in _debris.size():
 		if made >= count:
@@ -372,7 +382,7 @@ func _throw_debris(at: Vector2, count: int, scale: float) -> void:
 			"pos": at,
 			"vel": Vector2(cos(ang), sin(ang)) * spd,
 			"life": 12,
-			"scale": scale,
+			"scale": 1.0,
 		}
 		made += 1
 
@@ -403,7 +413,7 @@ func _age_particles() -> void:
 		impact["age"] = int(impact["age"]) + 1
 		var limit := IMPACT_ART_FRAMES
 		if impact.get("giant", false):
-			limit = IMPACT_ART_FRAMES * IMPACT_HOLD
+			limit = GIANT_IMPACT_FRAMES * IMPACT_HOLD
 		if int(impact["age"]) < limit:
 			still.append(impact)
 	_impacts = still
@@ -418,7 +428,7 @@ func _age_particles() -> void:
 			item["on"] = false
 	if _giant.get("on", false) and int(_giant.get("boom", -1)) >= 0:
 		_giant["boom"] = int(_giant["boom"]) + 1
-		if int(_giant["boom"]) >= IMPACT_ART_FRAMES * IMPACT_HOLD:
+		if int(_giant["boom"]) >= GIANT_IMPACT_FRAMES * IMPACT_HOLD:
 			_giant["on"] = false
 	for i in _embers.size():
 		if not _embers[i].get("on", false):
@@ -481,11 +491,12 @@ func _draw() -> void:
 			continue
 		var life := int(_embers[i]["life"])
 		var tint := Color(1, 1, 1, clampf(float(life) / 8.0, 0.2, 1.0))
-		ArtLibrary.draw_loop(self, EMBER, float(8 - life) / 15.0, _embers[i]["pos"], tint, float(_embers[i]["scale"]))
+		var art := str(_embers[i].get("art", EMBER))
+		ArtLibrary.draw_loop(self, art, float(8 - life) / 15.0, _embers[i]["pos"], tint, float(_embers[i]["scale"]))
 	for i in _debris.size():
 		if not _debris[i].get("on", false):
 			continue
-		ArtLibrary.draw_loop(self, EMBER, float(12 - int(_debris[i]["life"])) / 15.0, _debris[i]["pos"], Color.WHITE, float(_debris[i]["scale"]))
+		ArtLibrary.draw_loop(self, DEBRIS, float(12 - int(_debris[i]["life"])) / 15.0, _debris[i]["pos"], Color.WHITE, float(_debris[i]["scale"]))
 	for item in _meteors:
 		_draw_meteor(item)
 	for impact in _impacts:
@@ -509,33 +520,22 @@ func _show_reticle() -> bool:
 	return phase == RAIN and _frame >= RAIN_FRAMES - WARN_LEAD
 
 func _draw_reticle(at: Vector2) -> void:
-	var pulse := 0.55 + 0.45 * absf(sin(float(_frame) * 0.7))
-	var ink := Color(1.0, 0.35, 0.15, pulse)
-	draw_arc(at, 18.0, 0.0, TAU, 24, ink, 2.0, true)
-	draw_line(at + Vector2(-26, 0), at + Vector2(-8, 0), ink, 2.0)
-	draw_line(at + Vector2(8, 0), at + Vector2(26, 0), ink, 2.0)
-	draw_line(at + Vector2(0, -26), at + Vector2(0, -8), ink, 2.0)
-	draw_line(at + Vector2(0, 8), at + Vector2(0, 26), ink, 2.0)
+	ArtLibrary.draw_loop(self, WARNING, float(_frame) / 15.0, at, Color.WHITE, 1.0)
 
 func _draw_meteor(item: Dictionary) -> void:
 	if not item.get("on", false):
 		return
 	var pos: Vector2 = item["pos"]
-	var scale := float(item.get("scale", DRAW_SCALE))
+	var giant := bool(item.get("giant", false))
 	var boom := int(item.get("boom", -1))
 	if boom >= 0:
-		var art_scale := DRAW_SCALE
-		var frame := boom
-		if item.get("giant", false):
-			art_scale = GIANT_IMPACT / IMPACT_CELL
-			frame = int(boom / IMPACT_HOLD)
-		else:
-			art_scale = DRAW_SCALE
-		var t := float(frame) / 15.0
-		ArtLibrary.draw_loop(self, IMPACT, t, pos, Color.WHITE, art_scale)
+		var sheet := GIANT_IMPACT_ART if giant else IMPACT
+		var frame := int(boom / IMPACT_HOLD) if giant else boom
+		ArtLibrary.draw_loop(self, sheet, float(frame) / 15.0, pos, Color.WHITE, 1.0)
 		return
-	var t := float(int(item.get("age", 0))) / 15.0
-	ArtLibrary.draw_loop(self, METEOR, t, pos, Color.WHITE, scale)
+	var sheet := GIANT_METEOR_ART if giant else METEOR
+	var scale := 1.0 if giant else float(item.get("scale", DRAW_SCALE))
+	ArtLibrary.draw_loop(self, sheet, float(int(item.get("age", 0))) / 15.0, pos, Color.WHITE, scale)
 
 func paint_banner(canvas: CanvasItem) -> void:
 	if slain_left <= 0.0:

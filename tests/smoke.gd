@@ -450,8 +450,8 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 
 func _check_art() -> int:
 	var failed := 0
-	if ArtLibrary.file_count() != 195:
-		push_error("art manifest should have 195 entries, found %d" % ArtLibrary.file_count())
+	if ArtLibrary.file_count() != 202:
+		push_error("art manifest should have 202 entries, found %d" % ArtLibrary.file_count())
 		failed += 1
 	var text := FileAccess.get_file_as_string("res://art/manifest.json")
 	var parsed: Variant = JSON.parse_string(text)
@@ -4643,12 +4643,16 @@ func _check_dragon_form() -> int:
 		push_error("the dragon attack should fire 3 fireballs")
 		failed += 1
 	var dragon_dmg := 0
-	var spread := 0.0
+	var fan := 0.0
 	for spec in dragon_shots:
 		dragon_dmg += int(spec["damage"])
-		spread = maxf(spread, absf(float(spec["velocity"].y)))
-	if spread < 20.0:
-		push_error("the three fireballs should spread")
+		var vel: Vector2 = spec["velocity"]
+		if absf(vel.length() - FormCatalog.DRAGON_SHOT_SPEED) > 0.6:
+			push_error("dragon fireballs should keep speed %.1f, got %.1f" % [FormCatalog.DRAGON_SHOT_SPEED, vel.length()])
+			failed += 1
+		fan = maxf(fan, absf(rad_to_deg(vel.angle())))
+	if fan < 10.0 or fan > 12.0:
+		push_error("dragon fireball fan should be about 10 to 12 degrees, got %.2f" % fan)
 		failed += 1
 	var dragon_dps := float(dragon_dmg) / FormCatalog.DRAGON_FIRE_INTERVAL
 	if dragon_dps + 0.01 < best:
@@ -4666,31 +4670,36 @@ func _check_dragon_form() -> int:
 	if int(dragon_shots[0]["splash"]) != FormCatalog.DRAGON_SPLASH:
 		push_error("dragon fireballs should splash")
 		failed += 1
-	var img := ArtLibrary.texture("dragon_form/dragon_fly.png").get_image()
-	var anchor := ArtLibrary.anchor("dragon_form/dragon_fly.png")
+	var body_img := ArtLibrary.texture("dragon_form/dragon_fly_body.png").get_image()
+	var fx_img := ArtLibrary.texture("dragon_form/dragon_fly_fx.png").get_image()
+	var anchor := ArtLibrary.anchor("dragon_form/dragon_fly_body.png")
 	var frame_w := int(ArtLibrary.entry("dragon_form/dragon_fly.png")["frame_size"][0])
-	var wing_out := false
-	var body_in := false
-	for y in img.get_height():
-		for x in range(0, frame_w):
-			if img.get_pixel(x, y).a < 0.5:
-				continue
-			var local := Vector2(x + 0.5, y + 0.5) - anchor
-			var inside := HitLibrary.contains_local("dragon_form/dragon_fly.png", "hurt", local)
-			if local.y > 20.0:
-				if inside:
-					push_error("a wing tip below the belly is part of the hurt shape")
-					failed += 1
-					wing_out = true
-					break
-				wing_out = true
-			elif local.y > -4.0 and local.y < 6.0 and inside:
-				body_in = true
-		if failed > 0:
-			break
-	if not wing_out or not body_in:
-		push_error("dragon hurt shape should cover the body and leave the low wing tips")
+	var frame_h := int(ArtLibrary.entry("dragon_form/dragon_fly.png")["frame_size"][1])
+	var frames := int(ArtLibrary.entry("dragon_form/dragon_fly.png")["frames"])
+	if absf(float(ArtLibrary.entry("dragon_form/dragon_fly.png")["fps"]) - 10.0) > 0.01:
+		push_error("dragon fly loop should play at 10 fps")
 		failed += 1
+	if absf(float(ArtLibrary.entry("dragon_form/dragon_meter_ready.png")["fps"]) - 6.0) > 0.01:
+		push_error("meteor meter ready loop should play at 6 fps")
+		failed += 1
+	for fi in frames:
+		var ox := fi * frame_w
+		var body_miss := 0
+		var fx_hit := 0
+		for y in frame_h:
+			for x in frame_w:
+				var local := Vector2(x + 0.5, y + 0.5) - anchor
+				var body_on := body_img.get_pixel(ox + x, y).a >= 0.5
+				var fx_on := fx_img.get_pixel(ox + x, y).a >= 0.5
+				var inside := HitLibrary.contains_local("dragon_form/dragon_fly.png", "hurt", local, fi)
+				if body_on and not inside:
+					body_miss += 1
+				if fx_on and not body_on and inside:
+					fx_hit += 1
+		if body_miss > 0 or fx_hit > 0:
+			push_error("dragon frame %d hurt missed %d body pixels and included %d wing or tail pixels" % [fi, body_miss, fx_hit])
+			failed += 1
+			break
 	var fit := FormCatalog.dragon_fit_scale("slime_r5_body.png", 1.0)
 	if absf(fit - 1.0) > 0.001:
 		push_error("the dragon sheet is native size and should draw at 1x")
@@ -4710,7 +4719,7 @@ func _check_dragon_form() -> int:
 	var goblin_w := HitLibrary.horizontal_extent("goblin_r5_body.png", "hurt")
 	var goblin_ratio := FormCatalog.max_speed(FormCatalog.Id.GOBLIN) / goblin_w
 	if FormCatalog.DRAGON_MAX_SPEED / dragon_w + 0.01 < goblin_ratio:
-		push_error("dragon speed does not make up for the wider body")
+		push_error("dragon speed does not make up for the wider body (%.1f / %.2f vs goblin %.2f)" % [FormCatalog.DRAGON_MAX_SPEED, dragon_w, goblin_ratio])
 		failed += 1
 	var body := Leaderboard.submit_body("dev", "Ada", "slime", 10, 1000, false)
 	if body.has("p_dragon_slayer"):
@@ -4744,8 +4753,20 @@ func _check_meteor_clock() -> int:
 	if DragonShow.METEOR_COUNT < 22 or DragonShow.METEOR_COUNT > 25 or DragonShow.RAIN_FRAMES != 45 or DragonShow.SPAWN_EVERY != 2 or DragonShow.CHARGE_FRAMES != 15:
 		push_error("meteor rain should be 1.0s of charge and 3.0s with about 22-25 meteors every 2 frames")
 		failed += 1
-	if absf(DragonShow.DRAW_SCALE - 3.0) > 0.001 or absf(DragonShow.METEOR_CELL * DragonShow.DRAW_SCALE - 78.0) > 0.1 or absf(DragonShow.IMPACT_CELL * DragonShow.DRAW_SCALE - 174.0) > 0.1:
-		push_error("barrage meteors should draw at 3x, 78 and 174")
+	if absf(DragonShow.DRAW_SCALE - 1.0) > 0.001 or absf(DragonShow.METEOR_CELL * DragonShow.DRAW_SCALE - 78.0) > 0.1 or absf(DragonShow.IMPACT_CELL * DragonShow.DRAW_SCALE - 174.0) > 0.1:
+		push_error("barrage meteors should draw at 1x, 78 and 174")
+		failed += 1
+	if ArtLibrary.anchor("dragon_form/dragon_meteor.png") != Vector2(39, 39) or ArtLibrary.anchor("dragon_form/dragon_meteor_impact.png") != Vector2(87, 87):
+		push_error("meteor anchors should be the centres (39, 39) and (87, 87)")
+		failed += 1
+	if absf(ArtLibrary.art_bbox("dragon_form/dragon_meteor.png").x - DragonShow.METEOR_CELL) > 0.1 or absf(ArtLibrary.art_bbox("dragon_form/dragon_meteor_impact.png").x - DragonShow.IMPACT_CELL) > 0.1:
+		push_error("meteor sheets should be native 78 and 174 cells")
+		failed += 1
+	if absf(ArtLibrary.art_bbox("dragon_form/dragon_meteor_giant.png").x - DragonShow.GIANT_METEOR) > 0.1 or absf(ArtLibrary.art_bbox("dragon_form/dragon_meteor_giant_impact.png").x - DragonShow.GIANT_IMPACT) > 0.1:
+		push_error("the giant meteor and impact should be native 168 and 270")
+		failed += 1
+	if DragonShow.GIANT_IMPACT_FRAMES != 10 or DragonShow.IMPACT_HOLD != 2:
+		push_error("the giant impact should hold each of its 10 frames for 2 ticks")
 		failed += 1
 	if absf(DragonShow.GIANT_METEOR - 168.0) > 0.1 or absf(DragonShow.GIANT_IMPACT - 270.0) > 0.1:
 		push_error("the final meteor should be 168px with a 270px impact")
@@ -4869,6 +4890,16 @@ func _check_boss_play() -> int:
 		failed += 1
 	if game._boss_director.dragon_gen != 1:
 		push_error("the dragon kill should arm the 60 s return")
+		failed += 1
+	game.invuln = 0.0
+	game._player.invulnerable = false
+	game._player.adopt_dragon(1.0)
+	game._dragon_show.start_rain()
+	if game.invuln > 0.0 or game._player.invulnerable:
+		push_error("meteor rain should not make the player invulnerable")
+		failed += 1
+	if game._dragon_show.z_index >= game._player.z_index or game._dragon_show.z_index >= Replay.bullet_z():
+		push_error("meteor FX should draw under the ship and under enemy bullets")
 		failed += 1
 	game._clear_field()
 	game.form_id = FormCatalog.Id.VENDING
