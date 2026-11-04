@@ -1273,15 +1273,20 @@ func _tick_loot(delta: float) -> void:
 	for gem in _loot:
 		if not is_instance_valid(gem):
 			continue
+		var started := gem.position
 		if not gem.tick(delta):
 			_release_gem(gem)
 			continue
 		if _player.alive and magnet > 0.0:
 			var offset := _player.position - gem.position
 			var dist := offset.length()
-			if dist <= magnet and dist > 0.5:
+			# tick() already drifted the gem left. A gem that began this frame
+			# inside the radius stays in the pull, or the trailing rim would
+			# scroll out before the speed could matter.
+			var in_range := dist <= magnet or started.distance_to(_player.position) <= magnet
+			if in_range and dist > 0.5:
 				gem.position += offset / dist * magnet_speed * delta
-		if _player.alive and _loot_reached(gem, magnet):
+		if _player.alive and _loot_reached(gem):
 			_collect_gem(gem)
 			continue
 		if gem.position.x < -40.0:
@@ -1313,12 +1318,9 @@ func _collect_gem(gem: LootGem) -> void:
 func _pickup_is_gem(gem: LootGem) -> bool:
 	return gem.sprite_name.find("gem") >= 0
 
-func _loot_reached(gem: LootGem, magnet: float) -> bool:
-	if _overlaps(_player.position, _player.radius, gem.position, gem.radius):
-		return true
-	if magnet <= 0.0 or not _player.alive:
-		return false
-	return _player.position.distance_to(gem.position) <= magnet
+## Touch only. The magnet radius pulls; it does not collect.
+func _loot_reached(gem: LootGem) -> bool:
+	return _overlaps(_player.position, _player.radius, gem.position, gem.radius)
 
 func _roll_drops(at: Vector2) -> void:
 	if _drop_unit() < Difficulty.GEM_CHANCE:

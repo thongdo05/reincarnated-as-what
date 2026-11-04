@@ -47,7 +47,7 @@ func _process(_delta: float) -> bool:
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
 	var live_failed: int = load("res://tests/dragon_phase_checks.gd").new().run_live(self)
-	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular()
+	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
@@ -2456,6 +2456,124 @@ func _check_loot() -> int:
 		failed += 1
 	pickup.free()
 	return failed
+
+## Goblin magnet glides. A gem inside the radius is not collected until it touches.
+func _check_goblin_magnet() -> int:
+	var failed := 0
+	if absf(Difficulty.GOBLIN_MAGNET - 96.0) > 0.001 or absf(Difficulty.GOBLIN_MAGNET_SPEED - 180.0) > 0.001:
+		push_error("goblin magnet should be 96 at 180 px/s, got %s / %s" % [Difficulty.GOBLIN_MAGNET, Difficulty.GOBLIN_MAGNET_SPEED])
+		failed += 1
+	if absf(Difficulty.MAGNET_RADIUS - 168.0) > 0.001 or absf(Difficulty.MAGNET_SPEED - 240.0) > 0.001:
+		push_error("magnet power-up should stay 168 / 240")
+		failed += 1
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	if game._player == null:
+		push_error("goblin magnet check had no player")
+		game.free()
+		return failed + 1
+	game._player.position = Vector2(180, 135)
+	game._player.aim = game._player.position
+	game._player.alive = true
+	var trailing := _magnet_edge_frames(game, -1.0)
+	var leading := _magnet_edge_frames(game, 1.0)
+	if trailing < 2 or trailing > 90 or leading < 2 or leading > trailing:
+		failed += 1
+		if trailing >= 2 and trailing <= 90 and leading >= 2:
+			push_error("a gem at the leading edge should arrive before the trailing edge (leading %d trailing %d)" % [leading, trailing])
+	else:
+		var gem_r := ArtLibrary.radius_for("gem.png", 0.65)
+		print("GOBLIN_EDGE_FRAMES trailing=%d leading=%d player_r=%.2f gem_r=%.2f" % [trailing, leading, game._player.radius, gem_r])
+	failed += _expect_magnet_glide(game, FormCatalog.Id.SLIME, Difficulty.POWER_DURATION, Difficulty.MAGNET_RADIUS * 0.75)
+	root.remove_child(game)
+	game.free()
+	return failed
+
+## Frames until a gem that starts on the goblin radius touches the player. Negative x is the trailing edge, where leftward drift opposes the pull.
+func _magnet_edge_frames(game, direction: float) -> int:
+	game.form_id = FormCatalog.Id.GOBLIN
+	game._player.form_id = FormCatalog.Id.GOBLIN
+	game._player.small = false
+	game._player.fit_scale = 1.0
+	game.rank_index = 0
+	game.evo_points = 0
+	game._player.set_rank(0)
+	game._player.alive = true
+	game.magnet_left = 0.0
+	game.loot_count = 0
+	for existing in game._loot.duplicate():
+		game._release_gem(existing)
+	game._loot.clear()
+	var gem: LootGem = game._take_gem()
+	gem.setup("gem.png")
+	gem.life = Difficulty.GEM_LIFE
+	gem.drift = Difficulty.GEM_DRIFT
+	gem.age = 0.0
+	gem.position = game._player.position + Vector2(direction * Difficulty.GOBLIN_MAGNET, 0.0)
+	var before: float = gem.position.distance_to(game._player.position)
+	var touch: float = float(game._player.radius) + gem.radius
+	if before <= touch + 1.0:
+		push_error("goblin magnet edge should start clear of the body (dist %.1f touch %.1f)" % [before, touch])
+		return -1
+	game._loot.append(gem)
+	game._tick_loot(1.0 / 60.0)
+	if int(game.loot_count) != 0:
+		push_error("gem on the goblin radius was collected on the first tick")
+		return 1
+	if not is_instance_valid(gem) or not gem.visible:
+		push_error("gem on the goblin radius was dropped on the first tick")
+		return -1
+	var after: float = gem.position.distance_to(game._player.position)
+	if after >= before - 0.05:
+		push_error("goblin magnet should move an in-range gem closer (before %.2f after %.2f dir %.0f)" % [before, after, direction])
+		return -1
+	var frames := 1
+	while int(game.loot_count) == 0 and frames < 180:
+		game._tick_loot(1.0 / 60.0)
+		frames += 1
+	if int(game.loot_count) != 1:
+		push_error("gem at the goblin magnet edge did not reach the player (dir %.0f dist %.1f)" % [direction, gem.position.distance_to(game._player.position)])
+		return 999
+	return frames
+
+## Magnet power-up: a gem inside the power radius, not touching, glides and is not grabbed on the first tick.
+func _expect_magnet_glide(game, form: int, magnet_time: float, separation: float) -> int:
+	game.form_id = form
+	game._player.form_id = form
+	game._player.small = false
+	game._player.fit_scale = 1.0
+	game.rank_index = 0
+	game._player.set_rank(0)
+	game._player.alive = true
+	game._player.position = Vector2(180, 135)
+	game._player.aim = game._player.position
+	game.magnet_left = magnet_time
+	game.loot_count = 0
+	for existing in game._loot.duplicate():
+		game._release_gem(existing)
+	game._loot.clear()
+	var gem: LootGem = game._take_gem()
+	gem.setup("gem.png")
+	gem.life = Difficulty.GEM_LIFE
+	gem.drift = Difficulty.GEM_DRIFT
+	gem.age = 0.0
+	gem.position = game._player.position + Vector2(-separation, 0.0)
+	var before: float = gem.position.distance_to(game._player.position)
+	var touch: float = float(game._player.radius) + gem.radius
+	if before <= touch + 1.0 or before > Difficulty.MAGNET_RADIUS:
+		push_error("power magnet probe should sit inside the power radius and off the body (dist %.1f touch %.1f)" % [before, touch])
+		return 1
+	game._loot.append(gem)
+	game._tick_loot(1.0 / 60.0)
+	if int(game.loot_count) != 0 or not gem.visible:
+		push_error("magnet power-up should not grab a gem that is inside the radius but not touching")
+		return 1
+	if gem.position.distance_to(game._player.position) >= before - 0.05:
+		push_error("magnet power-up should pull an in-range gem closer (before %.2f after %.2f)" % [before, gem.position.distance_to(game._player.position)])
+		return 1
+	return 0
 
 func _check_hud() -> int:
 	var failed := 0
