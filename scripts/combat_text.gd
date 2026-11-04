@@ -3,7 +3,7 @@ class_name CombatText
 
 var items: Array[Dictionary] = []
 
-const CALLOUTS: Array[String] = ["WINNER!", "OVERDRIVE", "BOMB", "TAKEOVER!"]
+const CALLOUTS: Array[String] = ["WINNER!", "OVERDRIVE", "BOMB"]
 
 ## One banner at a time. A new WINNER! / OVERDRIVE / POWER replaces the one
 ## on screen so the pops do not stack on the ship.

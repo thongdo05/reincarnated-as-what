@@ -56,8 +56,6 @@ var overdrive_spawned := 0
 var _overdrive_lock := 0.0
 var winner := 0
 var winner_pops := 0
-var _graze_streak := 0
-var _graze_left := 0.0
 var _winner_busy := false
 var rapid_left := 0.0
 var magnet_left := 0.0
@@ -943,7 +941,6 @@ func _play_frame(delta: float, size: Vector2) -> void:
 			play_sfx_hook(str(bye.get("cue", "")))
 		if shot_room >= 0:
 			shot_room = enemy.fire_room
-	_tick_charm(delta)
 	_guide_orbs(delta)
 	for shot in _shots:
 		shot.tick(delta)
@@ -1143,7 +1140,7 @@ func _collide() -> void:
 	var player_file := _player.sprite_name()
 	var player_scale := _player_scale()
 	for enemy in _enemies:
-		if not enemy.alive or enemy.charmed > 0.0 or not enemy.threatens_player():
+		if not enemy.alive or not enemy.threatens_player():
 			continue
 		var enemy_file := enemy.sprite_file()
 		# Every hurt part, not the movement bounds radius.
@@ -1209,8 +1206,6 @@ func _graze_gap(hazard: Object, separation: float) -> void:
 	hazard.grazed = true
 	var grazed := ScoreRules.graze_points(rank_index)
 	score += grazed
-	if form_id == FormCatalog.Id.CAT:
-		_note_cat_graze()
 
 func _hurt_player(killer: String) -> void:
 	if CaptureMode.ignore_hit(self, killer):
@@ -1525,84 +1520,10 @@ func _winner_clear() -> void:
 				_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 	_winner_busy = false
 
-func _note_cat_graze() -> void:
-	_graze_left = FormCatalog.CAT_GRAZE_WINDOW
-	_graze_streak += 1
-	if _graze_streak < FormCatalog.cat_graze_need(rank_index):
-		return
-	_graze_streak = 0
-	_charm_nearby()
-
-func _charm_nearby() -> void:
-	var ranked: Array[EnemyActor] = []
-	for enemy in _enemies:
-		if not enemy.alive or enemy.charmed > 0.0:
-			continue
-		if enemy.is_boss() or enemy.kind == SpawnDirector.ANVIL or enemy.kind == SpawnDirector.PIANO:
-			continue
-		if enemy.position.distance_to(_player.position) > FormCatalog.cat_charm_radius(rank_index):
-			continue
-		ranked.append(enemy)
-	ranked.sort_custom(func(a: EnemyActor, b: EnemyActor) -> bool:
-		return a.position.distance_squared_to(_player.position) < b.position.distance_squared_to(_player.position)
-	)
-	var turned := 0
-	for enemy in ranked:
-		enemy.charmed = FormCatalog.CAT_CHARM_TIME
-		enemy.charm_cd = 0.12
-		turned += 1
-		if turned >= FormCatalog.cat_charm_max(rank_index):
-			break
-	if turned > 0 and _combat != null:
-		_combat.push("TAKEOVER!", _player.position + Vector2(-36, -26), Color("ff9ad8"), 0.4)
-
-func _tick_charm(delta: float) -> void:
-	if _graze_left > 0.0:
-		_graze_left = maxf(_graze_left - delta, 0.0)
-		if _graze_left <= 0.0:
-			_graze_streak = 0
-	if form_id != FormCatalog.Id.CAT:
-		return
-	for enemy in _enemies:
-		if not is_instance_valid(enemy) or enemy.charmed <= 0.0:
-			continue
-		enemy.charmed = maxf(enemy.charmed - delta, 0.0)
-		if enemy.charmed <= 0.0:
-			enemy.modulate = Color.WHITE
-			continue
-		enemy.charm_cd -= delta
-		if enemy.charm_cd > 0.0:
-			continue
-		var foe: EnemyActor = null
-		var best := 999999.0
-		for other in _enemies:
-			if other == enemy or not other.alive or other.charmed > 0.0:
-				continue
-			if other.kind == SpawnDirector.ANVIL or other.kind == SpawnDirector.PIANO:
-				continue
-			var dist := enemy.position.distance_squared_to(other.position)
-			if dist < best:
-				best = dist
-				foe = other
-		if foe == null:
-			continue
-		var aim := foe.position - enemy.position
-		if aim.length() < 1.0:
-			continue
-		enemy.charm_cd = 0.55
-		_spawn_shot({
-			"position": enemy.position,
-			"velocity": aim.normalized() * 240.0,
-			"sprite": "reflected_bullet.png",
-			"damage": 1,
-			"radius": HitLibrary.bounds_radius("reflected_bullet.png", "body"),
-			"color": Color("8ecbff"),
-		}, true)
-
 func _guide_orbs(delta: float) -> void:
 	var foes: Array[EnemyActor] = []
 	for enemy in _enemies:
-		if enemy.alive and enemy.charmed <= 0.0:
+		if enemy.alive:
 			foes.append(enemy)
 	if foes.is_empty():
 		return
@@ -2826,8 +2747,6 @@ func _reincarnate() -> void:
 	overdrive_spawned = 0
 	_overdrive_lock = 0.0
 	winner = 0
-	_graze_streak = 0
-	_graze_left = 0.0
 	_winner_busy = false
 	rapid_left = 0.0
 	magnet_left = 0.0

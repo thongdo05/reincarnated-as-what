@@ -49,11 +49,6 @@ const CAT_BLINK_MIN := 26.0
 const CAT_BLINK_CD := 0.14
 ## A few frames where the dash body cannot be hit.
 const CAT_BLINK_GUARD := 0.10
-const CAT_GRAZE_NEED := 3
-const CAT_GRAZE_WINDOW := 1.6
-const CAT_CHARM_TIME := 1.55
-const CAT_CHARM_RADIUS := 92.0
-const CAT_CHARM_MAX := 2
 
 ## Every Goblin balance number. Rank arrays are rank 1 through rank 5.
 ## Movement, stones, and loot all read this table.
@@ -102,18 +97,17 @@ const VENDING := {
 }
 
 ## The swipe is short. Reflecting bullets is the defense, not a long stream.
-## Later ranks dash farther, graze into a charm sooner, and swipe harder.
+## Swipes pierce. Later ranks dash farther and swipe harder.
+## Damage stays the int list, so the +15% is fire_interval times 1/1.15.
+## Swipe life is 1.10x. Dash distance, dash guard, pierce, and reflect are unchanged.
 const CAT := {
-	"fire_interval": [0.24, 0.20, 0.17, 0.145, 0.12],
+	"fire_interval": [0.24 / 1.15, 0.20 / 1.15, 0.17 / 1.15, 0.145 / 1.15, 0.12 / 1.15],
 	"shot_speed": 420.0,
-	"life": [0.58, 0.60, 0.64, 0.70, 0.78],
+	"life": [0.58 * 1.10, 0.60 * 1.10, 0.64 * 1.10, 0.70 * 1.10, 0.78 * 1.10],
 	"damage": [1, 1, 2, 2, 3],
 	"pierce": 2,
 	"blink_dist": [34.0, 38.0, 44.0, 52.0, 62.0],
 	"blink_guard": [0.10, 0.10, 0.11, 0.13, 0.15],
-	"graze_need": [3, 3, 3, 2, 2],
-	"charm_max": [2, 2, 2, 3, 4],
-	"charm_radius": [92.0, 100.0, 110.0, 124.0, 140.0],
 }
 
 ## Drawn and hurt at this fraction of the source art. The hurt circles are the
@@ -189,7 +183,7 @@ const FORM_CARD := {
 		"used": "",
 	},
 	Id.CAT: {
-		"trait": "A hard flick blinks a short dash. A graze streak makes nearby enemies fight for you. Later ranks dash farther and charm more.",
+		"trait": "A hard flick blinks a short dash. Swipes pierce and knock bullets away. Later ranks dash farther and swipe harder.",
 		"ready": "",
 		"used": "",
 	},
@@ -248,18 +242,6 @@ static func cat_blink_guard(rank_index: int, power_level: int = 0) -> float:
 	var values: Array = CAT["blink_guard"]
 	var guard := float(values[clampi(rank_index, 0, values.size() - 1)]) + float(maxi(power_level, 0)) * 0.008
 	return minf(guard, 0.2)
-
-static func cat_graze_need(rank_index: int) -> int:
-	var values: Array = CAT["graze_need"]
-	return int(values[clampi(rank_index, 0, values.size() - 1)])
-
-static func cat_charm_max(rank_index: int) -> int:
-	var values: Array = CAT["charm_max"]
-	return int(values[clampi(rank_index, 0, values.size() - 1)])
-
-static func cat_charm_radius(rank_index: int) -> float:
-	var values: Array = CAT["charm_radius"]
-	return float(values[clampi(rank_index, 0, values.size() - 1)])
 
 static func cat_life(rank_index: int) -> float:
 	var values: Array = CAT["life"]
