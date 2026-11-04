@@ -42,7 +42,7 @@ func setup(data: Dictionary, player_owned: bool) -> void:
 	cruise = velocity.length()
 	expires = bool(data.get("expires", false))
 	life = float(data.get("life", 0.0))
-	visible = true
+	visible = bool(data.get("visible", true))
 	modulate = Color.WHITE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
@@ -66,7 +66,9 @@ func _draw() -> void:
 	# Art is already aimed: player shots face right, enemy shots face left. Do not flip.
 	# Player bullets stay translucent so enemy shots read through the stream.
 	var tint := Color(1, 1, 1, 0.42) if from_player else Color.WHITE
-	ArtLibrary.draw_loop(self, sprite_name, age, Vector2.ZERO, tint)
+	# The spiral skull is 8px. At 2x it still reads as a skull, and the hit stays inside it.
+	var scale := 2.0 if sprite_name == BossCatalog.SPIRAL_SKULL else 1.0
+	ArtLibrary.draw_loop(self, sprite_name, age, Vector2.ZERO, tint, scale)
 	if HitLibrary.show:
 		var role := "body" if from_player else "threat"
 		var color := Color(0.45, 0.9, 1.0, 0.95) if from_player else Color(1.0, 0.55, 0.2, 0.95)

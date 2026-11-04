@@ -3877,7 +3877,7 @@
       8,
       10
     ],
-    "note": "Column warning for bone rain. Purple rim, ghost-jade core, dark outline. No hit."
+    "note": "Kaito. Jade warning mark for bone rain. No hit. The game pulses it so it does not read as a bullet."
   },
   {
     "file": "lich_soul_beam.png",
@@ -3889,7 +3889,7 @@
     "facing": "none",
     "idle": false,
     "art_bbox": [24, 24],
-    "note": "PLACEHOLDER. Kaito should redraw. Fat soul-beam segment, 24px. Soft glow on the outside, bright core inside. Round so the sweep angle does not matter. The threat circle sits inside the glow."
+    "note": "Kaito. Soul beam tile, 24x24, 22px of beam inside it. Repeats horizontally along the beam. White core, jade bands, bright glow. Threat circle sits inside the glow."
   },
   {
     "file": "lich_spiral_skull.png",
@@ -3901,19 +3901,19 @@
     "facing": "left",
     "idle": false,
     "art_bbox": [8, 8],
-    "note": "PLACEHOLDER. Kaito should redraw. Small skull for the Lich spiral. Faces left. Bone palette, purple eye."
+    "note": "Kaito. Spiral skull, 8x8, drawn at 2x so it reads as a skull. Faces left, do not flip. Threat circle is scaled modestly and stays inside the doubled sprite."
   },
   {
     "file": "lich_grave_hand.png",
     "size": [10, 16],
     "frames": 1,
-    "anchor": [5, 12],
+    "anchor": [5, 8],
     "anchor_type": "center",
     "category": "projectile",
     "facing": "up",
     "idle": false,
     "art_bbox": [10, 16],
-    "note": "PLACEHOLDER. Kaito should redraw. Bony hand that bursts up from a warning circle. Fingers point up."
+    "note": "Kaito. Skeletal hand bursting up from a jade soul-fire mound. Centre anchor. The bottom row sits on the ground. Faces up, do not flip."
   },
   {
     "file": "knight_sword_wave.png",
@@ -3925,7 +3925,7 @@
     "facing": "left",
     "idle": false,
     "art_bbox": [16, 10],
-    "note": "PLACEHOLDER. Kaito should redraw. Crescent sword wave. Faces left. Bone edge, dark outline."
+    "note": "Kaito. Steel crescent sword wave. Convex edge leads. Faces left, do not flip."
   },
   {
     "file": "knight_shield.png",
@@ -3937,7 +3937,7 @@
     "facing": "left",
     "idle": false,
     "art_bbox": [16, 20],
-    "note": "PLACEHOLDER. Kaito should redraw. Death Knight shield. Visual only; the block is geometric. Pale steel, jade stripe."
+    "note": "Kaito. Death Knight kite shield. Faces left already, do not flip. Visual only; the block is geometric."
   }
 
 ]
