@@ -3117,6 +3117,27 @@ func _check_audio() -> int:
 	if int(power_spec["polyphony"]) != AudioCues.POWER_POLYPHONY or not bool(power_spec.get("optional", false)):
 		push_error("power pickup should be one voice and optional")
 		failed += 1
+	var level_spec := AudioCues.spec("power_level_up")
+	if str(level_spec.get("file", "")) != "res://audio/sfx_power_level_up.wav" or bool(level_spec.get("loop", true)) or int(level_spec.get("polyphony", 0)) != 1:
+		push_error("power level-up should be one non-looping voice")
+		failed += 1
+	if absf(float(level_spec.get("volume_db", 0.0))) > 0.01 or absf(float(level_spec.get("lufs", 0.0)) + 19.8) > 0.05:
+		push_error("power level-up should keep the mastered file gain")
+		failed += 1
+	if absf(AudioCues.power_level_pitch(1) - 1.0) > 0.0001 or absf(AudioCues.power_level_pitch(2) - AudioCues.semitone_to_pitch(1.0)) > 0.0001:
+		push_error("power pitch should rise one semitone per level above 1")
+		failed += 1
+	if absf(AudioCues.power_level_pitch(13) - 2.0) > 0.001 or absf(AudioCues.power_level_pitch(40) - AudioCues.power_level_pitch(13)) > 0.0001:
+		push_error("power pitch should cap at +12 semitones")
+		failed += 1
+	var level_entry: Dictionary = by_file.get("sfx_power_level_up.wav", {})
+	if bool(level_entry.get("loop", true)):
+		push_error("power level-up should not loop")
+		failed += 1
+	var level_wav := load("res://audio/sfx_power_level_up.wav") as AudioStreamWAV
+	if level_wav == null or level_wav.stereo or absf(level_wav.get_length() - float(level_entry.get("duration", -1.0))) > 0.02:
+		push_error("power level-up should be the 0.68 s mono file")
+		failed += 1
 	if absf(AudioCues.gem_chain_semitones(0)) > 0.001 or absf(AudioCues.gem_chain_semitones(7) - 7.0) > 0.001 or absf(AudioCues.gem_chain_semitones(9) - 7.0) > 0.001:
 		push_error("gem pitch should rise one semitone and cap at +7")
 		failed += 1
@@ -3483,10 +3504,152 @@ func _check_audio_play() -> int:
 	if vending == null or vending.stream == null or str(vending.bus) != AudioCues.SFX_BUS:
 		push_error("the vending sting should be armed on the SFX bus")
 		failed += 1
+	failed += _check_power_level_cue(game)
 	root.remove_child(game)
 	game.free()
 	AudioCues.write_enabled(true)
 	AudioCues.apply_bus_levels()
+	return failed
+
+func _check_power_level_cue(game) -> int:
+	var failed := 0
+	var cue: AudioStreamPlayer = game._sound.player_for("power_level_up")
+	if cue == null or cue.stream == null or str(cue.bus) != AudioCues.SFX_BUS or absf(cue.volume_db) > 0.01:
+		push_error("power level-up should be armed on the SFX bus at the mastered gain")
+		return failed + 1
+	game.form_id = FormCatalog.Id.SLIME
+	game._player.form_id = FormCatalog.Id.SLIME
+	game.rank_index = 4
+	game._player.rank_index = 4
+	game._player.alive = true
+	game.phase = game.PHASE_REVEAL
+	game.evo_points = Difficulty.GATE_RANK5
+	game._player.power_level = 0
+	game._sound.played.clear()
+	game._add_evo(Difficulty.power_step_points(1))
+	if game._sound.play_count("power_level_up") != 0 or int(game._player.power_level) != 1:
+		push_error("power level-up should latch during the reveal and stay silent")
+		failed += 1
+	game.phase = game.PHASE_PLAY
+	game._sync_power()
+	if game._sound.play_count("power_level_up") != 0:
+		push_error("reaching play at the latched level should not replay the cue")
+		failed += 1
+	var restored := Difficulty.GATE_RANK5
+	for step in 3:
+		restored += Difficulty.power_step_points(step + 1)
+	game.evo_points = restored
+	game._player.power_level = 3
+	game._sync_power()
+	if game._sound.play_count("power_level_up") != 0 or int(game._player.power_level) != 3:
+		push_error("a restore that keeps the same power level should stay silent")
+		failed += 1
+	game.evo_points = Difficulty.GATE_RANK5
+	game._player.power_level = 0
+	game._sound.played.clear()
+	for n in 3:
+		game._add_evo(Difficulty.power_step_points(n + 1))
+		var expect := AudioCues.power_level_pitch(n + 1)
+		if game._sound.play_count("power_level_up") != n + 1 or int(game._player.power_level) != n + 1:
+			push_error("power level %d should play the cue once" % (n + 1))
+			failed += 1
+			break
+		if absf(game._sound.last_pitch_scale - expect) > 0.001:
+			push_error("power level %d pitch should be %.4f, got %.4f" % [n + 1, expect, game._sound.last_pitch_scale])
+			failed += 1
+			break
+	var bulk := 0
+	for n in range(4, 7):
+		bulk += Difficulty.power_step_points(n)
+	var before_plays := int(game._sound.play_count("power_level_up"))
+	game._add_evo(bulk)
+	if game._sound.play_count("power_level_up") != before_plays + 1 or int(game._player.power_level) != 6:
+		push_error("a jump of several power levels should play the cue once")
+		failed += 1
+	elif absf(game._sound.last_pitch_scale - AudioCues.power_level_pitch(6)) > 0.001:
+		push_error("a jumped power level should use the pitch of the level it landed on")
+		failed += 1
+	var cap_bulk := 0
+	for n in range(7, 17):
+		cap_bulk += Difficulty.power_step_points(n)
+	before_plays = int(game._sound.play_count("power_level_up"))
+	game._add_evo(cap_bulk)
+	if game._sound.play_count("power_level_up") != before_plays + 1 or int(game._player.power_level) != 16:
+		push_error("climbing to power 16 should still be one cue")
+		failed += 1
+	elif absf(game._sound.last_pitch_scale - 2.0) > 0.001:
+		push_error("power pitch should stop at +12 semitones (octave)")
+		failed += 1
+	game.form_id = FormCatalog.Id.DRAGON
+	var dragon_before := int(game._player.power_level)
+	before_plays = int(game._sound.play_count("power_level_up"))
+	game._add_evo(Difficulty.power_step_points(dragon_before + 1))
+	if int(game._player.power_level) != dragon_before + 1:
+		push_error("dragon form should keep raising Power")
+		failed += 1
+	elif game._sound.play_count("power_level_up") != before_plays + 1:
+		push_error("dragon form still uses Power, so the level-up cue should play")
+		failed += 1
+	game.form_id = FormCatalog.Id.SLIME
+	AudioCues.apply_bus_levels()
+	var music_idx := AudioServer.get_bus_index(AudioCues.MUSIC_BUS)
+	var sfx_idx := AudioServer.get_bus_index(AudioCues.SFX_BUS)
+	var gem: AudioStreamPlayer = game._sound.player_for("gem_pickup")
+	if gem == null:
+		push_error("gem pickup should still be armed for the duck check")
+		return failed + 1
+	gem.volume_db = 0.0
+	game._sound._gem_duck = 0.0
+	game._sound._cue_headroom = 0.0
+	game._sound._sync_sfx_guard()
+	game._sound.play_event("power_level_up", 0.0, AudioCues.power_level_pitch(4))
+	if absf(gem.volume_db - SoundRig.GEM_DUCK_DB) > 0.01 or absf(SoundRig.GEM_DUCK_DB + 5.0) > 0.01 or absf(SoundRig.GEM_DUCK_SECONDS - 0.25) > 0.001:
+		push_error("power level-up should duck gems by 5 dB for 0.25 s")
+		failed += 1
+	game._sound._gaps.erase("gem_pickup")
+	var gem_plays := int(game._sound.play_count("gem_pickup"))
+	game._sound.play_event("gem_pickup")
+	if game._sound.play_count("gem_pickup") != gem_plays + 1 or absf(gem.volume_db - SoundRig.GEM_DUCK_DB) > 0.01:
+		push_error("a gem that starts during the duck should play at -5 dB")
+		failed += 1
+	if absf(AudioServer.get_bus_volume_db(music_idx) - AudioCues.MUSIC_BUS_DB) > 0.01:
+		push_error("the power cue should not change the music bus")
+		failed += 1
+	if absf(AudioServer.get_bus_volume_db(sfx_idx) - (AudioCues.SFX_BUS_DB - SoundRig.RAIN_HEADROOM_DB)) > 0.01:
+		push_error("power level-up should borrow the meteor-rain SFX headroom")
+		failed += 1
+	var limited := false
+	for i in AudioServer.get_bus_effect_count(sfx_idx):
+		if AudioServer.get_bus_effect(sfx_idx, i) is AudioEffectLimiter:
+			limited = true
+	if not limited:
+		push_error("power level-up should arm the SFX limiter")
+		failed += 1
+	game._sound._process(SoundRig.GEM_DUCK_SECONDS)
+	if absf(gem.volume_db) > 0.01:
+		push_error("the gem duck should end after 0.25 s")
+		failed += 1
+	if absf(AudioServer.get_bus_volume_db(sfx_idx) - AudioCues.SFX_BUS_DB) < 0.5:
+		push_error("SFX headroom should outlast the short gem duck")
+		failed += 1
+	game._sound._process(float(AudioCues.spec("power_level_up").get("duration", 0.68)))
+	if absf(AudioServer.get_bus_volume_db(sfx_idx) - AudioCues.SFX_BUS_DB) > 0.01:
+		push_error("SFX headroom should end with the power cue")
+		failed += 1
+	if AudioServer.get_bus_effect_count(sfx_idx) != 0:
+		push_error("the SFX limiter should leave with the power cue")
+		failed += 1
+	if absf(AudioServer.get_bus_volume_db(music_idx) - AudioCues.MUSIC_BUS_DB) > 0.01:
+		push_error("music should still sit at -6 dB after the power cue")
+		failed += 1
+	game._sound.set_meteor_mix(true)
+	if absf(AudioServer.get_bus_volume_db(sfx_idx) - (AudioCues.SFX_BUS_DB - SoundRig.RAIN_HEADROOM_DB)) > 0.01:
+		push_error("meteor rain should still take the 1.5 dB SFX headroom")
+		failed += 1
+	game._sound.set_meteor_mix(false)
+	if absf(AudioServer.get_bus_volume_db(sfx_idx) - AudioCues.SFX_BUS_DB) > 0.01 or AudioServer.get_bus_effect_count(sfx_idx) != 0:
+		push_error("meteor rain should still release the SFX guard")
+		failed += 1
 	return failed
 
 func _check_vending_gem_meter() -> int:
