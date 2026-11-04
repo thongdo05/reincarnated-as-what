@@ -256,7 +256,7 @@ func _tick_kobold(delta: float, pace: float, fired: Array[Dictionary]) -> void:
 				_spend(1)
 				_hook(DragonPhase.HOOK_KOBOLD_ATTACK)
 		return
-	if suppress_fire or charmed > 0.0:
+	if suppress_fire:
 		return
 	_attack_wait -= delta
 	if _attack_wait > 0.0:
@@ -299,7 +299,7 @@ func _tick_whelp(delta: float, pace: float, player_pos: Vector2, fired: Array[Di
 	var chase := speed * DragonPhase.WHELP_CHASE * pace
 	position.y = move_toward(position.y, player_pos.y, chase * delta)
 	position.y = clampf(position.y, 28.0, field_size.y - 72.0)
-	if suppress_fire or charmed > 0.0 or not telegraphs.is_empty():
+	if suppress_fire or not telegraphs.is_empty():
 		return
 	_attack_wait -= delta
 	if _attack_wait > 0.0 or fire_room == 0:
@@ -348,7 +348,7 @@ func _tick_rider(delta: float, pace: float, _player_pos: Vector2, fired: Array[D
 	position.x -= speed * pace * delta
 	position.y = origin_y + sin(age * 1.3 + phase) * DragonPhase.RIDER_STRAFE
 	position.y = clampf(position.y, 42.0, field_size.y - 78.0)
-	if suppress_fire or charmed > 0.0 or not telegraphs.is_empty():
+	if suppress_fire or not telegraphs.is_empty():
 		return
 	_attack_wait -= delta
 	if _attack_wait > 0.0:
@@ -367,7 +367,7 @@ func _tick_rider(delta: float, pace: float, _player_pos: Vector2, fired: Array[D
 		_hook(DragonPhase.HOOK_RIDER_ATTACK)
 
 func _tick_cultist(delta: float) -> void:
-	if suppress_fire or charmed > 0.0:
+	if suppress_fire:
 		_release_ward()
 		return
 	if not _ward_ok():
@@ -419,7 +419,7 @@ func _tick_wraith(delta: float, pace: float, fired: Array[Dictionary]) -> void:
 func _tick_elder(delta: float, pace: float, player_pos: Vector2, fired: Array[Dictionary]) -> void:
 	if _breath_left <= 0.0 and not _breathing:
 		_tick_walker(delta, pace)
-	if suppress_fire or charmed > 0.0:
+	if suppress_fire:
 		_breath_left = 0.0
 		_breathing = false
 		return
@@ -571,9 +571,7 @@ func _hook(cue: String) -> void:
 		host.play_sfx_hook(cue)
 
 func _draw() -> void:
-	if charmed > 0.0:
-		modulate = Color(0.62, 1.0, 0.72)
-	elif _intangible:
+	if _intangible:
 		modulate = Color(1, 1, 1, 0.45)
 	else:
 		modulate = Color.WHITE

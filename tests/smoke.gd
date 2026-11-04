@@ -212,8 +212,8 @@ func _check_forms() -> int:
 	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("WINNER!") < 0:
 		push_error("vending trait should name the WINNER meter")
 		failed += 1
-	if FormCatalog.trait_line(FormCatalog.Id.CAT, true).find("graze") < 0 or FormCatalog.weapon_line(FormCatalog.Id.CAT, 0).find("Reflects") < 0:
-		push_error("cat card should describe the blink trait and the reflecting swipe")
+	if FormCatalog.trait_line(FormCatalog.Id.CAT, true) != "A hard flick blinks a short dash. Swipes pierce and knock bullets away. Later ranks dash farther and swipe harder." or FormCatalog.weapon_line(FormCatalog.Id.CAT, 0).find("Reflects") < 0:
+		push_error("cat card should describe the blink dash, the piercing swipe, and the reflect")
 		failed += 1
 	if FormCatalog.trait_line(FormCatalog.Id.DEMON, true).find("enemies") < 0:
 		push_error("demon trait should scale with enemies on screen")
@@ -2372,8 +2372,8 @@ func _check_pause_card(game) -> int:
 			push_error("vending pause card should describe the cans and the WINNER meter")
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.CAT:
-		if card.trait_text().find("graze") < 0 or card.weapon_text().find("Reflects") < 0:
-			push_error("cat pause card should describe the swipe and the graze trait")
+		if card.trait_text().find("Swipes pierce and knock bullets away.") < 0 or card.weapon_text().find("Reflects") < 0:
+			push_error("cat pause card should describe the piercing swipe and the reflect")
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.DEMON:
 		if card.trait_text().find("enemies") < 0 or card.weapon_text().find("Homing") < 0:

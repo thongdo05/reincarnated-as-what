@@ -253,8 +253,6 @@ func tick(delta: float, player_pos: Vector2, run_time: float = 0.0, scale: float
 		fight_left -= delta
 		if fight_left <= 0.0:
 			_begin_flee()
-	if charmed > 0.0:
-		_halt_attacks()
 	enrage_flash = maxf(enrage_flash - delta, 0.0)
 	_release_telegraphs(fired, delta)
 	if is_inside_tree():
@@ -323,8 +321,6 @@ func _drift(delta: float) -> void:
 		position.x = move_toward(position.x, hold_x, 80.0 * delta)
 
 func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: float, fired: Array[Dictionary]) -> void:
-	if charmed > 0.0:
-		return
 	if boss_slug == "lich_king":
 		_summon_cd -= delta
 		if _summon_cd <= 0.0 and telegraphs.is_empty() and _row_left <= 0.0 and _rain_left <= 0.0 and _beam_mode == 0 and _spiral_left <= 0.0 and _hands_left <= 0.0 and shield_left <= 0.0:
@@ -758,9 +754,7 @@ func _summon_eyes() -> void:
 		})
 
 func _draw() -> void:
-	if charmed > 0.0:
-		modulate = Color(0.62, 1.0, 0.72)
-	elif boss_slug == "great_dragon" and dragon_phase() >= 3:
+	if boss_slug == "great_dragon" and dragon_phase() >= 3:
 		modulate = Color(1.0, 0.42, 0.32)
 	elif enraged:
 		modulate = Color(1.0, 0.46, 0.4)
