@@ -41,6 +41,10 @@ const EVOLVE_HIT_SECONDS := 0.42
 ## Plays with the Vending Machine title card. The other forms stay silent.
 const VENDING_TITLE := "title_cards/title_vending_machine.png"
 
+## Dragon-phase cues have no samples yet. SoundRig records the name and skips playback.
+static func is_hook(event: String) -> bool:
+	return DragonPhase.is_hook(event)
+
 static func spec(event: String) -> Dictionary:
 	match event:
 		"gameplay_music":

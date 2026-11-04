@@ -34,6 +34,7 @@ func _initialize() -> void:
 	_unit_failed += _check_leaderboard()
 	_unit_failed += _check_lb_parse()
 	_unit_failed += _check_bosses()
+	_unit_failed += load("res://tests/dragon_phase_checks.gd").new().run()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -45,7 +46,8 @@ func _process(_delta: float) -> bool:
 	# Death cards read bests and wipe a stale epoch. Put the player's file back after.
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
-	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular()
+	var live_failed: int = load("res://tests/dragon_phase_checks.gd").new().run_live(self)
+	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)

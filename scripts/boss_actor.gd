@@ -43,6 +43,9 @@ var _hands_live := 0.0
 var _hand_xs: Array[float] = []
 var _fake_stage := 0
 var _intro_shook := false
+var _hell_gap_y := -1.0
+var _hell_gap_left := 0.0
+var _hell_gap_dir := 1.0
 var _phase_seen := 0
 var _gust_warn := 0.0
 var gust_left := 0.0
@@ -281,6 +284,7 @@ func _halt_attacks() -> void:
 	_gust_warn = 0.0
 	gust_left = 0.0
 	gust_push = 0.0
+	_hell_gap_left = 0.0
 
 func _cancel_rain() -> void:
 	_rain_left = 0.0
@@ -337,6 +341,9 @@ func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: fl
 		gust_left = maxf(gust_left - delta, 0.0)
 		if gust_left <= 0.0:
 			gust_push = 0.0
+	if _hell_gap_left > 0.0:
+		_tick_hell_gap(delta, run_time)
+		return
 	if not telegraphs.is_empty():
 		return
 	if _row_left > 0.0:
@@ -360,6 +367,12 @@ func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: fl
 	var attack := cycle[_attack_i % cycle.size()]
 	_attack_i += 1
 	_attack_id = attack
+	_hook_ability(attack)
+	if attack == "hell_breath" and BossCatalog.hell_gap_speed(generation) > 0.0:
+		_hell_gap_y = BossCatalog.hell_gap_center(player_pos.y)
+		_hell_gap_left = BossCatalog.windup(attack, phase_now, generation)
+		_hell_gap_dir = -1.0 if player_pos.y < _hell_gap_y else 1.0
+		return
 	if attack == "charge" or attack == "dive":
 		_charge_y = _clamp_row(player_pos.y)
 		_fake_stage = 0
@@ -443,6 +456,8 @@ func _tick_intro(delta: float) -> void:
 			state = HOLD
 			fight_left = BossDirector.LIFE
 			_attack_cd = 0.55
+			if generation >= 3:
+				_hook(DragonPhase.HOOK_RETURN_GAPS)
 		return
 	var span := maxf(BossCatalog.LICH_INTRO, 0.1)
 	var along := clampf(1.0 - intro_left / span, 0.0, 1.0)
@@ -461,7 +476,53 @@ func _tick_intro(delta: float) -> void:
 		_attack_cd = 0.4
 
 func _attack_busy() -> bool:
-	return not telegraphs.is_empty() or _row_left > 0.0 or _rain_left > 0.0 or _beam_mode != 0 or _spiral_left > 0.0 or _hands_left > 0.0 or _hands_live > 0.0 or shield_left > 0.0 or _gust_warn > 0.0 or gust_left > 0.0
+	return not telegraphs.is_empty() or _row_left > 0.0 or _rain_left > 0.0 or _beam_mode != 0 or _spiral_left > 0.0 or _hands_left > 0.0 or _hands_live > 0.0 or shield_left > 0.0 or _gust_warn > 0.0 or gust_left > 0.0 or _hell_gap_left > 0.0
+
+func _tick_hell_gap(delta: float, run_time: float) -> void:
+	var speed := BossCatalog.hell_gap_speed(generation)
+	_hell_gap_y += _hell_gap_dir * speed * delta
+	var half := BossCatalog.HELL_GAP * 0.5
+	var lo := 36.0 + half
+	var hi := 206.0 - half
+	if _hell_gap_y <= lo:
+		_hell_gap_y = lo
+		_hell_gap_dir = 1.0
+	elif _hell_gap_y >= hi:
+		_hell_gap_y = hi
+		_hell_gap_dir = -1.0
+	_hell_gap_left = maxf(_hell_gap_left - delta, 0.0)
+	if _hell_gap_left > 0.0:
+		return
+	var phase_now := dragon_phase()
+	var bullet := BossCatalog.bullet_speed(phase_now, generation)
+	for spec in BossCatalog.hell_breath_plan(position, _hell_gap_y, bullet, generation):
+		telegraphs.append({
+			"left": 0.02 + 0.03 * float(spec["stagger"]),
+			"velocity": spec["velocity"],
+			"pos": position + spec["offset"],
+			"sprite": str(spec.get("sprite", BossCatalog.DRAGON_SHOT)),
+		})
+	_attack_cd = BossCatalog.cooldown("hell_breath", phase_now, run_time, generation)
+
+func _hook_ability(attack: String) -> void:
+	if boss_slug != "great_dragon":
+		return
+	_hook(DragonPhase.hook_for_boss(attack))
+	if (attack == "sky_breath" or attack == "hell_breath") and DragonPhase.has_return(generation, 0):
+		_hook(DragonPhase.HOOK_RETURN_BREATH)
+	if attack == "boss_meteor" and DragonPhase.has_return(generation, 1):
+		_hook(DragonPhase.HOOK_RETURN_METEORS)
+	if attack == "hell_breath" and DragonPhase.has_return(generation, 3):
+		_hook(DragonPhase.HOOK_RETURN_HELL)
+	if attack == "ember_fan" and DragonPhase.has_return(generation, 4):
+		_hook(DragonPhase.HOOK_RETURN_FAN)
+
+func _hook(cue: String) -> void:
+	if cue == "":
+		return
+	var host := get_parent()
+	if host != null and host.has_method("play_sfx_hook"):
+		host.play_sfx_hook(cue)
 
 func _cooled(pattern: String, run_time: float, phase_now: int) -> float:
 	return _paced(BossCatalog.cooldown(pattern, phase_now, run_time, generation))
@@ -768,6 +829,13 @@ func _draw_specials() -> void:
 
 func _draw_breath() -> void:
 	var pulse := 0.45 + 0.55 * absf(sin(age * 18.0))
+	if _hell_gap_left > 0.0:
+		var gap := _hell_gap_y - position.y
+		var x0 := -position.x
+		var x1 := field_size.x - position.x
+		draw_rect(Rect2(Vector2(x0, -position.y), Vector2(x1 - x0, field_size.y)), Color(0.55, 0.08, 0.02, 0.28 * pulse))
+		draw_rect(Rect2(Vector2(x0, gap - BossCatalog.HELL_GAP * 0.5), Vector2(x1 - x0, BossCatalog.HELL_GAP)), Color(0.85, 0.95, 0.7, 0.55))
+		return
 	if _attack_id == "hell_breath":
 		var gap := 0.0
 		var found := false
@@ -791,7 +859,7 @@ func _draw_breath() -> void:
 		var x1 := field_size.x - position.x
 		draw_rect(Rect2(Vector2(x0, -position.y), Vector2(x1 - x0, field_size.y)), Color(0.55, 0.08, 0.02, 0.28 * pulse))
 		if found:
-			draw_rect(Rect2(Vector2(x0, gap - BossCatalog.HELL_GAP * 0.5), Vector2(x1 - x0, BossCatalog.HELL_GAP)), Color(0.85, 0.95, 0.7, 0.28))
+			draw_rect(Rect2(Vector2(x0, gap - BossCatalog.HELL_GAP * 0.5), Vector2(x1 - x0, BossCatalog.HELL_GAP)), Color(0.85, 0.95, 0.7, 0.55))
 		return
 	if telegraphs.is_empty():
 		return

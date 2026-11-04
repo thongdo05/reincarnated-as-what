@@ -121,6 +121,11 @@ var _hit_stop_frames := 0
 var _hit_stop_cooldown := 0.0
 var _juice_shake := 0.0
 var _dragon_show: DragonShow
+var _dragon_phase_on := false
+var _dragon_phase_at := 0.0
+var _dragon_spawns: DragonSpawnDirector
+var _dragon_tier := 0
+var _sheets: Array[SheetFx] = []
 var _roster_form := 0
 var dragon_kills := 0
 var _meteor_kills := 0
@@ -760,6 +765,7 @@ func _process(delta: float) -> void:
 	_background.tick(world_delta if phase == PHASE_PLAY else delta, size, Difficulty.scroll_scale(elapsed))
 	_combat.tick(delta)
 	_tick_effects(delta)
+	_tick_sheets(delta)
 	if phase == PHASE_REVEAL:
 		if CaptureMode.holding():
 			return
@@ -883,19 +889,35 @@ func _play_frame(delta: float, size: Vector2) -> void:
 					living = null
 				if _spawn_boss(event, size):
 					living = _living_boss()
-		var enemy_room := Difficulty.enemy_cap(elapsed) - _alive_enemy_count()
-		for event in _director.pop_due(elapsed):
-			if living != null and _throttle_spawn(living):
-				continue
-			if enemy_room <= 0:
-				continue
-			if _spawn_enemy(event, size):
-				enemy_room -= 1
+		if dragon_phase_elapsed() >= 0.0:
+			_spawn_dragon_minions(living, size)
+		else:
+			var enemy_room := Difficulty.enemy_cap(elapsed) - _alive_enemy_count()
+			for event in _director.pop_due(elapsed):
+				if living != null and _throttle_spawn(living):
+					continue
+				if enemy_room <= 0:
+					continue
+				if _spawn_enemy(event, size):
+					enemy_room -= 1
 	var player_pos := _player.position
-	var shot_room := maxi(Difficulty.enemy_shot_cap(elapsed) - _reserved_enemy_shots(), 0)
+	var shot_cap := Difficulty.enemy_shot_cap(elapsed)
+	if dragon_phase_elapsed() >= 0.0:
+		shot_cap = DragonPhase.shot_cap(dragon_phase_elapsed())
+	var shot_room := maxi(shot_cap - _reserved_enemy_shots(), 0)
+	var dragon_boss := _great_dragon_on_screen()
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
+		if enemy is DragonEnemy:
+			var dragon := enemy as DragonEnemy
+			var phase_t := dragon_phase_elapsed()
+			if phase_t < 0.0:
+				phase_t = 0.0
+			dragon.bullet_density = DragonPhase.bullet_density(phase_t)
+			dragon.move_scale = DragonPhase.speed_mul(phase_t)
+			dragon.suppress_fire = dragon_boss
+			dragon.bind_allies(_enemies)
 		enemy.fire_room = shot_room
 		for spec in enemy.tick(delta, player_pos, elapsed, Difficulty.speed_scale(elapsed)):
 			_spawn_shot(spec, false)
@@ -903,6 +925,11 @@ func _play_frame(delta: float, size: Vector2) -> void:
 			_player.position.x = clampf(_player.position.x + enemy.gust_push * delta, 18.0, size.x - 18.0)
 		for extra in enemy.take_spawns():
 			_spawn_enemy(extra, size)
+		var bye := enemy.take_farewell()
+		if not bye.is_empty():
+			var offset: Vector2 = bye.get("offset", Vector2.ZERO)
+			_play_sheet(str(bye.get("file", "")), enemy.position + offset)
+			play_sfx_hook(str(bye.get("cue", "")))
 		if shot_room >= 0:
 			shot_room = enemy.fire_room
 	_tick_charm(delta)
@@ -983,7 +1010,7 @@ func _throttle_spawn(boss: EnemyActor) -> bool:
 	return _boss_throttle % 2 == 0
 
 func _spawn_enemy(data: Dictionary, size: Vector2) -> bool:
-	var enemy := EnemyActor.new()
+	var enemy: EnemyActor = DragonEnemy.new() if bool(data.get("dragon", false)) else EnemyActor.new()
 	enemy.z_index = 3
 	enemy.setup(next_enemy_id, data, size, _background)
 	next_enemy_id += 1
@@ -1056,6 +1083,8 @@ func _collide() -> void:
 			var reach_y := 96.0 if enemy.is_boss() else 72.0
 			if absf(shot.position.x - enemy.position.x) > reach_x or absf(shot.position.y - enemy.position.y) > reach_y:
 				continue
+			if not enemy.can_be_hit():
+				continue
 			if enemy.blocks_player_shot(shot):
 				_spawn_fx("hit_flash.png", shot.position, 0.14, 0.8, 1.3)
 				if _combat != null:
@@ -1065,6 +1094,12 @@ func _collide() -> void:
 			if not HitLibrary.overlaps(shot.position, shot.sprite_name, "body", enemy.position, enemy_file, "body"):
 				continue
 			enemy.hurt(shot.damage)
+			if enemy is DragonEnemy and (enemy as DragonEnemy).consume_block():
+				_spawn_fx("hit_flash.png", shot.position, 0.14, 0.8, 1.3)
+				if _combat != null:
+					_combat.push("BLOCK", shot.position + Vector2(-10, -12), Color("d7c4ff"), 0.28)
+				spent.append(shot)
+				break
 			shot.hit_ids.append(enemy.id)
 			if shot.splits > 0:
 				for spec in FormCatalog.split_shots(shot.velocity, shot.position, shot.splits):
@@ -1074,7 +1109,8 @@ func _collide() -> void:
 				_splash_shot(shot, enemy)
 			if not enemy.alive:
 				_award_kill(enemy, true)
-				_spawn_fx("death_puff.png", enemy.position, 0.42, 0.45, 1.55)
+				if not enemy is DragonEnemy:
+					_spawn_fx("death_puff.png", enemy.position, 0.42, 0.45, 1.55)
 			else:
 				_spawn_fx("hit_flash.png", shot.position, 0.16, 0.75, 1.35)
 			if shot.pierce > 0:
@@ -1092,7 +1128,7 @@ func _collide() -> void:
 	var player_file := _player.sprite_name()
 	var player_scale := _player_scale()
 	for enemy in _enemies:
-		if not enemy.alive or enemy.charmed > 0.0:
+		if not enemy.alive or enemy.charmed > 0.0 or not enemy.threatens_player():
 			continue
 		var enemy_file := enemy.sprite_file()
 		# Every hurt part, not the movement bounds radius.
@@ -1144,6 +1180,8 @@ func _award_kill(enemy: EnemyActor, drop_loot: bool = true, chain_combo: bool = 
 		_charge_winner()
 	if drop_loot and form_id == FormCatalog.Id.DRAGON:
 		_charge_meteor()
+	if enemy is DragonEnemy:
+		_present_dragon_death(enemy as DragonEnemy)
 	if enemy.max_hp >= 3:
 		_request_hit_stop(3)
 		_bump_shake()
@@ -1241,7 +1279,9 @@ func _collect_gem(gem: LootGem) -> void:
 	var at := gem.position
 	_release_gem(gem)
 	loot_count += 1
-	score += Difficulty.GEM_SCORE
+	score += Difficulty.GEM_SCORE + gem.bonus_score
+	if gem.bonus_score > 0 and _combat != null:
+		_combat.push("+%d" % (Difficulty.GEM_SCORE + gem.bonus_score), at + Vector2(-10, -14), Color("ffe56a"), 0.45)
 	if _sound != null:
 		_sound.play_event("gem_pickup")
 	_spawn_fx("graze_sparkle.png", at, 0.22, 0.6, 1.2)
@@ -1390,7 +1430,8 @@ func _detonate() -> void:
 		enemy.hurt(Difficulty.BOMB_DAMAGE)
 		if not enemy.alive:
 			_award_kill(enemy, false)
-			_spawn_fx("death_puff.png", enemy.position, 0.28, 0.4, 1.2)
+			if not enemy is DragonEnemy:
+				_spawn_fx("death_puff.png", enemy.position, 0.28, 0.4, 1.2)
 
 func _overdrive_blast() -> void:
 	_clear_enemy_shots()
@@ -1448,13 +1489,15 @@ func _winner_clear() -> void:
 					_combat.push_callout("-%d" % dealt, enemy.position + Vector2(-18, -40), Color("ffe56a"), 0.7, 2)
 			if not enemy.alive:
 				_award_kill(enemy, false, false)
-				_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
+				if not enemy is DragonEnemy:
+					_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 			continue
 		enemy.hurt(FormCatalog.VENDING_WINNER_DAMAGE)
 		if not enemy.alive:
 			# Half points, no combo step, no drop. Same no-drop path as OVERDRIVE.
 			_award_kill(enemy, false, false)
-			_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
+			if not enemy is DragonEnemy:
+				_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 	_winner_busy = false
 
 func _note_cat_graze() -> void:
@@ -1950,6 +1993,8 @@ func _sweep(size: Vector2) -> void:
 		var gone := not is_instance_valid(enemy) or not enemy.alive or not field.has_point(enemy.position)
 		if gone:
 			if is_instance_valid(enemy):
+				if enemy is DragonEnemy:
+					(enemy as DragonEnemy).detach()
 				enemy.queue_free()
 			continue
 		_enemies[enemy_write] = enemy
@@ -2390,7 +2435,7 @@ func _dragon_chip(amount: int) -> void:
 func _dragon_splash(at: Vector2, radius: float) -> void:
 	var reach := radius * radius
 	for enemy in _enemies:
-		if not enemy.alive or enemy.is_boss():
+		if not enemy.alive or enemy.is_boss() or not enemy.can_be_hit():
 			continue
 		if enemy.position.distance_squared_to(at) <= reach:
 			enemy.alive = false
@@ -2411,7 +2456,109 @@ func _adopt_dragon_form() -> void:
 	var fit := FormCatalog.dragon_fit_scale(old_file, old_scale)
 	form_id = FormCatalog.Id.DRAGON
 	_player.adopt_dragon(fit)
+	_begin_dragon_phase()
 	_spawn_fx("dragon_form/dragon_transform.png", _player.position, 9.0 / 15.0, 0.6, 1.5)
+
+func dragon_phase_elapsed() -> float:
+	if not _dragon_phase_on:
+		return -1.0
+	return maxf(elapsed - _dragon_phase_at, 0.0)
+
+func _begin_dragon_phase() -> void:
+	if _dragon_phase_on:
+		return
+	_dragon_phase_on = true
+	_dragon_phase_at = elapsed
+	_dragon_tier = 1
+	_dragon_spawns = DragonSpawnDirector.new(day_seed)
+	_dragon_spawns.begin(elapsed)
+
+func _great_dragon_on_screen() -> bool:
+	var living := _living_boss()
+	return living != null and living.boss_slug == "great_dragon"
+
+func _spawn_dragon_minions(living: EnemyActor, size: Vector2) -> void:
+	_note_dragon_tier()
+	if _dragon_spawns == null:
+		return
+	var paused := living != null and living.boss_slug == "great_dragon"
+	var room := DragonPhase.MAX_ENEMIES - _alive_minion_count()
+	for event in _dragon_spawns.pop_due(elapsed, paused):
+		if room <= 0:
+			continue
+		if _spawn_enemy(event, size):
+			room -= 1
+
+func _note_dragon_tier() -> void:
+	var tier := DragonPhase.tier_for(maxf(dragon_phase_elapsed(), 0.0))
+	if tier <= _dragon_tier:
+		return
+	_dragon_tier = tier
+	play_sfx_hook(DragonPhase.HOOK_TIER)
+	if _combat != null:
+		var field := _viewport_size()
+		_combat.push_callout("TIER %d" % tier, Vector2(field.x * 0.5, 36.0), Color("ffb15a"), 0.9, 2)
+
+func _alive_minion_count() -> int:
+	var count := 0
+	for enemy in _enemies:
+		if enemy.alive and not enemy.is_boss():
+			count += 1
+	return count
+
+func play_sfx_hook(cue: String) -> void:
+	if cue == "" or _sound == null:
+		return
+	_sound.play_event(cue)
+
+func _present_dragon_death(dragon: DragonEnemy) -> void:
+	dragon.detach()
+	var visual := dragon.death_visual()
+	var file := str(visual.get("file", ""))
+	if file != "":
+		var offset: Vector2 = visual.get("offset", Vector2.ZERO)
+		_play_sheet(file, dragon.position + offset)
+	play_sfx_hook(str(visual.get("cue", "")))
+	for spec in dragon.death_shots():
+		_spawn_shot(spec, false)
+	var gem: Dictionary = dragon.death_gem()
+	if gem.is_empty():
+		return
+	_spawn_bonus_gem(gem["at"], str(gem["sprite"]), int(gem["bonus"]), float(gem["life"]))
+
+func _spawn_bonus_gem(at: Vector2, sprite: String, bonus: int, life: float) -> void:
+	var gem := _take_gem()
+	gem.setup(sprite)
+	gem.bonus_score = bonus
+	gem.life = life
+	gem.drift = Difficulty.GEM_DRIFT
+	gem.age = 0.0
+	gem.position = at
+	gem.modulate = Color.WHITE
+	gem.z_index = 7
+	_loot.append(gem)
+
+func _play_sheet(file_name: String, at: Vector2) -> void:
+	if file_name == "" or not ArtLibrary.has_file(file_name):
+		return
+	var fx := SheetFx.new()
+	fx.z_index = 8
+	fx.setup(file_name, at)
+	add_child(fx)
+	_sheets.append(fx)
+
+func _tick_sheets(delta: float) -> void:
+	if _sheets.is_empty():
+		return
+	var write := 0
+	for fx in _sheets:
+		if is_instance_valid(fx) and fx.tick(delta):
+			_sheets[write] = fx
+			write += 1
+			continue
+		if is_instance_valid(fx):
+			fx.queue_free()
+	_sheets.resize(write)
 
 func _splash_shot(shot: Shot, direct: EnemyActor) -> void:
 	if shot.splash <= 0 or shot.splash_radius <= 0.0:
@@ -2419,11 +2566,13 @@ func _splash_shot(shot: Shot, direct: EnemyActor) -> void:
 	_spawn_fx("dragon_form/dragon_explosion.png", shot.position, 7.0 / 15.0, 0.5, 1.2)
 	var reach := shot.splash_radius * shot.splash_radius
 	for enemy in _enemies:
-		if enemy == direct or not enemy.alive or enemy.is_boss():
+		if enemy == direct or not enemy.alive or enemy.is_boss() or not enemy.can_be_hit():
 			continue
 		if enemy.position.distance_squared_to(shot.position) > reach:
 			continue
 		enemy.hurt(shot.splash)
+		if enemy is DragonEnemy and (enemy as DragonEnemy).consume_block():
+			continue
 		if not enemy.alive:
 			_award_kill(enemy, true, true)
 
@@ -2549,6 +2698,10 @@ func _reincarnate() -> void:
 	var died_as := _public_form()
 	dragon_kills = 0
 	_meteor_kills = 0
+	_dragon_phase_on = false
+	_dragon_phase_at = 0.0
+	_dragon_spawns = null
+	_dragon_tier = 0
 	_rain_budget = 0
 	_meteor_shake_left = 0.0
 	if _player != null:
@@ -2649,6 +2802,10 @@ func _clear_field() -> void:
 			enemy.alive = false
 			enemy.queue_free()
 	_enemies.clear()
+	for fx in _sheets:
+		if is_instance_valid(fx):
+			fx.queue_free()
+	_sheets.clear()
 	for shot in _shots:
 		_release_shot(shot)
 	_shots.clear()
@@ -2740,6 +2897,8 @@ func draw_boss_banner(canvas: CanvasItem) -> void:
 		label += " II"
 	elif boss.boss_slug == "great_dragon" and boss.dragon_phase() >= 3:
 		label += " III"
+	if boss.boss_slug == "great_dragon" and boss is BossActor and (boss as BossActor).generation > 0:
+		label += " R%d" % ((boss as BossActor).generation + 1)
 	var fill := BossCatalog.banner_color(boss.boss_slug)
 	var tex := PixelFont.outlined_texture(label, fill)
 	var pen := Vector2((field.x - tex.get_width()) * 0.5, 1.0)

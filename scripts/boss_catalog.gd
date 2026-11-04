@@ -237,7 +237,12 @@ static func cooldown(pattern: String, phase: int, elapsed: float, generation: in
 			base = 1.7 if phase < 3 else 1.15
 		"hell_breath":
 			base = 1.2
-	return maxf(base / attack_rate(elapsed, generation, phase), 0.58)
+	var cooled := maxf(base / attack_rate(elapsed, generation, phase), 0.58)
+	# Return 3 and later. The floor stays long enough to read the next warning.
+	# Windups are not touched here.
+	if generation >= 3:
+		cooled = maxf(cooled * DragonPhase.RETURN_GAP_SCALE, DragonPhase.RETURN_GAP_FLOOR)
+	return cooled
 
 static func skull_speed(elapsed: float) -> float:
 	return lerpf(68.0, 90.0, attack_unit(elapsed))
@@ -337,32 +342,19 @@ static func shot_plan(pattern: String, phase: int, generation: int, origin: Vect
 	var plans: Array[Dictionary] = []
 	if pattern == "sky_breath":
 		var lane := clampf(aim.y, 48.0, 200.0)
+		var scaled := speed * DragonPhase.breath_speed_scale(generation)
 		var index := 0
 		for off in [-20.0, -10.0, 0.0, 10.0, 20.0]:
 			plans.append({
 				"offset": Vector2(MOUTH.x, lane - origin.y + off),
-				"velocity": Vector2(-speed, 0.0),
+				"velocity": Vector2(-scaled, 0.0),
 				"stagger": index,
 				"sprite": DRAGON_SHOT,
 			})
 			index += 1
 		return plans
 	if pattern == "hell_breath":
-		var half := HELL_GAP * 0.5
-		var gap_y := clampf(aim.y + 72.0, 36.0 + half, 206.0 - half)
-		var index := 0
-		var y := 40.0
-		while y <= 214.0:
-			if absf(y - gap_y) >= half + 10.0:
-				plans.append({
-					"offset": Vector2(MOUTH.x, y - origin.y),
-					"velocity": Vector2(-speed, 0.0),
-					"stagger": index % 4,
-					"sprite": DRAGON_SHOT,
-				})
-				index += 1
-			y += 12.0
-		return plans
+		return hell_breath_plan(origin, hell_gap_center(aim.y), speed, generation)
 	if pattern == "ember_fan":
 		var to := aim - (origin + MOUTH)
 		if to.length() < 1.0:
@@ -384,10 +376,19 @@ static func shot_plan(pattern: String, phase: int, generation: int, origin: Vect
 				"sprite": BOSS_EMBER,
 			})
 			index += 1
+		if DragonPhase.has_return(generation, 4):
+			var extra: Array[Dictionary] = []
+			for spec in plans:
+				var copy: Dictionary = spec.duplicate()
+				copy["stagger"] = int(copy["stagger"]) + DragonPhase.RETURN_EXTRA_STAGGER
+				extra.append(copy)
+			plans.append_array(extra)
 		return plans
 	if pattern == "boss_meteor":
-		var left := clampf(aim.x - METEOR_SPACING, 64.0, 400.0 - METEOR_SPACING * 2.0)
-		for step in 3:
+		var count := DragonPhase.meteor_count(generation)
+		var span := METEOR_SPACING * float(count - 1)
+		var left := clampf(aim.x - span * 0.5, 64.0, 400.0 - span)
+		for step in count:
 			var column := left + float(step) * METEOR_SPACING
 			plans.append({
 				"offset": Vector2(column - origin.x, -36.0 - origin.y),
@@ -422,6 +423,33 @@ static func shot_plan(pattern: String, phase: int, generation: int, origin: Vect
 			"stagger": index,
 		})
 		index += 1
+	return plans
+
+static func hell_gap_center(aim_y: float) -> float:
+	var half := HELL_GAP * 0.5
+	return clampf(aim_y + 72.0, 36.0 + half, 206.0 - half)
+
+static func hell_gap_speed(generation: int) -> float:
+	if DragonPhase.has_return(generation, 3):
+		return DragonPhase.RETURN_HELL_GAP_SPEED
+	return 0.0
+
+static func hell_breath_plan(origin: Vector2, gap_center: float, speed: float, generation: int) -> Array[Dictionary]:
+	var scaled := speed * DragonPhase.breath_speed_scale(generation)
+	var half := HELL_GAP * 0.5
+	var plans: Array[Dictionary] = []
+	var index := 0
+	var y := 40.0
+	while y <= 214.0:
+		if absf(y - gap_center) >= half + 10.0:
+			plans.append({
+				"offset": Vector2(MOUTH.x, y - origin.y),
+				"velocity": Vector2(-scaled, 0.0),
+				"stagger": index % 4,
+				"sprite": DRAGON_SHOT,
+			})
+			index += 1
+		y += 12.0
 	return plans
 
 ## Y where this bullet crosses column_x. Empty when it never travels that way.

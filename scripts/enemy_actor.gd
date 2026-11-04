@@ -56,6 +56,15 @@ func sprite_file() -> String:
 func dragon_phase() -> int:
 	return 1
 
+func can_be_hit() -> bool:
+	return alive
+
+func threatens_player() -> bool:
+	return true
+
+func take_farewell() -> Dictionary:
+	return {}
+
 func take_spawns() -> Array[Dictionary]:
 	return []
 
