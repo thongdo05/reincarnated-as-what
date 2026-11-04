@@ -3878,5 +3878,66 @@
       10
     ],
     "note": "Column warning for bone rain. Purple rim, ghost-jade core, dark outline. No hit."
+  },
+  {
+    "file": "lich_soul_beam.png",
+    "size": [24, 24],
+    "frames": 1,
+    "anchor": [12, 12],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "none",
+    "idle": false,
+    "art_bbox": [24, 24],
+    "note": "PLACEHOLDER. Kaito should redraw. Fat soul-beam segment, 24px. Soft glow on the outside, bright core inside. Round so the sweep angle does not matter. The threat circle sits inside the glow."
+  },
+  {
+    "file": "lich_spiral_skull.png",
+    "size": [8, 8],
+    "frames": 1,
+    "anchor": [4, 4],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "left",
+    "idle": false,
+    "art_bbox": [8, 8],
+    "note": "PLACEHOLDER. Kaito should redraw. Small skull for the Lich spiral. Faces left. Bone palette, purple eye."
+  },
+  {
+    "file": "lich_grave_hand.png",
+    "size": [10, 16],
+    "frames": 1,
+    "anchor": [5, 12],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "up",
+    "idle": false,
+    "art_bbox": [10, 16],
+    "note": "PLACEHOLDER. Kaito should redraw. Bony hand that bursts up from a warning circle. Fingers point up."
+  },
+  {
+    "file": "knight_sword_wave.png",
+    "size": [16, 10],
+    "frames": 1,
+    "anchor": [8, 5],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "left",
+    "idle": false,
+    "art_bbox": [16, 10],
+    "note": "PLACEHOLDER. Kaito should redraw. Crescent sword wave. Faces left. Bone edge, dark outline."
+  },
+  {
+    "file": "knight_shield.png",
+    "size": [16, 20],
+    "frames": 1,
+    "anchor": [8, 10],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "left",
+    "idle": false,
+    "art_bbox": [16, 20],
+    "note": "PLACEHOLDER. Kaito should redraw. Death Knight shield. Visual only; the block is geometric. Pale steel, jade stripe."
   }
+
 ]

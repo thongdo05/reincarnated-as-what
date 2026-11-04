@@ -37,12 +37,16 @@ var telegraphs: Array[Dictionary] = []
 ## How many new aimed shots this enemy may still start. -1 means unlimited.
 var fire_room := -1
 var boss_slug := ""
+var intro_left := 0.0
 var _pending_spawns: Array[Dictionary] = []
 var _last_player := Vector2.ZERO
 var _have_player := false
 
 func is_boss() -> bool:
 	return boss_slug != ""
+
+func blocks_player_shot(_shot: Shot) -> bool:
+	return false
 
 func sprite_file() -> String:
 	return SpawnDirector.sprite_for(kind)
