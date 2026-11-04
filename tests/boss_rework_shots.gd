@@ -144,7 +144,7 @@ func _pose(file_name: String) -> void:
 	elif file_name == "lich_grave_hands.png":
 		boss.present("grave_hands", game._player.position)
 	elif file_name == "lich_enrage.png":
-		boss.hp = 90
+		boss.hp = 225
 		boss.enraged = true
 		boss.enrage_flash = 0.35
 		boss.present("beam_rain", game._player.position)
@@ -164,7 +164,7 @@ func _pose(file_name: String) -> void:
 		}, true)
 		game._collide()
 	elif file_name == "knight_enrage.png":
-		boss.hp = 160
+		boss.hp = 1143
 		boss.enraged = true
 		boss.enrage_flash = 0.35
 		boss.present("charge", game._player.position)

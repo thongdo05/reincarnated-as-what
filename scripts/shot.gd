@@ -7,6 +7,8 @@ var damage := 1
 var pierce := 0
 var radius := 4.0
 var splits := 0
+var splash := 0
+var splash_radius := 0.0
 var hit_ids: Array[int] = []
 var from_player := true
 var color := Color.WHITE
@@ -29,6 +31,8 @@ func setup(data: Dictionary, player_owned: bool) -> void:
 	pierce = int(data.get("pierce", 0))
 	radius = float(data.get("radius", 4.0))
 	splits = int(data.get("splits", 0))
+	splash = int(data.get("splash", 0))
+	splash_radius = float(data.get("splash_radius", 0.0))
 	color = data.get("color", Color.WHITE)
 	style = str(data.get("style", "blob"))
 	sprite_name = str(data.get("sprite", ""))

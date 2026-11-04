@@ -16,8 +16,10 @@ class_name FormCatalog
 ## Every Goblin balance number lives in GOBLIN. The three new forms live in
 ## VENDING, CAT, and DEMON.
 
-enum Id { SLIME, GOBLIN, VENDING, CAT, DEMON }
+enum Id { SLIME, GOBLIN, VENDING, CAT, DEMON, DRAGON }
 
+## The random reincarnation roll. Dragon is earned by killing the Great Dragon
+## and is never part of this list.
 const IDS: Array[int] = [Id.SLIME, Id.GOBLIN, Id.VENDING, Id.CAT, Id.DEMON]
 
 const SLIME_FIRE_INTERVAL := 0.16
@@ -117,10 +119,37 @@ const CAT := {
 ## Drawn and hurt at this fraction of the source art. The hurt circles are the
 ## same fit, scaled with the sprite, so a shot that touches the picture hits.
 const DEMON_PLAY_SCALE := 0.75
+## 30% smaller than the source art. The hurt shape uses the same scale.
+const VENDING_PLAY_SCALE := 0.7
+## Rank-5 combat from the first frame. There are no stages.
+## Three fireballs. Each is 5, so a volley that all hits is 15.
+## That is 214 DPS at 0.07s, above a rank-5 Goblin's 138.
+## The +1 per fireball is +3 on the volley, the same slope as the Goblin.
+const DRAGON_FIRE_INTERVAL := 0.07
+const DRAGON_SHOT_SPEED := 820.0
+const DRAGON_DAMAGE := 5
+const DRAGON_SPLASH := 8
+const DRAGON_SPLASH_RADIUS := 42.0
+## Hurt body is about 45px wide. 760 / 45 beats Goblin 560 / 34.
+const DRAGON_MAX_SPEED := 760.0
+const DRAGON_POWER_PER_LEVEL := 1
+const DRAGON_METEOR_KILLS := 8
+const DRAGON_SPRITE := "dragon_form/dragon_fly.png"
+const DRAGON_SHOT := "dragon_form/dragon_fireball.png"
+const DRAGON_SPREAD: Array[float] = [-58.0, 0.0, 58.0]
 
 static func play_scale(id: int) -> float:
 	if id == Id.DEMON:
 		return DEMON_PLAY_SCALE
+	if id == Id.VENDING:
+		return VENDING_PLAY_SCALE
+	return 1.0
+
+static func dragon_power_bonus(level: int) -> int:
+	return maxi(level, 0) * DRAGON_POWER_PER_LEVEL
+
+## The fly sheet is already the on-screen size. Do not shrink it.
+static func dragon_fit_scale(_file_name: String, _old_scale: float) -> float:
 	return 1.0
 
 ## Slow homing orbs. Damage, speed, and turn rate climb with the crowd.
@@ -164,6 +193,11 @@ const FORM_CARD := {
 	},
 	Id.DEMON: {
 		"trait": "Big slow orbs home in. They hit harder the more enemies are on screen. Later ranks loose more orbs.",
+		"ready": "",
+		"used": "",
+	},
+	Id.DRAGON: {
+		"trait": "Earned by slaying the Great Dragon. Fireballs explode. Kills fill Meteor Rain, which chips a boss for 15% of its max HP.",
 		"ready": "",
 		"used": "",
 	},
@@ -304,6 +338,8 @@ static func key_for(id: int) -> String:
 			return "cat"
 		Id.DEMON:
 			return "demon_lord"
+		Id.DRAGON:
+			return "dragon"
 		_:
 			return "slime"
 
@@ -319,6 +355,8 @@ static func display_name(id: int) -> String:
 			return "CAT"
 		Id.DEMON:
 			return "DEMON LORD"
+		Id.DRAGON:
+			return "DRAGON"
 		_:
 			return "UNKNOWN"
 
@@ -334,6 +372,8 @@ static func gag(id: int) -> String:
 			return "The board voted to pounce."
 		Id.DEMON:
 			return "The crown was already on fire."
+		Id.DRAGON:
+			return "The sky learned your name."
 		_:
 			return ""
 
@@ -365,6 +405,8 @@ static func title_color(id: int) -> Color:
 			return Color("ff9ad8")
 		Id.DEMON:
 			return Color("ff6b8a")
+		Id.DRAGON:
+			return Color("ffb15a")
 		_:
 			return Color("ffd56a")
 
@@ -386,6 +428,8 @@ static func core_radius(id: int, rank_index: int, small: bool) -> float:
 	return HitLibrary.max_part_radius(_sprite_file(id, rank_index, small), "hurt")
 
 static func max_speed(id: int) -> float:
+	if id == Id.DRAGON:
+		return DRAGON_MAX_SPEED
 	if id == Id.SLIME or id == Id.CAT or id == Id.DEMON:
 		return SLIME_MAX_SPEED
 	if id == Id.VENDING:
@@ -513,6 +557,19 @@ static func rank_table(id: int) -> Array[Dictionary]:
 				"spread": [],
 			})
 		return rows
+	if id == Id.DRAGON:
+		var dragon_rows: Array[Dictionary] = []
+		for _i in 5:
+			dragon_rows.append({
+				"name": "Dragon",
+				"sprite": DRAGON_SPRITE,
+				"fire_interval": DRAGON_FIRE_INTERVAL,
+				"shot_sprite": DRAGON_SHOT,
+				"shot_color": Color("ffb15a"),
+				"lanes": [],
+				"spread": [],
+			})
+		return dragon_rows
 	var names := ["Demon Lord", "Demon Emperor", "True Demon King", "Demon Overlord", "Abyss Sovereign"]
 	var orbs := ["demon_orb_r1.png", "demon_orb_r2.png", "demon_orb_r3.png", "demon_orb_r3.png", "demon_orb_r3.png"]
 	var colors: Array[Color] = [Color("ff4d6a"), Color("ff6b8a"), Color("ffd0dc"), Color("ffe0e8"), Color("fff4f7")]
@@ -601,6 +658,13 @@ static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array
 			var can := _blob(origin + Vector2(muzzle, 0), vel, 0, shot_color, shot_sprite, damage)
 			can["style"] = "can"
 			shots.append(can)
+	elif id == Id.DRAGON:
+		for vy in DRAGON_SPREAD:
+			var fireball := _blob(origin + Vector2(muzzle, 0), Vector2(DRAGON_SHOT_SPEED, vy), 0, shot_color, shot_sprite, DRAGON_DAMAGE)
+			fireball["style"] = "dragon"
+			fireball["splash"] = DRAGON_SPLASH
+			fireball["splash_radius"] = DRAGON_SPLASH_RADIUS
+			shots.append(fireball)
 	elif id == Id.CAT:
 		var damage := int(cat_rank_f("damage", rank_index))
 		var swipe := _blob(origin + Vector2(muzzle, -2), Vector2(cat_f("shot_speed"), 0), 0, shot_color, shot_sprite, damage)
@@ -647,6 +711,8 @@ static func _blob(pos: Vector2, velocity: Vector2, splits: int, color: Color, sp
 		"gravity": 0.0,
 		"damage": damage,
 		"pierce": 0,
+		"splash": 0,
+		"splash_radius": 0.0,
 		"radius": HitLibrary.bounds_radius(sprite, "body"),
 		"splits": splits,
 		"color": color,
@@ -688,6 +754,8 @@ static func weapon_line(id: int, rank_index: int) -> String:
 		if damage != 1:
 			line += " Dmg %d." % damage
 		return line
+	if id == Id.DRAGON:
+		return "3 fireballs every %s. Dmg %d each, splash %d. Meteor Rain in %d kills." % [every, DRAGON_DAMAGE, DRAGON_SPLASH, DRAGON_METEOR_KILLS]
 	if id == Id.DEMON:
 		var line := "Homing orb every %s." % every
 		if count > 1:

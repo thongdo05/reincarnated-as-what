@@ -13,10 +13,11 @@ func _initialize() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	DisplayServer.window_set_size(Vector2i(480, 270))
 	_specs = [
-		{"file": "boss_lich_king.png", "slug": "lich_king", "attack": "skull", "hp": 200},
-		{"file": "boss_death_knight.png", "slug": "death_knight", "attack": "charge", "hp": 350},
-		{"file": "boss_great_dragon.png", "slug": "great_dragon", "attack": "sweep", "hp": 500},
-		{"file": "boss_great_dragon_phase2.png", "slug": "great_dragon", "attack": "dive", "hp": 200},
+		{"file": "boss_lich_king.png", "slug": "lich_king", "attack": "skull", "hp": 500},
+		{"file": "boss_death_knight.png", "slug": "death_knight", "attack": "charge", "hp": 2500},
+		{"file": "boss_great_dragon.png", "slug": "great_dragon", "attack": "sky_breath", "hp": 10000},
+		{"file": "boss_great_dragon_phase2.png", "slug": "great_dragon", "attack": "boss_meteor", "hp": 4000},
+		{"file": "boss_great_dragon_phase3.png", "slug": "great_dragon", "attack": "hell_breath", "hp": 2000},
 	]
 
 func _process(_delta: float) -> bool:

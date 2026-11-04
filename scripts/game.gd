@@ -120,6 +120,13 @@ var _death_shade: ColorRect
 var _hit_stop_frames := 0
 var _hit_stop_cooldown := 0.0
 var _juice_shake := 0.0
+var _dragon_show: DragonShow
+var _roster_form := 0
+var dragon_kills := 0
+var _meteor_kills := 0
+var _rain_budget := 0
+var _meteor_shake_left := 0.0
+var _meteor_shake_mag := 0.0
 var _tutorial_active := false
 var _tut_eye := false
 var _tut_gem := false
@@ -181,6 +188,11 @@ func _build_world() -> void:
 	_player.z_index = 5
 	_player.setup(form_id, Vector2(size.x * 0.28, size.y * 0.5))
 	add_child(_player)
+	_roster_form = form_id
+	_dragon_show = DragonShow.new()
+	_dragon_show.host = self
+	_dragon_show.rng_seed = day_seed
+	add_child(_dragon_show)
 
 	_combat = CombatText.new()
 	_combat.z_index = 8
@@ -739,6 +751,8 @@ func _process(delta: float) -> void:
 	if phase == PHASE_PLAY and _hit_stop_frames > 0:
 		_hit_stop_frames -= 1
 		return
+	if phase == PHASE_PLAY and _dragon_show != null:
+		_dragon_show.tick(delta)
 	var world_delta := delta
 	if phase == PHASE_PLAY and _slow_left > 0.0:
 		_slow_left = maxf(_slow_left - delta, 0.0)
@@ -840,6 +854,9 @@ func _play_frame(delta: float, size: Vector2) -> void:
 				spec["velocity"] = Vector2(speed, aim.y)
 				spec["homing"] = FormCatalog.demon_homing(rank_index, crowd) + float(level) * 0.5
 				spec["damage"] = FormCatalog.demon_damage(rank_index, crowd) + level / 8
+			elif form_id == FormCatalog.Id.DRAGON:
+				spec["damage"] = int(spec["damage"]) + FormCatalog.dragon_power_bonus(level)
+				_spawn_fx("dragon_form/dragon_muzzle.png", spec["position"], 3.0 / 15.0, 0.8, 1.3)
 			elif level > 0:
 				spec["damage"] = int(spec["damage"]) + FormCatalog.power_damage_bonus(form_id, level)
 			_spawn_shot(spec, true)
@@ -855,6 +872,15 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		if _boss_director != null:
 			_boss_director.set_boss_alive(living != null)
 			for event in _boss_director.pop_due(elapsed):
+				# A regular boss no longer walks off, so it would hold the
+				# dragon's clock. Clear it with no reward, then the dragon enters.
+				if str(event.get("slug", "")) == "great_dragon" and living != null and living.boss_slug != "great_dragon":
+					if living is BossActor:
+						(living as BossActor).dismiss()
+					else:
+						living.alive = false
+						living.visible = false
+					living = null
 				if _spawn_boss(event, size):
 					living = _living_boss()
 		var enemy_room := Difficulty.enemy_cap(elapsed) - _alive_enemy_count()
@@ -873,6 +899,8 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		enemy.fire_room = shot_room
 		for spec in enemy.tick(delta, player_pos, elapsed, Difficulty.speed_scale(elapsed)):
 			_spawn_shot(spec, false)
+		if enemy.gust_push != 0.0 and _player.alive:
+			_player.position.x = clampf(_player.position.x + enemy.gust_push * delta, 18.0, size.x - 18.0)
 		for extra in enemy.take_spawns():
 			_spawn_enemy(extra, size)
 		if shot_room >= 0:
@@ -991,7 +1019,7 @@ func _spawn_overlaps_player(enemy: EnemyActor) -> bool:
 	if enemy.position.distance_to(_player.position) > enemy.radius + _player.radius + 6.0:
 		return false
 	var enemy_file := enemy.sprite_file()
-	return HitLibrary.overlaps(_player.position, _player.sprite_name(), "hurt", enemy.position, enemy_file, "threat", FormCatalog.play_scale(form_id), 1.0)
+	return HitLibrary.overlaps(_player.position, _player.sprite_name(), "hurt", enemy.position, enemy_file, "threat", _player_scale(), 1.0)
 
 func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
 	var shot: Shot
@@ -1042,6 +1070,8 @@ func _collide() -> void:
 				for spec in FormCatalog.split_shots(shot.velocity, shot.position, shot.splits):
 					spec["ignore_id"] = enemy.id
 					splits.append(spec)
+			if shot.splash > 0:
+				_splash_shot(shot, enemy)
 			if not enemy.alive:
 				_award_kill(enemy, true)
 				_spawn_fx("death_puff.png", enemy.position, 0.42, 0.45, 1.55)
@@ -1060,12 +1090,14 @@ func _collide() -> void:
 	if not _player.alive or _player.invulnerable or _player.blink_guard > 0.0:
 		return
 	var player_file := _player.sprite_name()
-	var player_scale := FormCatalog.play_scale(form_id)
+	var player_scale := _player_scale()
 	for enemy in _enemies:
 		if not enemy.alive or enemy.charmed > 0.0:
 			continue
 		var enemy_file := enemy.sprite_file()
 		# Every hurt part, not the movement bounds radius.
+		if enemy.is_boss() and enemy.intro_left > 0.0:
+			continue
 		var enemy_gap := HitLibrary.gap(_player.position, player_file, "hurt", enemy.position, enemy_file, "threat", player_scale, 1.0)
 		if enemy_gap <= 0.0:
 			_hurt_player(enemy.kind_name)
@@ -1098,6 +1130,7 @@ func _award_kill(enemy: EnemyActor, drop_loot: bool = true, chain_combo: bool = 
 		if boss.boss_slug == "great_dragon" and not boss.return_booked and _boss_director != null:
 			boss.return_booked = true
 			_boss_director.on_dragon_killed(elapsed)
+			_begin_dragon_slay(points, boss.position)
 	if drop_loot:
 		if enemy.is_boss():
 			_reward_boss(enemy)
@@ -1109,6 +1142,8 @@ func _award_kill(enemy: EnemyActor, drop_loot: bool = true, chain_combo: bool = 
 			_sound.play_event(BossCatalog.cue(enemy.boss_slug, "death"))
 	if drop_loot and not _winner_busy and form_id == FormCatalog.Id.VENDING:
 		_charge_winner()
+	if drop_loot and form_id == FormCatalog.Id.DRAGON:
+		_charge_meteor()
 	if enemy.max_hp >= 3:
 		_request_hit_stop(3)
 		_bump_shake()
@@ -1648,6 +1683,10 @@ func _sync_power() -> void:
 		_combat.push_callout("POWER +%d" % level, _player.position + Vector2(-28, -22), Color("ffe56a"), 0.36)
 
 func _try_rank() -> void:
+	if form_id == FormCatalog.Id.DRAGON:
+		_refresh_hud()
+		_refresh_debug()
+		return
 	var reached := FormCatalog.rank_for_points(evo_points)
 	if reached > rank_index:
 		var gate_count := FormCatalog.rank_gates().size()
@@ -1966,9 +2005,14 @@ func _apply_shake(delta: float) -> void:
 	if _juice_shake > 0.0:
 		_juice_shake = maxf(_juice_shake - delta, 0.0)
 		mag = maxf(mag, Replay.JUICE_SHAKE_PX * clampf(_juice_shake / Replay.JUICE_SHAKE_SECONDS, 0.0, 1.0))
-	# Stay inside a 2px cap (1px when the platform asks for reduced motion)
-	# so a bullet cannot leave the eye.
-	mag = minf(mag, Replay.shake_cap())
+	var cap := Replay.shake_cap()
+	if _meteor_shake_left > 0.0:
+		_meteor_shake_left = maxf(_meteor_shake_left - delta, 0.0)
+		mag = maxf(mag, _meteor_shake_mag)
+		cap = maxf(cap, _meteor_shake_mag)
+	# The everyday cap stays at 2px so a bullet cannot leave the eye.
+	# Meteor Rain may shake a little harder, and only while it is running.
+	mag = minf(mag, cap)
 	if mag <= 0.05:
 		if position != Vector2.ZERO:
 			position = Vector2.ZERO
@@ -1986,6 +2030,12 @@ func _refresh_hud() -> void:
 	if form_id == FormCatalog.Id.VENDING:
 		var need := float(FormCatalog.vending_winner_kills(rank_index))
 		winner_px = int(round(float(HudLayout.FILL_FULL) * clampf(float(winner) / need, 0.0, 1.0)))
+	var meteor_px := -1
+	var meteor_ready := false
+	if form_id == FormCatalog.Id.DRAGON:
+		var need_m := float(FormCatalog.DRAGON_METEOR_KILLS)
+		meteor_px = int(round(18.0 * clampf(float(_meteor_kills) / need_m, 0.0, 1.0)))
+		meteor_ready = _meteor_kills >= FormCatalog.DRAGON_METEOR_KILLS or (_dragon_show != null and _dragon_show.phase == DragonShow.CHARGE)
 	var rank_label := FormCatalog.rank_name(form_id, rank_index).to_upper()
 	var level := _power_level()
 	if level > 0:
@@ -2002,12 +2052,14 @@ func _refresh_hud() -> void:
 		int(ceil(rapid_left)) if rapid_left > 0.0 else 0,
 		int(ceil(magnet_left)) if magnet_left > 0.0 else 0,
 		-1,
-		winner_px
+		winner_px,
+		meteor_px,
+		meteor_ready
 	)
 
 func share_run() -> Dictionary:
 	return {
-		"form": ShareCard.form_key(form_id),
+		"form": ShareCard.form_key(_public_form()),
 		"rank_reached": rank_index + 1,
 		"time": ScoreRules.format_time(elapsed),
 		"score": score,
@@ -2057,7 +2109,7 @@ func _seed_line() -> String:
 	return "UTC seed %d - run %d" % [day_seed, run_index + 1]
 
 func _on_beat_link() -> void:
-	_copy_text(Replay.beat_url_for(day_seed, form_id))
+	_copy_text(Replay.beat_url_for(day_seed, _public_form()))
 	_flash_copy()
 
 func _copy_text(text: String) -> void:
@@ -2269,6 +2321,112 @@ func _overlaps(a: Vector2, a_radius: float, b: Vector2, b_radius: float) -> bool
 	var reach := a_radius + b_radius
 	return a.distance_squared_to(b) <= reach * reach
 
+func _player_scale() -> float:
+	if _player != null:
+		return _player.drawn_scale()
+	return FormCatalog.play_scale(form_id)
+
+func _public_form() -> int:
+	if form_id == FormCatalog.Id.DRAGON:
+		return _roster_form
+	return form_id
+
+func _begin_dragon_slay(points: int, at: Vector2) -> void:
+	dragon_kills += 1
+	if _dragon_show != null:
+		_dragon_show.begin_slay(points, at)
+
+func _charge_meteor() -> void:
+	if _dragon_show != null and _dragon_show.phase != DragonShow.IDLE:
+		return
+	_meteor_kills += 1
+	if _meteor_kills < FormCatalog.DRAGON_METEOR_KILLS:
+		return
+	_meteor_kills = 0
+	# The player stays hittable. Meteor pictures sit under the ship and under bullets.
+	if _dragon_show != null:
+		_dragon_show.rng_seed = day_seed + dragon_kills * 17 + int(elapsed * 10.0)
+		_dragon_show.start_rain()
+
+func _dragon_slow(seconds: float) -> void:
+	_slow_left = maxf(_slow_left, seconds)
+
+func _dragon_shake(amount: float, seconds: float) -> void:
+	_meteor_shake_mag = amount
+	_meteor_shake_left = maxf(_meteor_shake_left, seconds)
+
+func _dragon_clear_shots() -> void:
+	_clear_enemy_shots()
+
+func _dragon_clear_regulars() -> void:
+	for enemy in _enemies:
+		if enemy.alive and not enemy.is_boss():
+			enemy.alive = false
+	_clear_enemy_shots()
+
+func _dragon_open_budget() -> int:
+	var boss := _living_boss()
+	if boss == null:
+		_rain_budget = 0
+		return 0
+	_rain_budget = BossCatalog.winner_damage(boss.max_hp)
+	return _rain_budget
+
+func _dragon_chip(amount: int) -> void:
+	if amount <= 0 or _rain_budget <= 0:
+		return
+	var pay := mini(amount, _rain_budget)
+	var boss := _living_boss()
+	if boss != null and boss.alive and boss.intro_left <= 0.0:
+		var before := boss.hp
+		boss.hurt(pay)
+		var dealt := before - boss.hp
+		_rain_budget = maxi(_rain_budget - maxi(dealt, pay), 0)
+		if not boss.alive:
+			_award_kill(boss, true, true)
+	else:
+		_rain_budget = maxi(_rain_budget - pay, 0)
+
+func _dragon_splash(at: Vector2, radius: float) -> void:
+	var reach := radius * radius
+	for enemy in _enemies:
+		if not enemy.alive or enemy.is_boss():
+			continue
+		if enemy.position.distance_squared_to(at) <= reach:
+			enemy.alive = false
+
+func _dragon_jingle() -> void:
+	if _sound != null:
+		_sound.play_event("dragon_slain")
+
+func _dragon_roar() -> void:
+	if _sound != null:
+		_sound.play_event("boss_great_dragon_enter")
+
+func _adopt_dragon_form() -> void:
+	if _player == null or form_id == FormCatalog.Id.DRAGON:
+		return
+	var old_file := _player.sprite_name()
+	var old_scale := _player.drawn_scale()
+	var fit := FormCatalog.dragon_fit_scale(old_file, old_scale)
+	form_id = FormCatalog.Id.DRAGON
+	_player.adopt_dragon(fit)
+	_spawn_fx("dragon_form/dragon_transform.png", _player.position, 9.0 / 15.0, 0.6, 1.5)
+
+func _splash_shot(shot: Shot, direct: EnemyActor) -> void:
+	if shot.splash <= 0 or shot.splash_radius <= 0.0:
+		return
+	_spawn_fx("dragon_form/dragon_explosion.png", shot.position, 7.0 / 15.0, 0.5, 1.2)
+	var reach := shot.splash_radius * shot.splash_radius
+	for enemy in _enemies:
+		if enemy == direct or not enemy.alive or enemy.is_boss():
+			continue
+		if enemy.position.distance_squared_to(shot.position) > reach:
+			continue
+		enemy.hurt(shot.splash)
+		if not enemy.alive:
+			_award_kill(enemy, true, true)
+
 func _spawn_fx(file_name: String, at: Vector2, duration: float, from_scale: float, to_scale: float) -> void:
 	if _effects.size() >= Difficulty.MAX_FX:
 		return
@@ -2388,11 +2546,19 @@ func _reincarnate() -> void:
 	_force_close_board()
 	_dismiss_name_prompt()
 	_clear_field()
-	var died_as := form_id
+	var died_as := _public_form()
+	dragon_kills = 0
+	_meteor_kills = 0
+	_rain_budget = 0
+	_meteor_shake_left = 0.0
+	if _player != null:
+		_player.fit_scale = 1.0
+		_player.rear = 0.0
 	run_index = DailyRun.consume_run_index()
 	form_id = FormCatalog.id_for_run(day_seed, run_index)
 	if form_id == died_as:
 		form_id = FormCatalog.id_for_run_avoiding(day_seed, run_index, died_as)
+	_roster_form = form_id
 	score = 0
 	combo = 0
 	combo_left = 0.0
@@ -2572,6 +2738,8 @@ func draw_boss_banner(canvas: CanvasItem) -> void:
 	var label := boss.kind_name.to_upper()
 	if boss.boss_slug == "great_dragon" and boss.dragon_phase() == 2:
 		label += " II"
+	elif boss.boss_slug == "great_dragon" and boss.dragon_phase() >= 3:
+		label += " III"
 	var fill := BossCatalog.banner_color(boss.boss_slug)
 	var tex := PixelFont.outlined_texture(label, fill)
 	var pen := Vector2((field.x - tex.get_width()) * 0.5, 1.0)
@@ -2669,9 +2837,10 @@ func _present_online_score() -> void:
 		return
 	# This run only. A local best from before SCORE_EPOCH is already gone and is not posted.
 	_pending_score = {
-		"form": FormCatalog.key_for(form_id),
+		"form": FormCatalog.key_for(_public_form()),
 		"score": maxi(score, 0),
 		"survival_ms": maxi(int(round(elapsed * 1000.0)), 0),
+		"dragon_slayer": dragon_kills > 0,
 	}
 	_lb_gen += 1
 	if _leaderboard.player_name() == "":
@@ -2797,7 +2966,8 @@ func _send_submit(gen: int) -> void:
 		int(_pending_score.get("score", 0)),
 		int(_pending_score.get("survival_ms", 0)),
 		func(parsed: Dictionary) -> void:
-			_on_submit_parsed(parsed, gen)
+			_on_submit_parsed(parsed, gen),
+		bool(_pending_score.get("dragon_slayer", false))
 	)
 
 func _on_submit_parsed(parsed: Dictionary, gen: int) -> void:

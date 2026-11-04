@@ -38,6 +38,8 @@ var telegraphs: Array[Dictionary] = []
 var fire_room := -1
 var boss_slug := ""
 var intro_left := 0.0
+## Wing gust from the Great Dragon. Other enemies leave this at 0.
+var gust_push := 0.0
 var _pending_spawns: Array[Dictionary] = []
 var _last_player := Vector2.ZERO
 var _have_player := false

@@ -5,14 +5,22 @@ class_name BossDirector
 ## plus the elapsed time of a dragon kill (the return is 60 s after that).
 ## Querying more or less often does not change who shows up.
 ##
-## Lich King and Death Knight alternate from about 45 s, then about every 40 s.
-## A slot that would still be on screen when the dragon arrives is skipped.
+## Lich King and Death Knight alternate from about 45 s, then about every 40 s,
+## until the Great Dragon has appeared. A slot that would still be on screen
+## under the old 25 s fight when the dragon arrives is skipped.
 ## The Great Dragon is not part of that cycle. The first one is about 2:30.
-## It does not leave on a timer. After it dies, the cycle resumes, and the
-## dragon returns 60 s later with a higher generation.
+## It does not leave on a timer. After it has appeared, regular bosses never
+## spawn again. The dragon returns 60 s after each kill with a higher generation.
+##
+## Regular bosses do not flee, so one that is still alive at the dragon's time
+## would hold that arrival. pop_due still emits the dragon then. The game
+## removes the regular boss with no kill reward and spawns the dragon.
 
 const FIRST := 45.0
 const EVERY := 40.0
+## Not a flee timer. Regular bosses stay until they die. This is only the
+## gap kept clear before the dragon, so a regular is not spawned and then
+## removed a moment later to make room.
 const LIFE := 25.0
 const DRAGON_AT := 150.0
 const DRAGON_RETURN := 60.0
@@ -25,6 +33,7 @@ var dragon_gen := 0
 var dragon_at := DRAGON_AT
 var _emitted_gen := -1
 var _boss_alive := false
+var _dragon_seen := false
 
 func _init(day_seed: int) -> void:
 	seed_value = day_seed
@@ -64,11 +73,21 @@ func on_dragon_killed(elapsed: float) -> void:
 	dragon_at = elapsed + DRAGON_RETURN
 
 func pop_due(elapsed: float) -> Array[Dictionary]:
+	if _dragon_seen:
+		if _boss_alive:
+			return []
+		if elapsed + 0.0001 >= dragon_at and _emitted_gen != dragon_gen:
+			return [_emit_dragon()]
+		return []
 	# One boss at a time. While one is up, later regular slots are skipped so
 	# they do not queue and arrive together when the fight ends.
 	if _boss_alive:
 		while regular_time(seed_value, next_regular) <= elapsed + 0.0001:
 			next_regular += 1
+		# The living regular never leaves on its own. Emit the dragon anyway
+		# so that fight cannot hold the arrival. The game clears it first.
+		if elapsed + 0.0001 >= dragon_at and _emitted_gen != dragon_gen:
+			return [_emit_dragon()]
 		return []
 	# Regulars whose time is before the dragon go out first, so a coarse poll
 	# still meets the Lich / Knight that a per-frame poll would have spawned.
@@ -80,9 +99,13 @@ func pop_due(elapsed: float) -> Array[Dictionary]:
 			continue
 		return [_regular_event(index, at)]
 	if elapsed + 0.0001 >= dragon_at and _emitted_gen != dragon_gen:
-		_emitted_gen = dragon_gen
-		return [_dragon_event()]
+		return [_emit_dragon()]
 	return []
+
+func _emit_dragon() -> Dictionary:
+	_emitted_gen = dragon_gen
+	_dragon_seen = true
+	return _dragon_event()
 
 func _overlaps_dragon(at: float) -> bool:
 	return at < dragon_at and at + LIFE + OVERLAP_PAD > dragon_at
