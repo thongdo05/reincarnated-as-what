@@ -51,7 +51,9 @@ const CAT_BLINK_CD := 0.14
 const CAT_BLINK_GUARD := 0.10
 
 ## Every Goblin balance number. Rank arrays are rank 1 through rank 5.
-## Movement and stones read this table. The gem magnet is Difficulty.GOBLIN_MAGNET.
+## Movement and stones read this table. The gem magnet radius and speed are
+## Difficulty.GOBLIN_MAGNET and Difficulty.GOBLIN_MAGNET_SPEED. A gem in range
+## glides in and is collected on touch.
 ## Before this pass: fire_interval [0.48, 0.36, 0.28], shot_speed 780, gravity 170,
 ## spread [±110], [±150, ±50], [±180, ±90, 0], damage 1, pierce 0,
 ## loot_points 40, loot_magnet 0, loot_magnet_speed 0.
