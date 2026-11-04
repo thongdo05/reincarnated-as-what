@@ -41,7 +41,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play()
+	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -4126,6 +4126,53 @@ func _check_boss_play() -> int:
 		if game._sound.play_count(BossCatalog.cue(slug, "enter")) < 1 or game._sound.play_count(BossCatalog.cue(slug, "death")) < 1:
 			push_error("missing boss cue playback for %s" % slug)
 			failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
+## The real scene, past 45 s. A boss that is spawned and then swept on the
+## same frame never reaches this check.
+func _check_boss_arrives() -> int:
+	var failed := 0
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	var step := 1.0 / 60.0
+	for _i in 200:
+		game._process(step)
+		if int(game.phase) == game.PHASE_PLAY:
+			break
+	if int(game.phase) != game.PHASE_PLAY:
+		push_error("the run should leave the title card before the boss clock")
+		root.remove_child(game)
+		game.free()
+		return 1
+	var held := 0
+	var saw_name := ""
+	while game.elapsed < 55.0 and held < 8:
+		game.invuln = 30.0
+		game._process(step)
+		if int(game.phase) != game.PHASE_PLAY:
+			push_error("the run died before a boss, killer %s at %.1f" % [game.killer_name, game.elapsed])
+			failed += 1
+			break
+		var boss: EnemyActor = game._living_boss()
+		if boss == null or not boss.visible:
+			held = 0
+			continue
+		var on_screen := boss.position.x > 16.0 and boss.position.x < 470.0 and boss.position.y > 8.0 and boss.position.y < 262.0
+		if on_screen:
+			held += 1
+			saw_name = boss.kind_name
+		else:
+			held = 0
+	if held < 8:
+		push_error("no boss stayed on screen after 45 s (elapsed %.1f)" % game.elapsed)
+		failed += 1
+	elif saw_name != "Lich King":
+		push_error("the first boss on the real clock should be the Lich King, got %s" % saw_name)
+		failed += 1
 	root.remove_child(game)
 	game.free()
 	return failed

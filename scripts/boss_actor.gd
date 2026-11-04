@@ -55,7 +55,11 @@ func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: Fi
 	phase = float(data.get("phase", 0.0))
 	wave_amp = float(data.get("wave_amp", 18.0))
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	position = Vector2(field.x + radius + 28.0, origin_y)
+	# The sweeper drops anything past x = field + 80. A boss body is wide
+	# enough that field + radius + 28 starts past that line, so the boss was
+	# removed on the frame it spawned and the clock did not try again.
+	var enter_x := minf(field.x + radius + 28.0, field.x + 70.0)
+	position = Vector2(enter_x, origin_y)
 	state = ENTER
 	fight_left = 0.0
 	_attack_cd = 0.55
