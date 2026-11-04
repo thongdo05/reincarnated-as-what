@@ -1258,7 +1258,7 @@
   },
   "lich_spiral_skull.png": {
     "threat": [
-      { "type": "circle", "center": [0, 0], "r": 3 }
+      { "type": "circle", "center": [0, 0], "r": 4.5 }
     ]
   },
   "lich_grave_hand.png": {

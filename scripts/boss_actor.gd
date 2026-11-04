@@ -448,6 +448,8 @@ func _beam_hit(dir: Vector2, dist: float, fired: Array[Dictionary]) -> void:
 	var bolt := _bolt(Vector2.ZERO, BossCatalog.SKULL_MUZZLE + dir * dist, BossCatalog.SOUL_BEAM)
 	bolt["expires"] = true
 	bolt["life"] = 0.08
+	# The strip is drawn on the lich. These are only the hit volume.
+	bolt["visible"] = false
 	fired.append(bolt)
 
 func _start_spiral() -> void:
@@ -478,6 +480,11 @@ func _tick_spiral(delta: float, fired: Array[Dictionary]) -> void:
 		if fire_room > 0:
 			fire_room -= 1
 
+func _hand_ground_y() -> float:
+	var box := ArtLibrary.art_bbox(BossCatalog.GRAVE_HAND)
+	var point := ArtLibrary.anchor(BossCatalog.GRAVE_HAND)
+	return FieldBackground.GROUND_FEET - (box.y - point.y)
+
 func _start_hands(player_x: float) -> void:
 	_hand_xs = BossCatalog.hand_columns(player_x)
 	_hands_left = _paced(0.8)
@@ -488,7 +495,7 @@ func _tick_hands(delta: float, fired: Array[Dictionary]) -> void:
 	if _hands_left > 0.0:
 		_hands_left = maxf(_hands_left - delta, 0.0)
 		if _hands_left <= 0.0:
-			var ground := FieldBackground.GROUND_FEET - 6.0
+			var ground := _hand_ground_y()
 			for column in _hand_xs:
 				if fire_room == 0:
 					break
@@ -626,7 +633,7 @@ func _draw_specials() -> void:
 	if _beam_mode != 0:
 		_draw_beam(pulse)
 	if _hands_left > 0.0:
-		var ground := FieldBackground.GROUND_FEET - position.y - 4.0
+		var ground := FieldBackground.GROUND_FEET - position.y
 		for column in _hand_xs:
 			var c := Vector2(column - position.x, ground)
 			draw_arc(c, 12.0, 0.0, TAU, 16, Color(0.55, 1.0, 0.7, pulse), 2.0, true)
@@ -672,24 +679,41 @@ func _draw_beam(pulse: float) -> void:
 		var arrow_at := origin + dir * 78.0
 		draw_line(arrow_at, arrow_at + side * 18.0, Color(0.7, 0.4, 1.0, pulse), 2.0)
 		return
-	var flicker := 0.84 + 0.16 * absf(sin(age * 34.0))
-	var glow := BossCatalog.BEAM_THICK - 2.0 + 4.0 * absf(sin(age * 19.0))
-	var fringe := Color(0.4, 0.95, 0.7, 0.38 * flicker)
-	var mid := Color(0.55, 0.25, 0.95, 0.55 * flicker)
-	var core := Color(0.7, 1.0, 0.86, 0.96)
-	var spine := Color(0.97, 1.0, 0.92, flicker)
-	draw_line(origin, gap_a, fringe, glow)
-	draw_line(gap_b, tip, fringe, glow)
-	draw_line(origin, gap_a, mid, glow * 0.62)
-	draw_line(gap_b, tip, mid, glow * 0.62)
-	draw_line(origin, gap_a, core, 12.0)
-	draw_line(gap_b, tip, core, 12.0)
-	draw_line(origin, gap_a, spine, 4.0)
-	draw_line(gap_b, tip, spine, 4.0)
-	draw_circle(gap_a, glow * 0.5, fringe)
-	draw_circle(gap_b, glow * 0.5, fringe)
-	draw_circle(gap_a, 5.0, spine)
-	draw_circle(gap_b, 5.0, spine)
+	var snapped := (position + origin).round() - position
+	_paint_beam_tile(snapped, dir, 0.0, BossCatalog.BEAM_GAP_NEAR)
+	_paint_beam_tile(snapped, dir, BossCatalog.BEAM_GAP_FAR, BossCatalog.BEAM_LENGTH)
+
+## One quad per span, with the tile repeating along the beam. Separate sprites
+## leave a crack once the strip is rotated; repeat UVs do not.
+func _paint_beam_tile(origin: Vector2, dir: Vector2, from_d: float, to_d: float) -> void:
+	var tex := ArtLibrary.texture(BossCatalog.SOUL_BEAM)
+	if tex == null or to_d <= from_d:
+		return
+	var side := Vector2(-dir.y, dir.x)
+	var half := tex.get_height() * 0.5
+	var tile := float(tex.get_width())
+	var points := PackedVector2Array([
+		origin + dir * from_d + side * -half,
+		origin + dir * to_d + side * -half,
+		origin + dir * to_d + side * half,
+		origin + dir * from_d + side * half,
+	])
+	var u0 := from_d / tile
+	var u1 := to_d / tile
+	var uvs := PackedVector2Array([
+		Vector2(u0, 0.0),
+		Vector2(u1, 0.0),
+		Vector2(u1, 1.0),
+		Vector2(u0, 1.0),
+	])
+	var colors := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
+	var saved_repeat := texture_repeat
+	var saved_filter := texture_filter
+	texture_repeat = TEXTURE_REPEAT_ENABLED
+	texture_filter = TEXTURE_FILTER_NEAREST
+	draw_polygon(points, colors, uvs, tex)
+	texture_repeat = saved_repeat
+	texture_filter = saved_filter
 
 func _draw_attack_flash() -> void:
 	var pulse := 0.4 + 0.55 * absf(sin(age * 26.0))
@@ -708,8 +732,10 @@ func _draw_attack_flash() -> void:
 			var bottom := floor_y - position.y
 			draw_line(Vector2(x, top), Vector2(x, bottom), Color(royal.r, royal.g, royal.b, 0.72 * pulse), 4.0)
 			draw_line(Vector2(x, top), Vector2(x, bottom), Color(jade.r, jade.g, jade.b, 0.95 * pulse), 2.0)
-			draw_rect(Rect2(Vector2(x - 5.0, top - 6.0), Vector2(10.0, 12.0)), Color(ink.r, ink.g, ink.b, pulse))
-			ArtLibrary.draw_loop(self, BossCatalog.BONE_MARK, age, Vector2(x, top))
+			draw_rect(Rect2(Vector2(x - 5.0, top - 6.0), Vector2(10.0, 12.0)), Color(ink.r, ink.g, ink.b, pulse * 0.35))
+			var beat := absf(sin(age * 18.0))
+			var flash := 0.35 + 0.65 * beat
+			ArtLibrary.draw_loop(self, BossCatalog.BONE_MARK, age, Vector2(x, top), Color(1, 1, 1, flash), 0.9 + 0.25 * beat)
 		return
 	if _attack_id == "skull" and not telegraphs.is_empty():
 		var item: Dictionary = telegraphs[0]

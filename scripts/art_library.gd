@@ -128,15 +128,22 @@ static func frame_source(file_name: String, time_sec: float) -> Rect2:
 ## Draw base_file, or its idle sheet, around origin. origin is the actor's
 ## anchor point in the canvas's local space (Vector2.ZERO for the actor itself).
 ## The anchor is the static sprite's, which matches one frame of the sheet.
-static func draw_loop(canvas: CanvasItem, base_file: String, time_sec: float, origin: Vector2 = Vector2.ZERO, tint: Color = Color.WHITE) -> void:
+static func draw_loop(canvas: CanvasItem, base_file: String, time_sec: float, origin: Vector2 = Vector2.ZERO, tint: Color = Color.WHITE, scale: float = 1.0) -> void:
 	var file := loop_file(base_file)
 	var tex := texture(file)
 	if tex == null:
 		return
 	var frames := int(entry(file).get("frames", 1))
-	var point := anchor(base_file)
+	var point := anchor(base_file) * scale
+	var at := origin - point
+	if canvas is Node2D and not is_equal_approx(scale, 1.0):
+		var node := canvas as Node2D
+		at = (node.position + at).round() - node.position
 	if frames <= 1:
-		canvas.draw_texture(tex, origin - point, tint)
+		if is_equal_approx(scale, 1.0):
+			canvas.draw_texture(tex, at, tint)
+			return
+		canvas.draw_texture_rect(tex, Rect2(at, tex.get_size() * scale), false, tint)
 		return
 	var src := frame_source(base_file, time_sec)
-	canvas.draw_texture_rect_region(tex, Rect2(origin - point, src.size), src, tint)
+	canvas.draw_texture_rect_region(tex, Rect2(at, src.size * scale), src, tint)
