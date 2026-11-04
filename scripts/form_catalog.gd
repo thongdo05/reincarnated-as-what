@@ -35,7 +35,7 @@ const SNAP_MAX_SPEED := 22000.0
 ## 8 frames, and the first frame of a drag already moves. No overshoot.
 const VENDING_ARRIVE := 62.0
 const VENDING_MAX_SPEED := 400.0
-## Kills, not coins. A full meter is the only WINNER! in the game.
+## Kills and gems, not coins or powerups. A full meter is the only WINNER! in the game.
 ## Rank-1 length. Play reads the per-rank list. This is the empty-list fallback.
 const VENDING_WINNER_KILLS := 10
 ## Heavy hit for a WINNER! clear, read off SpawnDirector.max_hp.
@@ -184,7 +184,7 @@ const FORM_CARD := {
 		"used": "",
 	},
 	Id.VENDING: {
-		"trait": "Heavy drift. Kills fill a WINNER! meter. A full meter blasts the field and clears shots. Later ranks pay a bigger WINNER!.",
+		"trait": "Heavy drift. Kills and gems fill a WINNER! meter. A full meter blasts the field and clears shots. Later ranks pay a bigger WINNER!.",
 		"ready": "",
 		"used": "",
 	},
@@ -751,7 +751,7 @@ static func weapon_line(id: int, rank_index: int) -> String:
 			return "%s Splits on hit." % head
 		return head
 	if id == Id.VENDING:
-		return "%d cans every %s. Spread %d. WINNER! in %d kills." % [count, every, int(round(float(spec["spread_deg"]))), vending_winner_kills(rank_index)]
+		return "%d cans every %s. Spread %d. WINNER! in %d kills or gems." % [count, every, int(round(float(spec["spread_deg"]))), vending_winner_kills(rank_index)]
 	if id == Id.CAT:
 		var line := "Swipe every %s. Reflects shots." % every
 		var damage := int(first.get("damage", 1))

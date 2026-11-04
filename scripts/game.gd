@@ -1292,6 +1292,7 @@ func _tick_loot(delta: float) -> void:
 
 func _collect_gem(gem: LootGem) -> void:
 	var at := gem.position
+	var winner_gem := _pickup_is_gem(gem)
 	_release_gem(gem)
 	loot_count += 1
 	score += Difficulty.GEM_SCORE + gem.bonus_score
@@ -1303,6 +1304,13 @@ func _collect_gem(gem: LootGem) -> void:
 			_sound.play_event("dragon_enemy_elder_drake_gem_pickup")
 	_spawn_fx("graze_sparkle.png", at, 0.22, 0.6, 1.2)
 	_add_evo(Difficulty.GEM_EVO)
+	# Same step as one kill. Coins share this pickup and do not count. Powerups do not come through here.
+	if winner_gem and form_id == FormCatalog.Id.VENDING and not _winner_busy:
+		_charge_winner()
+
+## Evolution gems and Elder Drake gems. A coin uses the same node and does not count.
+func _pickup_is_gem(gem: LootGem) -> bool:
+	return gem.sprite_name.find("gem") >= 0
 
 func _loot_reached(gem: LootGem, magnet: float) -> bool:
 	if _overlaps(_player.position, _player.radius, gem.position, gem.radius):
@@ -1473,7 +1481,7 @@ func _charge_winner() -> void:
 	winner = 0
 	_winner_clear()
 
-## The only WINNER! in the game. Kills fill it. Coins do not.
+## The only WINNER! in the game. Kills and gems fill it. Coins and powerups do not.
 ## Flying enemy shots and pending pattern shots (the rake windup included)
 ## are cleared. A survivor can still loose a telegraph it already started.
 func _winner_clear() -> void:

@@ -47,7 +47,7 @@ func _process(_delta: float) -> bool:
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
 	var live_failed: int = load("res://tests/dragon_phase_checks.gd").new().run_live(self)
-	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular()
+	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
@@ -3487,6 +3487,97 @@ func _check_audio_play() -> int:
 	game.free()
 	AudioCues.write_enabled(true)
 	AudioCues.apply_bus_levels()
+	return failed
+
+func _check_vending_gem_meter() -> int:
+	var failed := 0
+	var vending_trait := FormCatalog.trait_line(FormCatalog.Id.VENDING, true)
+	if vending_trait.find("Kills and gems fill") < 0 or vending_trait.find("WINNER!") < 0:
+		push_error("vending trait should say kills and gems fill the WINNER meter, got %s" % vending_trait)
+		failed += 1
+	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("kills or gems") < 0:
+		push_error("vending weapon line should count kills or gems toward WINNER")
+		failed += 1
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game.form_id = FormCatalog.Id.VENDING
+	game._player.form_id = FormCatalog.Id.VENDING
+	game.rank_index = 0
+	game.winner = 1
+	game.winner_pops = 0
+	var victim := EnemyActor.new()
+	victim.position = Vector2(300, 120)
+	victim.score_value = 40
+	victim.hp = 1
+	victim.max_hp = 1
+	victim.alive = true
+	game._award_kill(victim, true)
+	victim.free()
+	var kill_step := int(game.winner) - 1
+	if kill_step != 1:
+		push_error("a vending kill should still add one WINNER step, got %s" % game.winner)
+		failed += 1
+	var gem := LootGem.new()
+	gem.setup("gem.png")
+	game.add_child(gem)
+	game._collect_gem(gem)
+	if int(game.winner) != 1 + kill_step * 2:
+		push_error("a vending gem should match one kill on the WINNER meter, got %s" % game.winner)
+		failed += 1
+	var elder := LootGem.new()
+	elder.setup(DragonPhase.ELDER_GEM)
+	elder.bonus_score = DragonPhase.ELDER_GEM_BONUS
+	game.add_child(elder)
+	var before_elder := int(game.winner)
+	game._collect_gem(elder)
+	if int(game.winner) != before_elder + kill_step:
+		push_error("an Elder Drake gem should match one kill on the WINNER meter, got %s" % game.winner)
+		failed += 1
+	var coin := LootGem.new()
+	coin.setup("coin.png")
+	game.add_child(coin)
+	var before_coin := int(game.winner)
+	game._collect_gem(coin)
+	if int(game.winner) != before_coin:
+		push_error("a coin should not fill the WINNER meter, got %s" % game.winner)
+		failed += 1
+	var shield := PowerDrop.new()
+	shield.setup("shield")
+	game.add_child(shield)
+	var before_power := int(game.winner)
+	game._collect_power(shield)
+	if int(game.winner) != before_power:
+		push_error("a powerup should not fill the WINNER meter, got %s" % game.winner)
+		failed += 1
+	for id in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN, FormCatalog.Id.CAT, FormCatalog.Id.DEMON, FormCatalog.Id.DRAGON]:
+		game.form_id = id
+		game._player.form_id = id
+		game.winner = 4
+		var meteor_before := int(game._meteor_kills)
+		var other := LootGem.new()
+		other.setup("gem.png")
+		game.add_child(other)
+		game._collect_gem(other)
+		if int(game.winner) != 4 or int(game._meteor_kills) != meteor_before:
+			push_error("%s gem should leave the WINNER meter alone, winner %s meteor %s" % [FormCatalog.display_name(id), game.winner, game._meteor_kills])
+			failed += 1
+	game.form_id = FormCatalog.Id.VENDING
+	game._player.form_id = FormCatalog.Id.VENDING
+	game.evo_points = 0
+	game.rank_index = 0
+	game.winner = FormCatalog.vending_winner_kills(0) - 1
+	game.winner_pops = 0
+	var finisher := LootGem.new()
+	finisher.setup("gem.png")
+	game.add_child(finisher)
+	game._collect_gem(finisher)
+	if int(game.winner_pops) != 1 or int(game.winner) != 0:
+		push_error("a gem should finish a one-short WINNER meter without refilling it, winner %s pops %s" % [game.winner, game.winner_pops])
+		failed += 1
+	root.remove_child(game)
+	game.free()
 	return failed
 
 func _check_roster_play() -> int:
