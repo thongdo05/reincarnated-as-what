@@ -4,7 +4,9 @@ class_name DragonAudio
 ## Approved dragon-phase audio (Thong, 4 Nov 2026).
 ## Hook names in DragonPhase stay as they are. canonical() maps each
 ## one onto the event in audio/dragon_manifest.json.
-## Return-upgrade hooks have no sample in that pack, so they stay silent.
+## The five return-upgrade cues are the last manifest entries. BossActor
+## plays each one once per fight, over the attack sound, and leaves that
+## sound in place.
 
 const MUSIC_PATH := "res://audio/music/music_dragon_phase.ogg"
 const BPM := 140.0
@@ -41,6 +43,11 @@ const HOOK_EVENT := {
 	"sfx_dragon_ability_wing_gust": "great_dragon_wing_gust",
 	"sfx_dragon_ability_boss_meteor": "great_dragon_meteor_warning",
 	"sfx_dragon_ability_hell_breath": "great_dragon_enrage_breath",
+	"sfx_dragon_return_faster_breath": "great_dragon_upgrade_breath_speed",
+	"sfx_dragon_return_more_meteors": "great_dragon_upgrade_more_meteors",
+	"sfx_dragon_return_shorter_gaps": "great_dragon_upgrade_short_gaps",
+	"sfx_dragon_return_moving_hell_gap": "great_dragon_upgrade_fast_gap",
+	"sfx_dragon_return_extra_fireball": "great_dragon_upgrade_extra_spread",
 }
 
 const CUES := {
@@ -99,6 +106,11 @@ const CUES := {
 	"dragon_enemy_whelp_death": {"file": "res://audio/sfx_enemy_whelp_death.wav", "bus": "SFX", "loop": false, "lufs": -20.0, "duration": 0.6, "polyphony": 4, "pitch_semitones": 0.0},
 	"dragon_enemy_whelp_spit": {"file": "res://audio/sfx_enemy_whelp_spit.wav", "bus": "SFX", "loop": false, "lufs": -24.8, "duration": 0.3, "polyphony": 4, "pitch_semitones": 0.0},
 	"dragon_tier_up": {"file": "res://audio/sting_dragon_tier_up.wav", "bus": "SFX", "loop": false, "lufs": -19.3, "duration": 2.821, "polyphony": 1, "pitch_semitones": 0.0},
+	"great_dragon_upgrade_breath_speed": {"file": "res://audio/sfx_dragon_upgrade_breath_speed.wav", "bus": "SFX", "loop": false, "lufs": -21.8, "duration": 0.6, "polyphony": 4, "pitch_semitones": 0.0},
+	"great_dragon_upgrade_short_gaps": {"file": "res://audio/sfx_dragon_upgrade_short_gaps.wav", "bus": "SFX", "loop": false, "lufs": -17.9, "duration": 0.6, "polyphony": 4, "pitch_semitones": 0.0},
+	"great_dragon_upgrade_fast_gap": {"file": "res://audio/sfx_dragon_upgrade_fast_gap.wav", "bus": "SFX", "loop": false, "lufs": -20.8, "duration": 1.06, "polyphony": 4, "pitch_semitones": 0.0},
+	"great_dragon_upgrade_extra_spread": {"file": "res://audio/sfx_dragon_upgrade_extra_spread.wav", "bus": "SFX", "loop": false, "lufs": -21.4, "duration": 0.88, "polyphony": 4, "pitch_semitones": 0.0},
+	"great_dragon_upgrade_more_meteors": {"file": "res://audio/sfx_dragon_upgrade_more_meteors.wav", "bus": "SFX", "loop": false, "lufs": -22.4, "duration": 1.122, "polyphony": 4, "pitch_semitones": 0.0},
 }
 
 

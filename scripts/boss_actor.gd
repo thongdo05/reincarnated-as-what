@@ -49,6 +49,9 @@ var _hell_gap_dir := 1.0
 var _phase_seen := 0
 var _gust_warn := 0.0
 var gust_left := 0.0
+## Each return-upgrade sample plays once in this fight. A later attack still
+## plays its own sound.
+var _upgrade_once: Dictionary = {}
 
 func is_boss() -> bool:
 	return true
@@ -107,6 +110,10 @@ func _note_dragon_phase() -> void:
 	var host := get_parent()
 	if host != null and host.has_method("_dragon_roar"):
 		host._dragon_roar()
+	# Shorter gaps are in effect for the whole return. The cue waits for the
+	# first phase roar so it sits on that sound, then stays quiet.
+	if DragonPhase.has_return(generation, 2):
+		_hook_once(DragonPhase.HOOK_RETURN_GAPS)
 	if host != null and host.has_method("_bump_shake"):
 		host._bump_shake()
 
@@ -454,8 +461,6 @@ func _tick_intro(delta: float) -> void:
 			state = HOLD
 			fight_left = BossDirector.LIFE
 			_attack_cd = 0.55
-			if generation >= 3:
-				_hook(DragonPhase.HOOK_RETURN_GAPS)
 		return
 	var span := maxf(BossCatalog.LICH_INTRO, 0.1)
 	var along := clampf(1.0 - intro_left / span, 0.0, 1.0)
@@ -506,21 +511,36 @@ func _hook_ability(attack: String) -> void:
 	if boss_slug != "great_dragon":
 		return
 	_hook(DragonPhase.hook_for_boss(attack))
-	if (attack == "sky_breath" or attack == "hell_breath") and DragonPhase.has_return(generation, 0):
-		_hook(DragonPhase.HOOK_RETURN_BREATH)
+	if attack == "sky_breath" and DragonPhase.has_return(generation, 0):
+		# The breath loop starts with the warning's delay. The cue starts then too.
+		_hook_once(DragonPhase.HOOK_RETURN_BREATH, DragonAudio.BREATH_LOOP_DELAY)
+	elif attack == "hell_breath" and DragonPhase.has_return(generation, 0):
+		_hook_once(DragonPhase.HOOK_RETURN_BREATH)
 	if attack == "boss_meteor" and DragonPhase.has_return(generation, 1):
-		_hook(DragonPhase.HOOK_RETURN_METEORS)
+		_hook_once(DragonPhase.HOOK_RETURN_METEORS)
 	if attack == "hell_breath" and DragonPhase.has_return(generation, 3):
-		_hook(DragonPhase.HOOK_RETURN_HELL)
+		_hook_once(DragonPhase.HOOK_RETURN_HELL)
+	elif attack == "dive" and dragon_phase() >= 3 and DragonPhase.has_return(generation, 3):
+		_hook_once(DragonPhase.HOOK_RETURN_HELL)
 	if attack == "ember_fan" and DragonPhase.has_return(generation, 4):
-		_hook(DragonPhase.HOOK_RETURN_FAN)
+		_hook_once(DragonPhase.HOOK_RETURN_FAN)
 
-func _hook(cue: String) -> void:
+## One sample per return upgrade. delay lets a cue land on a sound that starts later.
+func _hook_once(cue: String, delay: float = 0.0) -> void:
+	if cue == "" or _upgrade_once.has(cue):
+		return
+	_upgrade_once[cue] = true
+	_hook(cue, delay)
+
+func _hook(cue: String, delay: float = 0.0) -> void:
 	if cue == "":
 		return
 	var host := get_parent()
 	if host != null and host.has_method("play_sfx_hook"):
-		host.play_sfx_hook(cue)
+		if delay > 0.0:
+			host.play_sfx_hook(cue, delay)
+		else:
+			host.play_sfx_hook(cue)
 
 func _cooled(pattern: String, run_time: float, phase_now: int) -> float:
 	return _paced(BossCatalog.cooldown(pattern, phase_now, run_time, generation))

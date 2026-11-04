@@ -2594,8 +2594,11 @@ func _alive_minion_count() -> int:
 			count += 1
 	return count
 
-func play_sfx_hook(cue: String) -> void:
+func play_sfx_hook(cue: String, delay: float = 0.0) -> void:
 	if cue == "" or _sound == null:
+		return
+	if delay > 0.0:
+		_sound.play_later(cue, delay)
 		return
 	_sound.play_event(cue)
 

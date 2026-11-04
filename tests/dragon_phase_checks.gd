@@ -204,6 +204,7 @@ func _check_returns() -> int:
 		push_error("the dragon's base attack list should stay put")
 		failed += 1
 	failed += _check_moving_gap()
+	failed += _check_upgrade_cues()
 	return failed
 
 func _check_moving_gap() -> int:
@@ -234,6 +235,150 @@ func _check_moving_gap() -> int:
 			failed += 1
 	moved.free()
 	return failed
+
+## A gen-5 return plays each upgrade cue once, over the attack sound.
+## A first fight plays none of them. The manifest says once, when the
+## upgrade first appears, so a repeat of the same attack does not replay it.
+func _check_upgrade_cues() -> int:
+	var failed := 0
+	var returned := _hear_return(5)
+	var first := _hear_return(0)
+	var cues := [
+		DragonPhase.HOOK_RETURN_BREATH,
+		DragonPhase.HOOK_RETURN_METEORS,
+		DragonPhase.HOOK_RETURN_GAPS,
+		DragonPhase.HOOK_RETURN_HELL,
+		DragonPhase.HOOK_RETURN_FAN,
+	]
+	for cue in cues:
+		if int(returned["upgrade"][cue]) != 1:
+			push_error("a gen-5 return should play %s once, got %s" % [cue, returned["upgrade"][cue]])
+			failed += 1
+		if int(first["upgrade"][cue]) != 0:
+			push_error("the first fight should stay silent on %s, got %s" % [cue, first["upgrade"][cue]])
+			failed += 1
+	if int(returned["early_gaps"]) != 0 or int(first["early_gaps"]) != 0:
+		push_error("shorter gaps should wait for the phase roar, intro counts %s / %s" % [returned["early_gaps"], first["early_gaps"]])
+		failed += 1
+	if int(returned["phase2_dive"]) != 0:
+		push_error("the fast-gap cue should not play on the phase-2 dive")
+		failed += 1
+	if int(returned["before_loop"]) != 0:
+		push_error("the faster-breath cue should start with the breath loop, not the warning")
+		failed += 1
+	var layers := {
+		DragonPhase.HOOK_SKY_BREATH: 2,
+		"great_dragon_breath_loop": 2,
+		DragonPhase.HOOK_EMBER_FAN: 2,
+		"great_dragon_phase_roar": 2,
+		DragonPhase.HOOK_METEOR: 2,
+		DragonPhase.HOOK_HELL_BREATH: 2,
+		DragonPhase.HOOK_DIVE: 1,
+	}
+	for event in layers.keys():
+		if int(returned["base"][event]) < int(layers[event]):
+			push_error("gen 5 should keep the base sound %s, got %s" % [event, returned["base"][event]])
+			failed += 1
+		if int(first["base"][event]) < 1:
+			push_error("the first fight should still play %s" % event)
+			failed += 1
+	return failed
+
+func _hear_return(generation: int) -> Dictionary:
+	var sound := SoundRig.new()
+	sound.setup()
+	var ear := _UpgradeEar.new()
+	ear.sound = sound
+	var boss := BossActor.new()
+	ear.add_child(boss)
+	var field := Vector2(480, 270)
+	boss.setup(1, {
+		"slug": "great_dragon",
+		"hold_x": 410.0,
+		"origin_y": 130.0,
+		"phase": 0.2,
+		"wave_amp": 8.0,
+		"generation": generation,
+	}, field, null)
+	var aim := Vector2(120, 110)
+	boss.tick(BossCatalog.DRAGON_INTRO + 0.05, aim, 180.0, 1.0)
+	var early_gaps := sound.play_count(DragonPhase.HOOK_RETURN_GAPS)
+	_set_phase(boss, 2)
+	_poke(boss, 1, aim)
+	var phase2_dive := sound.play_count(DragonPhase.HOOK_RETURN_HELL)
+	_set_phase(boss, 1)
+	_poke(boss, 0, aim)
+	var before_loop := sound.play_count(DragonPhase.HOOK_RETURN_BREATH)
+	sound._process(DragonAudio.BREATH_LOOP_DELAY)
+	_set_phase(boss, 1)
+	_poke(boss, 1, aim)
+	_set_phase(boss, 2)
+	boss.hurt(1)
+	_poke(boss, 3, aim)
+	var edge := int(floor(float(boss.max_hp) * 0.33)) + 1
+	boss.hp = edge
+	boss.hurt(1)
+	_poke(boss, 0, aim)
+	_set_phase(boss, 1)
+	_poke(boss, 0, aim)
+	sound._process(DragonAudio.BREATH_LOOP_DELAY)
+	_set_phase(boss, 1)
+	_poke(boss, 1, aim)
+	_set_phase(boss, 2)
+	_poke(boss, 3, aim)
+	_set_phase(boss, 3)
+	_poke(boss, 0, aim)
+	_poke(boss, 1, aim)
+	var upgrade := {}
+	for cue in [
+		DragonPhase.HOOK_RETURN_BREATH,
+		DragonPhase.HOOK_RETURN_METEORS,
+		DragonPhase.HOOK_RETURN_GAPS,
+		DragonPhase.HOOK_RETURN_HELL,
+		DragonPhase.HOOK_RETURN_FAN,
+	]:
+		upgrade[cue] = sound.play_count(cue)
+	var base := {}
+	for event in [
+		DragonPhase.HOOK_SKY_BREATH,
+		"great_dragon_breath_loop",
+		DragonPhase.HOOK_EMBER_FAN,
+		"great_dragon_phase_roar",
+		DragonPhase.HOOK_METEOR,
+		DragonPhase.HOOK_HELL_BREATH,
+		DragonPhase.HOOK_DIVE,
+	]:
+		base[event] = sound.play_count(event)
+	ear.free()
+	sound.free()
+	return {
+		"upgrade": upgrade,
+		"base": base,
+		"early_gaps": early_gaps,
+		"phase2_dive": phase2_dive,
+		"before_loop": before_loop,
+	}
+
+func _set_phase(boss: BossActor, phase: int) -> void:
+	var max_hp := float(boss.max_hp)
+	if phase <= 1:
+		boss.hp = boss.max_hp
+	elif phase == 2:
+		boss.hp = int(floor(max_hp * 0.5))
+	else:
+		boss.hp = int(floor(max_hp * 0.2))
+
+func _poke(boss: BossActor, index: int, aim: Vector2) -> void:
+	boss.telegraphs.clear()
+	boss._row_left = 0.0
+	boss._hell_gap_left = 0.0
+	boss._gust_warn = 0.0
+	boss.gust_left = 0.0
+	boss._attack_cd = 0.0
+	boss._attack_i = index
+	boss.state = BossActor.HOLD
+	boss.intro_left = 0.0
+	boss.tick(0.05, aim, 180.0, 1.0)
 
 func _dragon(generation: int, field: Vector2) -> BossActor:
 	var boss := BossActor.new()
@@ -397,6 +542,21 @@ func _check_actors() -> int:
 	elder.free()
 	puddles.free()
 	return failed
+
+class _UpgradeEar extends Node:
+	var sound: SoundRig
+
+	func play_sfx_hook(cue: String, delay: float = 0.0) -> void:
+		if sound == null:
+			return
+		if delay > 0.0:
+			sound.play_later(cue, delay)
+			return
+		sound.play_event(cue)
+
+	func _dragon_roar() -> void:
+		if sound != null:
+			sound.play_event("great_dragon_phase_roar")
 
 func _make(id: int, spawn_id: int, at: Vector2, field: Vector2) -> DragonEnemy:
 	var enemy := DragonEnemy.new()
