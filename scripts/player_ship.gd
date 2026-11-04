@@ -401,7 +401,7 @@ func _draw() -> void:
 		var fitted := drawn_scale()
 		draw_arc(Vector2.ZERO, radius / maxf(fitted, 0.01) + 5.0, 0.0, TAU, 22, Color("f2fbff"), 1.5, true)
 	if HitLibrary.show:
-		HitLibrary.draw(self, sprite_name(), "hurt", Color(0.35, 1.0, 0.55, 0.95))
+		HitLibrary.draw(self, sprite_name(), "hurt", Color(0.35, 1.0, 0.55, 0.95), anim_frame())
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 ## Rank 5 jackpot rays are a separate canvas item so they render under
@@ -499,6 +499,9 @@ func _draw_body(file: String) -> void:
 			var tint := Color(1, 1, 1, _trail_alpha(i))
 			ArtLibrary.draw_loop(self, file, _wobble, point - position, tint)
 	ArtLibrary.draw_loop(self, file, _wobble)
+
+func anim_frame() -> int:
+	return ArtLibrary.frame_index(sprite_name(), _wobble)
 
 func sprite_name() -> String:
 	var spec := FormCatalog.rank_spec(form_id, rank_index)

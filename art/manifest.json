@@ -3946,7 +3946,7 @@
       58
     ],
     "frames": 6,
-    "fps": 15,
+    "fps": 10,
     "anchor": [
       42,
       26
@@ -3956,7 +3956,7 @@
     "facing": "right",
     "idle": false,
     "loop": true,
-    "note": "Placeholder fly loop. Native frame 84x58, 6 frames, 15 fps. Faces right. Drawn at 1x. The hittable body is about 45x44, matching the larger of the Demon Lord r4/r5 body at 0.75 (source 58x56, on screen about 44x42) and the Vending r4/r5 body at 0.7 (source 40x52, on screen about 28x36). Wing tips below the belly are not a hit. The full frame is the wingspan.",
+    "note": "Final fly loop. Native frame 84x58, 6 frames, 10 fps. Faces right. Drawn at 1x. The hittable body is dragon_fly_body.png (about 47-48 by 46-48 per frame). Wings and tail in dragon_fly_fx.png are not a hit. The full frame is the wingspan.",
     "frame_size": [
       84,
       58
@@ -3983,7 +3983,7 @@
     "facing": "right",
     "idle": false,
     "loop": true,
-    "note": "Placeholder fireball. 20x15, 4 frames, 15 fps, loops. Faces right. Pale rim so it reads on dark worlds. Body hitbox covers the opaque pixels including the rim.",
+    "note": "Final fireball. 20x15, 4 frames, 15 fps, loops. Faces right. Pale rim so it reads on dark worlds. Body hitbox covers the opaque pixels including the rim.",
     "frame_size": [
       20,
       15
@@ -4010,7 +4010,7 @@
     "facing": "none",
     "idle": false,
     "loop": false,
-    "note": "Placeholder muzzle flash. 16x16, 3 frames, 15 fps, plays once.",
+    "note": "Final muzzle flash. 16x16, 3 frames, 15 fps, plays once.",
     "frame_size": [
       16,
       16
@@ -4037,7 +4037,7 @@
     "facing": "none",
     "idle": false,
     "loop": true,
-    "note": "Placeholder ember. 5x5, 3 frames, 15 fps, loops. Dropped every 2 meteor frames along a trail.",
+    "note": "Final ember. 5x5, 3 frames, 15 fps, loops. Dropped every 2 meteor frames along a trail.",
     "frame_size": [
       5,
       5
@@ -4064,7 +4064,7 @@
     "facing": "none",
     "idle": false,
     "loop": false,
-    "note": "Placeholder fireball explosion. 34x34, 7 frames, 15 fps, plays once.",
+    "note": "Final fireball explosion. 34x34, 7 frames, 15 fps, plays once.",
     "frame_size": [
       34,
       34
@@ -4091,7 +4091,7 @@
     "facing": "none",
     "idle": false,
     "loop": false,
-    "note": "Placeholder transform burst. 54x54, 9 frames, 15 fps, plays once.",
+    "note": "Final transform burst. 54x54, 9 frames, 15 fps, plays once.",
     "frame_size": [
       54,
       54
@@ -4104,55 +4104,55 @@
   {
     "file": "dragon_form/dragon_meteor.png",
     "size": [
-      104,
-      26
+      312,
+      78
     ],
     "frames": 4,
     "fps": 15,
     "anchor": [
-      13,
-      13
+      39,
+      39
     ],
     "anchor_type": "center",
     "category": "projectile",
     "facing": "down-right",
     "idle": false,
     "loop": true,
-    "note": "Placeholder meteor. Source cell 26x26, 4 frames, 15 fps, falling down-right. Barrage meteors draw at 3x (about 78x78). The final meteor draws at 168px.",
+    "note": "Final meteor. Native cell 78x78, 4 frames, 15 fps, anchor centre (39, 39). Barrage meteors draw at 1x so they stay 78px. The giant meteor is its own 168px sheet.",
     "frame_size": [
-      26,
-      26
+      78,
+      78
     ],
     "art_bbox": [
-      26,
-      26
+      78,
+      78
     ]
   },
   {
     "file": "dragon_form/dragon_meteor_impact.png",
     "size": [
-      464,
-      58
+      1392,
+      174
     ],
     "frames": 8,
     "fps": 15,
     "anchor": [
-      29,
-      29
+      87,
+      87
     ],
     "anchor_type": "center",
     "category": "fx",
     "facing": "none",
     "idle": false,
     "loop": false,
-    "note": "Placeholder meteor impact. Source cell 58x58, 8 frames, 15 fps, plays once. Barrage impacts draw at 3x (about 174x174). The final impact draws at 270x270, each frame held 2 ticks.",
+    "note": "Final meteor impact. Native cell 174x174, 8 frames, 15 fps, anchor centre (87, 87), plays once. Barrage impacts draw at 1x so they stay 174px. The giant impact is its own 270px sheet and holds each frame 2 ticks.",
     "frame_size": [
-      58,
-      58
+      174,
+      174
     ],
     "art_bbox": [
-      58,
-      58
+      174,
+      174
     ]
   },
   {
@@ -4172,7 +4172,7 @@
     "facing": "none",
     "idle": false,
     "loop": false,
-    "note": "Placeholder full-screen flash sheet, 160x160, 8 frames, 15 fps. The game does not overlay this sprite. The flash is a code-drawn pale-yellow rectangle for 6 frames (0.4s).",
+    "note": "Final full-screen flash sheet, 160x160, 8 frames, 15 fps. The game does not overlay this sprite. The flash is a code-drawn pale-yellow rectangle for 6 frames (0.4s).",
     "frame_size": [
       160,
       160
@@ -4235,7 +4235,7 @@
       18
     ],
     "frames": 4,
-    "fps": 15,
+    "fps": 6,
     "anchor": [
       9,
       9
@@ -4245,7 +4245,7 @@
     "facing": "none",
     "idle": false,
     "loop": true,
-    "note": "Meteor meter ready glow, 18x18, 4 frames, 15 fps, loops while Meteor Rain is full or charging.",
+    "note": "Meteor meter ready glow, 18x18, 4 frames, 6 fps, loops while Meteor Rain is full or charging.",
     "frame_size": [
       18,
       18
@@ -4361,6 +4361,196 @@
     "art_bbox": [
       24,
       16
+    ]
+  },
+
+  {
+    "file": "dragon_form/dragon_fly_body.png",
+    "size": [
+      504,
+      58
+    ],
+    "frames": 6,
+    "fps": 10,
+    "anchor": [
+      42,
+      26
+    ],
+    "anchor_type": "center",
+    "category": "dragon_form",
+    "facing": "right",
+    "idle": false,
+    "loop": true,
+    "note": "Hit body only (head, neck, torso, legs). Same frames and anchor as dragon_fly.png. The hurt shape is rebuilt from these pixels. Wings and tail are not in this sheet.",
+    "frame_size": [
+      84,
+      58
+    ],
+    "art_bbox": [
+      84,
+      58
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_fly_fx.png",
+    "size": [
+      504,
+      58
+    ],
+    "frames": 6,
+    "fps": 10,
+    "anchor": [
+      42,
+      26
+    ],
+    "anchor_type": "center",
+    "category": "dragon_form",
+    "facing": "right",
+    "idle": false,
+    "loop": true,
+    "note": "Wings and tail only. Same frames and anchor as dragon_fly.png. Never a hit.",
+    "frame_size": [
+      84,
+      58
+    ],
+    "art_bbox": [
+      84,
+      58
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_meteor_giant.png",
+    "size": [
+      672,
+      168
+    ],
+    "frames": 4,
+    "fps": 15,
+    "anchor": [
+      84,
+      84
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "down-right",
+    "idle": false,
+    "loop": true,
+    "note": "Final giant meteor. Native 168x168, 4 frames, 15 fps, anchor centre. Drawn at 1x.",
+    "frame_size": [
+      168,
+      168
+    ],
+    "art_bbox": [
+      168,
+      168
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_meteor_giant_impact.png",
+    "size": [
+      2700,
+      270
+    ],
+    "frames": 10,
+    "fps": 15,
+    "anchor": [
+      135,
+      135
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": false,
+    "note": "Final giant impact. Native 270x270, 10 frames, 15 fps, anchor centre. Each frame is held 2 ticks.",
+    "frame_size": [
+      270,
+      270
+    ],
+    "art_bbox": [
+      270,
+      270
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_meteor_warning.png",
+    "size": [
+      288,
+      72
+    ],
+    "frames": 4,
+    "fps": 8,
+    "anchor": [
+      36,
+      36
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": true,
+    "note": "Reticle for the giant meteor. 72x72, 4 frames, 8 fps, loops while the warning is up.",
+    "frame_size": [
+      72,
+      72
+    ],
+    "art_bbox": [
+      72,
+      72
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_debris.png",
+    "size": [
+      36,
+      9
+    ],
+    "frames": 4,
+    "fps": 12,
+    "anchor": [
+      4,
+      4
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": true,
+    "note": "Meteor debris chunks. 9x9, 4 frames, 12 fps, loops. Drawn at 1x.",
+    "frame_size": [
+      9,
+      9
+    ],
+    "art_bbox": [
+      9,
+      9
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_ember_big.png",
+    "size": [
+      28,
+      7
+    ],
+    "frames": 4,
+    "fps": 12,
+    "anchor": [
+      3,
+      3
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": false,
+    "note": "Larger ember for the giant meteor trail. 7x7, 4 frames, 12 fps, plays once. Drawn at 1x.",
+    "frame_size": [
+      7,
+      7
+    ],
+    "art_bbox": [
+      7,
+      7
     ]
   }
 ]

@@ -122,21 +122,23 @@ const DEMON_PLAY_SCALE := 0.75
 ## 30% smaller than the source art. The hurt shape uses the same scale.
 const VENDING_PLAY_SCALE := 0.7
 ## Rank-5 combat from the first frame. There are no stages.
-## Three fireballs. Each is 5, so a volley that all hits is 15.
+## Three fireballs in an 11 degree fan. Each is 5, so a volley that all hits is 15.
 ## That is 214 DPS at 0.07s, above a rank-5 Goblin's 138.
-## The +1 per fireball is +3 on the volley, the same slope as the Goblin.
+## Direct DPS does not change with the fan. The +1 per fireball is +3 on the
+## volley, the same slope as the Goblin.
 const DRAGON_FIRE_INTERVAL := 0.07
 const DRAGON_SHOT_SPEED := 820.0
 const DRAGON_DAMAGE := 5
 const DRAGON_SPLASH := 8
 const DRAGON_SPLASH_RADIUS := 42.0
-## Hurt body is about 45px wide. 760 / 45 beats Goblin 560 / 34.
-const DRAGON_MAX_SPEED := 760.0
+## Hurt body is about 48px wide. 810 / 48 beats Goblin 560 / 34.
+const DRAGON_MAX_SPEED := 810.0
 const DRAGON_POWER_PER_LEVEL := 1
 const DRAGON_METEOR_KILLS := 8
 const DRAGON_SPRITE := "dragon_form/dragon_fly.png"
 const DRAGON_SHOT := "dragon_form/dragon_fireball.png"
-const DRAGON_SPREAD: Array[float] = [-58.0, 0.0, 58.0]
+## Degrees off the forward axis, +y down. 11 is the middle of a 10-12 degree fan.
+const DRAGON_SPREAD_DEG := 11.0
 
 static func play_scale(id: int) -> float:
 	if id == Id.DEMON:
@@ -659,8 +661,10 @@ static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array
 			can["style"] = "can"
 			shots.append(can)
 	elif id == Id.DRAGON:
-		for vy in DRAGON_SPREAD:
-			var fireball := _blob(origin + Vector2(muzzle, 0), Vector2(DRAGON_SHOT_SPEED, vy), 0, shot_color, shot_sprite, DRAGON_DAMAGE)
+		for sign in [-1.0, 0.0, 1.0]:
+			var angle := deg_to_rad(sign * DRAGON_SPREAD_DEG)
+			var vel := Vector2(cos(angle), sin(angle)) * DRAGON_SHOT_SPEED
+			var fireball := _blob(origin + Vector2(muzzle, 0), vel, 0, shot_color, shot_sprite, DRAGON_DAMAGE)
 			fireball["style"] = "dragon"
 			fireball["splash"] = DRAGON_SPLASH
 			fireball["splash_radius"] = DRAGON_SPLASH_RADIUS
@@ -755,7 +759,7 @@ static func weapon_line(id: int, rank_index: int) -> String:
 			line += " Dmg %d." % damage
 		return line
 	if id == Id.DRAGON:
-		return "3 fireballs every %s. Dmg %d each, splash %d. Meteor Rain in %d kills." % [every, DRAGON_DAMAGE, DRAGON_SPLASH, DRAGON_METEOR_KILLS]
+		return "3 fireballs every %s. Fan %d. Dmg %d each, splash %d. Meteor Rain in %d kills." % [every, int(round(DRAGON_SPREAD_DEG)), DRAGON_DAMAGE, DRAGON_SPLASH, DRAGON_METEOR_KILLS]
 	if id == Id.DEMON:
 		var line := "Homing orb every %s." % every
 		if count > 1:

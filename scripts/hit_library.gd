@@ -43,14 +43,14 @@ static func entry(file_name: String) -> Dictionary:
 static func has_role(file_name: String, role: String) -> bool:
 	return not _parts(file_name, role).is_empty()
 
-static func overlaps(pos_a: Vector2, file_a: String, role_a: String, pos_b: Vector2, file_b: String, role_b: String, scale_a: float = 1.0, scale_b: float = 1.0) -> bool:
-	return gap(pos_a, file_a, role_a, pos_b, file_b, role_b, scale_a, scale_b) <= 0.0
+static func overlaps(pos_a: Vector2, file_a: String, role_a: String, pos_b: Vector2, file_b: String, role_b: String, scale_a: float = 1.0, scale_b: float = 1.0, frame_a: int = -1) -> bool:
+	return gap(pos_a, file_a, role_a, pos_b, file_b, role_b, scale_a, scale_b, frame_a) <= 0.0
 
 ## Positive when the shapes are apart, negative when they penetrate.
 ## scale_* shrinks a role around its anchor. Play uses this so a drawn-smaller
 ## body and its hurtbox stay the same shape.
-static func gap(pos_a: Vector2, file_a: String, role_a: String, pos_b: Vector2, file_b: String, role_b: String, scale_a: float = 1.0, scale_b: float = 1.0) -> float:
-	var parts_a := _parts_scaled(file_a, role_a, scale_a)
+static func gap(pos_a: Vector2, file_a: String, role_a: String, pos_b: Vector2, file_b: String, role_b: String, scale_a: float = 1.0, scale_b: float = 1.0, frame_a: int = -1) -> float:
+	var parts_a := _parts_scaled(file_a, role_a, scale_a, frame_a)
 	var parts_b := _parts_scaled(file_b, role_b, scale_b)
 	if parts_a.is_empty() or parts_b.is_empty():
 		return 9999.0
@@ -60,13 +60,13 @@ static func gap(pos_a: Vector2, file_a: String, role_a: String, pos_b: Vector2, 
 			best = minf(best, _gap_pair(part_a, pos_a, part_b, pos_b))
 	return best
 
-static func contains_local(file_name: String, role: String, point: Vector2) -> bool:
-	return local_gap(file_name, role, point) <= 0.0
+static func contains_local(file_name: String, role: String, point: Vector2, frame: int = -1) -> bool:
+	return local_gap(file_name, role, point, frame) <= 0.0
 
 ## Signed distance from a sprite-local point to the role. Negative is inside.
-## Empty when the role has no parts.
-static func local_gap(file_name: String, role: String, point: Vector2) -> float:
-	var parts := _parts(file_name, role)
+## Empty when the role has no parts. frame picks a hurt_frames entry when set.
+static func local_gap(file_name: String, role: String, point: Vector2, frame: int = -1) -> float:
+	var parts := _parts(file_name, role, frame)
 	if parts.is_empty():
 		return 9999.0
 	var best := 9999.0
@@ -90,7 +90,7 @@ static func max_part_radius(file_name: String, role: String) -> float:
 static func vertical_span(file_name: String, role: String) -> Vector2:
 	var min_y := 100000.0
 	var max_y := -100000.0
-	for part in _parts(file_name, role):
+	for part in _measure_parts(file_name, role):
 		var kind := str(part["type"])
 		if kind == "circle":
 			var center: Vector2 = part["center"]
@@ -120,7 +120,7 @@ static func vertical_extent(file_name: String, role: String) -> float:
 static func horizontal_span(file_name: String, role: String) -> Vector2:
 	var min_x := 100000.0
 	var max_x := -100000.0
-	for part in _parts(file_name, role):
+	for part in _measure_parts(file_name, role):
 		var kind := str(part["type"])
 		if kind == "circle":
 			var center: Vector2 = part["center"]
@@ -149,7 +149,7 @@ static func horizontal_extent(file_name: String, role: String) -> float:
 ## Distance from the anchor to the outside of the shape. Movement and spawns use this.
 static func bounds_radius(file_name: String, role: String) -> float:
 	var best := 0.0
-	for part in _parts(file_name, role):
+	for part in _measure_parts(file_name, role):
 		var kind := str(part["type"])
 		if kind == "circle":
 			var center: Vector2 = part["center"]
@@ -166,8 +166,8 @@ static func bounds_radius(file_name: String, role: String) -> float:
 				best = maxf(best, (center + corner).length())
 	return best
 
-static func draw(canvas: CanvasItem, file_name: String, role: String, color: Color) -> void:
-	for part in _parts(file_name, role):
+static func draw(canvas: CanvasItem, file_name: String, role: String, color: Color, frame: int = -1) -> void:
+	for part in _parts(file_name, role, frame):
 		var kind := str(part["type"])
 		if kind == "circle":
 			canvas.draw_arc(part["center"], float(part["r"]), 0.0, TAU, 18, color, 1.0, false)
@@ -187,8 +187,8 @@ static func draw(canvas: CanvasItem, file_name: String, role: String, color: Col
 			var half: Vector2 = part["half"]
 			canvas.draw_rect(Rect2(center - half, half * 2.0), color, false, 1.0)
 
-static func _parts_scaled(file_name: String, role: String, scale: float) -> Array:
-	var parts := _parts(file_name, role)
+static func _parts_scaled(file_name: String, role: String, scale: float, frame: int = -1) -> Array:
+	var parts := _parts(file_name, role, frame)
 	if absf(scale - 1.0) < 0.001:
 		return parts
 	var scaled: Array = []
@@ -330,8 +330,28 @@ static func _inscribed(center: Vector2, occ: Dictionary, sky: Vector2) -> float:
 		step += 1
 	return 8.0
 
-static func _parts(file_name: String, role: String) -> Array:
+## Spacing and the movement pad use every frame, so a pose that leans
+## out of frame 0 still counts. A hit test passes the live frame instead.
+static func _measure_parts(file_name: String, role: String) -> Array:
 	_ensure()
+	if role == "hurt":
+		var frames: Variant = entry(file_name).get("hurt_frames", [])
+		if typeof(frames) == TYPE_ARRAY and not (frames as Array).is_empty():
+			var list: Array = frames
+			var all: Array = []
+			for frame in list:
+				all.append_array(_decode_parts(frame))
+			return all
+	return _parts(file_name, role)
+
+static func _parts(file_name: String, role: String, frame: int = -1) -> Array:
+	_ensure()
+	if role == "hurt" and frame >= 0:
+		var frames: Variant = entry(file_name).get("hurt_frames", [])
+		if typeof(frames) == TYPE_ARRAY and not (frames as Array).is_empty():
+			var list: Array = frames
+			var index := clampi(frame, 0, list.size() - 1)
+			return _decode_parts(list[index])
 	if role == "hurt" and _wants_derived_hurt(file_name):
 		return _derived_hurt(file_name)
 	var found := entry(file_name)
@@ -341,6 +361,11 @@ static func _parts(file_name: String, role: String) -> Array:
 		if not _warned.has(key):
 			_warned[key] = true
 			push_error("no %s hit shape for %s" % [role, file_name])
+		return []
+	return _decode_parts(raw)
+
+static func _decode_parts(raw: Variant) -> Array:
+	if typeof(raw) != TYPE_ARRAY:
 		return []
 	var out: Array = []
 	for item in raw:
@@ -360,7 +385,7 @@ static func _parts(file_name: String, role: String) -> Array:
 			part["center"] = _vec(src.get("center", [0, 0]))
 			part["half"] = _vec(src.get("half", [1, 1]))
 		else:
-			push_error("unknown hit shape %s on %s" % [kind, file_name])
+			push_error("unknown hit shape %s" % kind)
 			continue
 		out.append(part)
 	return out
