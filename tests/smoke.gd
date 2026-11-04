@@ -4099,14 +4099,78 @@ func _check_boss_rework() -> int:
 			var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
 			wide = maxf(wide, HitLibrary.horizontal_extent(file, "hurt"))
 			tall = maxf(tall, HitLibrary.vertical_extent(file, "hurt"))
-	var beam_lane := BossCatalog.BEAM_GAP_FAR - BossCatalog.BEAM_GAP_NEAR - HitLibrary.horizontal_extent(BossCatalog.SOUL_BEAM, "threat")
-	if beam_lane <= maxf(wide, tall):
-		push_error("the soul beam gap is tighter than a body (lane %.1f body %.1f)" % [beam_lane, maxf(wide, tall)])
+	if absf(BossCatalog.BEAM_LOCK - 0.35) > 0.001 or BossCatalog.BEAM_FIRE < 0.9:
+		push_error("the soul beam should lock for 0.35 s and hold about a second")
+		failed += 1
+	var enrage_cycle := BossCatalog.attack_cycle("lich_king", 2)
+	if enrage_cycle.find("double_beam") < 0 or enrage_cycle.find("beam_rain") < 0:
+		push_error("an enraged lich should chain two beams and still mix in bone rain, got %s" % str(enrage_cycle))
 		failed += 1
 	var beam_hit := HitLibrary.horizontal_extent(BossCatalog.SOUL_BEAM, "threat")
 	if beam_hit < 16.0 or beam_hit > BossCatalog.BEAM_THICK - 2.0:
 		push_error("the soul beam hit should sit inside the glow, hit %.1f thick %.1f" % [beam_hit, BossCatalog.BEAM_THICK])
 		failed += 1
+	var row := BossActor.new()
+	row.setup(9, {"slug": "lich_king", "hold_x": 428.0, "origin_y": 140.0, "phase": 0.2, "wave_amp": 0.0, "generation": 0}, Vector2(480, 270), null)
+	row.intro_left = 0.0
+	row.state = BossActor.HOLD
+	row.fight_left = 40.0
+	row.position = Vector2(428, 140)
+	row._attack_cd = 0.0
+	row._attack_i = 0
+	row._summon_cd = 50.0
+	var tracked := false
+	var locked := false
+	var locked_y := -1.0
+	var fired_row: Array[Dictionary] = []
+	var beam_t := 0.0
+	while beam_t < 2.4 and fired_row.is_empty():
+		var aim_y := 100.0 if beam_t < 0.3 else 160.0
+		if row._beam_mode >= 2:
+			aim_y = 40.0
+		row.fire_room = -1
+		var shot := row.tick(0.05, Vector2(120, aim_y), 30.0, 1.0)
+		beam_t += 0.05
+		if row._beam_mode == 1 and beam_t > 0.3 and absf(row._beam_y - 160.0) < 2.0:
+			tracked = true
+		if row._beam_mode == 2 and not locked:
+			locked = true
+			locked_y = row._beam_y
+		if row._beam_mode == 2 and locked and absf(row._beam_y - locked_y) > 1.0:
+			push_error("the soul beam moved after it locked")
+			failed += 1
+			break
+		for spec in shot:
+			if str(spec.get("sprite", "")) == BossCatalog.SOUL_BEAM:
+				fired_row.append(spec)
+	if not tracked or not locked:
+		push_error("the soul beam should track, then lock, track %s lock %s" % [tracked, locked])
+		failed += 1
+	elif absf(locked_y - 160.0) > 2.0:
+		push_error("the locked row should be the player's y, got %s" % locked_y)
+		failed += 1
+	if fired_row.size() < 8:
+		push_error("the soul beam should be a solid row, shots %d" % fired_row.size())
+		failed += 1
+	else:
+		var xs: Array[float] = []
+		for spec in fired_row:
+			var at: Vector2 = spec["position"]
+			if absf(at.y - locked_y) > 1.5:
+				push_error("a beam hit left the locked row, y %s" % at.y)
+				failed += 1
+				break
+			xs.append(at.x)
+		xs.sort()
+		if xs[0] > 24.0 or xs[xs.size() - 1] < 450.0:
+			push_error("the beam should cross the field, x %s..%s" % [xs[0], xs[xs.size() - 1]])
+			failed += 1
+		for i in range(1, xs.size()):
+			if xs[i] - xs[i - 1] > beam_hit:
+				push_error("the beam has a hole at x %s" % xs[i])
+				failed += 1
+				break
+	row.free()
 	var hand_w := HitLibrary.horizontal_extent(BossCatalog.GRAVE_HAND, "threat")
 	if BossCatalog.HAND_GAP - hand_w <= wide:
 		push_error("grave hands leave no lane (gap %.1f hand %.1f body %.1f)" % [BossCatalog.HAND_GAP, hand_w, wide])

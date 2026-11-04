@@ -32,8 +32,8 @@ var shield_left := 0.0
 var _beam_mode := 0
 var _beam_time := 0.0
 var _beam_emit := 0.0
-var _beam_from := 0.5
-var _beam_to := -0.5
+var _beam_y := 0.0
+var _beam_chain := 0
 var _spiral_left := 0.0
 var _spiral_age := 0.0
 var _spiral_emit := 0.0
@@ -141,8 +141,9 @@ func present(attack: String, aim: Vector2) -> void:
 	if attack == "bone_rain":
 		_begin_rain(aim.x, 30.0)
 		return
-	if attack == "soul_beam":
-		_start_beam(1.0)
+	if attack == "soul_beam" or attack == "double_beam":
+		_start_beam(aim.y, 1 if attack == "double_beam" else 0)
+		_beam_mode = 2
 		return
 	if attack == "skull_spiral" or attack == "spiral_hands":
 		_start_spiral()
@@ -153,7 +154,8 @@ func present(attack: String, aim: Vector2) -> void:
 		_start_hands(aim.x)
 		return
 	if attack == "beam_rain":
-		_start_beam(-1.0)
+		_start_beam(aim.y, 0)
+		_beam_mode = 2
 		_begin_rain(aim.x, 30.0)
 		return
 	if attack == "fake_charge":
@@ -234,6 +236,7 @@ func _begin_flee() -> void:
 func _halt_attacks() -> void:
 	_cancel_rain()
 	_beam_mode = 0
+	_beam_chain = 0
 	_spiral_left = 0.0
 	_hands_left = 0.0
 	_hands_live = 0.0
@@ -281,7 +284,7 @@ func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: fl
 		_rain_left -= delta
 		if _rain_left <= 0.0:
 			_loose_rain()
-	_tick_beam(delta, fired, run_time)
+	_tick_beam(delta, player_pos, fired)
 	_tick_spiral(delta, fired)
 	_tick_hands(delta, fired)
 	if shield_left > 0.0:
@@ -324,8 +327,12 @@ func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: fl
 		_attack_cd = _cooled("bone_rain", run_time, phase_now)
 		return
 	if attack == "soul_beam":
-		_start_beam(1.0 if sin(age) >= 0.0 else -1.0)
+		_start_beam(player_pos.y, 0)
 		_attack_cd = _cooled("soul_beam", run_time, phase_now)
+		return
+	if attack == "double_beam":
+		_start_beam(player_pos.y, 1)
+		_attack_cd = _cooled("double_beam", run_time, phase_now)
 		return
 	if attack == "skull_spiral":
 		_start_spiral()
@@ -341,7 +348,7 @@ func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: fl
 		_attack_cd = _cooled("spiral_hands", run_time, phase_now)
 		return
 	if attack == "beam_rain":
-		_start_beam(-1.0)
+		_start_beam(player_pos.y, 0)
 		_begin_rain(player_pos.x, run_time)
 		_attack_cd = _cooled("beam_rain", run_time, phase_now)
 		return
@@ -397,57 +404,63 @@ func _shift_row(y: float) -> float:
 		shifted = y - 58.0
 	return _clamp_row(shifted)
 
-func _start_beam(direction: float) -> void:
+func _clamp_beam_y(y: float) -> float:
+	return clampf(y, 40.0, field_size.y - 52.0)
+
+func _start_beam(aim_y: float, chain: int) -> void:
 	_beam_mode = 1
 	_beam_time = 0.0
 	_beam_emit = 0.0
-	_beam_from = 0.52 * direction
-	_beam_to = -0.52 * direction
+	_beam_y = _clamp_beam_y(aim_y)
+	_beam_chain = chain
 	_attack_id = "soul_beam"
 
-func _tick_beam(delta: float, fired: Array[Dictionary], _run_time: float) -> void:
+func _tick_beam(delta: float, player_pos: Vector2, fired: Array[Dictionary]) -> void:
 	if _beam_mode == 0:
 		return
 	_beam_time += delta
 	if _beam_mode == 1:
-		if _beam_time >= _paced(BossCatalog.BEAM_WINDUP):
+		_beam_y = _clamp_beam_y(player_pos.y)
+		if _beam_time >= BossCatalog.BEAM_TRACK:
 			_beam_mode = 2
+			_beam_time = 0.0
+		return
+	if _beam_mode == 2:
+		if _beam_time >= BossCatalog.BEAM_LOCK:
+			_beam_mode = 3
 			_beam_time = 0.0
 			_beam_emit = 0.0
 		return
-	var sweep := _paced(BossCatalog.BEAM_SWEEP)
-	if _beam_time >= sweep:
-		_beam_mode = 0
+	if _beam_mode == 4:
+		if _beam_time >= BossCatalog.BEAM_FADE:
+			_beam_time = 0.0
+			if _beam_chain > 0:
+				_beam_chain -= 1
+				_beam_mode = 1
+			else:
+				_beam_mode = 0
+		return
+	if _beam_time >= BossCatalog.BEAM_FIRE:
+		_beam_mode = 4
+		_beam_time = 0.0
 		return
 	_beam_emit -= delta
 	if _beam_emit > 0.0:
 		return
-	_beam_emit = 0.05
-	var along := clampf(_beam_time / sweep, 0.0, 1.0)
-	var angle := lerpf(_beam_from, _beam_to, along)
-	var dir := Vector2(-cos(angle), sin(angle))
-	var step := BossCatalog.BEAM_HIT_R * 1.6
-	var near_end := BossCatalog.BEAM_GAP_NEAR - BossCatalog.BEAM_HIT_R - 2.0
-	var far_start := BossCatalog.BEAM_GAP_FAR + BossCatalog.BEAM_HIT_R + 2.0
-	# The beam is one volume, not a spray, so it does not spend the shared shot cap.
-	_lay_beam(dir, 36.0, near_end, step, fired)
-	_lay_beam(dir, far_start, BossCatalog.BEAM_LENGTH - BossCatalog.BEAM_HIT_R, step, fired)
-
-func _lay_beam(dir: Vector2, from: float, to: float, step: float, fired: Array[Dictionary]) -> void:
-	if to < from:
-		return
-	var dist := from
+	_beam_emit = 0.06
+	var step := BossCatalog.BEAM_HIT_R * 1.55
+	var x := 16.0
 	var guard := 0
-	while dist < to - 0.5 and guard < 24:
-		_beam_hit(dir, dist, fired)
-		dist += step
+	while x < field_size.x - 12.0 and guard < 48:
+		_beam_hit(x, fired)
+		x += step
 		guard += 1
-	_beam_hit(dir, to, fired)
+	_beam_hit(field_size.x - 10.0, fired)
 
-func _beam_hit(dir: Vector2, dist: float, fired: Array[Dictionary]) -> void:
-	var bolt := _bolt(Vector2.ZERO, BossCatalog.SKULL_MUZZLE + dir * dist, BossCatalog.SOUL_BEAM)
+func _beam_hit(x: float, fired: Array[Dictionary]) -> void:
+	var bolt := _bolt(Vector2.ZERO, Vector2(x - position.x, _beam_y - position.y), BossCatalog.SOUL_BEAM)
 	bolt["expires"] = true
-	bolt["life"] = 0.08
+	bolt["life"] = 0.09
 	# The strip is drawn on the lich. These are only the hit volume.
 	bolt["visible"] = false
 	fired.append(bolt)
@@ -656,36 +669,28 @@ func _draw_specials() -> void:
 		draw_rect(Rect2(-position, field_size), Color(1.0, 0.25, 0.2, enrage_flash * 0.45))
 
 func _draw_beam(pulse: float) -> void:
-	var sweep := maxf(_paced(BossCatalog.BEAM_SWEEP), 0.2)
-	var angle := _beam_from
-	var preview := _beam_mode == 1
-	if _beam_mode == 2:
-		angle = lerpf(_beam_from, _beam_to, clampf(_beam_time / sweep, 0.0, 1.0))
-	var dir := Vector2(-cos(angle), sin(angle))
-	var origin := BossCatalog.SKULL_MUZZLE
-	var gap_a := origin + dir * BossCatalog.BEAM_GAP_NEAR
-	var gap_b := origin + dir * BossCatalog.BEAM_GAP_FAR
-	var tip := origin + dir * BossCatalog.BEAM_LENGTH
-	if preview:
-		var ink := Color(0.55, 1.0, 0.75, 0.55)
-		var hot := Color(0.85, 0.45, 1.0, pulse)
-		draw_line(origin, gap_a, hot, 1.0)
-		draw_line(gap_b, tip, hot, 1.0)
-		draw_line(origin, gap_a, ink, 1.0)
-		draw_circle(gap_a, 3.0, Color(0.9, 1.0, 0.7, pulse))
-		draw_circle(gap_b, 3.0, Color(0.9, 1.0, 0.7, pulse))
-		var sweep_dir := 1.0 if _beam_to > _beam_from else -1.0
-		var side := Vector2(-dir.y, dir.x) * sweep_dir
-		var arrow_at := origin + dir * 78.0
-		draw_line(arrow_at, arrow_at + side * 18.0, Color(0.7, 0.4, 1.0, pulse), 2.0)
+	var y := _beam_y - position.y
+	var x0 := -position.x
+	var x1 := field_size.x - position.x
+	if _beam_mode == 1 or _beam_mode == 2:
+		var locked := _beam_mode == 2
+		var flash := 1.0 if not locked else 0.35 + 0.65 * absf(sin(_beam_time * 42.0))
+		var ink := Color(0.55, 1.0, 0.75, 0.85 * flash)
+		var hot := Color(1.0, 0.95, 0.75, flash) if locked else Color(0.7, 0.45, 1.0, 0.7)
+		draw_line(Vector2(x0, y), Vector2(x1, y), ink, 1.0)
+		draw_line(Vector2(x0, y), Vector2(x1, y), hot, 1.0)
+		if locked:
+			draw_line(Vector2(x0, y - 3.0), Vector2(x0, y + 3.0), hot, 1.0)
+			draw_line(Vector2(x1, y - 3.0), Vector2(x1, y + 3.0), hot, 1.0)
 		return
-	var snapped := (position + origin).round() - position
-	_paint_beam_tile(snapped, dir, 0.0, BossCatalog.BEAM_GAP_NEAR)
-	_paint_beam_tile(snapped, dir, BossCatalog.BEAM_GAP_FAR, BossCatalog.BEAM_LENGTH)
+	var alpha := 1.0
+	if _beam_mode == 4:
+		alpha = 1.0 - clampf(_beam_time / maxf(BossCatalog.BEAM_FADE, 0.05), 0.0, 1.0)
+	_paint_beam_tile(Vector2(x0, y), Vector2.RIGHT, 0.0, field_size.x, alpha)
 
 ## One quad per span, with the tile repeating along the beam. Separate sprites
 ## leave a crack once the strip is rotated; repeat UVs do not.
-func _paint_beam_tile(origin: Vector2, dir: Vector2, from_d: float, to_d: float) -> void:
+func _paint_beam_tile(origin: Vector2, dir: Vector2, from_d: float, to_d: float, alpha: float = 1.0) -> void:
 	var tex := ArtLibrary.texture(BossCatalog.SOUL_BEAM)
 	if tex == null or to_d <= from_d:
 		return
@@ -706,7 +711,8 @@ func _paint_beam_tile(origin: Vector2, dir: Vector2, from_d: float, to_d: float)
 		Vector2(u1, 1.0),
 		Vector2(u0, 1.0),
 	])
-	var colors := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
+	var tint := Color(1, 1, 1, alpha)
+	var colors := PackedColorArray([tint, tint, tint, tint])
 	var saved_repeat := texture_repeat
 	var saved_filter := texture_filter
 	texture_repeat = TEXTURE_REPEAT_ENABLED

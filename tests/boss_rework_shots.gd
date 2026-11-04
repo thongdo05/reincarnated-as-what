@@ -136,7 +136,8 @@ func _pose(file_name: String) -> void:
 		boss.present("soul_beam", game._player.position)
 	elif file_name == "lich_soul_beam.png":
 		boss.present("soul_beam", game._player.position)
-		boss._beam_mode = 2
+		boss._beam_mode = 3
+		boss._beam_y = game._player.position.y
 		boss._beam_time = 0.15
 	elif file_name == "lich_skull_spiral.png":
 		boss.present("skull_spiral", game._player.position)
