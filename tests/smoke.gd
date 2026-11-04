@@ -11,6 +11,7 @@ func _initialize() -> void:
 	_unit_failed += _check_spawns()
 	_unit_failed += _check_pattern_gap()
 	_unit_failed += _check_score()
+	_unit_failed += _check_score_epoch()
 	_unit_failed += _check_drag()
 	_unit_failed += _check_traits()
 	_unit_failed += _check_art()
@@ -41,7 +42,11 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
+	# Death cards read bests and wipe a stale epoch. Put the player's file back after.
+	var saved_bests := "user://best_scores.json"
+	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
 	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives()
+	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -1411,6 +1416,149 @@ func _check_traits() -> int:
 	if int(after_goblin.get("overall", 0)) != 250 or int(after_low.get("overall", 0)) != 100:
 		push_error("overall best should be the best run of any form")
 		failed += 1
+	var stamped: Dictionary = BestScores.apply({"epoch": 1, "overall": 5, "SLIME": 5}, "epoch", 40)
+	if stamped.has("epoch") or int(stamped.get("overall", 0)) != 40:
+		push_error("epoch must not be stored as a form best")
+		failed += 1
+	return failed
+
+## Old saves lose their scores once. The current epoch stays. Name and device id stay.
+func _check_score_epoch() -> int:
+	var failed := 0
+	var best_path := BestScores.SAVE_PATH
+	var daily_path := DailyRun.SAVE_PATH
+	var profile_path := Leaderboard.PROFILE_PATH
+	var audio_path := AudioCues.SETTINGS_PATH
+	var seen_path := Replay.SEEN_PATH
+	var best_backup := FileAccess.get_file_as_string(best_path) if FileAccess.file_exists(best_path) else ""
+	var daily_backup := FileAccess.get_file_as_string(daily_path) if FileAccess.file_exists(daily_path) else ""
+	var profile_backup := FileAccess.get_file_as_string(profile_path) if FileAccess.file_exists(profile_path) else ""
+	var audio_backup := FileAccess.get_file_as_string(audio_path) if FileAccess.file_exists(audio_path) else ""
+	var seen_backup := FileAccess.get_file_as_string(seen_path) if FileAccess.file_exists(seen_path) else ""
+	var audio_body := "[audio]\nenabled=false\n"
+	var seen_body := "{\"seen\":true}"
+	_restore_user_file(audio_path, audio_body)
+	_restore_user_file(seen_path, seen_body)
+	_remove_user_file(best_path)
+	var missing := BestScores.read()
+	if int(missing.get("overall", -1)) != 0 or missing.has("epoch") or FileAccess.file_exists(best_path):
+		push_error("a missing best file should read as an empty score and stay missing")
+		failed += 1
+	_restore_user_file(best_path, JSON.stringify({"overall": 500, "SLIME": 500, "GOBLIN": 20}))
+	var wiped := BestScores.read()
+	if int(wiped.get("overall", -1)) != 0 or wiped.has("SLIME") or wiped.has("GOBLIN") or wiped.has("epoch"):
+		push_error("a best file with no epoch should be wiped, got %s" % wiped)
+		failed += 1
+	var wiped_file := _user_json(best_path)
+	if int(wiped_file.get("overall", -1)) != 0 or wiped_file.has("SLIME") or int(wiped_file.get("epoch", 0)) != BestScores.SCORE_EPOCH:
+		push_error("the wiped best file should only keep an empty overall at this epoch, got %s" % wiped_file)
+		failed += 1
+	if int(BestScores.read().get("overall", -1)) != 0:
+		push_error("reading twice should not bring the old best back")
+		failed += 1
+	var revived := BestScores.record("SLIME", 10)
+	if int(revived.get("overall", 0)) != 10 or int(revived.get("form", 0)) != 10 or revived.has("epoch"):
+		push_error("a new score must not revive the wiped best or return the epoch, got %s" % revived)
+		failed += 1
+	var revived_file := _user_json(best_path)
+	if int(revived_file.get("SLIME", 0)) != 10 or int(revived_file.get("overall", 0)) != 10 or revived_file.has("GOBLIN") or int(revived_file.get("epoch", 0)) != BestScores.SCORE_EPOCH:
+		push_error("record() should write this epoch and only the new score, got %s" % revived_file)
+		failed += 1
+	_restore_user_file(best_path, JSON.stringify({"epoch": 0, "overall": 400, "GOBLIN": 400}))
+	var old_epoch := BestScores.read()
+	if int(old_epoch.get("overall", -1)) != 0 or old_epoch.has("GOBLIN") or old_epoch.has("epoch"):
+		push_error("an older epoch should be wiped, got %s" % old_epoch)
+		failed += 1
+	var current_body := JSON.stringify({"epoch": BestScores.SCORE_EPOCH, "overall": 80, "SLIME": 80, "GOBLIN": 20})
+	_restore_user_file(best_path, current_body)
+	var before_keep := FileAccess.get_file_as_string(best_path)
+	var kept := BestScores.read()
+	var after_keep := FileAccess.get_file_as_string(best_path)
+	if before_keep != after_keep:
+		push_error("a current-epoch best file should be left as it is")
+		failed += 1
+	if int(kept.get("overall", 0)) != 80 or int(kept.get("SLIME", 0)) != 80 or int(kept.get("GOBLIN", 0)) != 20 or kept.has("epoch"):
+		push_error("a current epoch should keep form scores and hide epoch, got %s" % kept)
+		failed += 1
+	var best_line := "%s BEST %s\nDAILY BEST %s" % [
+		"SLIME",
+		ScoreRules.format_score(int(kept.get("SLIME", 0))),
+		ScoreRules.format_score(int(kept.get("overall", 0))),
+	]
+	if best_line != "SLIME BEST 80\nDAILY BEST 80":
+		push_error("the death card should show the form best, got %s" % best_line)
+		failed += 1
+	var lowered := BestScores.record("SLIME", 10)
+	if int(lowered.get("form", 0)) != 80 or int(lowered.get("overall", 0)) != 80 or lowered.has("epoch"):
+		push_error("a lower score should not replace the current best, got %s" % lowered)
+		failed += 1
+	var kept_file := _user_json(best_path)
+	if int(kept_file.get("SLIME", 0)) != 80 or int(kept_file.get("GOBLIN", 0)) != 20 or int(kept_file.get("epoch", 0)) != BestScores.SCORE_EPOCH:
+		push_error("record() should keep the current best and write the epoch, got %s" % kept_file)
+		failed += 1
+	var today := str(DailyRun.date_seed())
+	var plain := '{"date":"%s","next_run":2}' % today
+	_restore_user_file(daily_path, plain)
+	var daily_before := FileAccess.get_file_as_string(daily_path)
+	if DailyRun.peek_run_index() != 2 or FileAccess.get_file_as_string(daily_path) != daily_before:
+		push_error("the daily index should stay put when the file has no score")
+		failed += 1
+	var dirty := '{"date":"%s","next_run":4,"epoch":0,"best":99999,"overall":88888}' % today
+	_restore_user_file(daily_path, dirty)
+	if DailyRun.peek_run_index() != 4:
+		push_error("wiping a cached daily score should keep the run index")
+		failed += 1
+	var daily_file := _user_json(daily_path)
+	if int(daily_file.get("next_run", -1)) != 4 or daily_file.has("best") or daily_file.has("overall") or int(daily_file.get("epoch", 0)) != BestScores.SCORE_EPOCH:
+		push_error("the daily file should drop cached scores and keep the index, got %s" % daily_file)
+		failed += 1
+	_restore_user_file(profile_path, JSON.stringify({
+		"device_id": "device-keep",
+		"name": "Gel Knight",
+		"posted": true,
+		"epoch": 0,
+		"bests": {"slime": 99999},
+		"ranks": {"all": 3, "daily": 1},
+		"score": 99999,
+	}))
+	var client := Leaderboard.new()
+	var got_name := client.player_name()
+	var got_id := client.device_id()
+	var posted := client.has_posted()
+	client.free()
+	if got_name != "Gel Knight" or got_id != "device-keep" or not posted:
+		push_error("name and device id should survive the score wipe, got %s / %s posted %s" % [got_name, got_id, posted])
+		failed += 1
+	var profile_raw := FileAccess.get_file_as_string(profile_path)
+	var profile_file := _user_json(profile_path)
+	if str(profile_file.get("name", "")) != "Gel Knight" or str(profile_file.get("device_id", "")) != "device-keep":
+		push_error("the profile file lost the name or device id, got %s" % profile_file)
+		failed += 1
+	if profile_file.has("bests") or profile_file.has("ranks") or profile_file.has("score") or profile_raw.find("99999") >= 0:
+		push_error("cached bests and ranks should be gone so they cannot be posted, got %s" % profile_raw)
+		failed += 1
+	if int(profile_file.get("epoch", 0)) != BestScores.SCORE_EPOCH:
+		push_error("the profile should stamp the current score epoch, got %s" % profile_file)
+		failed += 1
+	var card := ShareCard.resolve({
+		"form": "slime",
+		"rank_reached": 1,
+		"score": 12,
+		"epoch": 99,
+		"time": "0:01",
+		"killer": "dire_wolf",
+	})
+	if str(card.get("score", "")) == "99" or str(card.get("form_name", "")) == "epoch":
+		push_error("the share card should not treat epoch as a score, got %s" % card)
+		failed += 1
+	if FileAccess.get_file_as_string(audio_path) != audio_body or FileAccess.get_file_as_string(seen_path) != seen_body:
+		push_error("the score wipe should leave audio settings and the tutorial flag alone")
+		failed += 1
+	_restore_user_file(best_path, best_backup)
+	_restore_user_file(daily_path, daily_backup)
+	_restore_user_file(profile_path, profile_backup)
+	_restore_user_file(audio_path, audio_backup)
+	_restore_user_file(seen_path, seen_backup)
 	return failed
 
 func _check_drag() -> int:
@@ -3746,6 +3894,18 @@ func _check_replay() -> int:
 	_restore_user_file(daily_path, daily_backup)
 	_restore_user_file(best_path, best_backup)
 	return failed
+
+func _remove_user_file(path: String) -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+func _user_json(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	return parsed
 
 func _restore_user_file(path: String, body: String) -> void:
 	if body.is_empty():

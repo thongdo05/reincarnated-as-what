@@ -2640,6 +2640,7 @@ func _present_online_score() -> void:
 		return
 	if DisplayServer.get_name() == "headless" or not _died_in_play:
 		return
+	# This run only. A local best from before SCORE_EPOCH is already gone and is not posted.
 	_pending_score = {
 		"form": FormCatalog.key_for(form_id),
 		"score": maxi(score, 0),
