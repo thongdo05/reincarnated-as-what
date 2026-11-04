@@ -58,11 +58,11 @@ static func banner_color(slug: String) -> Color:
 static func max_hp(slug: String, generation: int = 0) -> int:
 	match slug:
 		"lich_king":
-			return 20
+			return 100
 		"death_knight":
-			return 25
+			return 150
 		"great_dragon":
-			return 30 + maxi(generation, 0) * 10
+			return 300 + maxi(generation, 0) * 10
 		_:
 			return 20
 

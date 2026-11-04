@@ -3996,7 +3996,10 @@ func _check_bosses() -> int:
 	elif absf(booked.dragon_at - (kill_at + BossDirector.DRAGON_RETURN)) > 0.001:
 		push_error("the dragon should return 60 s after the kill, at %s" % booked.dragon_at)
 		failed += 1
-	if BossCatalog.max_hp("great_dragon", 0) != 30 or BossCatalog.max_hp("great_dragon", 1) != 40 or BossCatalog.score_value("great_dragon") != 100000:
+	if BossCatalog.max_hp("lich_king") != 100 or BossCatalog.max_hp("death_knight") != 150:
+		push_error("lich and death knight hp should be 100 and 150")
+		failed += 1
+	if BossCatalog.max_hp("great_dragon", 0) != 300 or BossCatalog.max_hp("great_dragon", 1) != 310 or BossCatalog.score_value("great_dragon") != 100000:
 		push_error("dragon reward and return hp drifted")
 		failed += 1
 	if BossCatalog.attack_rate(180.0, 1, 2) <= BossCatalog.attack_rate(180.0, 0, 2):
@@ -4264,8 +4267,8 @@ func _check_boss_play() -> int:
 	else:
 		var boss: EnemyActor = game._living_boss()
 		var hp := int(boss.hp)
-		if hp != 40:
-			push_error("the returned dragon should have 40 hp, got %s" % hp)
+		if hp != 310:
+			push_error("the returned dragon should have 310 hp, got %s" % hp)
 			failed += 1
 		game._spawn_enemy({
 			"t": 0.0, "kind": SpawnDirector.EYE, "x_ratio": 0.4, "phase": 0.2,
