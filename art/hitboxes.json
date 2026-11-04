@@ -1253,7 +1253,7 @@
   },
   "lich_soul_beam.png": {
     "threat": [
-      { "type": "circle", "center": [0, 0], "r": 4 }
+      { "type": "circle", "center": [0, 0], "r": 8.5 }
     ]
   },
   "lich_spiral_skull.png": {

@@ -4103,6 +4103,10 @@ func _check_boss_rework() -> int:
 	if beam_lane <= maxf(wide, tall):
 		push_error("the soul beam gap is tighter than a body (lane %.1f body %.1f)" % [beam_lane, maxf(wide, tall)])
 		failed += 1
+	var beam_hit := HitLibrary.horizontal_extent(BossCatalog.SOUL_BEAM, "threat")
+	if beam_hit < 16.0 or beam_hit > BossCatalog.BEAM_THICK - 2.0:
+		push_error("the soul beam hit should sit inside the glow, hit %.1f thick %.1f" % [beam_hit, BossCatalog.BEAM_THICK])
+		failed += 1
 	var hand_w := HitLibrary.horizontal_extent(BossCatalog.GRAVE_HAND, "threat")
 	if BossCatalog.HAND_GAP - hand_w <= wide:
 		push_error("grave hands leave no lane (gap %.1f hand %.1f body %.1f)" % [BossCatalog.HAND_GAP, hand_w, wide])

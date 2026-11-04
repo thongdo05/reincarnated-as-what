@@ -3881,15 +3881,15 @@
   },
   {
     "file": "lich_soul_beam.png",
-    "size": [10, 10],
+    "size": [24, 24],
     "frames": 1,
-    "anchor": [5, 5],
+    "anchor": [12, 12],
     "anchor_type": "center",
     "category": "projectile",
     "facing": "none",
     "idle": false,
-    "art_bbox": [10, 10],
-    "note": "PLACEHOLDER. Kaito should redraw. Lich soul-beam segment. Round so the sweep angle does not matter. Jade core, bone highlight, #14121f outline."
+    "art_bbox": [24, 24],
+    "note": "PLACEHOLDER. Kaito should redraw. Fat soul-beam segment, 24px. Soft glow on the outside, bright core inside. Round so the sweep angle does not matter. The threat circle sits inside the glow."
   },
   {
     "file": "lich_spiral_skull.png",

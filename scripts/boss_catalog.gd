@@ -24,10 +24,15 @@ const BONE_SPAWN_Y := -8.0
 const WINNER_BOSS_DMG_PCT := 0.15
 const LICH_INTRO := 1.7
 const BEAM_WINDUP := 0.7
-const BEAM_SWEEP := 0.85
-const BEAM_GAP_NEAR := 150.0
-const BEAM_GAP_FAR := 310.0
+## Slower than the first thin beam so a ~22px sweep can still be stepped through.
+const BEAM_SWEEP := 1.2
+const BEAM_GAP_NEAR := 142.0
+const BEAM_GAP_FAR := 322.0
 const BEAM_LENGTH := 360.0
+## Outer glow, in pixels at 480x270. The core sits inside this.
+const BEAM_THICK := 22.0
+## Threat radius. Diameter stays a few pixels inside the glow.
+const BEAM_HIT_R := 8.5
 const HAND_GAP := 140.0
 const SWORD_GAP := 132.0
 const SHIELD_TIME := 2.0

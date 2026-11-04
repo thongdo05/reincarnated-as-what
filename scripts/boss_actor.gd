@@ -422,24 +422,33 @@ func _tick_beam(delta: float, fired: Array[Dictionary], _run_time: float) -> voi
 	_beam_emit -= delta
 	if _beam_emit > 0.0:
 		return
-	_beam_emit = 0.1
+	_beam_emit = 0.05
 	var along := clampf(_beam_time / sweep, 0.0, 1.0)
 	var angle := lerpf(_beam_from, _beam_to, along)
 	var dir := Vector2(-cos(angle), sin(angle))
-	var dist := 36.0
-	while dist < BossCatalog.BEAM_LENGTH:
-		if dist >= BossCatalog.BEAM_GAP_NEAR and dist < BossCatalog.BEAM_GAP_FAR:
-			dist = BossCatalog.BEAM_GAP_FAR
-			continue
-		if fire_room == 0:
-			return
-		var bolt := _bolt(Vector2.ZERO, BossCatalog.SKULL_MUZZLE + dir * dist, BossCatalog.SOUL_BEAM)
-		bolt["expires"] = true
-		bolt["life"] = 0.16
-		fired.append(bolt)
-		if fire_room > 0:
-			fire_room -= 1
-		dist += 32.0
+	var step := BossCatalog.BEAM_HIT_R * 1.6
+	var near_end := BossCatalog.BEAM_GAP_NEAR - BossCatalog.BEAM_HIT_R - 2.0
+	var far_start := BossCatalog.BEAM_GAP_FAR + BossCatalog.BEAM_HIT_R + 2.0
+	# The beam is one volume, not a spray, so it does not spend the shared shot cap.
+	_lay_beam(dir, 36.0, near_end, step, fired)
+	_lay_beam(dir, far_start, BossCatalog.BEAM_LENGTH - BossCatalog.BEAM_HIT_R, step, fired)
+
+func _lay_beam(dir: Vector2, from: float, to: float, step: float, fired: Array[Dictionary]) -> void:
+	if to < from:
+		return
+	var dist := from
+	var guard := 0
+	while dist < to - 0.5 and guard < 24:
+		_beam_hit(dir, dist, fired)
+		dist += step
+		guard += 1
+	_beam_hit(dir, to, fired)
+
+func _beam_hit(dir: Vector2, dist: float, fired: Array[Dictionary]) -> void:
+	var bolt := _bolt(Vector2.ZERO, BossCatalog.SKULL_MUZZLE + dir * dist, BossCatalog.SOUL_BEAM)
+	bolt["expires"] = true
+	bolt["life"] = 0.08
+	fired.append(bolt)
 
 func _start_spiral() -> void:
 	_spiral_left = _paced(1.25)
@@ -641,7 +650,6 @@ func _draw_specials() -> void:
 
 func _draw_beam(pulse: float) -> void:
 	var sweep := maxf(_paced(BossCatalog.BEAM_SWEEP), 0.2)
-	var wind := _paced(BossCatalog.BEAM_WINDUP)
 	var angle := _beam_from
 	var preview := _beam_mode == 1
 	if _beam_mode == 2:
@@ -651,25 +659,37 @@ func _draw_beam(pulse: float) -> void:
 	var gap_a := origin + dir * BossCatalog.BEAM_GAP_NEAR
 	var gap_b := origin + dir * BossCatalog.BEAM_GAP_FAR
 	var tip := origin + dir * BossCatalog.BEAM_LENGTH
-	var ink := Color(0.55, 1.0, 0.75, 0.45 if preview else 0.9)
-	var hot := Color(0.85, 0.45, 1.0, pulse if preview else 0.95)
-	var width := 1.0 if preview else 5.0
-	draw_line(origin, gap_a, hot, width)
-	draw_line(gap_b, tip, hot, width)
-	draw_line(origin, gap_a, ink, 1.0)
-	draw_circle(gap_a, 4.0, Color(0.9, 1.0, 0.7, pulse))
-	draw_circle(gap_b, 4.0, Color(0.9, 1.0, 0.7, pulse))
 	if preview:
+		var ink := Color(0.55, 1.0, 0.75, 0.55)
+		var hot := Color(0.85, 0.45, 1.0, pulse)
+		draw_line(origin, gap_a, hot, 1.0)
+		draw_line(gap_b, tip, hot, 1.0)
+		draw_line(origin, gap_a, ink, 1.0)
+		draw_circle(gap_a, 3.0, Color(0.9, 1.0, 0.7, pulse))
+		draw_circle(gap_b, 3.0, Color(0.9, 1.0, 0.7, pulse))
 		var sweep_dir := 1.0 if _beam_to > _beam_from else -1.0
 		var side := Vector2(-dir.y, dir.x) * sweep_dir
 		var arrow_at := origin + dir * 78.0
 		draw_line(arrow_at, arrow_at + side * 18.0, Color(0.7, 0.4, 1.0, pulse), 2.0)
-	if not preview:
-		draw_line(origin, gap_a, Color(0.9, 1.0, 0.85, 0.85), 2.0)
-		draw_line(gap_b, tip, Color(0.9, 1.0, 0.85, 0.85), 2.0)
-	# wind is used so a zero-length telegraph still has a readable line
-	if wind < 0.2 and preview:
-		draw_circle(origin, 5.0, hot)
+		return
+	var flicker := 0.84 + 0.16 * absf(sin(age * 34.0))
+	var glow := BossCatalog.BEAM_THICK - 2.0 + 4.0 * absf(sin(age * 19.0))
+	var fringe := Color(0.4, 0.95, 0.7, 0.38 * flicker)
+	var mid := Color(0.55, 0.25, 0.95, 0.55 * flicker)
+	var core := Color(0.7, 1.0, 0.86, 0.96)
+	var spine := Color(0.97, 1.0, 0.92, flicker)
+	draw_line(origin, gap_a, fringe, glow)
+	draw_line(gap_b, tip, fringe, glow)
+	draw_line(origin, gap_a, mid, glow * 0.62)
+	draw_line(gap_b, tip, mid, glow * 0.62)
+	draw_line(origin, gap_a, core, 12.0)
+	draw_line(gap_b, tip, core, 12.0)
+	draw_line(origin, gap_a, spine, 4.0)
+	draw_line(gap_b, tip, spine, 4.0)
+	draw_circle(gap_a, glow * 0.5, fringe)
+	draw_circle(gap_b, glow * 0.5, fringe)
+	draw_circle(gap_a, 5.0, spine)
+	draw_circle(gap_b, 5.0, spine)
 
 func _draw_attack_flash() -> void:
 	var pulse := 0.4 + 0.55 * absf(sin(age * 26.0))
