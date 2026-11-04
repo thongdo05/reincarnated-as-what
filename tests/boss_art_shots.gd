@@ -127,10 +127,9 @@ func _pose(file_name: String) -> void:
 	boss.position = Vector2(boss.hold_x, boss.origin_y)
 	if file_name.begins_with("lich_soul_beam"):
 		boss.present("soul_beam", game._player.position)
-		boss._beam_mode = 2
-		boss._beam_from = 0.02
-		boss._beam_to = -0.4
-		boss._beam_time = 0.02
+		boss._beam_mode = 3
+		boss._beam_y = game._player.position.y
+		boss._beam_time = 0.1
 	elif file_name == "lich_skull_spiral.png":
 		boss.present("skull_spiral", game._player.position)
 	elif file_name == "lich_grave_hands.png":

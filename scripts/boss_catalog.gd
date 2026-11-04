@@ -23,12 +23,13 @@ const BONE_TOP := 12.0
 const BONE_SPAWN_Y := -8.0
 const WINNER_BOSS_DMG_PCT := 0.15
 const LICH_INTRO := 1.7
-const BEAM_WINDUP := 0.7
-## Slower than the first thin beam so a ~22px sweep can still be stepped through.
-const BEAM_SWEEP := 1.2
-const BEAM_GAP_NEAR := 142.0
-const BEAM_GAP_FAR := 322.0
-const BEAM_LENGTH := 360.0
+## The thin line follows the player, then freezes. The lock is not shortened
+## when the lich is enraged, so there is always time to leave the row.
+const BEAM_TRACK := 0.55
+const BEAM_LOCK := 0.35
+## Solid beam, no gap. It holds, then the sprite fades.
+const BEAM_FIRE := 1.0
+const BEAM_FADE := 0.22
 ## Outer glow, in pixels at 480x270. The core sits inside this.
 const BEAM_THICK := 22.0
 ## Threat radius. Diameter stays a few pixels inside the glow.
@@ -132,7 +133,7 @@ static func attack_cycle(slug: String, phase: int) -> Array[String]:
 			return ["charge", "charge", "fake_charge", "sword_waves", "shield"]
 		return ["charge", "fake_charge", "sword_waves", "shield"]
 	if phase >= 2:
-		return ["spiral_hands", "beam_rain"]
+		return ["double_beam", "beam_rain", "spiral_hands"]
 	return ["soul_beam", "skull_spiral", "grave_hands", "bone_rain"]
 
 static func windup(pattern: String, phase: int, generation: int) -> float:
@@ -140,8 +141,8 @@ static func windup(pattern: String, phase: int, generation: int) -> float:
 		return 0.8
 	if pattern == "bone_rain":
 		return 0.9
-	if pattern == "soul_beam" or pattern == "beam_rain":
-		return BEAM_WINDUP
+	if pattern == "soul_beam" or pattern == "beam_rain" or pattern == "double_beam":
+		return BEAM_TRACK + BEAM_LOCK
 	if pattern == "grave_hands" or pattern == "spiral_hands":
 		return 0.8
 	if pattern == "fake_charge":
@@ -172,7 +173,7 @@ static func cooldown(pattern: String, phase: int, elapsed: float, generation: in
 			base = 2.35
 		"bone_rain", "beam_rain":
 			base = 2.55
-		"soul_beam":
+		"soul_beam", "double_beam":
 			base = 2.4
 		"skull_spiral", "spiral_hands":
 			base = 2.3
