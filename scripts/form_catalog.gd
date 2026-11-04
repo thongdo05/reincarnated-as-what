@@ -51,14 +51,13 @@ const CAT_BLINK_CD := 0.14
 const CAT_BLINK_GUARD := 0.10
 
 ## Every Goblin balance number. Rank arrays are rank 1 through rank 5.
-## Movement, stones, and loot all read this table.
+## Movement and stones read this table. The gem magnet is Difficulty.GOBLIN_MAGNET.
 ## Before this pass: fire_interval [0.48, 0.36, 0.28], shot_speed 780, gravity 170,
 ## spread [±110], [±150, ±50], [±180, ±90, 0], damage 1, pierce 0,
 ## loot_points 40, loot_magnet 0, loot_magnet_speed 0.
 ## Movement used to sprint and then plant. Snap forms now use SNAP_ARRIVE.
-## Stride still clocks the goblin's drawn hop. Loot points stay 40. A magnet was
-## measured and left at 0: it inflated score past the bot band without being
-## what closed the survival gap.
+## Stride still clocks the goblin's drawn hop. Loot points stay 40. The table
+## magnet stays 0; the live pull does not read it.
 const GOBLIN := {
 	"fire_interval": [0.30, 0.24, 0.20, 0.16, 0.13],
 	"shot_speed": 780.0,
@@ -173,7 +172,7 @@ const FORM_CARD := {
 		"used": "Split used.",
 	},
 	Id.GOBLIN: {
-		"trait": "Kills can drop gems. Picking one up adds score and evolution points. Later ranks throw more rocks that hit harder.",
+		"trait": "Gems nearby get pulled in. Later ranks throw more rocks that hit harder.",
 		"ready": "",
 		"used": "",
 	},
@@ -293,7 +292,7 @@ static func demon_orbs(rank_index: int) -> int:
 	var values: Array = DEMON["orbs"]
 	return int(values[clampi(rank_index, 0, values.size() - 1)])
 
-## A Goblin pickup. Added to the score and to the evolution meter. Not a weapon upgrade.
+## Gem points stored on GOBLIN. Live pickups score with Difficulty.GEM_SCORE. Not a weapon upgrade.
 static func loot_points() -> int:
 	return int(GOBLIN["loot_points"])
 

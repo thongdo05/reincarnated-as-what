@@ -100,7 +100,7 @@ const GEM_LIFE := 3.05
 const GEM_DRIFT := 36.0
 
 ## Goblin loot trait.
-const GOBLIN_MAGNET := 40.0
+const GOBLIN_MAGNET := 48.0
 const GOBLIN_MAGNET_SPEED := 90.0
 
 const POWER_CHANCE := 0.065

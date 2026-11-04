@@ -144,8 +144,8 @@ func _check_forms() -> int:
 		push_error("slime trait should say when the split is used")
 		failed += 1
 	var goblin_trait := FormCatalog.trait_line(FormCatalog.Id.GOBLIN, true)
-	if goblin_trait.find("score and evolution points") < 0:
-		push_error("goblin trait should describe loot as score and evolution points")
+	if goblin_trait.find("Gems nearby get pulled in.") < 0 or goblin_trait.find("Later ranks throw more rocks that hit harder.") < 0:
+		push_error("goblin trait should describe the gem magnet and harder rocks")
 		failed += 1
 	if FormCatalog.next_rank_text(4, Difficulty.GATE_RANK5) != "FINAL FORM":
 		push_error("rank 5 pause card should read FINAL FORM")
@@ -2364,8 +2364,8 @@ func _check_pause_card(game) -> int:
 		game._player._apply_radius()
 		game._refresh_pause_card()
 	elif int(game.form_id) == FormCatalog.Id.GOBLIN:
-		if card.trait_text().find("evolution points") < 0:
-			push_error("goblin pause card should describe loot points")
+		if card.trait_text().find("Gems nearby get pulled in.") < 0:
+			push_error("goblin pause card should describe the gem magnet")
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.VENDING:
 		if card.trait_text().find("WINNER!") < 0 or card.weapon_text().find("cans") < 0:
