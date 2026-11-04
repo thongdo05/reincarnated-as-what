@@ -70,7 +70,7 @@ func _grab_lesson() -> bool:
 func _boot_death() -> bool:
 	var best := FileAccess.open("user://best_scores.json", FileAccess.WRITE)
 	if best != null:
-		best.store_string(JSON.stringify({"overall": 100, "SLIME": 100, "GOBLIN": 100}))
+		best.store_string(JSON.stringify({"epoch": BestScores.SCORE_EPOCH, "overall": 100, "SLIME": 100, "GOBLIN": 100}))
 		best.close()
 	var packed: PackedScene = load("res://scenes/main.tscn")
 	_game = packed.instantiate()

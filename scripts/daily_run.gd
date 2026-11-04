@@ -6,6 +6,9 @@ class_name DailyRun
 ## restarts that browser at run 0. The order itself does not change.
 
 const SAVE_PATH := "user://daily_run.json"
+## date and next_run are the place in today's order, not a score.
+## A bump of BestScores.SCORE_EPOCH drops any other field in this file.
+const _RUN_KEYS: Array[String] = ["date", "next_run", "epoch"]
 
 static func date_seed() -> int:
 	var date := Time.get_date_dict_from_system(true)
@@ -34,12 +37,25 @@ static func _read() -> Dictionary:
 	var data: Dictionary = parsed
 	if str(data.get("date", "")) != today:
 		return {"date": today, "next_run": 0}
-	return {"date": today, "next_run": int(data.get("next_run", 0))}
+	var index := int(data.get("next_run", 0))
+	if int(data.get("epoch", 0)) < BestScores.SCORE_EPOCH and _has_score_fields(data):
+		_write(index)
+	return {"date": today, "next_run": index}
+
+static func _has_score_fields(data: Dictionary) -> bool:
+	for key in data.keys():
+		if not _RUN_KEYS.has(str(key)):
+			return true
+	return false
 
 static func _write(next_run: int) -> void:
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
 		push_warning("Could not save the daily run index.")
 		return
-	file.store_string(JSON.stringify({"date": str(date_seed()), "next_run": next_run}))
+	file.store_string(JSON.stringify({
+		"date": str(date_seed()),
+		"next_run": next_run,
+		"epoch": BestScores.SCORE_EPOCH,
+	}))
 	file.close()

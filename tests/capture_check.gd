@@ -61,10 +61,15 @@ func _check_noop_files() -> int:
 	var best_path := ProjectSettings.globalize_path("user://best_scores.json")
 	var daily_before := FileAccess.get_file_as_string(daily_path)
 	var best_before := FileAccess.get_file_as_string(best_path)
+	# A stale score epoch rewrites once. That reset is not the capture run.
+	BestScores.read()
+	DailyRun.peek_run_index()
+	var daily_mid := FileAccess.get_file_as_string(daily_path)
+	var best_mid := FileAccess.get_file_as_string(best_path)
 	CaptureMode.reset_for_test(PackedStringArray(["--form=slime", "--seed=7", "--clean=1"]))
 	var game := _game()
 	var daily_after := FileAccess.get_file_as_string(daily_path)
-	if daily_after != daily_before:
+	if daily_after != daily_mid:
 		push_error("a capture run should not write the daily index")
 		failed += 1
 	if int(game.day_seed) != 7 or int(game.form_id) != FormCatalog.Id.SLIME:
@@ -74,14 +79,14 @@ func _check_noop_files() -> int:
 	game.phase = game.PHASE_DEAD
 	game._show_game_over()
 	var best_after := FileAccess.get_file_as_string(best_path)
-	if best_after != best_before:
+	if best_after != best_mid:
 		push_error("a capture run should not write best scores")
 		failed += 1
 	_free(game)
 	CaptureMode.reset_for_test(PackedStringArray())
 	var plain := _game()
 	var daily_plain := FileAccess.get_file_as_string(daily_path)
-	if daily_plain == daily_before:
+	if daily_plain == daily_mid:
 		push_error("a normal run should still consume the daily index")
 		failed += 1
 	if CaptureMode.is_active():

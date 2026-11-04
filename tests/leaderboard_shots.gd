@@ -159,7 +159,7 @@ func _seed_best() -> void:
 	var file := FileAccess.open("user://best_scores.json", FileAccess.WRITE)
 	if file == null:
 		return
-	file.store_string(JSON.stringify({"overall": 4242, "SLIME": 4242}))
+	file.store_string(JSON.stringify({"epoch": BestScores.SCORE_EPOCH, "overall": 4242, "SLIME": 4242}))
 	file.close()
 
 func _show_death() -> void:

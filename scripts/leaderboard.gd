@@ -6,6 +6,10 @@ class_name Leaderboard
 ## secret key in this client.
 
 const PROFILE_PATH := "user://leaderboard.json"
+## Kept across a score reset. Anything else in the file is a cached best or rank.
+## A bump of BestScores.SCORE_EPOCH drops those on the next read. The device id
+## and the chosen name stay. This file is never the source of a posted score.
+const _PROFILE_KEEP: Array[String] = ["device_id", "name", "posted"]
 const URL := "https://piayoqekmrhqfuhhvexg.supabase.co"
 const PUBLISHABLE_KEY := "sb_publishable_0p0UqM_GPBLuLohH9d5q1Q_ode-jvwM"
 const FORMAT_HINT := "Use 1-12 letters, numbers, spaces, _ or -."
@@ -87,6 +91,7 @@ func set_local_name(raw: String) -> String:
 	_write(data)
 	return clean
 
+## Posts the run it was given. A best saved on disk is not read back and sent.
 func submit_score(form: String, score_value: int, survival_ms: int, done: Callable) -> void:
 	_rpc("submit_score", {
 		"p_device_id": device_id(),
@@ -364,13 +369,27 @@ func _read() -> Dictionary:
 	file.close()
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {}
-	return parsed
+	var data: Dictionary = parsed
+	if int(data.get("epoch", 0)) >= BestScores.SCORE_EPOCH:
+		return data
+	var kept := {}
+	for key in _PROFILE_KEEP:
+		if data.has(key):
+			kept[key] = data[key]
+	kept["epoch"] = BestScores.SCORE_EPOCH
+	_write(kept)
+	return kept
 
 func _write(data: Dictionary) -> void:
+	var stored := {}
+	for key in _PROFILE_KEEP:
+		if data.has(key):
+			stored[key] = data[key]
+	stored["epoch"] = BestScores.SCORE_EPOCH
 	var file := FileAccess.open(PROFILE_PATH, FileAccess.WRITE)
 	if file == null:
 		return
-	file.store_string(JSON.stringify(data))
+	file.store_string(JSON.stringify(stored))
 	file.close()
 
 static func _uuid_v4() -> String:
