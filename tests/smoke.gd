@@ -45,7 +45,7 @@ func _process(_delta: float) -> bool:
 	# Death cards read bests and wipe a stale epoch. Put the player's file back after.
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
-	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives()
+	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
@@ -450,8 +450,8 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 
 func _check_art() -> int:
 	var failed := 0
-	if ArtLibrary.file_count() != 179:
-		push_error("art manifest should have 179 entries, found %d" % ArtLibrary.file_count())
+	if ArtLibrary.file_count() != 195:
+		push_error("art manifest should have 195 entries, found %d" % ArtLibrary.file_count())
 		failed += 1
 	var text := FileAccess.get_file_as_string("res://art/manifest.json")
 	var parsed: Variant = JSON.parse_string(text)
@@ -1135,7 +1135,15 @@ func _check_shapes() -> int:
 		push_error("demon lord's full-body pad should be larger than the slime")
 		failed += 1
 	if absf(FormCatalog.play_scale(FormCatalog.Id.DEMON) - 0.75) > 0.001 or absf(FormCatalog.play_scale(FormCatalog.Id.CAT) - 1.0) > 0.001:
-		push_error("only the demon lord is drawn smaller in play")
+		push_error("demon lord stays at 0.75 and the cat stays full size")
+		failed += 1
+	if absf(FormCatalog.play_scale(FormCatalog.Id.VENDING) - 0.7) > 0.001:
+		push_error("vending should be drawn at 0.7")
+		failed += 1
+	var vend_file := str(FormCatalog.rank_spec(FormCatalog.Id.VENDING, 0)["sprite"])
+	var vend_src := HitLibrary.bounds_radius(vend_file, "hurt")
+	if absf(FormCatalog.hit_radius_for(FormCatalog.Id.VENDING, 0, false) - vend_src * 0.7) > 0.05:
+		push_error("vending hurtbox should shrink with the 0.7 draw scale")
 		failed += 1
 	var demon_src := HitLibrary.bounds_radius("demon_lord_r3.png", "hurt")
 	var demon_play := FormCatalog.hit_radius_for(FormCatalog.Id.DEMON, 2, false)
@@ -3996,11 +4004,22 @@ func _check_bosses() -> int:
 	elif absf(booked.dragon_at - (kill_at + BossDirector.DRAGON_RETURN)) > 0.001:
 		push_error("the dragon should return 60 s after the kill, at %s" % booked.dragon_at)
 		failed += 1
-	if BossCatalog.max_hp("lich_king") != 200 or BossCatalog.max_hp("death_knight") != 350:
-		push_error("lich and death knight hp should be 200 and 350")
+	if BossCatalog.max_hp("lich_king") != 500 or BossCatalog.max_hp("death_knight") != 2500 or BossCatalog.max_hp("lich_king", 3) != 500 or BossCatalog.max_hp("death_knight", 2) != 2500:
+		push_error("lich and death knight hp should be 500 and 2500")
 		failed += 1
-	if BossCatalog.max_hp("great_dragon", 0) != 500 or BossCatalog.max_hp("great_dragon", 1) != 510 or BossCatalog.score_value("great_dragon") != 100000:
+	if BossCatalog.max_hp("great_dragon", 0) != 10000 or BossCatalog.max_hp("great_dragon", 1) != 20000 or BossCatalog.max_hp("great_dragon", 2) != 30000 or BossCatalog.score_value("great_dragon") != 100000:
 		push_error("dragon reward and return hp drifted")
+		failed += 1
+	for slug in ["lich_king", "death_knight", "great_dragon"]:
+		var pool := BossCatalog.max_hp(slug, 0)
+		if absf(float(pool / 2) / float(pool) - 0.5) > 0.0001:
+			push_error("%s half-health bar should sit at half" % slug)
+			failed += 1
+	if BossCatalog.winner_damage(500) != 75 or BossCatalog.winner_damage(2500) != 375 or BossCatalog.winner_damage(10000) != 1500 or BossCatalog.winner_damage(20000) != 3000 or BossCatalog.winner_damage(30000) != 4500:
+		push_error("WINNER should stay 15 percent of the new boss pools")
+		failed += 1
+	if BossCatalog.winner_damage(2500) >= 2500 or BossCatalog.winner_damage(10000) >= 10000:
+		push_error("one WINNER must not finish a full boss")
 		failed += 1
 	if BossCatalog.attack_rate(180.0, 1, 2) <= BossCatalog.attack_rate(180.0, 0, 2):
 		push_error("a returning dragon should attack faster")
@@ -4012,6 +4031,9 @@ func _check_bosses() -> int:
 	failed += _check_boss_rework()
 	failed += _check_boss_gaps()
 	failed += _check_boss_flee()
+	failed += _check_dragon_not_blocked()
+	failed += _check_dragon_form()
+	failed += _check_meteor_clock()
 	var boss_px := {"lich_king": Vector2(92, 84), "death_knight": Vector2(96, 84), "great_dragon": Vector2(128, 88)}
 	for slug in BossCatalog.SLUGS:
 		var tex := ArtLibrary.texture(BossCatalog.sprite_for(slug))
@@ -4089,8 +4111,8 @@ func _check_boss_rework() -> int:
 	if knight_fury.size() < 2 or knight_fury[0] != "charge" or knight_fury[1] != "charge":
 		push_error("the enraged knight should charge twice, got %s" % str(knight_fury))
 		failed += 1
-	if BossCatalog.attack_cycle("great_dragon", 1) != ["sweep", "volley"] or BossCatalog.attack_cycle("great_dragon", 2) != ["sweep", "fan", "dive"]:
-		push_error("the dragon's attacks should stay as they were")
+	if BossCatalog.attack_cycle("great_dragon", 1) != ["sky_breath", "ember_fan"] or BossCatalog.attack_cycle("great_dragon", 2) != ["sky_breath", "dive", "wing_gust", "boss_meteor"] or BossCatalog.attack_cycle("great_dragon", 3) != ["hell_breath", "dive", "boss_meteor"]:
+		push_error("the dragon's phase attacks changed, got %s / %s / %s" % [str(BossCatalog.attack_cycle("great_dragon", 1)), str(BossCatalog.attack_cycle("great_dragon", 2)), str(BossCatalog.attack_cycle("great_dragon", 3))])
 		failed += 1
 	var wide := 0.0
 	var tall := 0.0
@@ -4202,9 +4224,13 @@ func _check_boss_rework() -> int:
 	lich.intro_left = 0.0
 	lich.state = BossActor.HOLD
 	lich.fight_left = 40.0
-	lich.hurt(101)
+	lich.hurt(lich.max_hp / 2 - 1)
+	if lich.enraged or lich.hp * 2 <= lich.max_hp:
+		push_error("the lich should stay calm above half health, hp %s / %s" % [lich.hp, lich.max_hp])
+		failed += 1
+	lich.hurt(1)
 	if not lich.enraged or lich.hp * 2 > lich.max_hp:
-		push_error("half health should enrage the lich")
+		push_error("half health should enrage the lich, hp %s / %s" % [lich.hp, lich.max_hp])
 		failed += 1
 	var shots := 0
 	var t := 0.0
@@ -4242,10 +4268,20 @@ func _check_boss_rework() -> int:
 		failed += 1
 	var dragon := BossActor.new()
 	dragon.setup(5, {"slug": "great_dragon", "hold_x": 410.0, "origin_y": 130.0, "phase": 0.2, "wave_amp": 10.0, "generation": 0}, Vector2(480, 270), null)
+	if dragon.intro_left <= BossCatalog.LICH_INTRO:
+		push_error("the dragon entrance should outlast the lich intro")
+		failed += 1
 	dragon.intro_left = 0.0
-	dragon.hurt(300)
+	if dragon.enraged or dragon.dragon_phase() != 1:
+		push_error("a full-health dragon should be phase 1")
+		failed += 1
+	dragon.hp = int(float(dragon.max_hp) * 0.5)
 	if dragon.enraged or dragon.dragon_phase() != 2:
-		push_error("the dragon should enter phase 2 without the knight enrage")
+		push_error("half health should be dragon phase 2, not the knight enrage")
+		failed += 1
+	dragon.hp = int(float(dragon.max_hp) * 0.2)
+	if dragon.enraged or dragon.dragon_phase() != 3:
+		push_error("a fifth of health should be dragon phase 3")
 		failed += 1
 	knight.free()
 	dragon.free()
@@ -4356,13 +4392,30 @@ func _check_boss_gaps() -> int:
 			var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
 			worst = maxf(worst, HitLibrary.vertical_extent(file, "hurt"))
 	var reach := 220.0
-	for phase in [1, 2]:
+	var wide := 0.0
+	for id in FormCatalog.IDS:
+		for rank in 5:
+			var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
+			wide = maxf(wide, HitLibrary.horizontal_extent(file, "hurt"))
+	for phase in [1, 2, 3]:
 		for generation in [0, 2, 4]:
 			for pattern in BossCatalog.attack_cycle("great_dragon", phase):
 				var wind := BossCatalog.windup(pattern, phase, generation)
 				if wind < 0.36:
 					push_error("%s telegraph is too short (%.2f)" % [pattern, wind])
 					failed += 1
+				if pattern == "wing_gust":
+					continue
+				if pattern == "boss_meteor":
+					var meteor_w := HitLibrary.horizontal_extent(BossCatalog.BOSS_METEOR, "threat")
+					var opening := BossCatalog.METEOR_SPACING - meteor_w
+					if opening <= wide:
+						push_error("boss meteors leave no sideways gap")
+						failed += 1
+					if wide * 0.5 + meteor_w * 0.5 > wind * reach:
+						push_error("boss meteor warning does not leave time to step aside")
+						failed += 1
+					continue
 				if pattern == "dive":
 					var span := HitLibrary.vertical_span("great_dragon.png", "threat")
 					var band := span.y - span.x
@@ -4426,8 +4479,21 @@ func _check_boss_flee() -> int:
 		while t < 40.0 and boss.alive:
 			boss.tick(0.1, Vector2(80, 120), t, 1.0)
 			t += 0.1
-		if boss.alive or t < 24.0 or t > 33.0:
-			push_error("%s should fly off after about 25 s, gone at %.1f alive %s" % [slug, t, boss.alive])
+		if not boss.alive or boss.state == BossActor.FLEE or boss.hp != boss.max_hp or boss.position.x > field.x:
+			push_error("%s should stay until killed, alive %s state %s hp %s x %.1f" % [slug, boss.alive, boss.state, boss.hp, boss.position.x])
+			failed += 1
+		boss.intro_left = 0.0
+		boss.hurt(boss.max_hp / 2 - 1)
+		if boss.enraged or boss.hp * 2 <= boss.max_hp:
+			push_error("%s should stay calm above half health, hp %s / %s" % [slug, boss.hp, boss.max_hp])
+			failed += 1
+		boss.hurt(1)
+		if not boss.enraged or boss.hp * 2 > boss.max_hp:
+			push_error("half health should enrage %s, hp %s / %s" % [slug, boss.hp, boss.max_hp])
+			failed += 1
+		boss.hurt(boss.hp)
+		if boss.alive:
+			push_error("%s should die when its hp is gone" % slug)
 			failed += 1
 		boss.free()
 	var dragon := BossActor.new()
@@ -4436,14 +4502,275 @@ func _check_boss_flee() -> int:
 	while elapsed < 36.0:
 		dragon.tick(0.1, Vector2(90, 100), 170.0, 2.2)
 		elapsed += 0.1
-	if not dragon.alive:
-		push_error("the dragon should stay until it dies")
+	if not dragon.alive or dragon.max_hp != 10000 or dragon.hp != 10000:
+		push_error("the dragon should stay at 10000 hp until it dies, hp %s / %s alive %s" % [dragon.hp, dragon.max_hp, dragon.alive])
 		failed += 1
-	dragon.hp = 10
-	if dragon.dragon_phase() != 2:
+	dragon.hp = dragon.max_hp / 2
+	if dragon.enraged or dragon.dragon_phase() != 2:
 		push_error("half health should be dragon phase 2")
 		failed += 1
 	dragon.free()
+	return failed
+
+## A regular boss that never leaves must not hold the dragon's clock, and
+## after that first dragon only the dragon comes back.
+func _check_dragon_not_blocked() -> int:
+	var failed := 0
+	var director := BossDirector.new(20261101)
+	var at := director.dragon_at
+	director.set_boss_alive(true)
+	var early := director.pop_due(at - 1.0)
+	if not early.is_empty():
+		push_error("a living regular should hold spawns until the dragon is due, got %s" % str(early))
+		failed += 1
+	var opened := director.pop_due(at)
+	if opened.size() != 1 or str(opened[0]["slug"]) != "great_dragon" or int(opened[0]["generation"]) != 0:
+		push_error("the dragon should arrive on time over a living regular, got %s" % str(opened))
+		failed += 1
+	elif BossCatalog.max_hp("great_dragon", int(opened[0]["generation"])) != 10000:
+		push_error("the first dragon should be 10000 hp")
+		failed += 1
+	director.set_boss_alive(false)
+	var gap := director.pop_due(at + 30.0)
+	if not gap.is_empty():
+		push_error("regular bosses should not spawn after the first dragon, got %s" % str(gap[0]))
+		failed += 1
+	director.on_dragon_killed(at + 12.0)
+	var wait := director.pop_due(at + 12.0 + BossDirector.DRAGON_RETURN - 1.0)
+	if not wait.is_empty():
+		push_error("the dragon should wait out the 60 s return, got %s" % str(wait))
+		failed += 1
+	var back := director.pop_due(at + 12.0 + BossDirector.DRAGON_RETURN)
+	if back.size() != 1 or str(back[0]["slug"]) != "great_dragon" or int(back[0]["generation"]) != 1:
+		push_error("only the dragon should return, got %s" % str(back))
+		failed += 1
+	elif BossCatalog.max_hp("great_dragon", int(back[0]["generation"])) != 20000:
+		push_error("the returned dragon should be 20000 hp")
+		failed += 1
+	return failed
+
+## The live clock clears a Lich or Knight with no kill reward when the dragon is due.
+func _check_dragon_displaces_regular() -> int:
+	var failed := 0
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game.phase = game.PHASE_PLAY
+	game.form_id = FormCatalog.Id.SLIME
+	game._player.form_id = FormCatalog.Id.SLIME
+	game.invuln = 30.0
+	game._player.invulnerable = true
+	game._tutorial_active = false
+	game._director._next_time = 100000.0
+	if not game._spawn_boss({"slug": "lich_king", "generation": 0, "hold_x": 428.0, "origin_y": 140.0, "phase": 0.2, "wave_amp": 8.0}, Vector2(480, 270)):
+		push_error("the lich that should yield to the dragon did not spawn")
+		root.remove_child(game)
+		game.free()
+		return 1
+	var lich: BossActor = game._living_boss()
+	lich.intro_left = 0.0
+	lich.state = BossActor.HOLD
+	lich.position = Vector2(428, 140)
+	var before: int = game.score
+	var deaths_before: int = game._sound.play_count(BossCatalog.cue("lich_king", "death"))
+	var gems_before: int = game._loot.size()
+	game.elapsed = game._boss_director.dragon_at
+	game._process(1.0 / 60.0)
+	var boss: EnemyActor = game._living_boss()
+	if boss == null or boss.boss_slug != "great_dragon" or boss.max_hp != 10000 or boss.hp != 10000:
+		push_error("the dragon should replace a living lich at 10000 hp, got %s" % (boss.kind_name if boss != null else "nobody"))
+		failed += 1
+	if is_instance_valid(lich) and lich.alive:
+		push_error("the lich should be gone when the dragon arrives")
+		failed += 1
+	if game._sound.play_count(BossCatalog.cue("lich_king", "death")) != deaths_before:
+		push_error("clearing the lich for the dragon should stay silent")
+		failed += 1
+	if game.score != before:
+		push_error("clearing the lich for the dragon should not pay score, got %s" % game.score)
+		failed += 1
+	if game._loot.size() != gems_before:
+		push_error("clearing the lich for the dragon should not drop gems")
+		failed += 1
+	var regulars := 0
+	game._boss_director.set_boss_alive(false)
+	var kill_at: float = game.elapsed
+	game._boss_director.on_dragon_killed(kill_at)
+	var t: float = kill_at
+	while t < kill_at + BossDirector.DRAGON_RETURN + 1.0:
+		t += 0.5
+		game._boss_director.set_boss_alive(false)
+		for event in game._boss_director.pop_due(t):
+			if str(event["slug"]) != "great_dragon":
+				regulars += 1
+	if regulars != 0:
+		push_error("lich and knight should not return after the first dragon")
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
+func _check_dragon_form() -> int:
+	var failed := 0
+	if FormCatalog.IDS.find(FormCatalog.Id.DRAGON) >= 0:
+		push_error("the dragon form must stay out of the random roll")
+		failed += 1
+	for run in 12:
+		for seed_value in [20261101, 20261104, 7]:
+			if FormCatalog.id_for_run(seed_value, run) == FormCatalog.Id.DRAGON:
+				push_error("a daily roll produced the dragon form")
+				failed += 1
+	var best := 0.0
+	var fastest := 99.0
+	var shot_speed := 0.0
+	var move := 0.0
+	for id in FormCatalog.IDS:
+		var shots := FormCatalog.player_shots(id, Vector2.ZERO, 4)
+		var total := 0
+		for spec in shots:
+			total += int(spec["damage"])
+			shot_speed = maxf(shot_speed, float(spec["velocity"].length()))
+		if id == FormCatalog.Id.DEMON:
+			total = FormCatalog.demon_damage(4, int(FormCatalog.DEMON["enemy_cap"])) * shots.size()
+			shot_speed = maxf(shot_speed, FormCatalog.demon_speed(4, int(FormCatalog.DEMON["enemy_cap"])))
+		var interval := float(FormCatalog.rank_spec(id, 4)["fire_interval"])
+		fastest = minf(fastest, interval)
+		best = maxf(best, float(total) / interval)
+		move = maxf(move, FormCatalog.max_speed(id))
+	var dragon_shots := FormCatalog.player_shots(FormCatalog.Id.DRAGON, Vector2.ZERO, 0)
+	if dragon_shots.size() != 3:
+		push_error("the dragon attack should fire 3 fireballs")
+		failed += 1
+	var dragon_dmg := 0
+	var spread := 0.0
+	for spec in dragon_shots:
+		dragon_dmg += int(spec["damage"])
+		spread = maxf(spread, absf(float(spec["velocity"].y)))
+	if spread < 20.0:
+		push_error("the three fireballs should spread")
+		failed += 1
+	var dragon_dps := float(dragon_dmg) / FormCatalog.DRAGON_FIRE_INTERVAL
+	if dragon_dps + 0.01 < best:
+		push_error("dragon dps %.1f is under the best rank-5 form %.1f" % [dragon_dps, best])
+		failed += 1
+	if FormCatalog.DRAGON_FIRE_INTERVAL > fastest + 0.0001:
+		push_error("dragon fire rate should be at least as fast as rank 5")
+		failed += 1
+	if FormCatalog.DRAGON_SHOT_SPEED + 0.1 < shot_speed:
+		push_error("dragon shots should be at least as fast as rank 5")
+		failed += 1
+	if FormCatalog.DRAGON_MAX_SPEED + 0.1 < move:
+		push_error("dragon move speed should be at least the fastest rank-5 form")
+		failed += 1
+	if int(dragon_shots[0]["splash"]) != FormCatalog.DRAGON_SPLASH:
+		push_error("dragon fireballs should splash")
+		failed += 1
+	var img := ArtLibrary.texture("dragon_form/dragon_fly.png").get_image()
+	var anchor := ArtLibrary.anchor("dragon_form/dragon_fly.png")
+	var frame_w := int(ArtLibrary.entry("dragon_form/dragon_fly.png")["frame_size"][0])
+	var wing_out := false
+	var body_in := false
+	for y in img.get_height():
+		for x in range(0, frame_w):
+			if img.get_pixel(x, y).a < 0.5:
+				continue
+			var local := Vector2(x + 0.5, y + 0.5) - anchor
+			var inside := HitLibrary.contains_local("dragon_form/dragon_fly.png", "hurt", local)
+			if local.y > 20.0:
+				if inside:
+					push_error("a wing tip below the belly is part of the hurt shape")
+					failed += 1
+					wing_out = true
+					break
+				wing_out = true
+			elif local.y > -4.0 and local.y < 6.0 and inside:
+				body_in = true
+		if failed > 0:
+			break
+	if not wing_out or not body_in:
+		push_error("dragon hurt shape should cover the body and leave the low wing tips")
+		failed += 1
+	var fit := FormCatalog.dragon_fit_scale("slime_r5_body.png", 1.0)
+	if absf(fit - 1.0) > 0.001:
+		push_error("the dragon sheet is native size and should draw at 1x")
+		failed += 1
+	var dragon_w := HitLibrary.horizontal_extent("dragon_form/dragon_fly.png", "hurt") * fit
+	var dragon_h := HitLibrary.vertical_extent("dragon_form/dragon_fly.png", "hurt") * fit
+	var demon_w := HitLibrary.horizontal_extent("demon_lord_r5_body.png", "hurt") * FormCatalog.DEMON_PLAY_SCALE
+	var demon_h := HitLibrary.vertical_extent("demon_lord_r5_body.png", "hurt") * FormCatalog.DEMON_PLAY_SCALE
+	var vend_w := HitLibrary.horizontal_extent("vending_machine_r5_body.png", "hurt") * FormCatalog.VENDING_PLAY_SCALE
+	var vend_h := HitLibrary.vertical_extent("vending_machine_r5_body.png", "hurt") * FormCatalog.VENDING_PLAY_SCALE
+	if dragon_w + 0.5 < maxf(demon_w, vend_w) or dragon_h + 0.5 < maxf(demon_h, vend_h):
+		push_error("dragon body %.1fx%.1f is smaller than the larger r5 body" % [dragon_w, dragon_h])
+		failed += 1
+	if dragon_w > 56.0 or dragon_h > 56.0:
+		push_error("dragon hurt should stay on the body, got %.1fx%.1f" % [dragon_w, dragon_h])
+		failed += 1
+	var goblin_w := HitLibrary.horizontal_extent("goblin_r5_body.png", "hurt")
+	var goblin_ratio := FormCatalog.max_speed(FormCatalog.Id.GOBLIN) / goblin_w
+	if FormCatalog.DRAGON_MAX_SPEED / dragon_w + 0.01 < goblin_ratio:
+		push_error("dragon speed does not make up for the wider body")
+		failed += 1
+	var body := Leaderboard.submit_body("dev", "Ada", "slime", 10, 1000, false)
+	if body.has("p_dragon_slayer"):
+		push_error("a normal run should omit the dragon-slayer flag")
+		failed += 1
+	var slayer := Leaderboard.submit_body("dev", "Ada", "slime", 10, 1000, true)
+	if slayer.get("p_dragon_slayer", false) != true:
+		push_error("a dragon-slayer run should send the flag")
+		failed += 1
+	if not Leaderboard.rejects_dragon_flag({"ok": false, "error": "Could not find the function public.submit_score", "data": {"code": "PGRST202"}}):
+		push_error("an old leaderboard should be detected from PGRST202")
+		failed += 1
+	if Leaderboard.rejects_dragon_flag({"ok": false, "error": "bad_score", "data": {}}):
+		push_error("a rejected score is not an old schema")
+		failed += 1
+	var screen := LeaderboardScreen.new()
+	screen.setup(Leaderboard.new(), load("res://ui/font_kaito5x7_outlined.fnt"))
+	root.add_child(screen)
+	screen.size = Vector2(480, 270)
+	screen.preview([{"rank": 1, "name": "Ada", "score": 100, "form": "slime", "is_me": false, "dragon_slayer": true}], "")
+	var tagged := screen._list.get_child(0).get_node_or_null("Name/Dragonslayer")
+	if tagged == null:
+		push_error("a dragon-slayer row should show the title")
+		failed += 1
+	root.remove_child(screen)
+	screen.free()
+	return failed
+
+func _check_meteor_clock() -> int:
+	var failed := 0
+	if DragonShow.METEOR_COUNT < 22 or DragonShow.METEOR_COUNT > 25 or DragonShow.RAIN_FRAMES != 45 or DragonShow.SPAWN_EVERY != 2 or DragonShow.CHARGE_FRAMES != 15:
+		push_error("meteor rain should be 1.0s of charge and 3.0s with about 22-25 meteors every 2 frames")
+		failed += 1
+	if absf(DragonShow.DRAW_SCALE - 3.0) > 0.001 or absf(DragonShow.METEOR_CELL * DragonShow.DRAW_SCALE - 78.0) > 0.1 or absf(DragonShow.IMPACT_CELL * DragonShow.DRAW_SCALE - 174.0) > 0.1:
+		push_error("barrage meteors should draw at 3x, 78 and 174")
+		failed += 1
+	if absf(DragonShow.GIANT_METEOR - 168.0) > 0.1 or absf(DragonShow.GIANT_IMPACT - 270.0) > 0.1:
+		push_error("the final meteor should be 168px with a 270px impact")
+		failed += 1
+	if DragonShow.POOL < 11 or DragonShow.EMBER_CAP < 32 or DragonShow.DEBRIS_CAP < 24:
+		push_error("meteor pools should cover the on-screen cap")
+		failed += 1
+	var show := DragonShow.new()
+	show.rng_seed = 5
+	show.start_rain()
+	var peak := 0
+	var steps := DragonShow.CHARGE_FRAMES + DragonShow.RAIN_FRAMES + DragonShow.FALL_FRAMES
+	for _i in steps:
+		show.tick(DragonShow.FRAME)
+		peak = maxi(peak, show.active_meteors())
+	if show._spawned != DragonShow.METEOR_COUNT:
+		push_error("the rain should spawn %d meteors, got %d" % [DragonShow.METEOR_COUNT, show._spawned])
+		failed += 1
+	if peak > DragonShow.POOL:
+		push_error("too many meteors on screen at once (%d, cap %d)" % [peak, DragonShow.POOL])
+		failed += 1
+	if show.phase != DragonShow.FALL and show.phase != DragonShow.SLAM:
+		push_error("the giant meteor should start when the rain ends, phase %s" % show.phase)
+		failed += 1
+	show.free()
 	return failed
 
 func _boss_pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
@@ -4551,9 +4878,10 @@ func _check_boss_play() -> int:
 		failed += 1
 	else:
 		var boss: EnemyActor = game._living_boss()
+		boss.intro_left = 0.0
 		var hp := int(boss.hp)
-		if hp != 510:
-			push_error("the returned dragon should have 510 hp, got %s" % hp)
+		if hp != 20000:
+			push_error("the returned dragon should have 20000 hp, got %s" % hp)
 			failed += 1
 		game._spawn_enemy({
 			"t": 0.0, "kind": SpawnDirector.EYE, "x_ratio": 0.4, "phase": 0.2,

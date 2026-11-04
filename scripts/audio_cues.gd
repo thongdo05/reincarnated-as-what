@@ -144,6 +144,16 @@ static func spec(event: String) -> Dictionary:
 			return _boss_cue("sfx_boss_great_dragon_enter.wav", -19.7, 1.19)
 		"boss_great_dragon_death":
 			return _boss_cue("sfx_boss_great_dragon_death.wav", -19.3, 1.11)
+		# Placeholder until Hibiki delivers res://audio/sfx_dragon_slain.wav.
+		"dragon_slain":
+			return {
+				"file": "res://audio/sfx_evolve.wav",
+				"bus": SFX_BUS,
+				"loop": false,
+				"lufs": -19.1,
+				"polyphony": 1,
+				"pitch_semitones": 0.0,
+			}
 		_:
 			return {}
 
@@ -196,6 +206,7 @@ static func all_events() -> PackedStringArray:
 		"boss_death_knight_death",
 		"boss_great_dragon_enter",
 		"boss_great_dragon_death",
+		"dragon_slain",
 	])
 
 static func is_shot_event(event: String) -> bool:

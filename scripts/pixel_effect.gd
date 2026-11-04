@@ -29,6 +29,11 @@ func _draw() -> void:
 	var t := 1.0 - clampf(life / max_life, 0.0, 1.0)
 	var scale := lerpf(start_scale, end_scale, t)
 	var alpha := clampf(1.0 - smoothstep(0.25, 1.0, t), 0.0, 1.0)
+	var elapsed := max_life - life
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(scale, scale))
-	ArtLibrary.draw_anchored(self, sprite_name, Color(1, 1, 1, alpha))
+	var frames := int(ArtLibrary.entry(sprite_name).get("frames", 1))
+	if frames > 1:
+		ArtLibrary.draw_loop(self, sprite_name, elapsed, Vector2.ZERO, Color(1, 1, 1, alpha), 1.0)
+	else:
+		ArtLibrary.draw_anchored(self, sprite_name, Color(1, 1, 1, alpha))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

@@ -43,6 +43,9 @@ var _hands_live := 0.0
 var _hand_xs: Array[float] = []
 var _fake_stage := 0
 var _intro_shook := false
+var _phase_seen := 0
+var _gust_warn := 0.0
+var gust_left := 0.0
 
 func is_boss() -> bool:
 	return true
@@ -51,7 +54,10 @@ func hurt(amount: int) -> void:
 	if intro_left > 0.0 or not alive:
 		return
 	super.hurt(amount)
-	if enraged or boss_slug == "great_dragon":
+	if boss_slug == "great_dragon":
+		_note_dragon_phase()
+		return
+	if enraged:
 		return
 	if hp * 2 <= max_hp:
 		enraged = true
@@ -79,9 +85,27 @@ func sprite_file() -> String:
 func dragon_phase() -> int:
 	if boss_slug != "great_dragon":
 		return 1
-	if hp * 2 <= max_hp:
+	var ratio := float(hp) / float(maxi(max_hp, 1))
+	if ratio > 0.66:
+		return 1
+	if ratio > 0.33:
 		return 2
-	return 1
+	return 3
+
+func _note_dragon_phase() -> void:
+	var now := dragon_phase()
+	if _phase_seen == 0:
+		_phase_seen = now
+		return
+	if now == _phase_seen:
+		return
+	_phase_seen = now
+	enrage_flash = 0.45
+	var host := get_parent()
+	if host != null and host.has_method("_dragon_roar"):
+		host._dragon_roar()
+	if host != null and host.has_method("_bump_shake"):
+		host._bump_shake()
 
 func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: FieldBackground) -> void:
 	id = spawn_id
@@ -109,6 +133,10 @@ func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: Fi
 	if boss_slug == "lich_king":
 		intro_left = BossCatalog.LICH_INTRO
 		position = Vector2(hold_x, origin_y + 42.0)
+	elif boss_slug == "great_dragon":
+		intro_left = BossCatalog.DRAGON_INTRO
+		position = Vector2(field.x + 36.0, origin_y)
+		_phase_seen = 1
 	state = ENTER
 	fight_left = 0.0
 	_attack_cd = 0.55
@@ -182,7 +210,7 @@ func tick(delta: float, player_pos: Vector2, run_time: float = 0.0, scale: float
 	var fired: Array[Dictionary] = []
 	match state:
 		ENTER:
-			if boss_slug == "lich_king" and intro_left > 0.0:
+			if intro_left > 0.0 and (boss_slug == "lich_king" or boss_slug == "great_dragon"):
 				_tick_intro(delta)
 			else:
 				position.x = move_toward(position.x, hold_x, 120.0 * delta)
@@ -223,8 +251,16 @@ func tick(delta: float, player_pos: Vector2, run_time: float = 0.0, scale: float
 		queue_redraw()
 	return fired
 
+## Regular bosses used to flee after BossDirector.LIFE. They stay until killed.
+## The dragon never left on that timer, and still does not.
 func _flees() -> bool:
-	return boss_slug != "great_dragon"
+	return false
+
+## Makes room for the Great Dragon. Not a kill: no score, no gems, no death sting.
+func dismiss() -> void:
+	_begin_flee()
+	alive = false
+	visible = false
 
 func _begin_flee() -> void:
 	state = FLEE
@@ -242,6 +278,9 @@ func _halt_attacks() -> void:
 	_hands_live = 0.0
 	shield_left = 0.0
 	_fake_stage = 0
+	_gust_warn = 0.0
+	gust_left = 0.0
+	gust_push = 0.0
 
 func _cancel_rain() -> void:
 	_rain_left = 0.0
@@ -289,6 +328,15 @@ func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: fl
 	_tick_hands(delta, fired)
 	if shield_left > 0.0:
 		shield_left = maxf(shield_left - delta, 0.0)
+	if _gust_warn > 0.0:
+		_gust_warn = maxf(_gust_warn - delta, 0.0)
+		if _gust_warn <= 0.0:
+			gust_left = 0.34
+			gust_push = -130.0
+	elif gust_left > 0.0:
+		gust_left = maxf(gust_left - delta, 0.0)
+		if gust_left <= 0.0:
+			gust_push = 0.0
 	if not telegraphs.is_empty():
 		return
 	if _row_left > 0.0:
@@ -366,11 +414,36 @@ func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: fl
 		_commit_shot(fired, aim, BossCatalog.SKULL_MUZZLE, "lich_skull.png", BossCatalog.windup("skull", 1, generation))
 		_attack_cd = BossCatalog.cooldown("skull", 1, run_time, generation)
 		return
+	if attack == "wing_gust":
+		_gust_warn = BossCatalog.windup(attack, phase_now, generation)
+		gust_push = 0.0
+		_attack_cd = BossCatalog.cooldown(attack, phase_now, run_time, generation)
+		return
 	_arm_shots(attack, player_pos, BossCatalog.windup(attack, dragon_phase(), generation))
 	_attack_cd = BossCatalog.cooldown(attack, dragon_phase(), run_time, generation)
 
 func _tick_intro(delta: float) -> void:
 	intro_left = maxf(intro_left - delta, 0.0)
+	if boss_slug == "great_dragon":
+		var span := maxf(BossCatalog.DRAGON_INTRO, 0.1)
+		var along := clampf(1.0 - intro_left / span, 0.0, 1.0)
+		var slide := clampf((along - 0.42) / 0.38, 0.0, 1.0)
+		position.x = lerpf(field_size.x + 36.0, hold_x, slide)
+		position.y = origin_y
+		if not _intro_shook and along >= 0.28:
+			_intro_shook = true
+			var host := get_parent()
+			if host != null and host.has_method("_dragon_roar"):
+				host._dragon_roar()
+			if host != null and host.has_method("_dragon_shake"):
+				host._dragon_shake(4.0, 0.45)
+		if intro_left <= 0.0:
+			intro_left = 0.0
+			position = Vector2(hold_x, origin_y)
+			state = HOLD
+			fight_left = BossDirector.LIFE
+			_attack_cd = 0.55
+		return
 	var span := maxf(BossCatalog.LICH_INTRO, 0.1)
 	var along := clampf(1.0 - intro_left / span, 0.0, 1.0)
 	position.x = hold_x
@@ -388,7 +461,7 @@ func _tick_intro(delta: float) -> void:
 		_attack_cd = 0.4
 
 func _attack_busy() -> bool:
-	return not telegraphs.is_empty() or _row_left > 0.0 or _rain_left > 0.0 or _beam_mode != 0 or _spiral_left > 0.0 or _hands_left > 0.0 or _hands_live > 0.0 or shield_left > 0.0
+	return not telegraphs.is_empty() or _row_left > 0.0 or _rain_left > 0.0 or _beam_mode != 0 or _spiral_left > 0.0 or _hands_left > 0.0 or _hands_live > 0.0 or shield_left > 0.0 or _gust_warn > 0.0 or gust_left > 0.0
 
 func _cooled(pattern: String, run_time: float, phase_now: int) -> float:
 	return _paced(BossCatalog.cooldown(pattern, phase_now, run_time, generation))
@@ -576,11 +649,12 @@ func _arm_shots(attack: String, aim: Vector2, windup: float) -> void:
 	var speed := BossCatalog.bullet_speed(phase_now, generation)
 	for spec in BossCatalog.shot_plan(attack, phase_now, generation, position, aim, speed):
 		var extra := 0.03 * float(spec["stagger"])
+		var picture := str(spec.get("sprite", BossCatalog.DRAGON_SHOT))
 		telegraphs.append({
 			"left": windup + extra,
 			"velocity": spec["velocity"],
 			"pos": position + spec["offset"],
-			"sprite": BossCatalog.DRAGON_SHOT,
+			"sprite": picture,
 		})
 
 func _arm_row(seconds: float) -> void:
@@ -607,6 +681,8 @@ func _summon_eyes() -> void:
 func _draw() -> void:
 	if charmed > 0.0:
 		modulate = Color(0.62, 1.0, 0.72)
+	elif boss_slug == "great_dragon" and dragon_phase() >= 3:
+		modulate = Color(1.0, 0.42, 0.32)
 	elif enraged:
 		modulate = Color(1.0, 0.46, 0.4)
 	else:
@@ -628,6 +704,9 @@ func _draw() -> void:
 		HitLibrary.draw(self, sprite_file(), "threat", Color(1.0, 0.28, 0.32, 0.95))
 
 func _draw_intro() -> void:
+	if boss_slug == "great_dragon":
+		_draw_dragon_intro()
+		return
 	var fade := clampf(intro_left / 0.35, 0.25, 1.0)
 	if intro_left > BossCatalog.LICH_INTRO - 0.35:
 		fade = clampf((BossCatalog.LICH_INTRO - intro_left) / 0.35, 0.2, 1.0)
@@ -639,6 +718,17 @@ func _draw_intro() -> void:
 	draw_arc(feet, 8.0, age * 3.0, age * 3.0 + PI, 12, Color(0.7, 0.4, 1.0, fade), 2.0, true)
 	var tex := PixelFont.outlined_texture("LICH KING", Color("7affc6"))
 	var at := Vector2(field_size.x * 0.5, 64.0) - position - tex.get_size()
+	draw_texture_rect(tex, Rect2(at, tex.get_size() * 2.0), false)
+
+func _draw_dragon_intro() -> void:
+	var span := maxf(BossCatalog.DRAGON_INTRO, 0.1)
+	var along := clampf(1.0 - intro_left / span, 0.0, 1.0)
+	var fade := clampf(intro_left / 0.4, 0.35, 1.0)
+	draw_rect(Rect2(-position, field_size), Color(0.05, 0.0, 0.0, 0.45 * fade))
+	var shadow_x := lerpf(-position.x - 80.0, field_size.x - position.x, clampf(along / 0.45, 0.0, 1.0))
+	draw_rect(Rect2(Vector2(shadow_x, -position.y), Vector2(90.0, field_size.y)), Color(0.0, 0.0, 0.0, 0.55 * fade))
+	var tex := PixelFont.outlined_texture("GREAT DRAGON", Color("ffb15a"))
+	var at := Vector2(field_size.x * 0.5, 58.0) - position - tex.get_size()
 	draw_texture_rect(tex, Rect2(at, tex.get_size() * 2.0), false)
 
 func _draw_specials() -> void:
@@ -665,8 +755,70 @@ func _draw_specials() -> void:
 			var dir := vel.normalized()
 			draw_line(origin, origin + dir * 110.0, Color(1.0, 0.86, 0.45, pulse), 2.0)
 			draw_line(origin + dir * 96.0, origin + dir * 110.0, Color(0.95, 0.95, 0.85, pulse), 3.0)
+	if boss_slug == "great_dragon" and dragon_phase() >= 3:
+		draw_rect(Rect2(-position, field_size), Color(0.45, 0.05, 0.0, 0.16))
+	if _attack_id == "sky_breath" or _attack_id == "hell_breath":
+		_draw_breath()
+	if _gust_warn > 0.0 or gust_left > 0.0:
+		_draw_gust()
+	if _attack_id == "boss_meteor":
+		_draw_meteor_marks()
 	if enrage_flash > 0.0:
 		draw_rect(Rect2(-position, field_size), Color(1.0, 0.25, 0.2, enrage_flash * 0.45))
+
+func _draw_breath() -> void:
+	var pulse := 0.45 + 0.55 * absf(sin(age * 18.0))
+	if _attack_id == "hell_breath":
+		var gap := 0.0
+		var found := false
+		var lanes: Array[float] = []
+		for item in telegraphs:
+			lanes.append((item["pos"] as Vector2).y)
+		lanes.sort()
+		var cursor := 36.0
+		var best := 0.0
+		var best_at := 120.0
+		for lane in lanes:
+			if lane - cursor > best:
+				best = lane - cursor
+				best_at = (lane + cursor) * 0.5
+			cursor = lane
+		if 220.0 - cursor > best:
+			best_at = (220.0 + cursor) * 0.5
+		gap = best_at - position.y
+		found = true
+		var x0 := -position.x
+		var x1 := field_size.x - position.x
+		draw_rect(Rect2(Vector2(x0, -position.y), Vector2(x1 - x0, field_size.y)), Color(0.55, 0.08, 0.02, 0.28 * pulse))
+		if found:
+			draw_rect(Rect2(Vector2(x0, gap - BossCatalog.HELL_GAP * 0.5), Vector2(x1 - x0, BossCatalog.HELL_GAP)), Color(0.85, 0.95, 0.7, 0.28))
+		return
+	if telegraphs.is_empty():
+		return
+	var y := (telegraphs[0]["pos"] as Vector2).y - position.y
+	var x0 := -position.x
+	var x1 := -8.0
+	draw_rect(Rect2(Vector2(x0, y - 22.0), Vector2(x1 - x0, 44.0)), Color(1.0, 0.35, 0.08, 0.28 * pulse))
+	draw_line(Vector2(x0, y), Vector2(x1, y), Color(1.0, 0.82, 0.35, pulse), 2.0)
+	ArtLibrary.draw_loop(self, BossCatalog.BOSS_BREATH, age, Vector2(-18.0, y))
+
+func _draw_gust() -> void:
+	var pulse := 0.4 + 0.6 * absf(sin(age * 20.0))
+	var ink := Color(0.75, 0.9, 1.0, pulse)
+	ArtLibrary.draw_loop(self, BossCatalog.BOSS_GUST, age, Vector2(-30.0, -6.0))
+	for step in 4:
+		var x := -40.0 - float(step) * 28.0
+		draw_line(Vector2(x, -10.0), Vector2(x - 16.0, -10.0), ink, 2.0)
+		draw_line(Vector2(x, 8.0), Vector2(x - 16.0, 8.0), ink, 2.0)
+
+func _draw_meteor_marks() -> void:
+	var pulse := 0.4 + 0.6 * absf(sin(age * 16.0))
+	for item in telegraphs:
+		if str(item.get("sprite", "")) != BossCatalog.BOSS_METEOR:
+			continue
+		var at: Vector2 = item["pos"] - position
+		draw_arc(at + Vector2(0.0, 150.0), 16.0, 0.0, TAU, 16, Color(0.85, 0.15, 0.08, pulse), 2.0, true)
+		draw_line(at, at + Vector2(0.0, 140.0), Color(0.35, 0.02, 0.02, pulse), 2.0)
 
 func _draw_beam(pulse: float) -> void:
 	var y := _beam_y - position.y

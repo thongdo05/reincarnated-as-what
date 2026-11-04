@@ -3938,6 +3938,429 @@
     "idle": false,
     "art_bbox": [16, 20],
     "note": "Kaito. Death Knight kite shield. Faces left already, do not flip. Visual only; the block is geometric."
+  },
+{
+    "file": "dragon_form/dragon_fly.png",
+    "size": [
+      504,
+      58
+    ],
+    "frames": 6,
+    "fps": 15,
+    "anchor": [
+      42,
+      26
+    ],
+    "anchor_type": "center",
+    "category": "dragon_form",
+    "facing": "right",
+    "idle": false,
+    "loop": true,
+    "note": "Placeholder fly loop. Native frame 84x58, 6 frames, 15 fps. Faces right. Drawn at 1x. The hittable body is about 45x44, matching the larger of the Demon Lord r4/r5 body at 0.75 (source 58x56, on screen about 44x42) and the Vending r4/r5 body at 0.7 (source 40x52, on screen about 28x36). Wing tips below the belly are not a hit. The full frame is the wingspan.",
+    "frame_size": [
+      84,
+      58
+    ],
+    "art_bbox": [
+      84,
+      58
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_fireball.png",
+    "size": [
+      80,
+      15
+    ],
+    "frames": 4,
+    "fps": 15,
+    "anchor": [
+      10,
+      7
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "right",
+    "idle": false,
+    "loop": true,
+    "note": "Placeholder fireball. 20x15, 4 frames, 15 fps, loops. Faces right. Pale rim so it reads on dark worlds. Body hitbox covers the opaque pixels including the rim.",
+    "frame_size": [
+      20,
+      15
+    ],
+    "art_bbox": [
+      20,
+      15
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_muzzle.png",
+    "size": [
+      48,
+      16
+    ],
+    "frames": 3,
+    "fps": 15,
+    "anchor": [
+      8,
+      8
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": false,
+    "note": "Placeholder muzzle flash. 16x16, 3 frames, 15 fps, plays once.",
+    "frame_size": [
+      16,
+      16
+    ],
+    "art_bbox": [
+      16,
+      16
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_ember.png",
+    "size": [
+      15,
+      5
+    ],
+    "frames": 3,
+    "fps": 15,
+    "anchor": [
+      2,
+      2
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": true,
+    "note": "Placeholder ember. 5x5, 3 frames, 15 fps, loops. Dropped every 2 meteor frames along a trail.",
+    "frame_size": [
+      5,
+      5
+    ],
+    "art_bbox": [
+      5,
+      5
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_explosion.png",
+    "size": [
+      238,
+      34
+    ],
+    "frames": 7,
+    "fps": 15,
+    "anchor": [
+      17,
+      17
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": false,
+    "note": "Placeholder fireball explosion. 34x34, 7 frames, 15 fps, plays once.",
+    "frame_size": [
+      34,
+      34
+    ],
+    "art_bbox": [
+      34,
+      34
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_transform.png",
+    "size": [
+      486,
+      54
+    ],
+    "frames": 9,
+    "fps": 15,
+    "anchor": [
+      27,
+      27
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": false,
+    "note": "Placeholder transform burst. 54x54, 9 frames, 15 fps, plays once.",
+    "frame_size": [
+      54,
+      54
+    ],
+    "art_bbox": [
+      54,
+      54
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_meteor.png",
+    "size": [
+      104,
+      26
+    ],
+    "frames": 4,
+    "fps": 15,
+    "anchor": [
+      13,
+      13
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "down-right",
+    "idle": false,
+    "loop": true,
+    "note": "Placeholder meteor. Source cell 26x26, 4 frames, 15 fps, falling down-right. Barrage meteors draw at 3x (about 78x78). The final meteor draws at 168px.",
+    "frame_size": [
+      26,
+      26
+    ],
+    "art_bbox": [
+      26,
+      26
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_meteor_impact.png",
+    "size": [
+      464,
+      58
+    ],
+    "frames": 8,
+    "fps": 15,
+    "anchor": [
+      29,
+      29
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": false,
+    "note": "Placeholder meteor impact. Source cell 58x58, 8 frames, 15 fps, plays once. Barrage impacts draw at 3x (about 174x174). The final impact draws at 270x270, each frame held 2 ticks.",
+    "frame_size": [
+      58,
+      58
+    ],
+    "art_bbox": [
+      58,
+      58
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_final_flash.png",
+    "size": [
+      1280,
+      160
+    ],
+    "frames": 8,
+    "fps": 15,
+    "anchor": [
+      80,
+      80
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": false,
+    "note": "Placeholder full-screen flash sheet, 160x160, 8 frames, 15 fps. The game does not overlay this sprite. The flash is a code-drawn pale-yellow rectangle for 6 frames (0.4s).",
+    "frame_size": [
+      160,
+      160
+    ],
+    "art_bbox": [
+      160,
+      160
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_meter_empty.png",
+    "size": [
+      18,
+      18
+    ],
+    "frames": 1,
+    "fps": 15,
+    "anchor": [
+      9,
+      9
+    ],
+    "anchor_type": "center",
+    "category": "ui",
+    "facing": "none",
+    "idle": false,
+    "loop": false,
+    "note": "Meteor meter empty state, 18x18, 1 frame.",
+    "art_bbox": [
+      18,
+      18
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_meter_fill.png",
+    "size": [
+      18,
+      18
+    ],
+    "frames": 1,
+    "fps": 15,
+    "anchor": [
+      9,
+      9
+    ],
+    "anchor_type": "center",
+    "category": "ui",
+    "facing": "none",
+    "idle": false,
+    "loop": false,
+    "note": "Meteor meter fill, 18x18, 1 frame. Clipped from the bottom up by the meter percent.",
+    "art_bbox": [
+      18,
+      18
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_meter_ready.png",
+    "size": [
+      72,
+      18
+    ],
+    "frames": 4,
+    "fps": 15,
+    "anchor": [
+      9,
+      9
+    ],
+    "anchor_type": "center",
+    "category": "ui",
+    "facing": "none",
+    "idle": false,
+    "loop": true,
+    "note": "Meteor meter ready glow, 18x18, 4 frames, 15 fps, loops while Meteor Rain is full or charging.",
+    "frame_size": [
+      18,
+      18
+    ],
+    "art_bbox": [
+      18,
+      18
+    ]
+  },
+  {
+    "file": "dragon_form/boss_meteor.png",
+    "size": [
+      64,
+      16
+    ],
+    "frames": 4,
+    "fps": 15,
+    "anchor": [
+      8,
+      8
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "left",
+    "idle": false,
+    "loop": true,
+    "note": "Dark-red boss meteor with a black core. 16x16, 4 frames, 15 fps. Not the player's gold meteor.",
+    "frame_size": [
+      16,
+      16
+    ],
+    "art_bbox": [
+      16,
+      16
+    ]
+  },
+  {
+    "file": "dragon_form/boss_ember.png",
+    "size": [
+      18,
+      6
+    ],
+    "frames": 3,
+    "fps": 15,
+    "anchor": [
+      3,
+      3
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "left",
+    "idle": false,
+    "loop": true,
+    "note": "Small ember a dragon fireball bursts into. 6x6, 3 frames, 15 fps.",
+    "frame_size": [
+      6,
+      6
+    ],
+    "art_bbox": [
+      6,
+      6
+    ]
+  },
+  {
+    "file": "dragon_form/boss_breath.png",
+    "size": [
+      64,
+      12
+    ],
+    "frames": 2,
+    "fps": 15,
+    "anchor": [
+      4,
+      6
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": true,
+    "note": "Breath muzzle flash. 32x12, 2 frames, 15 fps. The lane itself is drawn in code.",
+    "frame_size": [
+      32,
+      12
+    ],
+    "art_bbox": [
+      32,
+      12
+    ]
+  },
+  {
+    "file": "dragon_form/boss_gust.png",
+    "size": [
+      72,
+      16
+    ],
+    "frames": 3,
+    "fps": 15,
+    "anchor": [
+      4,
+      8
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": true,
+    "note": "Wing-gust puff. 24x16, 3 frames, 15 fps. The push is a short shove, not a hit.",
+    "frame_size": [
+      24,
+      16
+    ],
+    "art_bbox": [
+      24,
+      16
+    ]
   }
-
 ]

@@ -92,19 +92,48 @@ func set_local_name(raw: String) -> String:
 	return clean
 
 ## Posts the run it was given. A best saved on disk is not read back and sent.
-func submit_score(form: String, score_value: int, survival_ms: int, done: Callable) -> void:
-	_rpc("submit_score", {
-		"p_device_id": device_id(),
-		"p_name": player_name(),
-		"p_form": form,
-		"p_score": score_value,
-		"p_survival_ms": survival_ms,
-	}, func(parsed: Dictionary) -> void:
+var _dragon_flag_ok := true
+
+func submit_score(form: String, score_value: int, survival_ms: int, done: Callable, dragon_slayer: bool = false) -> void:
+	var body := submit_body(device_id(), player_name(), form, score_value, survival_ms, dragon_slayer and _dragon_flag_ok)
+	_rpc("submit_score", body, func(parsed: Dictionary) -> void:
+		if dragon_slayer and _dragon_flag_ok and rejects_dragon_flag(parsed):
+			_dragon_flag_ok = false
+			submit_score(form, score_value, survival_ms, done, false)
+			return
 		if bool(parsed.get("ok", false)):
 			_mark_posted(str(parsed.get("data", {}).get("name", player_name())))
 		if done.is_valid():
 			done.call(parsed)
 	)
+
+static func submit_body(device: String, name: String, form: String, score_value: int, survival_ms: int, dragon_slayer: bool) -> Dictionary:
+	var body := {
+		"p_device_id": device,
+		"p_name": name,
+		"p_form": form,
+		"p_score": score_value,
+		"p_survival_ms": survival_ms,
+	}
+	if dragon_slayer:
+		body["p_dragon_slayer"] = true
+	return body
+
+## Old submit_score has no p_dragon_slayer argument. PostgREST answers with
+## PGRST202. The score is posted again without the flag.
+static func rejects_dragon_flag(parsed: Dictionary) -> bool:
+	if bool(parsed.get("ok", false)) or is_network_error(parsed):
+		return false
+	var blob := str(parsed.get("error", "")).to_lower()
+	var data: Dictionary = parsed.get("data", {})
+	blob += " " + str(data.get("message", "")).to_lower()
+	blob += " " + str(data.get("code", "")).to_lower()
+	return blob.find("p_dragon_slayer") >= 0 or blob.find("pgrst202") >= 0 or blob.find("could not find the function") >= 0
+
+static func row_is_slayer(row: Dictionary) -> bool:
+	if bool(row.get("dragon_slayer", false)):
+		return true
+	return int(row.get("dragon_kills", 0)) > 0
 
 func set_remote_name(raw: String, done: Callable) -> void:
 	var clean := clean_name(raw)
