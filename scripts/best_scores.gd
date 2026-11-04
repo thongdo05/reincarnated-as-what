@@ -5,10 +5,11 @@ class_name BestScores
 ## Stored in user:// so the web build keeps them in the browser.
 ##
 ## Bump SCORE_EPOCH to wipe every local best once, on the next load.
-## That bump is the whole reset.
+## That bump is the whole reset. Epoch 2 is this build: the dragon lair
+## and its audio. The saved name lives in the leaderboard profile, not here.
 
 const SAVE_PATH := "user://best_scores.json"
-const SCORE_EPOCH := 1
+const SCORE_EPOCH := 2
 
 static func apply(data: Dictionary, form_name: String, score: int) -> Dictionary:
 	var next := data.duplicate()

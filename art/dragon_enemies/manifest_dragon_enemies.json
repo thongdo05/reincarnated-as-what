@@ -178,14 +178,14 @@
    "file": "dragon_egg_break.png",
    "enemy": "dragon_egg",
    "tier": "T1",
-   "frame_w": 34,
-   "frame_h": 32,
+   "frame_w": 38,
+   "frame_h": 36,
    "frames": 6,
    "fps": 15,
    "play": "once",
    "anchor": [
-    17,
-    16
+    19,
+    18
    ],
    "strip_ok": true,
    "alpha_ok": true,
@@ -604,14 +604,14 @@
    "file": "ash_wraith_phase.png",
    "enemy": "ash_wraith",
    "tier": "T3",
-   "frame_w": 37,
-   "frame_h": 50,
+   "frame_w": 41,
+   "frame_h": 54,
    "frames": 4,
    "fps": 12,
    "play": "once (play reversed to phase in)",
    "anchor": [
-    18,
-    25
+    20,
+    27
    ],
    "strip_ok": true,
    "alpha_ok": true,

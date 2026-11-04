@@ -36,6 +36,7 @@ var _ring_left := 0.0
 var _breath_left := 0.0
 var _breath_aim := 0.0
 var _breathing := false
+var _move_snd := 0.35
 
 func sprite_file() -> String:
 	return DragonPhase.move_file(dragon_id)
@@ -160,6 +161,7 @@ func hurt(amount: int) -> void:
 		_blocked = true
 		if shield_hits <= 0:
 			warden_id = -1
+			_hook("dragon_enemy_dragon_cultist_shield_down")
 		return
 	if shield_hits > 0:
 		shield_hits = 0
@@ -176,6 +178,8 @@ func tick(delta: float, player_pos: Vector2, _run_time: float = 0.0, _scale: flo
 		_hooked_enter = true
 		if dragon_id == DragonPhase.BAT:
 			_hook(DragonPhase.HOOK_BAT_ATTACK)
+		elif dragon_id == DragonPhase.WYVERN:
+			_hook("dragon_enemy_ember_wyvern_dive_warning")
 	var fired: Array[Dictionary] = []
 	if suppress_fire:
 		telegraphs.clear()
@@ -264,7 +268,10 @@ func _tick_kobold(delta: float, pace: float, fired: Array[Dictionary]) -> void:
 func _tick_egg(delta: float) -> void:
 	_follow_ground(delta)
 	var stage := int(floor(age / DragonPhase.EGG_CRACK_STEP))
-	_crack_frame = clampi(stage, 0, 3)
+	var crack := clampi(stage, 0, 3)
+	if crack > _crack_frame and crack > 0:
+		_hook("dragon_enemy_dragon_egg_crack")
+	_crack_frame = crack
 	if age < DragonPhase.EGG_HATCH or not alive:
 		return
 	alive = false
@@ -327,6 +334,11 @@ func _tick_walker(delta: float, pace: float) -> void:
 		return
 	position.x -= speed * pace * delta
 	position.y = DragonPhase.feet_y(sprite_file())
+	if dragon_id == DragonPhase.SLIME:
+		_move_snd -= delta
+		if _move_snd <= 0.0:
+			_move_snd = 0.7
+			_hook("dragon_enemy_magma_slime_move")
 	if dragon_id == DragonPhase.ELDER and position.x <= field_size.x * DragonPhase.ELDER_PARK_X:
 		position.x = field_size.x * DragonPhase.ELDER_PARK_X
 		_planted = true
@@ -425,6 +437,7 @@ func _tick_elder(delta: float, pace: float, player_pos: Vector2, fired: Array[Di
 	_attack_wait = DragonPhase.attack_gap(DragonPhase.ELDER_INTERVAL, bullet_density)
 	_breath_left = DragonPhase.ELDER_WARN
 	_breath_aim = player_pos.y
+	_hook("dragon_enemy_elder_drake_breath_telegraph")
 
 func _exhale(fired: Array[Dictionary]) -> void:
 	_breathing = true
@@ -459,6 +472,10 @@ func _fire_ring(fired: Array[Dictionary]) -> void:
 func _set_mode(mode: int) -> void:
 	_mode = mode
 	_mode_age = 0.0
+	if mode == 1:
+		_hook("dragon_enemy_ash_wraith_phase_out")
+	elif mode == 3:
+		_hook("dragon_enemy_ash_wraith_phase_in")
 
 func _sheet_frame(file_name: String, time_sec: float) -> int:
 	var frames := maxi(int(ArtLibrary.entry(file_name).get("frames", 1)), 1)
@@ -496,6 +513,7 @@ func _claim_ward() -> void:
 	_ward_id = best.id
 	_play_anim(DragonPhase.attack_file(dragon_id))
 	_hook(DragonPhase.HOOK_CULTIST_ATTACK)
+	_hook("dragon_enemy_dragon_cultist_shield_up")
 
 func _ward_ok() -> bool:
 	if _ward_id < 0:
@@ -516,6 +534,8 @@ func _release_ward() -> void:
 			continue
 		var other := ally as DragonEnemy
 		if other.warden_id == id:
+			if other.shield_hits > 0:
+				_hook("dragon_enemy_dragon_cultist_shield_down")
 			other.shield_hits = 0
 			other.warden_id = -1
 	_ward_id = -1

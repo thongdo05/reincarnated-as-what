@@ -446,8 +446,6 @@ func _tick_intro(delta: float) -> void:
 		if not _intro_shook and along >= 0.28:
 			_intro_shook = true
 			var host := get_parent()
-			if host != null and host.has_method("_dragon_roar"):
-				host._dragon_roar()
 			if host != null and host.has_method("_dragon_shake"):
 				host._dragon_shake(4.0, 0.45)
 		if intro_left <= 0.0:

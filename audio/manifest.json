@@ -198,5 +198,15 @@
     "lufs": -19.3,
     "true_peak": -6.3,
     "notes": "Great Dragon death. Same SFX-bus level as the other stings, no pitch shift. 48000 Hz, 16-bit mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sting_dragon_slain.wav",
+    "type": "sting",
+    "duration": 2.04,
+    "loop": false,
+    "event": "dragon_slain",
+    "lufs": -19.2,
+    "true_peak": -8.9,
+    "notes": "DRAGON SLAIN sting. Replaces the evolve-fanfare stand-in. Plays with sfx_dragon_lair_transition.wav. 48000 Hz, stereo. lufs = integrated (gated) loudness; true_peak in dBTP."
   }
 ]

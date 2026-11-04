@@ -6,7 +6,7 @@ Strips are horizontal, frames equal, face LEFT. anchor = shared body centre (mov
 
 | tier | file | frame | frames | fps | play | anchor | death offset | vs preview |
 |---|---|---|---|---|---|---|---|---|
-| T1 | dragon_egg_break.png | 34x32 | 6 | 15 | once | [17, 16] | [0, -2] | CHANGED from 28x28 x5 |
+| T1 | dragon_egg_break.png | 38x36 | 6 | 15 | once | [19, 18] | [0, -2] | CHANGED from 28x28 x5; CHANGED Nov 4 2:21 PM ET: +1 px #14121f outline, frame grown 2 px each side (was 34x32, anchor [17, 16]) |
 | T1 | dragon_egg_crack.png | 20x25 | 4 | - | stepped by code, 1 stage per ~1 s | [10, 12] |  |  |
 | T1 | dragon_egg_hatch.png | 32x32 | 6 | 12 | once | [16, 16] | [0, -4] |  |
 | T1 | dragon_egg_idle_pulse.png | 20x25 | 4 | 6 | loop | [10, 12] |  |  |
@@ -35,7 +35,7 @@ Strips are horizontal, frames equal, face LEFT. anchor = shared body centre (mov
 | T3 | ash_ring_warning.png | 48x48 | 4 | 10 | loop | [24, 24] |  |  |
 | T3 | ash_wraith_death.png | 48x58 | 6 | 15 | once | [24, 29] | [0, 0] | CHANGED from 39x52 x6 |
 | T3 | ash_wraith_float.png | 37x50 | 4 | 8 | loop | [18, 25] |  |  |
-| T3 | ash_wraith_phase.png | 37x50 | 4 | 12 | once (play reversed to phase in) | [18, 25] |  |  |
+| T3 | ash_wraith_phase.png | 41x54 | 4 | 12 | once (play reversed to phase in) | [20, 27] |  | CHANGED Nov 4 2:21 PM ET: +1 px #14121f outline, frame grown 2 px each side (was 37x50, anchor [18, 25]; art still lines up with ash_wraith_float at [18, 25]) |
 | T3 | cultist_shield_loop.png | 40x40 | 4 | 10 | loop | [20, 20] |  |  |
 | T3 | dragon_cultist_cast.png | 32x49 | 4 | 12 | once | [15, 26] |  |  |
 | T3 | dragon_cultist_death.png | 40x54 | 6 | 15 | once | [20, 27] | [0, -4] | CHANGED from 33x48 x6 |
