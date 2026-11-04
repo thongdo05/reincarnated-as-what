@@ -450,8 +450,8 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 
 func _check_art() -> int:
 	var failed := 0
-	if ArtLibrary.file_count() != 172:
-		push_error("art manifest should have 172 entries, found %d" % ArtLibrary.file_count())
+	if ArtLibrary.file_count() != 174:
+		push_error("art manifest should have 174 entries, found %d" % ArtLibrary.file_count())
 		failed += 1
 	var text := FileAccess.get_file_as_string("res://art/manifest.json")
 	var parsed: Variant = JSON.parse_string(text)
@@ -3996,10 +3996,10 @@ func _check_bosses() -> int:
 	elif absf(booked.dragon_at - (kill_at + BossDirector.DRAGON_RETURN)) > 0.001:
 		push_error("the dragon should return 60 s after the kill, at %s" % booked.dragon_at)
 		failed += 1
-	if BossCatalog.max_hp("lich_king") != 100 or BossCatalog.max_hp("death_knight") != 150:
-		push_error("lich and death knight hp should be 100 and 150")
+	if BossCatalog.max_hp("lich_king") != 200 or BossCatalog.max_hp("death_knight") != 350:
+		push_error("lich and death knight hp should be 200 and 350")
 		failed += 1
-	if BossCatalog.max_hp("great_dragon", 0) != 300 or BossCatalog.max_hp("great_dragon", 1) != 310 or BossCatalog.score_value("great_dragon") != 100000:
+	if BossCatalog.max_hp("great_dragon", 0) != 500 or BossCatalog.max_hp("great_dragon", 1) != 510 or BossCatalog.score_value("great_dragon") != 100000:
 		push_error("dragon reward and return hp drifted")
 		failed += 1
 	if BossCatalog.attack_rate(180.0, 1, 2) <= BossCatalog.attack_rate(180.0, 0, 2):
@@ -4008,6 +4008,7 @@ func _check_bosses() -> int:
 	if BossCatalog.windup("charge", 1, 3) < 0.79:
 		push_error("the death knight warning should stay about 0.8 s")
 		failed += 1
+	failed += _check_bone_rain()
 	failed += _check_boss_gaps()
 	failed += _check_boss_flee()
 	var boss_px := {"lich_king": Vector2(92, 84), "death_knight": Vector2(96, 84), "great_dragon": Vector2(128, 88)}
@@ -4066,6 +4067,99 @@ func _check_bosses() -> int:
 	if ShareCard.killer_id("Great Dragon") != "great_dragon":
 		push_error("a dragon kill should stay a dragon on the share card")
 		failed += 1
+	return failed
+
+func _check_bone_rain() -> int:
+	var failed := 0
+	var cycle := BossCatalog.attack_cycle("lich_king", 1)
+	if cycle.size() != 3 or cycle[0] != "skull" or cycle[1] != "skull" or cycle[2] != "bone_rain":
+		push_error("lich attacks should be skull, skull, bone rain, got %s" % str(cycle))
+		failed += 1
+	var wind := BossCatalog.windup("bone_rain", 1, 0)
+	if wind < 0.8 or wind > 1.0:
+		push_error("bone rain telegraph should stay between 0.8 and 1.0 s, got %s" % wind)
+		failed += 1
+	var bone_w := HitLibrary.horizontal_extent(BossCatalog.BONE_SHOT, "threat")
+	if bone_w < 2.0:
+		push_error("the falling bone needs a threat shape")
+		failed += 1
+	var worst := 0.0
+	for id in FormCatalog.IDS:
+		for rank in 5:
+			var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
+			worst = maxf(worst, HitLibrary.horizontal_extent(file, "hurt"))
+	if BossCatalog.BONE_GAP - bone_w <= worst:
+		push_error("bone columns are closer than the widest body (gap %.1f bone %.1f body %.1f)" % [BossCatalog.BONE_GAP, bone_w, worst])
+		failed += 1
+	for player_x in [40.0, 120.0, 210.0, 340.0]:
+		for elapsed in [8.0, 90.0, 200.0]:
+			var cols := BossCatalog.bone_columns(player_x, elapsed, 480.0)
+			if cols.size() < 3 or cols.size() > 5:
+				push_error("bone rain should mark 3 to 5 columns, got %s at x %.0f" % [str(cols), player_x])
+				failed += 1
+				continue
+			var near := false
+			for column in cols:
+				if absf(column - player_x) <= 12.0 or absf(column - clampf(player_x, BossCatalog.BONE_LEFT, BossCatalog.BONE_RIGHT)) <= 0.1:
+					near = true
+			if not near:
+				push_error("a bone column should sit on the player, got %s for x %.0f" % [str(cols), player_x])
+				failed += 1
+			for i in range(1, cols.size()):
+				if cols[i] - cols[i - 1] + 0.01 < BossCatalog.BONE_GAP:
+					push_error("bone columns lost their safe lane: %s" % str(cols))
+					failed += 1
+	var boss := BossActor.new()
+	boss.setup(7, {"slug": "lich_king", "hold_x": 428.0, "origin_y": 140.0, "phase": 0.2, "wave_amp": 8.0, "generation": 0}, Vector2(480, 270), null)
+	boss.state = BossActor.HOLD
+	boss.fight_left = 30.0
+	boss.position = Vector2(428, 140)
+	boss.fire_room = 16
+	boss._attack_cd = 0.0
+	boss._attack_i = 2
+	boss._summon_cd = 50.0
+	var marked: Array[float] = []
+	var warned := false
+	var bones: Array[Dictionary] = []
+	var warn_at := -1.0
+	var fall_at := -1.0
+	var t := 0.0
+	while t < 2.2 and bones.size() < 3:
+		var fired := boss.tick(0.05, Vector2(120, 130), 40.0, 1.0)
+		t += 0.05
+		if boss._rain_left > 0.4 and marked.is_empty():
+			warned = true
+			warn_at = t
+			marked.append_array(boss._rain_columns)
+		for spec in fired:
+			if str(spec.get("sprite", "")) != BossCatalog.BONE_SHOT:
+				continue
+			bones.append(spec)
+			if fall_at < 0.0:
+				fall_at = t
+	if not warned or marked.size() < 3:
+		push_error("bone rain should telegraph columns before the bones fall")
+		failed += 1
+	elif fall_at < 0.0 or fall_at - warn_at < 0.75:
+		push_error("bones fell too soon after the marks (warn %.2f fall %.2f)" % [warn_at, fall_at])
+		failed += 1
+	else:
+		for spec in bones:
+			var vel: Vector2 = spec["velocity"]
+			var at: Vector2 = spec["position"]
+			if absf(vel.x) > 0.1 or vel.y < 100.0:
+				push_error("bones should fall straight down, got %s" % vel)
+				failed += 1
+				break
+			var matched := false
+			for column in marked:
+				if absf(at.x - column) <= 1.0:
+					matched = true
+			if not matched:
+				push_error("a bone spawned off its marked column at %s, marks %s" % [at, marked])
+				failed += 1
+				break
+	boss.free()
 	return failed
 
 func _check_boss_gaps() -> int:
@@ -4267,8 +4361,8 @@ func _check_boss_play() -> int:
 	else:
 		var boss: EnemyActor = game._living_boss()
 		var hp := int(boss.hp)
-		if hp != 310:
-			push_error("the returned dragon should have 310 hp, got %s" % hp)
+		if hp != 510:
+			push_error("the returned dragon should have 510 hp, got %s" % hp)
 			failed += 1
 		game._spawn_enemy({
 			"t": 0.0, "kind": SpawnDirector.EYE, "x_ratio": 0.4, "phase": 0.2,

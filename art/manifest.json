@@ -3836,5 +3836,47 @@
       12
     ],
     "note": "PLACEHOLDER Lich King skull bolt. Faces left. Replace this file to swap the art, then refit the threat shape."
+  },
+  {
+    "file": "lich_bone.png",
+    "size": [
+      6,
+      12
+    ],
+    "frames": 1,
+    "anchor": [
+      3,
+      6
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "down",
+    "idle": false,
+    "art_bbox": [
+      6,
+      12
+    ],
+    "note": "Lich King bone rain. Falls straight down. Bone palette matches lich_skull. Threat matches the visible bone."
+  },
+  {
+    "file": "lich_bone_mark.png",
+    "size": [
+      8,
+      10
+    ],
+    "frames": 1,
+    "anchor": [
+      4,
+      5
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "art_bbox": [
+      8,
+      10
+    ],
+    "note": "Column warning for bone rain. Purple rim, ghost-jade core, dark outline. No hit."
   }
 ]

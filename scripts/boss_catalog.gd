@@ -13,6 +13,14 @@ const SWEEP_HOLE_LO := -0.62
 const SWEEP_HOLE_HI := 0.98
 const STREAM_GAP := 128.0
 const DRAGON_SHOT := "dragon_fireball.png"
+const BONE_SHOT := "lich_bone.png"
+const BONE_MARK := "lich_bone_mark.png"
+## Center spacing. Wider than the largest hurtbox plus the bone, so a lane stays open.
+const BONE_GAP := 96.0
+const BONE_LEFT := 28.0
+const BONE_RIGHT := 376.0
+const BONE_TOP := 12.0
+const BONE_SPAWN_Y := -8.0
 const OVERDRIVE_MULT := 3.0
 const GEM_BURST := 8
 const DRAGON_GEM_BURST := 18
@@ -58,11 +66,11 @@ static func banner_color(slug: String) -> Color:
 static func max_hp(slug: String, generation: int = 0) -> int:
 	match slug:
 		"lich_king":
-			return 100
+			return 200
 		"death_knight":
-			return 150
+			return 350
 		"great_dragon":
-			return 300 + maxi(generation, 0) * 10
+			return 500 + maxi(generation, 0) * 10
 		_:
 			return 20
 
@@ -101,11 +109,13 @@ static func attack_cycle(slug: String, phase: int) -> Array[String]:
 		return ["sweep", "fan", "dive"]
 	if slug == "death_knight":
 		return ["charge"]
-	return ["skull"]
+	return ["skull", "skull", "bone_rain"]
 
 static func windup(pattern: String, phase: int, generation: int) -> float:
 	if pattern == "charge":
 		return 0.8
+	if pattern == "bone_rain":
+		return 0.9
 	var base := 0.42
 	match pattern:
 		"skull":
@@ -128,6 +138,8 @@ static func cooldown(pattern: String, phase: int, elapsed: float, generation: in
 	match pattern:
 		"skull":
 			base = 2.35
+		"bone_rain":
+			base = 2.55
 		"summon":
 			base = 7.4
 		"charge":
@@ -144,6 +156,41 @@ static func cooldown(pattern: String, phase: int, elapsed: float, generation: in
 
 static func skull_speed(elapsed: float) -> float:
 	return lerpf(68.0, 90.0, attack_unit(elapsed))
+
+static func bone_fall_speed(elapsed: float) -> float:
+	return lerpf(150.0, 210.0, attack_unit(elapsed))
+
+static func bone_column_count(elapsed: float) -> int:
+	var u := attack_unit(elapsed)
+	if u < 0.34:
+		return 3
+	if u < 0.7:
+		return 4
+	return 5
+
+## One column sits on the player's x. The rest step away by BONE_GAP, so a body
+## always fits between the bones. Count climbs gently with the difficulty curve.
+static func bone_columns(player_x: float, elapsed: float, field_w: float) -> Array[float]:
+	var right := minf(BONE_RIGHT, field_w - 96.0)
+	var left := BONE_LEFT
+	if right < left + BONE_GAP:
+		right = left + BONE_GAP
+	var anchor := clampf(player_x, left, right)
+	var cols: Array[float] = [anchor]
+	var want := bone_column_count(elapsed)
+	var step := 1
+	var signs: Array[float] = [-1.0, 1.0]
+	while cols.size() < want and step < 6:
+		for sign in signs:
+			if cols.size() >= want:
+				break
+			var x := anchor + sign * BONE_GAP * float(step)
+			if x < left - 0.1 or x > right + 0.1:
+				continue
+			cols.append(x)
+		step += 1
+	cols.sort()
+	return cols
 
 static func bullet_speed(phase: int, generation: int) -> float:
 	var base := 150.0 if phase <= 1 else 176.0
