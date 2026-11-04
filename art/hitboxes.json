@@ -1250,5 +1250,25 @@
     "threat": [
       { "type": "capsule", "a": [0, -4], "b": [0, 4], "r": 2 }
     ]
+  },
+  "lich_soul_beam.png": {
+    "threat": [
+      { "type": "circle", "center": [0, 0], "r": 4 }
+    ]
+  },
+  "lich_spiral_skull.png": {
+    "threat": [
+      { "type": "circle", "center": [0, 0], "r": 3 }
+    ]
+  },
+  "lich_grave_hand.png": {
+    "threat": [
+      { "type": "capsule", "a": [0, -6], "b": [0, 5], "r": 2.5 }
+    ]
+  },
+  "knight_sword_wave.png": {
+    "threat": [
+      { "type": "capsule", "a": [-6, 0], "b": [5, 0], "r": 3 }
+    ]
   }
 }

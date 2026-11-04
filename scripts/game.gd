@@ -1028,6 +1028,12 @@ func _collide() -> void:
 			var reach_y := 96.0 if enemy.is_boss() else 72.0
 			if absf(shot.position.x - enemy.position.x) > reach_x or absf(shot.position.y - enemy.position.y) > reach_y:
 				continue
+			if enemy.blocks_player_shot(shot):
+				_spawn_fx("hit_flash.png", shot.position, 0.14, 0.8, 1.3)
+				if _combat != null:
+					_combat.push("BLOCK", shot.position + Vector2(-10, -12), Color("d4dcf5"), 0.28)
+				spent.append(shot)
+				break
 			if not HitLibrary.overlaps(shot.position, shot.sprite_name, "body", enemy.position, enemy_file, "body"):
 				continue
 			enemy.hurt(shot.damage)
@@ -1392,7 +1398,22 @@ func _winner_clear() -> void:
 	_request_hit_stop(4)
 	_bump_shake()
 	for enemy in _enemies:
-		if not enemy.alive or enemy.is_boss():
+		if not enemy.alive:
+			continue
+		if enemy.is_boss():
+			# The entrance is the only invulnerable window. The knight's shield does not stop this.
+			if enemy.intro_left > 0.0:
+				continue
+			var before := enemy.hp
+			enemy.hurt(BossCatalog.winner_damage(enemy.max_hp))
+			var dealt := before - enemy.hp
+			if dealt > 0:
+				_spawn_fx("hit_flash.png", enemy.position, 0.32, 1.5, 2.6)
+				if _combat != null:
+					_combat.push_callout("-%d" % dealt, enemy.position + Vector2(-18, -40), Color("ffe56a"), 0.7, 2)
+			if not enemy.alive:
+				_award_kill(enemy, false, false)
+				_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 			continue
 		enemy.hurt(FormCatalog.VENDING_WINNER_DAMAGE)
 		if not enemy.alive:
@@ -2494,6 +2515,12 @@ func _request_hit_stop(frames: int) -> void:
 
 func _bump_shake() -> void:
 	_juice_shake = Replay.JUICE_SHAKE_SECONDS
+
+func _note_boss_enrage(boss: EnemyActor) -> void:
+	_bump_shake()
+	_spawn_fx("hit_flash.png", boss.position, 0.28, 1.3, 2.2)
+	if _combat != null:
+		_combat.push_callout("ENRAGED", boss.position + Vector2(-28, -36), Color("ff6b6b"), 0.5)
 
 func _queue_chain(delay: float, fx_file: String, offset: Vector2, text: String, scale: float = 1.0) -> void:
 	_chains.append({

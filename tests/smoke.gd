@@ -450,8 +450,8 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 
 func _check_art() -> int:
 	var failed := 0
-	if ArtLibrary.file_count() != 174:
-		push_error("art manifest should have 174 entries, found %d" % ArtLibrary.file_count())
+	if ArtLibrary.file_count() != 179:
+		push_error("art manifest should have 179 entries, found %d" % ArtLibrary.file_count())
 		failed += 1
 	var text := FileAccess.get_file_as_string("res://art/manifest.json")
 	var parsed: Variant = JSON.parse_string(text)
@@ -4009,6 +4009,7 @@ func _check_bosses() -> int:
 		push_error("the death knight warning should stay about 0.8 s")
 		failed += 1
 	failed += _check_bone_rain()
+	failed += _check_boss_rework()
 	failed += _check_boss_gaps()
 	failed += _check_boss_flee()
 	var boss_px := {"lich_king": Vector2(92, 84), "death_knight": Vector2(96, 84), "great_dragon": Vector2(128, 88)}
@@ -4069,11 +4070,124 @@ func _check_bosses() -> int:
 		failed += 1
 	return failed
 
+func _check_boss_rework() -> int:
+	var failed := 0
+	if BossCatalog.WINNER_BOSS_DMG_PCT != 0.15:
+		push_error("WINNER boss damage should be 15 percent")
+		failed += 1
+	if BossCatalog.winner_damage(200) != 30 or BossCatalog.winner_damage(350) != 53 or BossCatalog.winner_damage(500) != 75:
+		push_error("WINNER chips should be 30, 53, and 75, got %d %d %d" % [BossCatalog.winner_damage(200), BossCatalog.winner_damage(350), BossCatalog.winner_damage(500)])
+		failed += 1
+	if BossCatalog.winner_damage(500) >= 500:
+		push_error("one WINNER must not be an instant kill")
+		failed += 1
+	var furious := BossCatalog.attack_cycle("lich_king", 2)
+	if furious.find("beam_rain") < 0 or furious.find("spiral_hands") < 0:
+		push_error("the lich should combine attacks below half health, got %s" % str(furious))
+		failed += 1
+	var knight_fury := BossCatalog.attack_cycle("death_knight", 2)
+	if knight_fury.size() < 2 or knight_fury[0] != "charge" or knight_fury[1] != "charge":
+		push_error("the enraged knight should charge twice, got %s" % str(knight_fury))
+		failed += 1
+	if BossCatalog.attack_cycle("great_dragon", 1) != ["sweep", "volley"] or BossCatalog.attack_cycle("great_dragon", 2) != ["sweep", "fan", "dive"]:
+		push_error("the dragon's attacks should stay as they were")
+		failed += 1
+	var wide := 0.0
+	var tall := 0.0
+	for id in FormCatalog.IDS:
+		for rank in 5:
+			var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
+			wide = maxf(wide, HitLibrary.horizontal_extent(file, "hurt"))
+			tall = maxf(tall, HitLibrary.vertical_extent(file, "hurt"))
+	var beam_lane := BossCatalog.BEAM_GAP_FAR - BossCatalog.BEAM_GAP_NEAR - HitLibrary.horizontal_extent(BossCatalog.SOUL_BEAM, "threat")
+	if beam_lane <= maxf(wide, tall):
+		push_error("the soul beam gap is tighter than a body (lane %.1f body %.1f)" % [beam_lane, maxf(wide, tall)])
+		failed += 1
+	var hand_w := HitLibrary.horizontal_extent(BossCatalog.GRAVE_HAND, "threat")
+	if BossCatalog.HAND_GAP - hand_w <= wide:
+		push_error("grave hands leave no lane (gap %.1f hand %.1f body %.1f)" % [BossCatalog.HAND_GAP, hand_w, wide])
+		failed += 1
+	for player_x in [40.0, 120.0, 210.0, 340.0]:
+		var hands := BossCatalog.hand_columns(player_x)
+		var aimed := false
+		var spot := clampf(player_x, 48.0, 340.0)
+		for column in hands:
+			if absf(column - spot) <= 0.1:
+				aimed = true
+		if hands.size() < 2 or not aimed:
+			push_error("a grave hand should rise on the player, got %s for x %.0f" % [str(hands), player_x])
+			failed += 1
+	var wave_h := HitLibrary.vertical_extent(BossCatalog.SWORD_WAVE, "threat")
+	if BossCatalog.SWORD_GAP - wave_h <= tall:
+		push_error("sword waves leave no gap (gap %.1f wave %.1f body %.1f)" % [BossCatalog.SWORD_GAP, wave_h, tall])
+		failed += 1
+	var lich := BossActor.new()
+	lich.setup(3, {"slug": "lich_king", "hold_x": 428.0, "origin_y": 140.0, "phase": 0.4, "wave_amp": 8.0, "generation": 0}, Vector2(480, 270), null)
+	if lich.intro_left <= 0.0 or lich.position.x < 400.0:
+		push_error("the lich should rise on the right, intro %s x %s" % [lich.intro_left, lich.position.x])
+		failed += 1
+	var full := lich.hp
+	lich.hurt(40)
+	if lich.hp != full:
+		push_error("damage during the entrance should do nothing")
+		failed += 1
+	lich.intro_left = 0.0
+	lich.state = BossActor.HOLD
+	lich.fight_left = 40.0
+	lich.hurt(101)
+	if not lich.enraged or lich.hp * 2 > lich.max_hp:
+		push_error("half health should enrage the lich")
+		failed += 1
+	var shots := 0
+	var t := 0.0
+	while t < 8.0:
+		lich.fire_room = -1
+		shots += lich.tick(0.05, Vector2(140, 130), 50.0, 1.0).size()
+		t += 0.05
+	if not lich.alive or shots < 4:
+		push_error("the lich kit should keep firing, shots %d alive %s" % [shots, lich.alive])
+		failed += 1
+	lich.free()
+	var knight := BossActor.new()
+	knight.setup(4, {"slug": "death_knight", "hold_x": 426.0, "origin_y": 140.0, "phase": 0.3, "wave_amp": 6.0, "generation": 0}, Vector2(480, 270), null)
+	knight.state = BossActor.HOLD
+	knight.fight_left = 40.0
+	knight.position = Vector2(426, 140)
+	knight._attack_cd = 0.0
+	knight._attack_i = BossCatalog.attack_cycle("death_knight", 1).find("fake_charge")
+	var feinted := false
+	var charged_y := -1.0
+	var player_y := 140.0
+	t = 0.0
+	while t < 2.0 and knight.state != BossActor.CHARGE:
+		knight.fire_room = -1
+		knight.tick(0.05, Vector2(120, player_y), 20.0, 1.0)
+		t += 0.05
+		if knight._fake_stage == 2 and knight.state != BossActor.CHARGE:
+			feinted = true
+			charged_y = knight._charge_y
+	if not feinted or absf(charged_y - player_y) < 40.0:
+		push_error("the fake charge should switch rows before it runs, y %s" % charged_y)
+		failed += 1
+	if knight.state != BossActor.CHARGE or absf(knight.position.y - player_y) < 40.0:
+		push_error("the knight should charge the second row, state %s y %s" % [knight.state, knight.position.y])
+		failed += 1
+	var dragon := BossActor.new()
+	dragon.setup(5, {"slug": "great_dragon", "hold_x": 410.0, "origin_y": 130.0, "phase": 0.2, "wave_amp": 10.0, "generation": 0}, Vector2(480, 270), null)
+	dragon.intro_left = 0.0
+	dragon.hurt(300)
+	if dragon.enraged or dragon.dragon_phase() != 2:
+		push_error("the dragon should enter phase 2 without the knight enrage")
+		failed += 1
+	knight.free()
+	dragon.free()
+	return failed
+
 func _check_bone_rain() -> int:
 	var failed := 0
 	var cycle := BossCatalog.attack_cycle("lich_king", 1)
-	if cycle.size() != 3 or cycle[0] != "skull" or cycle[1] != "skull" or cycle[2] != "bone_rain":
-		push_error("lich attacks should be skull, skull, bone rain, got %s" % str(cycle))
+	if cycle.find("bone_rain") < 0 or cycle.find("soul_beam") < 0 or cycle.find("grave_hands") < 0:
+		push_error("lich attacks should keep bone rain with the new kit, got %s" % str(cycle))
 		failed += 1
 	var wind := BossCatalog.windup("bone_rain", 1, 0)
 	if wind < 0.8 or wind > 1.0:
@@ -4112,11 +4226,12 @@ func _check_bone_rain() -> int:
 	var boss := BossActor.new()
 	boss.setup(7, {"slug": "lich_king", "hold_x": 428.0, "origin_y": 140.0, "phase": 0.2, "wave_amp": 8.0, "generation": 0}, Vector2(480, 270), null)
 	boss.state = BossActor.HOLD
+	boss.intro_left = 0.0
 	boss.fight_left = 30.0
 	boss.position = Vector2(428, 140)
 	boss.fire_room = 16
 	boss._attack_cd = 0.0
-	boss._attack_i = 2
+	boss._attack_i = cycle.find("bone_rain")
 	boss._summon_cd = 50.0
 	var marked: Array[float] = []
 	var warned := false
@@ -4317,6 +4432,14 @@ func _check_boss_play() -> int:
 			push_error("%s was not on the field" % slug)
 			failed += 1
 			continue
+		if boss.intro_left > 0.0:
+			var guarded := boss.hp
+			boss.hurt(30)
+			if boss.hp != guarded:
+				push_error("the lich entrance should ignore damage")
+				failed += 1
+			boss.intro_left = 0.0
+			boss.state = BossActor.HOLD
 		var hp := boss.hp
 		var point := Vector2(-14, -20)
 		if slug == "death_knight":
@@ -4368,9 +4491,10 @@ func _check_boss_play() -> int:
 			"t": 0.0, "kind": SpawnDirector.EYE, "x_ratio": 0.4, "phase": 0.2,
 			"stop_ratio": 0.3, "y_bias": 0.0, "wave_amp": 4.0, "hold_fire": true,
 		}, field)
+		var chip := BossCatalog.winner_damage(boss.max_hp)
 		game._winner_clear()
-		if not boss.alive or boss.hp != hp:
-			push_error("WINNER should do no damage to a boss, hp %s alive %s" % [boss.hp, boss.alive])
+		if not boss.alive or boss.hp != hp - chip:
+			push_error("WINNER should chip a full boss by %d, hp %s alive %s" % [chip, boss.hp, boss.alive])
 			failed += 1
 		var eye_alive := false
 		for enemy in game._enemies:
@@ -4378,6 +4502,39 @@ func _check_boss_play() -> int:
 				eye_alive = true
 		if eye_alive:
 			push_error("WINNER should still clear a normal enemy")
+			failed += 1
+	game._clear_field()
+	if game._spawn_boss({"slug": "death_knight", "generation": 0, "hold_x": 426.0, "origin_y": 130.0, "phase": 0.2, "wave_amp": 8.0}, field):
+		var knight: BossActor = game._living_boss()
+		knight.intro_left = 0.0
+		knight.state = BossActor.HOLD
+		knight.position = Vector2(426, 130)
+		knight.shield_left = BossCatalog.SHIELD_TIME
+		var probe := Shot.new()
+		probe.position = knight.position + Vector2(-22, -8)
+		if not knight.blocks_player_shot(probe):
+			push_error("the knight shield should stop a shot in front")
+			failed += 1
+		probe.position = knight.position + Vector2(36, 0)
+		if knight.blocks_player_shot(probe):
+			push_error("the knight shield should not block a shot behind him")
+			failed += 1
+		probe.free()
+		var shielded := knight.hp
+		game._spawn_shot({
+			"position": knight.position + Vector2(-22, -8),
+			"velocity": Vector2(40, 0),
+			"sprite": "slime_shot.png",
+			"damage": 1,
+		}, true)
+		game._collide()
+		if knight.hp != shielded:
+			push_error("a blocked shot should leave the knight's hp alone, hp %s" % knight.hp)
+			failed += 1
+		game._winner_clear()
+		var knight_chip := BossCatalog.winner_damage(knight.max_hp)
+		if not knight.alive or knight.hp != shielded - knight_chip:
+			push_error("WINNER should bypass the shield and chip %d, hp %s" % [knight_chip, knight.hp])
 			failed += 1
 	for slug in BossCatalog.SLUGS:
 		if game._sound.play_count(BossCatalog.cue(slug, "enter")) < 1 or game._sound.play_count(BossCatalog.cue(slug, "death")) < 1:

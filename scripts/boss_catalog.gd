@@ -21,6 +21,21 @@ const BONE_LEFT := 28.0
 const BONE_RIGHT := 376.0
 const BONE_TOP := 12.0
 const BONE_SPAWN_Y := -8.0
+const WINNER_BOSS_DMG_PCT := 0.15
+const LICH_INTRO := 1.7
+const BEAM_WINDUP := 0.7
+const BEAM_SWEEP := 0.85
+const BEAM_GAP_NEAR := 150.0
+const BEAM_GAP_FAR := 310.0
+const BEAM_LENGTH := 360.0
+const HAND_GAP := 140.0
+const SWORD_GAP := 132.0
+const SHIELD_TIME := 2.0
+const SOUL_BEAM := "lich_soul_beam.png"
+const SPIRAL_SKULL := "lich_spiral_skull.png"
+const GRAVE_HAND := "lich_grave_hand.png"
+const SWORD_WAVE := "knight_sword_wave.png"
+const KNIGHT_SHIELD := "knight_shield.png"
 const OVERDRIVE_MULT := 3.0
 const GEM_BURST := 8
 const DRAGON_GEM_BURST := 18
@@ -108,14 +123,26 @@ static func attack_cycle(slug: String, phase: int) -> Array[String]:
 			return ["sweep", "volley"]
 		return ["sweep", "fan", "dive"]
 	if slug == "death_knight":
-		return ["charge"]
-	return ["skull", "skull", "bone_rain"]
+		if phase >= 2:
+			return ["charge", "charge", "fake_charge", "sword_waves", "shield"]
+		return ["charge", "fake_charge", "sword_waves", "shield"]
+	if phase >= 2:
+		return ["spiral_hands", "beam_rain"]
+	return ["soul_beam", "skull_spiral", "grave_hands", "bone_rain"]
 
 static func windup(pattern: String, phase: int, generation: int) -> float:
 	if pattern == "charge":
 		return 0.8
 	if pattern == "bone_rain":
 		return 0.9
+	if pattern == "soul_beam" or pattern == "beam_rain":
+		return BEAM_WINDUP
+	if pattern == "grave_hands" or pattern == "spiral_hands":
+		return 0.8
+	if pattern == "fake_charge":
+		return 0.55
+	if pattern == "sword_waves":
+		return 0.48
 	var base := 0.42
 	match pattern:
 		"skull":
@@ -138,8 +165,20 @@ static func cooldown(pattern: String, phase: int, elapsed: float, generation: in
 	match pattern:
 		"skull":
 			base = 2.35
-		"bone_rain":
+		"bone_rain", "beam_rain":
 			base = 2.55
+		"soul_beam":
+			base = 2.4
+		"skull_spiral", "spiral_hands":
+			base = 2.3
+		"grave_hands":
+			base = 2.45
+		"sword_waves":
+			base = 2.2
+		"fake_charge":
+			base = 3.2
+		"shield":
+			base = 2.6
 		"summon":
 			base = 7.4
 		"charge":
@@ -191,6 +230,33 @@ static func bone_columns(player_x: float, elapsed: float, field_w: float) -> Arr
 		step += 1
 	cols.sort()
 	return cols
+
+## 15% of max HP, rounded. A full boss always survives one WINNER.
+static func winner_damage(max_hp: int) -> int:
+	var pct := int(round(WINNER_BOSS_DMG_PCT * 100.0))
+	var chip := int((maxi(max_hp, 1) * pct + 50) / 100)
+	if chip >= max_hp:
+		chip = maxi(max_hp - 1, 1)
+	return chip
+
+static func hand_columns(player_x: float) -> Array[float]:
+	var anchor := clampf(player_x, 48.0, 340.0)
+	var cols: Array[float] = [anchor]
+	if anchor - HAND_GAP >= 32.0:
+		cols.append(anchor - HAND_GAP)
+	if anchor + HAND_GAP <= 360.0:
+		cols.append(anchor + HAND_GAP)
+	cols.sort()
+	return cols
+
+static func sword_offsets() -> Array[float]:
+	return [-SWORD_GAP, 0.0, SWORD_GAP]
+
+## Phase 2 lich and knight attacks come out quicker. Telegraphs stay readable.
+static func fury_time(seconds: float, phase: int) -> float:
+	if phase >= 2:
+		return maxf(seconds * 0.74, 0.42)
+	return seconds
 
 static func bullet_speed(phase: int, generation: int) -> float:
 	var base := 150.0 if phase <= 1 else 176.0

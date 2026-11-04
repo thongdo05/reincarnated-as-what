@@ -38,7 +38,7 @@ const VENDING_MAX_SPEED := 400.0
 const VENDING_WINNER_KILLS := 10
 ## Heavy hit for a WINNER! clear, read off SpawnDirector.max_hp.
 ## An eye is 2. Wolf, anvil, and archer are 4. Wyvern and piano are 6.
-## 2 kills an eye and chips every tougher body. Bosses take no damage.
+## 2 kills an eye and chips every tougher body. Bosses take 15% of max HP instead.
 const VENDING_WINNER_DAMAGE := 2
 
 ## Short dash when the aim jumps. Fine corrections still use the snap.
