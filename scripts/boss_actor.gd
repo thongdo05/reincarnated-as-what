@@ -23,6 +23,9 @@ var _attack_id := ""
 var _charge_y := 120.0
 var _charge_speed := 320.0
 var _row_left := 0.0
+var _rain_left := 0.0
+var _rain_time := 0.0
+var _rain_columns: Array[float] = []
 
 func is_boss() -> bool:
 	return true
@@ -87,6 +90,9 @@ func present(attack: String, aim: Vector2) -> void:
 		# drawer ignores, and keep the warning on _attack_cd's sibling.
 		_arm_row(BossCatalog.windup(attack, dragon_phase(), generation))
 		return
+	if attack == "bone_rain":
+		_begin_rain(aim.x, 30.0)
+		return
 	_arm_shots(attack, aim, BossCatalog.windup(attack, dragon_phase(), generation))
 
 func tick(delta: float, player_pos: Vector2, run_time: float = 0.0, scale: float = 1.0) -> Array[Dictionary]:
@@ -130,6 +136,8 @@ func tick(delta: float, player_pos: Vector2, run_time: float = 0.0, scale: float
 		fight_left -= delta
 		if fight_left <= 0.0:
 			_begin_flee()
+	if charmed > 0.0:
+		_cancel_rain()
 	_release_telegraphs(fired, delta)
 	if is_inside_tree():
 		queue_redraw()
@@ -143,6 +151,19 @@ func _begin_flee() -> void:
 	telegraphs.clear()
 	_attack_id = ""
 	_pending_spawns.clear()
+	_cancel_rain()
+
+func _cancel_rain() -> void:
+	_rain_left = 0.0
+	_rain_columns.clear()
+	if telegraphs.is_empty():
+		return
+	var still: Array[Dictionary] = []
+	for item in telegraphs:
+		if str(item.get("sprite", "")) == BossCatalog.BONE_SHOT:
+			continue
+		still.append(item)
+	telegraphs = still
 
 func _y_limits(height: float) -> Vector2:
 	var file := sprite_file()
@@ -174,9 +195,14 @@ func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: fl
 		return
 	if boss_slug == "lich_king":
 		_summon_cd -= delta
-		if _summon_cd <= 0.0:
+		if _summon_cd <= 0.0 and telegraphs.is_empty() and _rain_left <= 0.0:
 			_summon_eyes()
 			_summon_cd = BossCatalog.cooldown("summon", 1, run_time, generation)
+	if _rain_left > 0.0:
+		_rain_left -= delta
+		if _rain_left <= 0.0:
+			_loose_rain()
+		return
 	_attack_cd -= delta
 	if _attack_cd > 0.0:
 		return
@@ -188,6 +214,10 @@ func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: fl
 		_charge_y = _clamp_row(player_pos.y)
 		_arm_row(BossCatalog.windup(attack, dragon_phase(), generation))
 		return
+	if attack == "bone_rain":
+		_begin_rain(player_pos.x, run_time)
+		_attack_cd = BossCatalog.cooldown("bone_rain", 1, run_time, generation)
+		return
 	if attack == "skull":
 		var speed := BossCatalog.skull_speed(run_time)
 		var aim := _lead(position + BossCatalog.MOUTH, player_pos, player_vel, speed, run_time)
@@ -196,6 +226,30 @@ func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: fl
 		return
 	_arm_shots(attack, player_pos, BossCatalog.windup(attack, dragon_phase(), generation))
 	_attack_cd = BossCatalog.cooldown(attack, dragon_phase(), run_time, generation)
+
+func _begin_rain(player_x: float, run_time: float) -> void:
+	_attack_id = "bone_rain"
+	_rain_time = run_time
+	_rain_columns = BossCatalog.bone_columns(player_x, run_time, field_size.x)
+	_rain_left = BossCatalog.windup("bone_rain", 1, generation)
+
+func _loose_rain() -> void:
+	var speed := BossCatalog.bone_fall_speed(_rain_time)
+	var columns: Array[float] = []
+	columns.append_array(_rain_columns)
+	_rain_columns.clear()
+	for column in columns:
+		for step in 2:
+			if fire_room == 0:
+				return
+			telegraphs.append({
+				"left": 0.02 + 0.14 * float(step),
+				"velocity": Vector2(0.0, speed),
+				"pos": Vector2(column, BossCatalog.BONE_SPAWN_Y),
+				"sprite": BossCatalog.BONE_SHOT,
+			})
+			if fire_room > 0:
+				fire_room -= 1
 
 func _arm_shots(attack: String, aim: Vector2, windup: float) -> void:
 	var phase_now := dragon_phase()
@@ -250,6 +304,24 @@ func _draw() -> void:
 
 func _draw_attack_flash() -> void:
 	var pulse := 0.4 + 0.55 * absf(sin(age * 26.0))
+	if _attack_id == "bone_rain" and not _rain_columns.is_empty():
+		var jade := Color(0.25, 1.0, 0.62, 1.0)
+		var royal := Color(0.62, 0.22, 0.98, 1.0)
+		var ink := Color(0.08, 0.04, 0.12, pulse)
+		var staff := BossCatalog.SKULL_MUZZLE
+		draw_line(staff, staff + Vector2(-4.0, -26.0), ink, 3.0)
+		draw_line(staff, staff + Vector2(-4.0, -26.0), jade, 1.0)
+		draw_circle(staff + Vector2(-4.0, -26.0), 3.0, royal)
+		var floor_y := 220.0
+		for column in _rain_columns:
+			var x := column - position.x
+			var top := BossCatalog.BONE_TOP - position.y
+			var bottom := floor_y - position.y
+			draw_line(Vector2(x, top), Vector2(x, bottom), Color(royal.r, royal.g, royal.b, 0.72 * pulse), 4.0)
+			draw_line(Vector2(x, top), Vector2(x, bottom), Color(jade.r, jade.g, jade.b, 0.95 * pulse), 2.0)
+			draw_rect(Rect2(Vector2(x - 5.0, top - 6.0), Vector2(10.0, 12.0)), Color(ink.r, ink.g, ink.b, pulse))
+			ArtLibrary.draw_loop(self, BossCatalog.BONE_MARK, age, Vector2(x, top))
+		return
 	if _attack_id == "skull" and not telegraphs.is_empty():
 		var item: Dictionary = telegraphs[0]
 		var origin: Vector2 = item["pos"] - position

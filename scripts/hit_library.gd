@@ -116,6 +116,36 @@ static func vertical_extent(file_name: String, role: String) -> float:
 	var span := vertical_span(file_name, role)
 	return span.y - span.x
 
+## Local horizontal extent of a role: x is the left (min x), y is the right (max x).
+static func horizontal_span(file_name: String, role: String) -> Vector2:
+	var min_x := 100000.0
+	var max_x := -100000.0
+	for part in _parts(file_name, role):
+		var kind := str(part["type"])
+		if kind == "circle":
+			var center: Vector2 = part["center"]
+			var radius := float(part["r"])
+			min_x = minf(min_x, center.x - radius)
+			max_x = maxf(max_x, center.x + radius)
+		elif kind == "capsule":
+			var radius := float(part["r"])
+			var cap_a: Vector2 = part["a"]
+			var cap_b: Vector2 = part["b"]
+			min_x = minf(min_x, minf(cap_a.x, cap_b.x) - radius)
+			max_x = maxf(max_x, maxf(cap_a.x, cap_b.x) + radius)
+		elif kind == "rect":
+			var center: Vector2 = part["center"]
+			var half: Vector2 = part["half"]
+			min_x = minf(min_x, center.x - half.x)
+			max_x = maxf(max_x, center.x + half.x)
+	if max_x < min_x:
+		return Vector2.ZERO
+	return Vector2(min_x, max_x)
+
+static func horizontal_extent(file_name: String, role: String) -> float:
+	var span := horizontal_span(file_name, role)
+	return span.y - span.x
+
 ## Distance from the anchor to the outside of the shape. Movement and spawns use this.
 static func bounds_radius(file_name: String, role: String) -> float:
 	var best := 0.0
