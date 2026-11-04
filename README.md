@@ -73,4 +73,4 @@ The web export leaves thread support off. A threaded Godot build needs cross-ori
 
 Pages is already set to GitHub Actions. A green run on `main` updates https://thongdo05.github.io/reincarnated-as-what/ . The first load is the Godot web binary, so give it a moment on a phone. Hold the phone in landscape.
 
-The iOS preset in `export_presets.cfg` is only a stub (bundle id, landscape project settings, GL Compatibility). It is not signed and it is not a TestFlight build.
+The iOS and Android presets in `export_presets.cfg` are landscape, unsigned, and named `Reincarnated as WHAT?!`. The bundle id placeholder is `com.thongdo.reincarnatedaswhat`. How to build them, and where the AdMob and `remove_ads` ids go, is in `docs/MOBILE_STORES.md`. The web export is unchanged: no threads, GitHub Pages on push to `main`. Ads and the purchase are off on the web and in the editor.

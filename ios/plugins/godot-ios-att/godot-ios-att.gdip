@@ -1,0 +1,18 @@
+[config]
+name="godot-ios-att"
+binary="godot-ios-att.xcframework"
+use_swift_runtime=true
+
+initialization="register_godot_ios_att_types"
+deinitialization="unregister_godot_ios_att_types"
+
+[dependencies]
+linked=[]
+embedded=[]
+system=["Foundation.framework", "AppTrackingTransparency.framework", "AdSupport.framework"]
+
+capabilities=[]
+
+files=[]
+
+[plist]

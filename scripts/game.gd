@@ -102,6 +102,14 @@ var _pause_button: Button
 var _pause_icon: TextureRect
 var _pause_overlay: Control
 var _pause_card: PauseCard
+var _remove_ads_button: Button
+var _restore_ads_button: Button
+var _remove_offer: Control
+var _offer_remove: Button
+var _offer_restore: Button
+var _offer_dismiss: Button
+var _restart_busy := false
+var _offer_waiting := false
 var _sound: SoundRig
 var _sound_button: Button
 var _sound_label: Label
@@ -442,6 +450,7 @@ func _build_hud() -> void:
 	_pause_card.setup(_font_outlined)
 	_pause_overlay.add_child(_pause_card)
 	_refresh_pause_card()
+	_build_store_controls()
 
 	_pause_button = Button.new()
 	_pause_button.focus_mode = Control.FOCUS_NONE
@@ -1703,6 +1712,8 @@ func _kill_player(name: String) -> void:
 		_death_fx.start(_player.position, _player.sprite_name())
 	_present_death()
 	_refresh_hud()
+	if Monetization != null:
+		Monetization.note_run_ended()
 
 func _present_death() -> void:
 	var stage := FxTimeline.death_stage(death_elapsed)
@@ -2046,11 +2057,35 @@ func _on_restart() -> void:
 		CaptureMode.note_player_retry(form_id)
 		get_tree().reload_current_scene()
 		return
+	if _restart_busy:
+		return
 	if phase != PHASE_DEAD or not game_over_visible:
 		return
 	if _card_age < Replay.CARD_GUARD:
 		return
-	_reincarnate()
+	_restart_busy = true
+	# Web, editor, and headless stay synchronous so a card tap still opens the
+	# next run in the same call. The store path can wait on an ad.
+	if Monetization == null or not Monetization.store_buttons_visible():
+		_reincarnate()
+		_restart_busy = false
+		return
+	_finish_restart()
+
+
+func _finish_restart() -> void:
+	# The fight is over once the run is dead, even if the boss sprite is still
+	# on the card. in_run / boss_fight stay true only while play is underway.
+	var in_run := phase == PHASE_PLAY
+	var boss_fight := in_run and _living_boss() != null
+	var offer := false
+	if Monetization != null:
+		offer = await Monetization.play_between_runs(in_run, boss_fight)
+	if offer and is_inside_tree():
+		await _prompt_remove_ads()
+	if is_inside_tree():
+		_reincarnate()
+	_restart_busy = false
 
 ## Kaito has no middle dot, so the seed line uses a hyphen.
 func _seed_line() -> String:
@@ -2141,14 +2176,15 @@ func pause_hit_px(viewport: Vector2, window: Vector2, screen_scale: float) -> fl
 	var from_points := PAUSE_MIN_PT / points_per_px
 	return maxf(ceilf(from_points), PAUSE_MIN_PT)
 
-func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float) -> void:
+func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float, insets: Vector4 = Vector4.ZERO) -> void:
 	if _pause_button == null or _pause_icon == null:
 		return
 	var hit := pause_hit_px(viewport, window, screen_scale)
 	var control_size := Vector2(hit, hit)
 	var art := Vector2(PAUSE_ART_PX, PAUSE_ART_PX)
 	# The 18px mark stays where the HUD mock puts it. The hit target grows left and down.
-	var art_pos := Vector2(viewport.x - 4.0 - PAUSE_ART_PX, 4.0)
+	# insets moves it off a notch or the home indicator. Zero keeps the desktop layout.
+	var art_pos := Vector2(viewport.x - 4.0 - insets.z - PAUSE_ART_PX, 4.0 + insets.y)
 	var button_pos := art_pos - Vector2(hit - PAUSE_ART_PX, 0.0)
 	button_pos.x = clampf(button_pos.x, 0.0, maxf(viewport.x - hit, 0.0))
 	button_pos.y = clampf(button_pos.y, 0.0, maxf(viewport.y - hit, 0.0))
@@ -2163,6 +2199,7 @@ func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float)
 	icon_pos.y = clampf(icon_pos.y, 0.0, maxf(hit - PAUSE_ART_PX, 0.0))
 	_pause_icon.position = icon_pos
 	_layout_pause_card(viewport)
+	_layout_store_row(viewport)
 	var show := phase == PHASE_PLAY or _paused
 	_pause_button.visible = show
 	if _pause_overlay != null:
@@ -2191,9 +2228,160 @@ func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float)
 			show_blocked = show_blocked and (phase == PHASE_REVEAL or phase == PHASE_PLAY or _paused)
 			_audio_blocked_button.visible = show_blocked
 
+func _build_store_controls() -> void:
+	if Monetization == null or not Monetization.store_buttons_visible():
+		return
+	_remove_ads_button = _make_store_button()
+	_restore_ads_button = _make_store_button()
+	_restore_ads_button.text = "RESTORE"
+	_remove_ads_button.pressed.connect(_on_remove_ads_pressed)
+	_restore_ads_button.pressed.connect(_on_restore_ads_pressed)
+	_pause_overlay.add_child(_remove_ads_button)
+	_pause_overlay.add_child(_restore_ads_button)
+	_remove_offer = Control.new()
+	_remove_offer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_remove_offer.visible = false
+	_remove_offer.mouse_filter = Control.MOUSE_FILTER_STOP
+	_remove_offer.z_index = 30
+	_hud.add_child(_remove_offer)
+	var shade := ColorRect.new()
+	shade.color = Color(0.04, 0.03, 0.07, 0.82)
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	_remove_offer.add_child(shade)
+	var title := _make_label(9, Color("ffe56a"))
+	title.text = "Ads play between runs."
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(16, 78)
+	title.size = Vector2(448, 16)
+	_remove_offer.add_child(title)
+	_offer_remove = _make_store_button()
+	_offer_restore = _make_store_button()
+	_offer_restore.text = "RESTORE"
+	_offer_dismiss = _make_store_button()
+	_offer_dismiss.text = "NOT NOW"
+	_offer_remove.pressed.connect(_on_offer_remove)
+	_offer_restore.pressed.connect(_on_restore_ads_pressed)
+	_offer_dismiss.pressed.connect(_on_offer_dismiss)
+	_remove_offer.add_child(_offer_remove)
+	_remove_offer.add_child(_offer_restore)
+	_remove_offer.add_child(_offer_dismiss)
+	_layout_offer()
+	if not Monetization.state_changed.is_connected(_refresh_store_buttons):
+		Monetization.state_changed.connect(_refresh_store_buttons)
+	_refresh_store_buttons()
+
+
+func _make_store_button() -> Button:
+	var button := Button.new()
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("241428")
+	style.set_border_width_all(2)
+	style.border_color = Color("f0d78c")
+	style.set_corner_radius_all(0)
+	style.content_margin_left = 4
+	style.content_margin_right = 4
+	for state in ["normal", "hover", "pressed", "focus"]:
+		button.add_theme_stylebox_override(state, style)
+	button.add_theme_font_override("font", _font_outlined)
+	button.add_theme_font_size_override("font_size", 9)
+	button.add_theme_color_override("font_color", Color("f2fbff"))
+	button.add_theme_color_override("font_hover_color", Color("f2fbff"))
+	button.add_theme_color_override("font_pressed_color", Color("f2fbff"))
+	return button
+
+
+func _layout_store_row(viewport: Vector2) -> void:
+	if _remove_ads_button == null or _pause_card == null:
+		return
+	var height := 22.0
+	var y := viewport.y - 4.0 - height
+	var width := minf(168.0, (viewport.x - 24.0) * 0.5)
+	_remove_ads_button.position = Vector2(8, y)
+	_remove_ads_button.size = Vector2(width, height)
+	_restore_ads_button.position = Vector2(12 + width, y)
+	_restore_ads_button.size = Vector2(minf(88.0, viewport.x - width - 20.0), height)
+
+
+func _layout_offer() -> void:
+	if _offer_remove == null:
+		return
+	var field := _viewport_size()
+	var y := field.y * 0.5 - 8.0
+	var width := minf(200.0, field.x - 24.0)
+	var x := (field.x - width) * 0.5
+	_offer_remove.position = Vector2(x, y)
+	_offer_remove.size = Vector2(width, 28)
+	_offer_restore.position = Vector2(x, y + 32)
+	_offer_restore.size = Vector2(width, 22)
+	_offer_dismiss.position = Vector2(x, y + 58)
+	_offer_dismiss.size = Vector2(width, 22)
+
+
+func _refresh_store_buttons() -> void:
+	if Monetization == null:
+		return
+	var label := Monetization.remove_ads_label()
+	var removed := Monetization.ads_removed
+	if _remove_ads_button != null:
+		_remove_ads_button.text = label
+		_remove_ads_button.disabled = removed
+	if _offer_remove != null:
+		_offer_remove.text = label
+		_offer_remove.disabled = removed
+
+
+func _on_remove_ads_pressed() -> void:
+	if Monetization == null or Monetization.ads_removed:
+		return
+	await Monetization.purchase_remove_ads()
+	_refresh_store_buttons()
+
+
+func _on_restore_ads_pressed() -> void:
+	if Monetization != null:
+		Monetization.restore_purchases()
+
+
+func _on_offer_remove() -> void:
+	if Monetization != null and not Monetization.ads_removed:
+		await Monetization.purchase_remove_ads()
+	_refresh_store_buttons()
+	_close_remove_offer()
+
+
+func _on_offer_dismiss() -> void:
+	_close_remove_offer()
+
+
+func _close_remove_offer() -> void:
+	if _remove_offer != null:
+		_remove_offer.visible = false
+	_offer_waiting = false
+
+
+func _prompt_remove_ads() -> void:
+	if _remove_offer == null:
+		return
+	_layout_offer()
+	_refresh_store_buttons()
+	_offer_waiting = true
+	_remove_offer.visible = true
+	var frames := 0
+	while _offer_waiting and is_inside_tree() and frames < 60 * 180:
+		await get_tree().process_frame
+		frames += 1
+	_close_remove_offer()
+
+
 func _layout_pause_card(viewport: Vector2) -> void:
 	if _pause_card == null:
 		return
+	# Leave a row for Remove ads / Restore. Web and editor have no such buttons.
+	if _remove_ads_button != null:
+		viewport = Vector2(viewport.x, maxf(viewport.y - 28.0, 120.0))
 	# The pause glyph and the SND control share a column on the right.
 	var reserved := 56.0
 	if _pause_button != null:
@@ -2216,7 +2404,36 @@ func _refresh_pause_card() -> void:
 
 func _layout_pause(viewport: Vector2) -> void:
 	var window := DisplayServer.window_get_size()
-	apply_pause_layout(viewport, Vector2(window), DisplayServer.screen_get_scale())
+	var safe := DisplayServer.get_display_safe_area()
+	var insets := safe_insets_for(viewport, Vector2(window), Rect2(safe))
+	apply_pause_layout(viewport, Vector2(window), DisplayServer.screen_get_scale(), insets)
+
+
+## Window-pixel safe rect to viewport pixels. A full-window rect returns zero,
+## so a desktop check keeps the pause mark on the mock's 4px inset.
+static func safe_insets_for(viewport: Vector2, window: Vector2, safe: Rect2) -> Vector4:
+	if viewport.x < 1.0 or viewport.y < 1.0 or window.x < 1.0 or window.y < 1.0:
+		return Vector4.ZERO
+	if safe.size.x < 1.0 or safe.size.y < 1.0:
+		return Vector4.ZERO
+	var scale := 1.0
+	var screen := window
+	var viewport_aspect := viewport.x / viewport.y
+	var window_aspect := window.x / window.y
+	if not is_equal_approx(viewport_aspect, window_aspect):
+		if viewport_aspect < window_aspect:
+			screen = Vector2(floorf(window.y * viewport_aspect), window.y)
+		else:
+			screen = Vector2(window.x, floorf(window.x / viewport_aspect))
+	scale = minf(floorf(screen.x / viewport.x), floorf(screen.y / viewport.y))
+	scale = maxf(scale, 1.0)
+	screen = Vector2(viewport.x * scale, viewport.y * scale)
+	var offset := (window - screen) * 0.5
+	var left := maxf(0.0, safe.position.x - offset.x)
+	var top := maxf(0.0, safe.position.y - offset.y)
+	var right := maxf(0.0, offset.x + screen.x - (safe.position.x + safe.size.x))
+	var bottom := maxf(0.0, offset.y + screen.y - (safe.position.y + safe.size.y))
+	return Vector4(left / scale, top / scale, right / scale, bottom / scale)
 
 func _hits_pause(point: Vector2) -> bool:
 	if _pause_button == null or not _pause_button.visible:

@@ -1,0 +1,92 @@
+class_name StoreConfig
+
+## The only place real store and ad IDs go.
+##
+## USE_TEST_ADS stays true until a store build. Test IDs below are Google's
+## published sample values (https://developers.google.com/admob/android/test-ads
+## and the iOS equivalent). They are not secrets.
+##
+## Real app IDs contain "~". Real ad unit IDs contain "/". Leave them empty.
+## The price of remove_ads is set in App Store Connect and Play Console, not here.
+
+const USE_TEST_ADS := true
+
+const REAL_ANDROID_APP_ID := ""
+const REAL_IOS_APP_ID := ""
+const REAL_ANDROID_INTERSTITIAL_UNIT_ID := ""
+const REAL_IOS_INTERSTITIAL_UNIT_ID := ""
+## Reserved for a later rewarded "pick your form" ad. Nothing requests it yet.
+const REAL_ANDROID_REWARDED_UNIT_ID := ""
+const REAL_IOS_REWARDED_UNIT_ID := ""
+
+const REMOVE_ADS_PRODUCT_ID := "remove_ads"
+
+const TEST_ANDROID_APP_ID := "ca-app-pub-3940256099942544~3347511713"
+const TEST_IOS_APP_ID := "ca-app-pub-3940256099942544~1458002511"
+const TEST_ANDROID_INTERSTITIAL_UNIT_ID := "ca-app-pub-3940256099942544/1033173712"
+const TEST_IOS_INTERSTITIAL_UNIT_ID := "ca-app-pub-3940256099942544/4411468910"
+const TEST_ANDROID_REWARDED_UNIT_ID := "ca-app-pub-3940256099942544/5224354917"
+const TEST_IOS_REWARDED_UNIT_ID := "ca-app-pub-3940256099942544/1712485313"
+
+## Shown by iOS as the App Tracking Transparency prompt. Plain language, no joke.
+const ATT_USAGE_DESCRIPTION := "This lets Reincarnated as WHAT?! show ads that are more relevant to you between runs. The game plays the same if you choose Ask App Not to Track."
+
+## First three completed runs never get an interstitial. After that, at most one
+## interstitial per three completed runs (runs 3, 6, 9, ...), and only between
+## runs. A boss that is still being fought blocks the ad.
+const RUNS_BEFORE_ADS := 3
+const RUNS_BETWEEN_ADS := 3
+
+
+static func stores_available() -> bool:
+	if OS.has_feature("editor") or OS.has_feature("web"):
+		return false
+	return OS.has_feature("android") or OS.has_feature("ios")
+
+
+static func ios_app_id() -> String:
+	if USE_TEST_ADS:
+		return TEST_IOS_APP_ID
+	return REAL_IOS_APP_ID.strip_edges()
+
+
+static func android_app_id() -> String:
+	if USE_TEST_ADS:
+		return TEST_ANDROID_APP_ID
+	return REAL_ANDROID_APP_ID.strip_edges()
+
+
+static func interstitial_unit_id() -> String:
+	if not stores_available():
+		return ""
+	var ios := OS.has_feature("ios")
+	if USE_TEST_ADS:
+		return TEST_IOS_INTERSTITIAL_UNIT_ID if ios else TEST_ANDROID_INTERSTITIAL_UNIT_ID
+	var real := REAL_IOS_INTERSTITIAL_UNIT_ID if ios else REAL_ANDROID_INTERSTITIAL_UNIT_ID
+	return real.strip_edges()
+
+
+static func rewarded_unit_id() -> String:
+	if not stores_available():
+		return ""
+	var ios := OS.has_feature("ios")
+	if USE_TEST_ADS:
+		return TEST_IOS_REWARDED_UNIT_ID if ios else TEST_ANDROID_REWARDED_UNIT_ID
+	var real := REAL_IOS_REWARDED_UNIT_ID if ios else REAL_ANDROID_REWARDED_UNIT_ID
+	return real.strip_edges()
+
+
+static func real_ids_are_empty() -> bool:
+	return (
+		REAL_ANDROID_APP_ID.strip_edges().is_empty()
+		and REAL_IOS_APP_ID.strip_edges().is_empty()
+		and REAL_ANDROID_INTERSTITIAL_UNIT_ID.strip_edges().is_empty()
+		and REAL_IOS_INTERSTITIAL_UNIT_ID.strip_edges().is_empty()
+		and REAL_ANDROID_REWARDED_UNIT_ID.strip_edges().is_empty()
+		and REAL_IOS_REWARDED_UNIT_ID.strip_edges().is_empty()
+	)
+
+
+static func att_plist() -> String:
+	var text := ATT_USAGE_DESCRIPTION.xml_escape(true)
+	return "<key>NSUserTrackingUsageDescription</key><string>%s</string>\n" % text
