@@ -28,7 +28,9 @@ The reborn tease ships as `sting_reborn_tease.ogg` (about 15 KB). The same sting
 | `sfx_boss_death_knight_death.wav` | Death Knight dies. Same level, no pitch shift. Being cleared for the dragon, without dying, stays silent. |
 | `sfx_boss_great_dragon_enter.wav` | Great Dragon enters. Same level, no pitch shift. |
 | `sfx_boss_great_dragon_death.wav` | Great Dragon dies. Same level, no pitch shift. |
-| `sfx_evolve.wav` (stand-in) | Dragon-slain jingle until `sfx_dragon_slain.wav` exists. |
+| `sting_dragon_slain.wav` | DRAGON SLAIN banner. Plays with `sfx_dragon_lair_transition.wav` (that file keeps its opening 0.5 s of silence). |
+| `music/music_dragon_phase.ogg` | Dragon-phase loop from the transform until death, on every map. |
+| `audio/dragon_manifest.json` | The other 53 dragon cues. Each event name is wired in `scripts/dragon_audio.gd`. |
 
 Each form uses its own shot file. The slime bloop is not reused.
 

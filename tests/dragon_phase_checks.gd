@@ -10,6 +10,7 @@ func run() -> int:
 	failed += _check_returns()
 	failed += _check_spawns()
 	failed += _check_actors()
+	failed += load("res://tests/lair_reset.gd").new().run()
 	return failed
 
 func run_live(tree: SceneTree) -> int:
@@ -62,6 +63,7 @@ func run_live(tree: SceneTree) -> int:
 			failed += 1
 	tree.root.remove_child(game)
 	game.free()
+	failed += load("res://tests/lair_reset.gd").new().run_live(tree)
 	return failed
 
 func _dragon_count(game) -> int:

@@ -121,6 +121,7 @@ var _hit_stop_frames := 0
 var _hit_stop_cooldown := 0.0
 var _juice_shake := 0.0
 var _dragon_show: DragonShow
+var _lair: LairTransition
 var _dragon_phase_on := false
 var _dragon_phase_at := 0.0
 var _dragon_spawns: DragonSpawnDirector
@@ -198,6 +199,9 @@ func _build_world() -> void:
 	_dragon_show.host = self
 	_dragon_show.rng_seed = day_seed
 	add_child(_dragon_show)
+	_lair = LairTransition.new()
+	_lair.name = "LairTransition"
+	add_child(_lair)
 
 	_combat = CombatText.new()
 	_combat.z_index = 8
@@ -762,7 +766,13 @@ func _process(delta: float) -> void:
 	if phase == PHASE_PLAY and _slow_left > 0.0:
 		_slow_left = maxf(_slow_left - delta, 0.0)
 		world_delta = delta * Difficulty.FINAL_SLOWMO_SCALE
-	_background.tick(world_delta if phase == PHASE_PLAY else delta, size, Difficulty.scroll_scale(elapsed))
+	var scroll_delta := world_delta if phase == PHASE_PLAY else delta
+	var scroll_scale := Difficulty.scroll_scale(elapsed)
+	_background.tick(scroll_delta, size, scroll_scale)
+	if _lair != null and _lair.running:
+		_lair.scroll(scroll_delta, size, scroll_scale)
+		if _lair.advance(delta):
+			_finish_lair_swap()
 	_combat.tick(delta)
 	_tick_effects(delta)
 	_tick_sheets(delta)
@@ -920,6 +930,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 			dragon.bind_allies(_enemies)
 		enemy.fire_room = shot_room
 		for spec in enemy.tick(delta, player_pos, elapsed, Difficulty.speed_scale(elapsed)):
+			_note_enemy_shot(spec)
 			_spawn_shot(spec, false)
 		if enemy.gust_push != 0.0 and _player.alive:
 			_player.position.x = clampf(_player.position.x + enemy.gust_push * delta, 18.0, size.x - 18.0)
@@ -936,6 +947,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	_guide_orbs(delta)
 	for shot in _shots:
 		shot.tick(delta)
+	_sync_puddle_loop()
 	_tick_patterns(delta, size)
 	_collide()
 	_tick_loot(delta)
@@ -992,7 +1004,10 @@ func _spawn_boss(data: Dictionary, size: Vector2) -> bool:
 	add_child(enemy)
 	_enemies.append(enemy)
 	if _sound != null:
-		_sound.play_event(BossCatalog.cue(str(data.get("slug", "")), "enter"))
+		var enter := BossCatalog.cue(str(data.get("slug", "")), "enter")
+		if str(data.get("slug", "")) == "great_dragon":
+			enter = "great_dragon_entrance"
+		_sound.play_event(enter)
 	return true
 
 func _living_boss() -> EnemyActor:
@@ -1284,6 +1299,8 @@ func _collect_gem(gem: LootGem) -> void:
 		_combat.push("+%d" % (Difficulty.GEM_SCORE + gem.bonus_score), at + Vector2(-10, -14), Color("ffe56a"), 0.45)
 	if _sound != null:
 		_sound.play_event("gem_pickup")
+		if gem.sprite_name == DragonPhase.ELDER_GEM:
+			_sound.play_event("dragon_enemy_elder_drake_gem_pickup")
 	_spawn_fx("graze_sparkle.png", at, 0.22, 0.6, 1.2)
 	_add_evo(Difficulty.GEM_EVO)
 
@@ -1769,6 +1786,7 @@ func _kill_player(name: String) -> void:
 		_world_flash_left = 0.0
 	if _sound != null:
 		_sound.set_music_paused(false)
+		_sound.end_dragon_bed()
 	if _pause_overlay != null:
 		_pause_overlay.visible = false
 	if _pause_button != null:
@@ -2380,6 +2398,7 @@ func _begin_dragon_slay(points: int, at: Vector2) -> void:
 	dragon_kills += 1
 	if _dragon_show != null:
 		_dragon_show.begin_slay(points, at)
+	_begin_lair_transition()
 
 func _charge_meteor() -> void:
 	if _dragon_show != null and _dragon_show.phase != DragonShow.IDLE:
@@ -2446,7 +2465,15 @@ func _dragon_jingle() -> void:
 
 func _dragon_roar() -> void:
 	if _sound != null:
-		_sound.play_event("boss_great_dragon_enter")
+		_sound.play_event("great_dragon_phase_roar")
+
+func _dragon_cue(event: String) -> void:
+	if _sound != null and event != "":
+		_sound.play_event(event)
+
+func _dragon_rain(on: bool) -> void:
+	if _sound != null:
+		_sound.set_meteor_mix(on)
 
 func _adopt_dragon_form() -> void:
 	if _player == null or form_id == FormCatalog.Id.DRAGON:
@@ -2457,6 +2484,9 @@ func _adopt_dragon_form() -> void:
 	form_id = FormCatalog.Id.DRAGON
 	_player.adopt_dragon(fit)
 	_begin_dragon_phase()
+	if _sound != null:
+		_sound.play_event("dragon_transform")
+		_sound.play_dragon_music()
 	_spawn_fx("dragon_form/dragon_transform.png", _player.position, 9.0 / 15.0, 0.6, 1.5)
 
 func dragon_phase_elapsed() -> float:
@@ -2481,7 +2511,7 @@ func _spawn_dragon_minions(living: EnemyActor, size: Vector2) -> void:
 	_note_dragon_tier()
 	if _dragon_spawns == null:
 		return
-	var paused := living != null and living.boss_slug == "great_dragon"
+	var paused := (living != null and living.boss_slug == "great_dragon") or _lair_blocks_spawns()
 	var room := DragonPhase.MAX_ENEMIES - _alive_minion_count()
 	for event in _dragon_spawns.pop_due(elapsed, paused):
 		if room <= 0:
@@ -2498,6 +2528,56 @@ func _note_dragon_tier() -> void:
 	if _combat != null:
 		var field := _viewport_size()
 		_combat.push_callout("TIER %d" % tier, Vector2(field.x * 0.5, 36.0), Color("ffb15a"), 0.9, 2)
+
+func _lair_blocks_spawns() -> bool:
+	return _lair != null and _lair.blocks_spawns()
+
+func _begin_lair_transition() -> void:
+	if _lair == null or _background == null:
+		return
+	if _background.world_id == WorldCatalog.DRAGON_LAIR and not _lair.running:
+		return
+	_lair.begin()
+	if _sound != null:
+		_sound.play_event("dragon_lair_transition")
+
+func _finish_lair_swap() -> void:
+	if _background == null or _lair == null:
+		return
+	var preview := _lair.preview_background()
+	_background.apply_world(WorldCatalog.DRAGON_LAIR, false)
+	_background.copy_scroll_from(preview)
+	if _world_flash != null:
+		_world_flash.visible = false
+		_world_flash_left = 0.0
+
+func _note_enemy_shot(spec: Dictionary) -> void:
+	if _sound == null:
+		return
+	var sprite := str(spec.get("sprite", ""))
+	if sprite == BossCatalog.BOSS_EMBER:
+		_sound.play_event("great_dragon_ember_burst")
+		return
+	if sprite != BossCatalog.BOSS_METEOR:
+		return
+	var velocity: Vector2 = spec.get("velocity", Vector2.ZERO)
+	var at: Vector2 = spec.get("position", Vector2.ZERO)
+	var fall := FieldBackground.GROUND_FEET - at.y
+	var delay := fall / maxf(velocity.y, 1.0)
+	_sound.play_later("great_dragon_meteor_impact", clampf(delay, 0.05, 3.0))
+
+func _sync_puddle_loop() -> void:
+	if _sound == null:
+		return
+	var live := false
+	for shot in _shots:
+		if is_instance_valid(shot) and shot.sprite_name == DragonPhase.PUDDLE:
+			live = true
+			break
+	if live:
+		_sound.play_event("dragon_enemy_magma_puddle_sizzle_loop")
+	else:
+		_sound.stop_event("dragon_enemy_magma_puddle_sizzle_loop")
 
 func _alive_minion_count() -> int:
 	var count := 0
@@ -2563,6 +2643,8 @@ func _tick_sheets(delta: float) -> void:
 func _splash_shot(shot: Shot, direct: EnemyActor) -> void:
 	if shot.splash <= 0 or shot.splash_radius <= 0.0:
 		return
+	if _sound != null:
+		_sound.play_event("dragon_form_fireball_explode")
 	_spawn_fx("dragon_form/dragon_explosion.png", shot.position, 7.0 / 15.0, 0.5, 1.2)
 	var reach := shot.splash_radius * shot.splash_radius
 	for enemy in _enemies:
@@ -2702,6 +2784,10 @@ func _reincarnate() -> void:
 	_dragon_phase_at = 0.0
 	_dragon_spawns = null
 	_dragon_tier = 0
+	if _lair != null:
+		_lair.cancel()
+	if _sound != null:
+		_sound.end_dragon_bed()
 	_rain_budget = 0
 	_meteor_shake_left = 0.0
 	if _player != null:

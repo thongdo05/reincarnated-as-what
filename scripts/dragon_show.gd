@@ -117,7 +117,7 @@ func meter_fill(kills: int, need: int) -> float:
 func begin_slay(points: int, at: Vector2) -> void:
 	slain_points = points
 	slain_at = at
-	slain_left = 1.15
+	slain_left = LairTransition.BANNER
 	_boom(at, 1.4, 0.45)
 	_boom(at + Vector2(-18, -8), 1.0, 0.55)
 	_boom(at + Vector2(14, 6), 1.1, 0.62)
@@ -153,15 +153,18 @@ func start_rain() -> void:
 		host._dragon_shake(4.0, 1.0)
 	if host != null and host.has_method("_dragon_clear_shots"):
 		host._dragon_clear_shots()
-	if host != null and host.has_method("_dragon_roar"):
-		host._dragon_roar()
+	if host != null and host.has_method("_dragon_rain"):
+		host._dragon_rain(true)
+	if host != null and host.has_method("_dragon_cue"):
+		host._dragon_cue("dragon_form_meteor_ready")
+		host._dragon_cue("dragon_form_meteor_charge")
 	queue_redraw()
 
 func tick(delta: float) -> void:
 	if slain_left > 0.0:
 		var before := slain_left
 		slain_left = maxf(slain_left - delta, 0.0)
-		if before > 0.62 and slain_left <= 0.62 and host != null and host.has_method("_adopt_dragon_form"):
+		if before > 0.0 and slain_left <= 0.0 and host != null and host.has_method("_adopt_dragon_form"):
 			host._adopt_dragon_form()
 		_banner.queue_redraw()
 	if phase == IDLE:
@@ -229,6 +232,8 @@ func _step_frame() -> void:
 				sky = 0.0
 				shock = 0.0
 				_pose_rear(0.0)
+				if host != null and host.has_method("_dragon_rain"):
+					host._dragon_rain(false)
 	_age_particles()
 
 func _spawn_barrage() -> bool:
@@ -251,11 +256,15 @@ func _spawn_barrage() -> bool:
 		"scale": DRAW_SCALE,
 	}
 	_spawned += 1
+	if host != null and host.has_method("_dragon_cue"):
+		host._dragon_cue("dragon_form_meteor_fall")
 	return true
 
 func _launch_giant() -> void:
 	var lead := RETICLE.y + SPAWN_LEAD_EXTRA
 	var steps := float(FALL_FRAMES)
+	if host != null and host.has_method("_dragon_cue"):
+		host._dragon_cue("dragon_form_giant_meteor")
 	_giant = {
 		"on": true,
 		"pos": RETICLE - Vector2(lead, lead),
@@ -311,6 +320,8 @@ func _slam_giant() -> void:
 		_barrage_paid = _budget
 	flash_frames = FLASH_FRAMES
 	shock = 0.15
+	if host != null and host.has_method("_dragon_cue"):
+		host._dragon_cue("dragon_form_screen_flash")
 
 func _impact(item: Dictionary, giant: bool) -> void:
 	var at: Vector2 = item["target"]
@@ -329,6 +340,8 @@ func _impact(item: Dictionary, giant: bool) -> void:
 		_add_decal(at)
 	if host != null and host.has_method("_dragon_splash"):
 		host._dragon_splash(at, 42.0)
+	if not giant and host != null and host.has_method("_dragon_cue"):
+		host._dragon_cue("dragon_form_meteor_impact")
 
 func _pay_barrage_chip() -> void:
 	if _budget <= 0:

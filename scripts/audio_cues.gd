@@ -41,11 +41,14 @@ const EVOLVE_HIT_SECONDS := 0.42
 ## Plays with the Vending Machine title card. The other forms stay silent.
 const VENDING_TITLE := "title_cards/title_vending_machine.png"
 
-## Dragon-phase cues have no samples yet. SoundRig records the name and skips playback.
+## A DragonPhase hook name is a cue even when its sample has not been matched.
 static func is_hook(event: String) -> bool:
 	return DragonPhase.is_hook(event)
 
 static func spec(event: String) -> Dictionary:
+	var dragon := DragonAudio.spec(event)
+	if not dragon.is_empty():
+		return dragon
 	match event:
 		"gameplay_music":
 			return {
@@ -148,16 +151,6 @@ static func spec(event: String) -> Dictionary:
 			return _boss_cue("sfx_boss_great_dragon_enter.wav", -19.7, 1.19)
 		"boss_great_dragon_death":
 			return _boss_cue("sfx_boss_great_dragon_death.wav", -19.3, 1.11)
-		# Placeholder until Hibiki delivers res://audio/sfx_dragon_slain.wav.
-		"dragon_slain":
-			return {
-				"file": "res://audio/sfx_evolve.wav",
-				"bus": SFX_BUS,
-				"loop": false,
-				"lufs": -19.1,
-				"polyphony": 1,
-				"pitch_semitones": 0.0,
-			}
 		_:
 			return {}
 
@@ -214,7 +207,8 @@ static func all_events() -> PackedStringArray:
 	])
 
 static func is_shot_event(event: String) -> bool:
-	return event == "slime_shot" or event == "goblin_shot" or event == "vending_machine_shot" or event == "cat_shot" or event == "demon_lord_shot"
+	var key := DragonAudio.canonical(event)
+	return key == "slime_shot" or key == "goblin_shot" or key == "vending_machine_shot" or key == "cat_shot" or key == "demon_lord_shot" or key == "dragon_form_shot"
 
 ## Missing designer files are skipped. A required cue still reports the gap.
 ## ResourceLoader sees the imported sample inside an exported pck. FileAccess
@@ -239,6 +233,8 @@ static func shot_event_for_form(form_id: int) -> String:
 			return "cat_shot"
 		FormCatalog.Id.DEMON:
 			return "demon_lord_shot"
+		FormCatalog.Id.DRAGON:
+			return "dragon_form_shot"
 		_:
 			return ""
 
@@ -328,12 +324,20 @@ static func simulate_burst(rate: float, duration: float, cap: int, seconds: floa
 		t += step
 	return {"max_active": max_active, "stolen": stolen}
 
-static func prepare_stream(stream: AudioStream, event: String) -> void:
+static func prepare_stream(stream: AudioStream, event: String) -> AudioStream:
 	var data := spec(event)
 	if stream is AudioStreamOggVorbis and bool(data.get("loop", false)):
 		var ogg := stream as AudioStreamOggVorbis
 		ogg.loop = true
 		ogg.loop_offset = float(data.get("loop_offset", 0.0))
+		return ogg
+	if stream is AudioStreamWAV and int(data.get("loop_end", 0)) > 0:
+		var wav := stream.duplicate() as AudioStreamWAV
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = int(data.get("loop_begin", 0))
+		wav.loop_end = int(data.get("loop_end", -1))
+		return wav
+	return stream
 
 static func ensure_bus(bus_name: String) -> int:
 	var idx := AudioServer.get_bus_index(bus_name)

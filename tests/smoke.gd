@@ -4966,7 +4966,8 @@ func _check_boss_play() -> int:
 			push_error("WINNER should bypass the shield and chip %d, hp %s" % [knight_chip, knight.hp])
 			failed += 1
 	for slug in BossCatalog.SLUGS:
-		if game._sound.play_count(BossCatalog.cue(slug, "enter")) < 1 or game._sound.play_count(BossCatalog.cue(slug, "death")) < 1:
+		var enter_cue := "great_dragon_entrance" if slug == "great_dragon" else BossCatalog.cue(slug, "enter")
+		if game._sound.play_count(enter_cue) < 1 or game._sound.play_count(BossCatalog.cue(slug, "death")) < 1:
 			push_error("missing boss cue playback for %s" % slug)
 			failed += 1
 	root.remove_child(game)
