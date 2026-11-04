@@ -13,6 +13,8 @@ const CHALLENGE_COPIED := "LINK COPIED!"
 const COPY_FEEDBACK := 1.4
 ## The world name stays up with the form card, then for this long once play starts.
 const WORLD_NAME_HOLD := 0.9
+## Muted warning ink for the capture invuln note. Alpha lives on the label.
+const INVULN_BANNER_COLOR := Color(0.86, 0.48, 0.22, 1)
 
 const PHASE_REVEAL := 0
 const PHASE_PLAY := 1
@@ -92,6 +94,7 @@ var _rotate: Control
 var _paused := false
 var _debug_on := false
 var _debug_label: Label
+var _invuln_banner: Label
 var _final_evolve := false
 var _slow_left := 0.0
 var _shake_left := 0.0
@@ -524,6 +527,7 @@ func _build_hud() -> void:
 	_debug_label.visible = false
 	_debug_label.z_index = 4
 	_hud.add_child(_debug_label)
+	_build_invuln_banner()
 	_title_board_button = _make_death_button("LEADERBOARD", Color("2a2140"))
 	_title_board_button.z_index = 3
 	_title_board_button.visible = false
@@ -545,6 +549,7 @@ func _build_hud() -> void:
 	_name_prompt.cancelled.connect(_on_name_cancelled)
 	_hud.add_child(_name_prompt)
 	_refresh_hud()
+	_sync_invuln_banner()
 
 func _load_fonts() -> void:
 	_font_outlined = load("res://ui/font_kaito5x7_outlined.fnt")
@@ -969,6 +974,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		_hint_label.visible = false
 	_refresh_hud()
 	_refresh_debug()
+	_sync_invuln_banner()
 	if _boss_banner != null:
 		_boss_banner.queue_redraw()
 
@@ -1977,6 +1983,40 @@ func _bank_survival(delta: float) -> void:
 	while survival_bank >= 1.0:
 		survival_bank -= 1.0
 		score += ScoreRules.SURVIVAL_PER_SECOND
+
+func _build_invuln_banner() -> void:
+	if CaptureMode.invuln_notice_text() == "":
+		return
+	_invuln_banner = _make_label(9, INVULN_BANNER_COLOR)
+	_invuln_banner.name = "InvulnBanner"
+	_invuln_banner.modulate = Color(1, 1, 1, 0.82)
+	_invuln_banner.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_invuln_banner.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_invuln_banner.clip_text = false
+	_invuln_banner.size = Vector2(220, 14)
+	_invuln_banner.custom_minimum_size = Vector2(220, 14)
+	_hud.add_child(_invuln_banner)
+	_sync_invuln_banner()
+
+func _sync_invuln_banner() -> void:
+	if _invuln_banner == null:
+		return
+	_invuln_banner.text = CaptureMode.invuln_notice_text()
+	_invuln_banner.visible = CaptureMode.invuln_notice_visible()
+	_invuln_banner.position = _invuln_banner_origin()
+
+## Top-left, just under the rank line, and lower when a power row is showing.
+func _invuln_banner_origin() -> Vector2:
+	var y := 68.0
+	if _hud_view == null:
+		return Vector2(6, y)
+	if _hud_view.shield_on or _hud_view.rapid_s > 0 or _hud_view.magnet_s > 0 or _hud_view.overdrive_px >= 0:
+		y = 84.0
+	if _hud_view.winner_px >= 0:
+		y = 94.0
+	if _hud_view.meteor_px >= 0:
+		y = 114.0
+	return Vector2(6, y)
 
 func _refresh_debug() -> void:
 	if _debug_label == null:

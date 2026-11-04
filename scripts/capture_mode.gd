@@ -205,6 +205,27 @@ static func tick_play(game: Node, _delta: float) -> void:
 static func bypass_split(killer: String) -> bool:
 	return _active and _hazard == "piano" and not _hazard_spent and killer == "falling piano"
 
+## On-screen note so a bookmarked invuln link is not mistaken for a bug.
+## Empty when this run has nothing to mark. clean=1 still returns the text;
+## invuln_notice_visible() is what keeps a recording clear.
+static func invuln_notice_text() -> String:
+	_ensure_parsed()
+	if _invuln:
+		return "INVINCIBLE (invuln=1)"
+	if _hazard == "piano" and not _hazard_spent:
+		return "INVINCIBLE (until piano)"
+	return ""
+
+## Hidden for clean=1, and once the scheduled piano has connected.
+static func invuln_notice_visible() -> bool:
+	if invuln_notice_text() == "":
+		return false
+	if _clean:
+		return false
+	if _invuln:
+		return true
+	return not _piano_connected
+
 ## Capture invulnerability, and a shield so the scheduled piano is the hit that ends the run.
 static func ignore_hit(game: Node, killer: String) -> bool:
 	if not _active:
@@ -342,6 +363,8 @@ static func _force_clean(game: Node) -> void:
 	if game._debug_label != null:
 		game._debug_label.visible = false
 		game._debug_label.text = ""
+	if game._invuln_banner != null:
+		game._invuln_banner.visible = false
 	if game.is_inside_tree():
 		var tree := game.get_tree()
 		tree.debug_collisions_hint = false

@@ -15,6 +15,7 @@ func _process(_delta: float) -> bool:
 	_failed += _check_unplayable()
 	_failed += _check_evo()
 	_failed += _check_piano()
+	_failed += _check_invuln_banner()
 	if _failed > 0:
 		push_error("%d capture checks failed" % _failed)
 		quit(1)
@@ -197,6 +198,10 @@ func _check_piano() -> int:
 	var failed := 0
 	CaptureMode.reset_for_test(PackedStringArray(["--form=slime", "--hazard=piano", "--hazard_t=6", "--seed=11"]))
 	var game := _game()
+	var early := _banner(game)
+	if early == null or not early.visible or str(early.text) != "INVINCIBLE (until piano)":
+		push_error("the piano run should show the invincible label before the piano lands")
+		failed += 1
 	var step := 1.0 / 60.0
 	for _i in 700:
 		if int(game.phase) == game.PHASE_DEAD:
@@ -208,8 +213,66 @@ func _check_piano() -> int:
 	elif absf(float(game.elapsed) - (6.0 - float(game.REVEAL_SECONDS))) > 0.2:
 		push_error("the piano should land near 6s from the start (play t %.2f)" % float(game.elapsed))
 		failed += 1
+	if early != null and early.visible:
+		push_error("the invincible label should hide once the piano connects")
+		failed += 1
 	_free(game)
 	return failed
+
+func _check_invuln_banner() -> int:
+	var failed := 0
+	CaptureMode.reset_for_test(PackedStringArray(["--invuln=1", "--seed=1"]))
+	var shown := _game()
+	failed += _expect_banner(shown, true, "INVINCIBLE (invuln=1)", "title card")
+	if int(shown.phase) != shown.PHASE_REVEAL:
+		push_error("the invuln banner check should start on the title card")
+		failed += 1
+	shown._begin_play()
+	shown._sync_invuln_banner()
+	failed += _expect_banner(shown, true, "INVINCIBLE (invuln=1)", "play")
+	var banner := _banner(shown)
+	if banner != null and (banner.position.y < 64.0 or banner.position.x > 24.0):
+		push_error("the invuln banner should sit under the HUD at the top left (%s)" % banner.position)
+		failed += 1
+	_free(shown)
+	CaptureMode.reset_for_test(PackedStringArray(["--invuln=1", "--clean=1", "--seed=1"]))
+	var clean := _game()
+	var hidden := _banner(clean)
+	if hidden == null or hidden.visible or str(hidden.text) != "INVINCIBLE (invuln=1)":
+		push_error("clean=1 should hide the invuln banner")
+		failed += 1
+	clean._begin_play()
+	for _i in 10:
+		clean._process(1.0 / 60.0)
+	if hidden == null or hidden.visible:
+		push_error("clean=1 should keep the invuln banner hidden during play")
+		failed += 1
+	_free(clean)
+	CaptureMode.reset_for_test(PackedStringArray())
+	var plain := _game()
+	if _banner(plain) != null:
+		push_error("a normal run should not add the invuln banner")
+		failed += 1
+	plain._begin_play()
+	plain._process(1.0 / 60.0)
+	if _banner(plain) != null:
+		push_error("a normal run should stay without the invuln banner")
+		failed += 1
+	_free(plain)
+	CaptureMode.reset_for_test(PackedStringArray())
+	return failed
+
+func _banner(game: Node) -> Label:
+	if game._hud == null:
+		return null
+	return game._hud.get_node_or_null("InvulnBanner") as Label
+
+func _expect_banner(game: Node, visible: bool, text: String, where: String) -> int:
+	var banner := _banner(game)
+	if banner == null or banner.visible != visible or str(banner.text) != text:
+		push_error("invuln banner on the %s should be visible=%s text=%s (got %s)" % [where, str(visible), text, "missing" if banner == null else "%s %s" % [str(banner.visible), str(banner.text)]])
+		return 1
+	return 0
 
 func _game() -> Node:
 	var packed: PackedScene = load("res://scenes/main.tscn")
