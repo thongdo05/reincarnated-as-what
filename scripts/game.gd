@@ -1747,8 +1747,12 @@ func _sync_power() -> void:
 	var level := _power_level()
 	var before := int(_player.power_level)
 	_player.power_level = level
+	# A latch at boot or a restore keeps the same level, so it stays silent.
+	# One call that jumps several levels still plays once, at the level it landed on.
 	if level > before and phase == PHASE_PLAY and _combat != null:
 		_combat.push_callout("POWER +%d" % level, _player.position + Vector2(-28, -22), Color("ffe56a"), 0.36)
+		if _sound != null:
+			_sound.play_event("power_level_up", 0.0, AudioCues.power_level_pitch(level))
 
 func _try_rank() -> void:
 	if form_id == FormCatalog.Id.DRAGON:

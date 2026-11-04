@@ -44,11 +44,18 @@ var _dragon_lock := false
 var _rain_mix := false
 var _limiter: AudioEffectLimiter
 var _loop_latched: Dictionary = {}
+## Seconds left on the gem duck and on the shared SFX limiter.
+var _gem_duck := 0.0
+var _cue_headroom := 0.0
 
 ## Meteor falls sit under the impacts while a rain is up. The SFX bus
-## also gives the stack 1.5 dB of headroom and a limiter.
+## also gives the stack 1.5 dB of headroom and a limiter. The power
+## level-up cue borrows that same guard for its own length.
 const FALL_DUCK_DB := -6.0
 const RAIN_HEADROOM_DB := 1.5
+## Gem pickups sit under the power level-up sting so a chain does not cover it.
+const GEM_DUCK_DB := -5.0
+const GEM_DUCK_SECONDS := 0.25
 const DOWNBEAT_SLACK := 0.03
 
 ## Equal-power crossfade when a reincarnation lands in a different track.
@@ -206,6 +213,7 @@ func _process(delta: float) -> void:
 	_tick_later(delta)
 	_tick_tier()
 	_apply_fall_duck()
+	_tick_power_mix(delta)
 	if _shot_lockout > 0.0:
 		_shot_lockout = maxf(_shot_lockout - delta, 0.0)
 	var gap_keys: Array = _gaps.keys()
@@ -230,11 +238,11 @@ func play_title_card(card: String) -> void:
 func debug_play_vending_reveal() -> void:
 	play_event("reveal_vending_machine")
 
-func play_event(event: String, gain_db: float = 0.0) -> void:
+func play_event(event: String, gain_db: float = 0.0, pitch_scale: float = -1.0) -> void:
 	if DragonAudio.is_tier(event):
 		_arm_tier(event, gain_db)
 		return
-	_emit(event, gain_db)
+	_emit(event, gain_db, pitch_scale)
 
 func play_later(event: String, delay: float, gain_db: float = 0.0) -> void:
 	if delay <= 0.0:
@@ -286,14 +294,21 @@ func stop_dragon_music() -> void:
 		_music_fade.volume_db = 0.0
 
 ## 1.5 dB of bus headroom plus a limiter while Meteor Rain is stacking voices.
+## The power level-up cue turns the same guard on for the length of the file.
 func set_meteor_mix(on: bool) -> void:
 	if on == _rain_mix:
 		return
 	_rain_mix = on
+	_sync_sfx_guard()
+
+func _sfx_guard_on() -> bool:
+	return _rain_mix or _cue_headroom > 0.0
+
+func _sync_sfx_guard() -> void:
 	var bus := AudioCues.ensure_bus(AudioCues.SFX_BUS)
-	var trim := RAIN_HEADROOM_DB if on else 0.0
+	var trim := RAIN_HEADROOM_DB if _sfx_guard_on() else 0.0
 	AudioServer.set_bus_volume_db(bus, AudioCues.SFX_BUS_DB - trim)
-	if on:
+	if _sfx_guard_on():
 		if _limiter == null:
 			_limiter = AudioEffectLimiter.new()
 			_limiter.ceiling_db = -1.5
@@ -311,7 +326,7 @@ func set_meteor_mix(on: bool) -> void:
 			break
 	_limiter = null
 
-func _emit(event: String, gain_db: float) -> void:
+func _emit(event: String, gain_db: float, pitch_scale: float = -1.0) -> void:
 	var key := DragonAudio.canonical(event)
 	var data := AudioCues.spec(key)
 	if data.is_empty():
@@ -327,20 +342,18 @@ func _emit(event: String, gain_db: float) -> void:
 		stop_event("great_dragon_breath_loop")
 	if not _claim_event(key):
 		return
-	var pitch := _pitch_for(key)
+	var pitch := pitch_scale if pitch_scale > 0.0 else _pitch_for(key)
 	played.append(event)
 	if bool(data.get("loop", false)):
 		_loop_latched[key] = true
 	last_gain_db = gain_db
 	last_pitch_scale = pitch
+	if key == "power_level_up" and enabled:
+		_begin_power_level_mix()
 	if DragonAudio.is_breath_warning(key):
 		play_later("great_dragon_breath_loop", DragonAudio.BREATH_LOOP_DELAY)
 		play_later("great_dragon_breath_end", DragonAudio.BREATH_END_DELAY)
 	if not enabled:
-		return
-	# Same reason as the music player: a stream left running at process
-	# exit is reported as a leak, and the headless check fails CI on it.
-	if DisplayServer.get_name() == "headless":
 		return
 	var player := _take_player(key)
 	if player == null:
@@ -349,7 +362,13 @@ func _emit(event: String, gain_db: float) -> void:
 	var base_db := float(data.get("volume_db", 0.0))
 	if key == "dragon_form_meteor_fall" and active_voices("dragon_form_meteor_impact") > 0:
 		base_db += FALL_DUCK_DB
+	if key == "gem_pickup" and _gem_duck > 0.0:
+		base_db += GEM_DUCK_DB
 	player.volume_db = base_db + gain_db
+	# Same reason as the music player: a stream left running at process
+	# exit is reported as a leak, and the headless check fails CI on it.
+	if DisplayServer.get_name() == "headless":
+		return
 	player.play()
 
 func _arm_tier(event: String, gain_db: float) -> void:
@@ -399,6 +418,37 @@ func _apply_fall_duck() -> void:
 	var base := float(AudioCues.spec("dragon_form_meteor_fall").get("volume_db", 0.0))
 	var duck := FALL_DUCK_DB if active_voices("dragon_form_meteor_impact") > 0 else 0.0
 	fall.volume_db = base + duck
+
+func _begin_power_level_mix() -> void:
+	_gem_duck = GEM_DUCK_SECONDS
+	_apply_gem_duck()
+	var length := float(AudioCues.spec("power_level_up").get("duration", 0.68))
+	_cue_headroom = maxf(_cue_headroom, length)
+	_sync_sfx_guard()
+
+func _tick_power_mix(delta: float) -> void:
+	if _gem_duck > 0.0:
+		_gem_duck = maxf(_gem_duck - delta, 0.0)
+		if _gem_duck <= 0.0:
+			_apply_gem_duck()
+	if _cue_headroom <= 0.0:
+		return
+	_cue_headroom = maxf(_cue_headroom - delta, 0.0)
+	if _cue_headroom <= 0.0:
+		_sync_sfx_guard()
+
+func _apply_gem_duck() -> void:
+	var base := float(AudioCues.spec("gem_pickup").get("volume_db", 0.0))
+	var duck := GEM_DUCK_DB if _gem_duck > 0.0 else 0.0
+	for item in _pool("gem_pickup"):
+		var player := item as AudioStreamPlayer
+		player.volume_db = base + duck
+
+func _exit_tree() -> void:
+	_cue_headroom = 0.0
+	_rain_mix = false
+	_gem_duck = 0.0
+	_sync_sfx_guard()
 
 func stop_event(event: String) -> void:
 	var key := DragonAudio.canonical(event)

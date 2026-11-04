@@ -17,6 +17,7 @@ The reborn tease ships as `sting_reborn_tease.ogg` (about 15 KB). The same sting
 | `sfx_shot_demon_lord.wav` | Demon Lord auto-fire. Same cap, trim, and pitch. |
 | `sfx_pickup_gem.wav` | A gem pickup. Up to 4 voices, at most about every 0.05 s. Each gem in a quick chain is one semitone higher, up to +7, and the chain resets after about 0.6 s with no pickup. |
 | `sfx_pickup_power.wav` | OVERDRIVE and the other rare power drops (bomb, shield, rapid, magnet). One voice. |
+| `sfx_power_level_up.wav` | Power level-up after the final form. Once per increase, even if several levels land in one step. Pitch rises one semitone per level above 1, capped at +12. Gem pickups duck 5 dB for 0.25 s while it plays. |
 | `sfx_enemy_pop.wav` | Enemy killed. Pitch is random by 1–2 semitones, up or down. |
 | `sfx_death.wav` | Death FX frame 0. The file is cut to the 0.92 s timeline. |
 | `sting_reborn_tease.ogg` | Death frame 11 (0.92 s), as `REBORN AS...?` starts. |

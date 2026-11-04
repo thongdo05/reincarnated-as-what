@@ -34,6 +34,8 @@ const GEM_MIN_INTERVAL := 0.05
 const GEM_CHAIN_RESET := 0.6
 const GEM_CHAIN_CAP := 7
 const POWER_POLYPHONY := 1
+## Level 1 stays at the recorded pitch. Each level above that is one semitone.
+const POWER_LEVEL_PITCH_CAP := 12
 
 ## Fanfare chord inside sfx_evolve.wav. Evolve frame 5, the EVOLVED! pop.
 const EVOLVE_HIT_SECONDS := 0.42
@@ -92,6 +94,16 @@ static func spec(event: String) -> Dictionary:
 				"pitch_semitones": 0.0,
 				"duration": 0.80,
 				"optional": true,
+			}
+		"power_level_up":
+			return {
+				"file": "res://audio/sfx_power_level_up.wav",
+				"bus": SFX_BUS,
+				"loop": false,
+				"lufs": -19.8,
+				"polyphony": 1,
+				"pitch_semitones": 0.0,
+				"duration": 0.68,
 			}
 		"enemy_killed":
 			return {
@@ -192,6 +204,7 @@ static func all_events() -> PackedStringArray:
 		"demon_lord_shot",
 		"gem_pickup",
 		"power_pickup",
+		"power_level_up",
 		"enemy_killed",
 		"player_death",
 		"reborn_tease",
@@ -241,6 +254,13 @@ static func shot_event_for_form(form_id: int) -> String:
 ## Step 0 is the recorded pitch. Each pickup in a chain adds one semitone.
 static func gem_chain_semitones(step: int) -> float:
 	return float(clampi(step, 0, GEM_CHAIN_CAP))
+
+## Level 1 is the file as mastered. One semitone per level above that, capped at +12.
+static func power_level_semitones(level: int) -> float:
+	return float(clampi(level - 1, 0, POWER_LEVEL_PITCH_CAP))
+
+static func power_level_pitch(level: int) -> float:
+	return semitone_to_pitch(power_level_semitones(level))
 
 static func reveal_event_for_card(card: String) -> String:
 	if card == VENDING_TITLE or card.ends_with(VENDING_TITLE):
