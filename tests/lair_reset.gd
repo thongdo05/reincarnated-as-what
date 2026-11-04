@@ -114,8 +114,8 @@ func _check_audio() -> int:
 		push_error("dragon audio manifest did not parse")
 		return 1
 	var files: Array = parsed.get("files", [])
-	if files.size() != 55:
-		push_error("dragon audio manifest should list 55 entries, got %d" % files.size())
+	if files.size() != 60:
+		push_error("dragon audio manifest should list 60 entries, got %d" % files.size())
 		failed += 1
 	var seen := {}
 	for item in files:
@@ -130,8 +130,8 @@ func _check_audio() -> int:
 		if not ResourceLoader.exists(str(spec.get("file", ""))):
 			push_error("missing imported audio for %s" % event)
 			failed += 1
-	if DragonAudio.manifest_events().size() != 55:
-		push_error("DragonAudio should expose all 55 events")
+	if DragonAudio.manifest_events().size() != 60:
+		push_error("DragonAudio should expose all 60 events")
 		failed += 1
 	for event in seen.keys():
 		if not DragonAudio.manifest_events().has(str(event)):
@@ -143,8 +143,39 @@ func _check_audio() -> int:
 	if DragonAudio.canonical(DragonPhase.HOOK_EGG_HATCH) != "dragon_enemy_dragon_egg_hatch":
 		push_error("egg hatch hook should map to its sample")
 		failed += 1
-	if not DragonAudio.spec(DragonPhase.HOOK_RETURN_BREATH).is_empty():
-		push_error("return-upgrade hooks have no sample and should stay silent")
+	var upgrades := {
+		DragonPhase.HOOK_RETURN_BREATH: ["great_dragon_upgrade_breath_speed", "res://audio/sfx_dragon_upgrade_breath_speed.wav"],
+		DragonPhase.HOOK_RETURN_METEORS: ["great_dragon_upgrade_more_meteors", "res://audio/sfx_dragon_upgrade_more_meteors.wav"],
+		DragonPhase.HOOK_RETURN_GAPS: ["great_dragon_upgrade_short_gaps", "res://audio/sfx_dragon_upgrade_short_gaps.wav"],
+		DragonPhase.HOOK_RETURN_HELL: ["great_dragon_upgrade_fast_gap", "res://audio/sfx_dragon_upgrade_fast_gap.wav"],
+		DragonPhase.HOOK_RETURN_FAN: ["great_dragon_upgrade_extra_spread", "res://audio/sfx_dragon_upgrade_extra_spread.wav"],
+	}
+	for hook in upgrades.keys():
+		var pair: Array = upgrades[hook]
+		if DragonAudio.canonical(str(hook)) != str(pair[0]):
+			push_error("%s should map to %s" % [hook, pair[0]])
+			failed += 1
+		var upgrade: Dictionary = DragonAudio.spec(str(hook))
+		if str(upgrade.get("file", "")) != str(pair[1]) or not ResourceLoader.exists(str(pair[1])):
+			push_error("return upgrade %s is missing its sample" % hook)
+			failed += 1
+	if str(DragonAudio.spec("great_dragon_breath_loop").get("file", "")) != "res://audio/sfx_dragon_breath_loop.wav":
+		push_error("the breath loop sample should stay in place under the upgrade cue")
+		failed += 1
+	if str(DragonAudio.spec("great_dragon_meteor_warning").get("file", "")) != "res://audio/sfx_dragon_meteor_warning.wav":
+		push_error("the meteor warning sample should stay in place under the upgrade cue")
+		failed += 1
+	if str(DragonAudio.spec("great_dragon_phase_roar").get("file", "")) != "res://audio/sfx_dragon_phase_roar.wav":
+		push_error("the phase roar sample should stay in place under the upgrade cue")
+		failed += 1
+	if str(DragonAudio.spec("great_dragon_enrage_breath").get("file", "")) != "res://audio/sfx_dragon_enrage_breath.wav":
+		push_error("the enrage breath sample should stay in place under the upgrade cue")
+		failed += 1
+	if str(DragonAudio.spec("great_dragon_dive_swoop").get("file", "")) != "res://audio/sfx_dragon_dive_swoop.wav":
+		push_error("the dive swoop sample should stay in place under the upgrade cue")
+		failed += 1
+	if str(DragonAudio.spec("great_dragon_fireball_spread").get("file", "")) != "res://audio/sfx_dragon_fireball_spread.wav":
+		push_error("the fireball spread sample should stay in place under the upgrade cue")
 		failed += 1
 	var breath: Dictionary = DragonAudio.spec("great_dragon_breath_loop")
 	var puddle: Dictionary = DragonAudio.spec("dragon_enemy_magma_puddle_sizzle_loop")
