@@ -3602,5 +3602,239 @@
     "category": "ui",
     "facing": "none",
     "note": "Evolve meter frame, rank 5 of 5 pips lit. Fill sits at (28, 3) inside the frame."
+  },
+  {
+    "file": "lich_king.png",
+    "size": [
+      92,
+      84
+    ],
+    "frames": 1,
+    "fps": 0,
+    "anchor": [
+      46,
+      42
+    ],
+    "anchor_type": "center",
+    "category": "boss",
+    "facing": "left",
+    "body_file": "lich_king_body.png",
+    "note": "FINAL static boss sprite (Thong approved Nov 3 2026). Combined art; fit hits to _body.png. Do not flip.",
+    "fx_file": "lich_king_fx.png",
+    "fx_note": "Non-hit FX, same frame/anchor. Draw under enemy bullets.",
+    "idle": false,
+    "art_bbox": [
+      92,
+      84
+    ]
+  },
+  {
+    "file": "lich_king_body.png",
+    "size": [
+      92,
+      84
+    ],
+    "frames": 1,
+    "anchor": [
+      46,
+      42
+    ],
+    "anchor_type": "center",
+    "category": "boss_part",
+    "facing": "left",
+    "idle": false,
+    "art_bbox": [
+      92,
+      84
+    ],
+    "note": "Hit reference for lich_king.png. Same frame and center anchor. FX pixels are not in this file."
+  },
+  {
+    "file": "lich_king_fx.png",
+    "size": [
+      92,
+      84
+    ],
+    "frames": 1,
+    "anchor": [
+      46,
+      42
+    ],
+    "anchor_type": "center",
+    "category": "boss_fx",
+    "facing": "left",
+    "idle": false,
+    "art_bbox": [
+      92,
+      84
+    ],
+    "note": "Non-hit FX, same frame/anchor. Draw under enemy bullets."
+  },
+  {
+    "file": "death_knight.png",
+    "size": [
+      96,
+      84
+    ],
+    "frames": 1,
+    "fps": 0,
+    "anchor": [
+      48,
+      42
+    ],
+    "anchor_type": "center",
+    "category": "boss",
+    "facing": "left",
+    "body_file": "death_knight_body.png",
+    "note": "FINAL static boss sprite (Thong approved Nov 3 2026). Combined art; fit hits to _body.png. Do not flip.",
+    "fx_file": "death_knight_fx.png",
+    "fx_note": "Non-hit FX, same frame/anchor. Draw under enemy bullets.",
+    "idle": false,
+    "art_bbox": [
+      96,
+      84
+    ]
+  },
+  {
+    "file": "death_knight_body.png",
+    "size": [
+      96,
+      84
+    ],
+    "frames": 1,
+    "anchor": [
+      48,
+      42
+    ],
+    "anchor_type": "center",
+    "category": "boss_part",
+    "facing": "left",
+    "idle": false,
+    "art_bbox": [
+      96,
+      84
+    ],
+    "note": "Hit reference for death_knight.png. Same frame and center anchor. FX pixels are not in this file."
+  },
+  {
+    "file": "death_knight_fx.png",
+    "size": [
+      96,
+      84
+    ],
+    "frames": 1,
+    "anchor": [
+      48,
+      42
+    ],
+    "anchor_type": "center",
+    "category": "boss_fx",
+    "facing": "left",
+    "idle": false,
+    "art_bbox": [
+      96,
+      84
+    ],
+    "note": "Non-hit FX, same frame/anchor. Draw under enemy bullets."
+  },
+  {
+    "file": "great_dragon.png",
+    "size": [
+      128,
+      88
+    ],
+    "frames": 1,
+    "fps": 0,
+    "anchor": [
+      64,
+      44
+    ],
+    "anchor_type": "center",
+    "category": "boss",
+    "facing": "left",
+    "body_file": "great_dragon_body.png",
+    "note": "FINAL static boss sprite (Thong approved Nov 3 2026). Combined art; fit hits to _body.png. Do not flip.",
+    "idle": false,
+    "art_bbox": [
+      128,
+      88
+    ]
+  },
+  {
+    "file": "great_dragon_body.png",
+    "size": [
+      128,
+      88
+    ],
+    "frames": 1,
+    "anchor": [
+      64,
+      44
+    ],
+    "anchor_type": "center",
+    "category": "boss_part",
+    "facing": "left",
+    "idle": false,
+    "art_bbox": [
+      128,
+      88
+    ],
+    "note": "Hit reference for great_dragon.png. Same frame and center anchor. FX pixels are not in this file."
+  },
+  {
+    "file": "dragon_fireball.png",
+    "size": [
+      11,
+      7
+    ],
+    "frames": 1,
+    "fps": 0,
+    "anchor": [
+      5,
+      3
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "left",
+    "owner": "great_dragon",
+    "hit": {
+      "threat": [
+        {
+          "type": "circle",
+          "center": [
+            -1,
+            0
+          ],
+          "r": 2.5
+        }
+      ]
+    },
+    "note": "Great Dragon boss shot. White-hot ivory head (left), dark smoke tail (right), #14121f outline. Same frame/anchor convention as wyvern_shot.png. Faces LEFT, do not flip. Suggested spawn: dragon anchor + (-60,-4), just left of the snout.",
+    "idle": false,
+    "art_bbox": [
+      11,
+      7
+    ]
+  },
+  {
+    "file": "lich_skull.png",
+    "size": [
+      12,
+      12
+    ],
+    "frames": 1,
+    "anchor": [
+      6,
+      6
+    ],
+    "anchor_type": "center",
+    "category": "projectile",
+    "facing": "left",
+    "idle": false,
+    "art_bbox": [
+      12,
+      12
+    ],
+    "note": "PLACEHOLDER Lich King skull bolt. Faces left. Replace this file to swap the art, then refit the threat shape."
   }
 ]

@@ -36,8 +36,22 @@ var charm_cd := 0.0
 var telegraphs: Array[Dictionary] = []
 ## How many new aimed shots this enemy may still start. -1 means unlimited.
 var fire_room := -1
+var boss_slug := ""
+var _pending_spawns: Array[Dictionary] = []
 var _last_player := Vector2.ZERO
 var _have_player := false
+
+func is_boss() -> bool:
+	return boss_slug != ""
+
+func sprite_file() -> String:
+	return SpawnDirector.sprite_for(kind)
+
+func dragon_phase() -> int:
+	return 1
+
+func take_spawns() -> Array[Dictionary]:
+	return []
 
 func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: FieldBackground) -> void:
 	id = spawn_id
@@ -73,6 +87,10 @@ func setup(spawn_id: int, data: Dictionary, field: Vector2, field_background: Fi
 			position = Vector2(field.x + radius + 20.0, FieldBackground.GROUND_FEET)
 	else:
 		position = Vector2(field.x + radius + 20.0, origin_y)
+	if data.has("spawn_at"):
+		var at: Vector2 = data["spawn_at"]
+		position = at
+		origin_y = at.y
 	if kind != SpawnDirector.ANVIL and kind != SpawnDirector.PIANO:
 		shot_cooldown = 0.5
 

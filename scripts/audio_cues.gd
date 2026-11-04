@@ -132,8 +132,33 @@ static func spec(event: String) -> Dictionary:
 				"polyphony": 1,
 				"pitch_semitones": 0.0,
 			}
+		"boss_lich_king_enter":
+			return _boss_cue("sfx_boss_lich_king_enter.wav", -19.9, 1.24)
+		"boss_lich_king_death":
+			return _boss_cue("sfx_boss_lich_king_death.wav", -19.0, 1.29)
+		"boss_death_knight_enter":
+			return _boss_cue("sfx_boss_death_knight_enter.wav", -20.2, 1.19)
+		"boss_death_knight_death":
+			return _boss_cue("sfx_boss_death_knight_death.wav", -18.7, 1.06)
+		"boss_great_dragon_enter":
+			return _boss_cue("sfx_boss_great_dragon_enter.wav", -19.7, 1.19)
+		"boss_great_dragon_death":
+			return _boss_cue("sfx_boss_great_dragon_death.wav", -19.3, 1.11)
 		_:
 			return {}
+
+## Boss stings sit on the SFX bus with the other stings. No extra trim and no
+## pitch wobble. A missing import is skipped by ResourceLoader.exists.
+static func _boss_cue(file_name: String, lufs: float, duration: float) -> Dictionary:
+	return {
+		"file": "res://audio/%s" % file_name,
+		"bus": SFX_BUS,
+		"loop": false,
+		"lufs": lufs,
+		"polyphony": 1,
+		"pitch_semitones": 0.0,
+		"duration": duration,
+	}
 
 static func _shot_spec(path: String, lufs: float, duration: float, optional: bool) -> Dictionary:
 	return {
@@ -165,6 +190,12 @@ static func all_events() -> PackedStringArray:
 		"reborn_tease",
 		"evolve",
 		"reveal_vending_machine",
+		"boss_lich_king_enter",
+		"boss_lich_king_death",
+		"boss_death_knight_enter",
+		"boss_death_knight_death",
+		"boss_great_dragon_enter",
+		"boss_great_dragon_death",
 	])
 
 static func is_shot_event(event: String) -> bool:

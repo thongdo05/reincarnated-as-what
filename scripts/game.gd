@@ -41,6 +41,9 @@ var _player: PlayerShip
 var _background: FieldBackground
 var _combat: CombatText
 var _director: SpawnDirector
+var _boss_director: BossDirector
+var _boss_throttle := 0
+var _boss_banner: Node2D
 var _enemies: Array[EnemyActor] = []
 var _shots: Array[Shot] = []
 var _loot: Array[LootGem] = []
@@ -147,6 +150,7 @@ func _ready() -> void:
 	Input.use_accumulated_input = false
 	CaptureMode.boot(self)
 	_director = SpawnDirector.new(day_seed)
+	_boss_director = BossDirector.new(day_seed)
 	_sound = SoundRig.new()
 	_sound.name = "SoundRig"
 	# Keep playing when a headless check disables the game node. The pause
@@ -185,6 +189,10 @@ func _build_world() -> void:
 	_pattern_layer.z_index = 6
 	(_pattern_layer as PatternLayer).host = self
 	add_child(_pattern_layer)
+	_boss_banner = BossBanner.new()
+	_boss_banner.z_index = 21
+	(_boss_banner as BossBanner).host = self
+	add_child(_boss_banner)
 
 	_death_fx = DeathFx.new()
 	_death_fx.z_index = 9
@@ -843,8 +851,16 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	else:
 		if _tutorial_active:
 			_finish_tutorial()
+		var living := _living_boss()
+		if _boss_director != null:
+			_boss_director.set_boss_alive(living != null)
+			for event in _boss_director.pop_due(elapsed):
+				if _spawn_boss(event, size):
+					living = _living_boss()
 		var enemy_room := Difficulty.enemy_cap(elapsed) - _alive_enemy_count()
 		for event in _director.pop_due(elapsed):
+			if living != null and _throttle_spawn(living):
+				continue
 			if enemy_room <= 0:
 				continue
 			if _spawn_enemy(event, size):
@@ -857,6 +873,8 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		enemy.fire_room = shot_room
 		for spec in enemy.tick(delta, player_pos, elapsed, Difficulty.speed_scale(elapsed)):
 			_spawn_shot(spec, false)
+		for extra in enemy.take_spawns():
+			_spawn_enemy(extra, size)
 		if shot_room >= 0:
 			shot_room = enemy.fire_room
 	_tick_charm(delta)
@@ -887,6 +905,8 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		_hint_label.visible = false
 	_refresh_hud()
 	_refresh_debug()
+	if _boss_banner != null:
+		_boss_banner.queue_redraw()
 
 func _play_bounds(size: Vector2) -> Rect2:
 	var floor_y := minf(FieldBackground.GROUND_FEET - 2.0, size.y - 8.0)
@@ -905,6 +925,34 @@ func _key_vector() -> Vector2:
 	if vector.length() > 1.0:
 		vector = vector.normalized()
 	return vector
+
+func _spawn_boss(data: Dictionary, size: Vector2) -> bool:
+	var enemy := BossActor.new()
+	enemy.z_index = 4
+	enemy.setup(next_enemy_id, data, size, _background)
+	next_enemy_id += 1
+	if _spawn_overlaps_player(enemy):
+		enemy.free()
+		return false
+	add_child(enemy)
+	_enemies.append(enemy)
+	if _sound != null:
+		_sound.play_event(BossCatalog.cue(str(data.get("slug", "")), "enter"))
+	return true
+
+func _living_boss() -> EnemyActor:
+	for enemy in _enemies:
+		if is_instance_valid(enemy) and enemy.alive and enemy.is_boss():
+			return enemy
+	return null
+
+## Regular bosses cut the spawn stream in half. The dragon leaves more of it,
+## so the field stays busy under the final fight.
+func _throttle_spawn(boss: EnemyActor) -> bool:
+	_boss_throttle += 1
+	if boss.boss_slug == "great_dragon":
+		return _boss_throttle % 3 == 0
+	return _boss_throttle % 2 == 0
 
 func _spawn_enemy(data: Dictionary, size: Vector2) -> bool:
 	var enemy := EnemyActor.new()
@@ -942,7 +990,7 @@ func _spawn_overlaps_player(enemy: EnemyActor) -> bool:
 		return false
 	if enemy.position.distance_to(_player.position) > enemy.radius + _player.radius + 6.0:
 		return false
-	var enemy_file := SpawnDirector.sprite_for(enemy.kind)
+	var enemy_file := enemy.sprite_file()
 	return HitLibrary.overlaps(_player.position, _player.sprite_name(), "hurt", enemy.position, enemy_file, "threat", FormCatalog.play_scale(form_id), 1.0)
 
 func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
@@ -975,8 +1023,10 @@ func _collide() -> void:
 				continue
 			if shot.ignore_id == enemy.id and shot.age < 0.1:
 				continue
-			var enemy_file := SpawnDirector.sprite_for(enemy.kind)
-			if absf(shot.position.x - enemy.position.x) > 96.0 or absf(shot.position.y - enemy.position.y) > 72.0:
+			var enemy_file := enemy.sprite_file()
+			var reach_x := 128.0 if enemy.is_boss() else 96.0
+			var reach_y := 96.0 if enemy.is_boss() else 72.0
+			if absf(shot.position.x - enemy.position.x) > reach_x or absf(shot.position.y - enemy.position.y) > reach_y:
 				continue
 			if not HitLibrary.overlaps(shot.position, shot.sprite_name, "body", enemy.position, enemy_file, "body"):
 				continue
@@ -1008,7 +1058,7 @@ func _collide() -> void:
 	for enemy in _enemies:
 		if not enemy.alive or enemy.charmed > 0.0:
 			continue
-		var enemy_file := SpawnDirector.sprite_for(enemy.kind)
+		var enemy_file := enemy.sprite_file()
 		# Every hurt part, not the movement bounds radius.
 		var enemy_gap := HitLibrary.gap(_player.position, player_file, "hurt", enemy.position, enemy_file, "threat", player_scale, 1.0)
 		if enemy_gap <= 0.0:
@@ -1037,10 +1087,20 @@ func _award_kill(enemy: EnemyActor, drop_loot: bool = true, chain_combo: bool = 
 	score += points
 	if points >= Difficulty.POPUP_MIN:
 		_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-6, -12), Color("241428"), Difficulty.POPUP_LIFE)
+	if enemy is BossActor:
+		var boss := enemy as BossActor
+		if boss.boss_slug == "great_dragon" and not boss.return_booked and _boss_director != null:
+			boss.return_booked = true
+			_boss_director.on_dragon_killed(elapsed)
 	if drop_loot:
-		_roll_drops(enemy.position)
+		if enemy.is_boss():
+			_reward_boss(enemy)
+		else:
+			_roll_drops(enemy.position)
 	if _sound != null:
 		_sound.play_event("enemy_killed")
+		if enemy.is_boss():
+			_sound.play_event(BossCatalog.cue(enemy.boss_slug, "death"))
 	if drop_loot and not _winner_busy and form_id == FormCatalog.Id.VENDING:
 		_charge_winner()
 	if enemy.max_hp >= 3:
@@ -1163,10 +1223,36 @@ func _roll_drops(at: Vector2) -> void:
 		var index := _drop_rng.randi() % kinds.size()
 		_spawn_power(at + Vector2(8, -6), kinds[index])
 
-func _try_overdrive_drop(at: Vector2) -> bool:
+func _reward_boss(enemy: EnemyActor) -> void:
+	var count := BossCatalog.GEM_BURST
+	if enemy.boss_slug == "great_dragon":
+		count = BossCatalog.DRAGON_GEM_BURST
+		_spawn_gem_burst(enemy.position, count)
+		# Guaranteed. The normal roll can miss, and a live drop would block it.
+		_spawn_power(enemy.position + Vector2(8, -12), "overdrive")
+		return
+	_spawn_gem_burst(enemy.position, count)
+	_try_overdrive_drop(enemy.position, BossCatalog.OVERDRIVE_MULT)
+
+func _spawn_gem_burst(at: Vector2, count: int) -> void:
+	for i in count:
+		var gem := _take_gem()
+		gem.setup("gem.png")
+		gem.life = Difficulty.GEM_LIFE + 0.35
+		gem.drift = Difficulty.GEM_DRIFT
+		gem.age = 0.0
+		var ang := TAU * float(i) / float(maxi(count, 1))
+		var ring := 12.0 + float(i % 3) * 7.0
+		gem.position = at + Vector2(cos(ang), sin(ang)) * ring
+		gem.modulate = Color.WHITE
+		gem.z_index = 7
+		_loot.append(gem)
+
+func _try_overdrive_drop(at: Vector2, multiplier: float = 1.0) -> bool:
 	if elapsed < _overdrive_lock or _overdrive_live():
 		return false
-	if _drop_unit() >= Difficulty.overdrive_drop_chance(elapsed):
+	var chance := Difficulty.overdrive_drop_chance(elapsed) * maxf(multiplier, 0.0)
+	if _drop_unit() >= chance:
 		return false
 	_spawn_power(at + Vector2(10, -8), "overdrive")
 	_overdrive_lock = elapsed + Difficulty.OVERDRIVE_DROP_COOLDOWN
@@ -1306,7 +1392,7 @@ func _winner_clear() -> void:
 	_request_hit_stop(4)
 	_bump_shake()
 	for enemy in _enemies:
-		if not enemy.alive:
+		if not enemy.alive or enemy.is_boss():
 			continue
 		enemy.hurt(FormCatalog.VENDING_WINNER_DAMAGE)
 		if not enemy.alive:
@@ -1328,7 +1414,7 @@ func _charm_nearby() -> void:
 	for enemy in _enemies:
 		if not enemy.alive or enemy.charmed > 0.0:
 			continue
-		if enemy.kind == SpawnDirector.ANVIL or enemy.kind == SpawnDirector.PIANO:
+		if enemy.is_boss() or enemy.kind == SpawnDirector.ANVIL or enemy.kind == SpawnDirector.PIANO:
 			continue
 		if enemy.position.distance_to(_player.position) > FormCatalog.cat_charm_radius(rank_index):
 			continue
@@ -2342,6 +2428,8 @@ func _reincarnate() -> void:
 		_finger.visible = false
 	var size := _viewport_size()
 	_director = SpawnDirector.new(day_seed)
+	_boss_director = BossDirector.new(day_seed)
+	_boss_throttle = 0
 	if _player != null:
 		_player.respawn(form_id, Vector2(size.x * 0.28, size.y * 0.5))
 	if _background != null:
@@ -2448,6 +2536,35 @@ func _tick_chains(delta: float) -> void:
 		if not text.is_empty():
 			_combat.push(text, at, Color("ffe56a"), 0.36)
 	_chains = keep
+
+func draw_boss_banner(canvas: CanvasItem) -> void:
+	var boss := _living_boss()
+	if boss == null:
+		return
+	var field := _viewport_size()
+	var label := boss.kind_name.to_upper()
+	if boss.boss_slug == "great_dragon" and boss.dragon_phase() == 2:
+		label += " II"
+	var fill := BossCatalog.banner_color(boss.boss_slug)
+	var tex := PixelFont.outlined_texture(label, fill)
+	var pen := Vector2((field.x - tex.get_width()) * 0.5, 1.0)
+	canvas.draw_texture(tex, pen)
+	var bar_w := 156.0
+	var bar_h := 5.0
+	var bar := Vector2((field.x - bar_w) * 0.5, 16.0)
+	canvas.draw_rect(Rect2(bar + Vector2(-1, -1), Vector2(bar_w + 2.0, bar_h + 2.0)), Color(0, 0, 0, 0.88))
+	canvas.draw_rect(Rect2(bar, Vector2(bar_w, bar_h)), Color(0.1, 0.07, 0.12, 0.95))
+	var ratio := clampf(float(boss.hp) / float(maxi(boss.max_hp, 1)), 0.0, 1.0)
+	if ratio > 0.0:
+		canvas.draw_rect(Rect2(bar, Vector2(bar_w * ratio, bar_h)), fill)
+
+class BossBanner extends Node2D:
+	var host
+
+	func _draw() -> void:
+		if host == null:
+			return
+		host.draw_boss_banner(self)
 
 class PatternLayer extends Node2D:
 	var host

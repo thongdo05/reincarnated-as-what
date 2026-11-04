@@ -138,5 +138,65 @@
     "lufs": -16.0,
     "true_peak": -9.8,
     "notes": "3 Nov 2026 pickup for OVERDRIVE and the other rare power drops. One voice. 48000 Hz, 16-bit mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_boss_lich_king_enter.wav",
+    "type": "sting",
+    "duration": 1.24,
+    "loop": false,
+    "event": "boss_lich_king_enter",
+    "lufs": -19.9,
+    "true_peak": -4.6,
+    "notes": "Lich King entrance. Same SFX-bus level as the other stings, no pitch shift. 48000 Hz, 16-bit mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_boss_lich_king_death.wav",
+    "type": "sfx",
+    "duration": 1.29,
+    "loop": false,
+    "event": "boss_lich_king_death",
+    "lufs": -19.0,
+    "true_peak": -5.0,
+    "notes": "Lich King death. Same SFX-bus level as the other stings, no pitch shift. 48000 Hz, 16-bit mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_boss_death_knight_enter.wav",
+    "type": "sting",
+    "duration": 1.19,
+    "loop": false,
+    "event": "boss_death_knight_enter",
+    "lufs": -20.2,
+    "true_peak": -5.5,
+    "notes": "Death Knight entrance. Same SFX-bus level as the other stings, no pitch shift. 48000 Hz, 16-bit mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_boss_death_knight_death.wav",
+    "type": "sfx",
+    "duration": 1.06,
+    "loop": false,
+    "event": "boss_death_knight_death",
+    "lufs": -18.7,
+    "true_peak": -5.9,
+    "notes": "Death Knight death. Same SFX-bus level as the other stings, no pitch shift. 48000 Hz, 16-bit mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_boss_great_dragon_enter.wav",
+    "type": "sting",
+    "duration": 1.19,
+    "loop": false,
+    "event": "boss_great_dragon_enter",
+    "lufs": -19.7,
+    "true_peak": -4.4,
+    "notes": "Great Dragon entrance. Same SFX-bus level as the other stings, no pitch shift. 48000 Hz, 16-bit mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_boss_great_dragon_death.wav",
+    "type": "sfx",
+    "duration": 1.11,
+    "loop": false,
+    "event": "boss_great_dragon_death",
+    "lufs": -19.3,
+    "true_peak": -6.3,
+    "notes": "Great Dragon death. Same SFX-bus level as the other stings, no pitch shift. 48000 Hz, 16-bit mono. lufs = integrated (gated) loudness; true_peak in dBTP."
   }
 ]

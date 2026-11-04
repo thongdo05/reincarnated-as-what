@@ -32,6 +32,7 @@ func _initialize() -> void:
 	_unit_failed += _check_replay_rules()
 	_unit_failed += _check_leaderboard()
 	_unit_failed += _check_lb_parse()
+	_unit_failed += _check_bosses()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -40,7 +41,7 @@ func _process(_delta: float) -> bool:
 	if _done or _unit_failed > 0:
 		return false
 	_done = true
-	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows() + _check_rank_fallback()
+	var failed := _unit_failed + _check_hurt_kills() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play()
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
 		quit(1)
@@ -444,8 +445,8 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 
 func _check_art() -> int:
 	var failed := 0
-	if ArtLibrary.file_count() != 162:
-		push_error("art manifest should have 162 entries, found %d" % ArtLibrary.file_count())
+	if ArtLibrary.file_count() != 172:
+		push_error("art manifest should have 172 entries, found %d" % ArtLibrary.file_count())
 		failed += 1
 	var text := FileAccess.get_file_as_string("res://art/manifest.json")
 	var parsed: Variant = JSON.parse_string(text)
@@ -3755,6 +3756,379 @@ func _restore_user_file(path: String, body: String) -> void:
 	if file != null:
 		file.store_string(body)
 		file.close()
+
+func _check_bosses() -> int:
+	var failed := 0
+	if SpawnDirector.max_hp(SpawnDirector.ARCHER) != 4 or SpawnDirector.max_hp(SpawnDirector.WYVERN) != 6 or SpawnDirector.max_hp(SpawnDirector.WOLF) != 4:
+		push_error("archer, wyvern, and wolf hp should be 4, 6, and 4")
+		failed += 1
+	if SpawnDirector.max_hp(SpawnDirector.EYE) != 2 or SpawnDirector.max_hp(SpawnDirector.ANVIL) != 4 or SpawnDirector.max_hp(SpawnDirector.PIANO) != 6:
+		push_error("eye, anvil, and piano hp should stay 2, 4, and 6")
+		failed += 1
+	for i in 8:
+		var slug := BossDirector.regular_slug(i)
+		var expect := "lich_king" if i % 2 == 0 else "death_knight"
+		if slug != expect:
+			push_error("regular boss %d should be %s, got %s" % [i, expect, slug])
+			failed += 1
+	var dragon_at := BossDirector.first_dragon_time(20261101)
+	if dragon_at < 148.5 or dragon_at > 151.5:
+		push_error("the first dragon should arrive about 2:30, got %s" % dragon_at)
+		failed += 1
+	var opening := BossDirector.regular_time(20261101, 0)
+	if opening < 43.4 or opening > 46.6:
+		push_error("the first boss should arrive about 45 s, got %s" % opening)
+		failed += 1
+	if absf(BossDirector.regular_time(20261101, 0) - BossDirector.regular_time(20261102, 0)) < 0.001 and absf(BossDirector.first_dragon_time(20261101) - BossDirector.first_dragon_time(20261102)) < 0.001:
+		push_error("a different day should move the boss clock")
+		failed += 1
+	var fine := _boss_pull(20261101, 1.0 / 60.0, dragon_at + 3.0)
+	var coarse := _boss_pull(20261101, 0.5, dragon_at + 3.0)
+	if fine.size() < 3 or fine.size() != coarse.size():
+		push_error("boss timeline changed with the timestep (%d vs %d)" % [fine.size(), coarse.size()])
+		failed += 1
+	else:
+		for i in fine.size():
+			if str(fine[i]["slug"]) != str(coarse[i]["slug"]) or absf(float(fine[i]["t"]) - float(coarse[i]["t"])) > 0.001:
+				push_error("boss event %d drifted with the timestep" % i)
+				failed += 1
+				break
+		if str(fine[0]["slug"]) != "lich_king" or str(fine[1]["slug"]) != "death_knight":
+			push_error("the cycle should open Lich King then Death Knight, got %s / %s" % [fine[0]["slug"], fine[1]["slug"]])
+			failed += 1
+		var dragons := 0
+		var last_regular := -1.0
+		for event in fine:
+			var at := float(event["t"])
+			if str(event["slug"]) == "great_dragon":
+				dragons += 1
+				if absf(at - dragon_at) > 0.001:
+					push_error("dragon spawn drifted from the seed clock")
+					failed += 1
+			else:
+				if at + BossDirector.LIFE > dragon_at - 0.2:
+					push_error("a regular boss overlaps the dragon at %s" % at)
+					failed += 1
+				if last_regular >= 0.0 and at < last_regular + BossDirector.LIFE:
+					push_error("two regular bosses would share the screen")
+					failed += 1
+				last_regular = at
+		if dragons != 1:
+			push_error("the first dragon window should spawn one dragon, got %d" % dragons)
+			failed += 1
+	var booked := BossDirector.new(20261101)
+	var seen_dragon := false
+	var kill_at := 0.0
+	var t := 0.0
+	while t < 200.0 and not seen_dragon:
+		t += 0.25
+		booked.set_boss_alive(false)
+		var due := booked.pop_due(t)
+		if due.is_empty():
+			continue
+		if str(due[0]["slug"]) == "great_dragon":
+			seen_dragon = true
+			kill_at = float(due[0]["t"]) + 8.0
+			booked.on_dragon_killed(kill_at)
+	if not seen_dragon or booked.dragon_gen != 1:
+		push_error("killing the dragon should schedule its return")
+		failed += 1
+	elif absf(booked.dragon_at - (kill_at + BossDirector.DRAGON_RETURN)) > 0.001:
+		push_error("the dragon should return 60 s after the kill, at %s" % booked.dragon_at)
+		failed += 1
+	if BossCatalog.max_hp("great_dragon", 0) != 30 or BossCatalog.max_hp("great_dragon", 1) != 40 or BossCatalog.score_value("great_dragon") != 100000:
+		push_error("dragon reward and return hp drifted")
+		failed += 1
+	if BossCatalog.attack_rate(180.0, 1, 2) <= BossCatalog.attack_rate(180.0, 0, 2):
+		push_error("a returning dragon should attack faster")
+		failed += 1
+	if BossCatalog.windup("charge", 1, 3) < 0.79:
+		push_error("the death knight warning should stay about 0.8 s")
+		failed += 1
+	failed += _check_boss_gaps()
+	failed += _check_boss_flee()
+	var boss_px := {"lich_king": Vector2(92, 84), "death_knight": Vector2(96, 84), "great_dragon": Vector2(128, 88)}
+	for slug in BossCatalog.SLUGS:
+		var tex := ArtLibrary.texture(BossCatalog.sprite_for(slug))
+		var expect: Vector2 = boss_px[slug]
+		if tex == null or tex.get_width() != int(expect.x) or tex.get_height() != int(expect.y):
+			push_error("%s art size drifted" % slug)
+			failed += 1
+		if absf(BossCatalog.rest_x(slug) - float({"lich_king": 428, "death_knight": 426, "great_dragon": 410}[slug])) > 0.1:
+			push_error("%s should rest at the measured right-edge x" % slug)
+			failed += 1
+		if not HitLibrary.has_role(BossCatalog.sprite_for(slug), "body") or not HitLibrary.has_role(BossCatalog.sprite_for(slug), "threat"):
+			push_error("%s needs a body and a threat shape" % slug)
+			failed += 1
+		for moment in ["enter", "death"]:
+			var event := BossCatalog.cue(slug, moment)
+			var data := AudioCues.spec(event)
+			if data.is_empty() or float(data.get("pitch_semitones", 1.0)) != 0.0 or float(data.get("pitch_ratio", 0.0)) != 0.0 or float(data.get("volume_db", 0.0)) != 0.0:
+				push_error("%s should be a flat sting" % event)
+				failed += 1
+				continue
+			if not ResourceLoader.exists(str(data["file"])):
+				push_error("boss cue was not imported: %s" % data["file"])
+				failed += 1
+	if not HitLibrary.contains_local("lich_king.png", "body", Vector2(-14, -20)):
+		push_error("the lich crown should be part of the body")
+		failed += 1
+	if HitLibrary.contains_local("lich_king.png", "body", Vector2(44, -40)):
+		push_error("empty space beside the lich should not be a hit")
+		failed += 1
+	if not HitLibrary.contains_local("death_knight.png", "body", Vector2(-36, -30)):
+		push_error("the knight's raised blade should take a shot")
+		failed += 1
+	if HitLibrary.contains_local("death_knight.png", "threat", Vector2(-36, -30)):
+		push_error("the raised blade should not kill on a brush")
+		failed += 1
+	if not HitLibrary.contains_local("great_dragon.png", "body", Vector2(30, -28)) or not HitLibrary.contains_local("great_dragon.png", "body", Vector2(-48, -4)):
+		push_error("the dragon wing and head should be part of the body")
+		failed += 1
+	if HitLibrary.contains_local("great_dragon.png", "threat", Vector2(30, -28)):
+		push_error("a dragon wing tip should not kill")
+		failed += 1
+	if not HitLibrary.contains_local("dragon_fireball.png", "threat", Vector2(-1, 0)):
+		push_error("the dragon fireball head should be a threat")
+		failed += 1
+	if HitLibrary.contains_local("dragon_fireball.png", "threat", Vector2(4, 0)):
+		push_error("the fireball smoke tail should not kill")
+		failed += 1
+	if HitLibrary.entry("lich_king_fx.png").has("body") or HitLibrary.entry("death_knight_fx.png").has("threat"):
+		push_error("boss FX layers should not have a hit shape")
+		failed += 1
+	if not HitLibrary.contains_local("lich_skull.png", "threat", Vector2.ZERO):
+		push_error("the skull bolt needs a threat shape")
+		failed += 1
+	if ShareCard.killer_id("Great Dragon") != "great_dragon":
+		push_error("a dragon kill should stay a dragon on the share card")
+		failed += 1
+	return failed
+
+func _check_boss_gaps() -> int:
+	var failed := 0
+	var top := 28.0
+	var bottom := 214.0
+	var bullet := HitLibrary.vertical_span(BossCatalog.DRAGON_SHOT, "threat")
+	var worst := 0.0
+	for id in FormCatalog.IDS:
+		for rank in 5:
+			var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
+			worst = maxf(worst, HitLibrary.vertical_extent(file, "hurt"))
+	var reach := 220.0
+	for phase in [1, 2]:
+		for generation in [0, 2, 4]:
+			for pattern in BossCatalog.attack_cycle("great_dragon", phase):
+				var wind := BossCatalog.windup(pattern, phase, generation)
+				if wind < 0.36:
+					push_error("%s telegraph is too short (%.2f)" % [pattern, wind])
+					failed += 1
+				if pattern == "dive":
+					var span := HitLibrary.vertical_span("great_dragon.png", "threat")
+					var band := span.y - span.x
+					if bottom - top - band <= worst:
+						push_error("the dragon dive covers the field")
+						failed += 1
+					if band * 0.5 + worst * 0.5 > wind * reach:
+						push_error("the dive warning does not leave time to leave the row")
+						failed += 1
+					continue
+				for boss_y in [80.0, 120.0, 160.0]:
+					for aim_y in [70.0, 120.0, 170.0]:
+						for column in [110.0, 190.0, 270.0]:
+							var origin := Vector2(BossCatalog.rest_x("great_dragon"), boss_y)
+							var aim := Vector2(column, aim_y)
+							var speed := BossCatalog.bullet_speed(phase, generation)
+							var blocks: Array[Vector2] = []
+							for spec in BossCatalog.shot_plan(pattern, phase, generation, origin, aim, speed):
+								var crossed: Variant = BossCatalog.cross_y(origin, spec["offset"], spec["velocity"], column)
+								if crossed == null:
+									continue
+								var y := float(crossed)
+								blocks.append(Vector2(y + bullet.x, y + bullet.y))
+							var gap := BossCatalog.widest_gap(blocks, top, bottom)
+							if gap <= worst:
+								push_error("%s phase %d leaves no gap (%.1f vs %.1f)" % [pattern, phase, gap, worst])
+								return failed + 1
+							var need := _nearest_boss_gap(aim_y, blocks, worst, top, bottom)
+							if need > wind * reach + 0.5:
+								push_error("%s phase %d needs %.1f px inside a %.2f s warning" % [pattern, phase, need, wind])
+								return failed + 1
+	return failed
+
+func _nearest_boss_gap(aim_y: float, blocks: Array[Vector2], height: float, top: float, bottom: float) -> float:
+	var half := height * 0.5
+	var lo := top + half
+	var hi := bottom - half
+	if hi < lo:
+		return 9999.0
+	var best := 9999.0
+	var y := lo
+	while y <= hi:
+		var body := Vector2(y - half, y + half)
+		var clear := true
+		for block in blocks:
+			if body.y > block.x and body.x < block.y:
+				clear = false
+				break
+		if clear:
+			best = minf(best, absf(y - aim_y))
+		y += 2.0
+	return best
+
+func _check_boss_flee() -> int:
+	var failed := 0
+	var field := Vector2(480, 270)
+	for slug in ["lich_king", "death_knight"]:
+		var boss := BossActor.new()
+		boss.setup(1, {"slug": slug, "hold_x": 400.0, "origin_y": 120.0, "phase": 0.2, "wave_amp": 14.0, "generation": 0}, field, null)
+		var t := 0.0
+		while t < 40.0 and boss.alive:
+			boss.tick(0.1, Vector2(80, 120), t, 1.0)
+			t += 0.1
+		if boss.alive or t < 24.0 or t > 33.0:
+			push_error("%s should fly off after about 25 s, gone at %.1f alive %s" % [slug, t, boss.alive])
+			failed += 1
+		boss.free()
+	var dragon := BossActor.new()
+	dragon.setup(2, {"slug": "great_dragon", "hold_x": 404.0, "origin_y": 130.0, "phase": 1.0, "wave_amp": 16.0, "generation": 0}, field, null)
+	var elapsed := 0.0
+	while elapsed < 36.0:
+		dragon.tick(0.1, Vector2(90, 100), 170.0, 2.2)
+		elapsed += 0.1
+	if not dragon.alive:
+		push_error("the dragon should stay until it dies")
+		failed += 1
+	dragon.hp = 10
+	if dragon.dragon_phase() != 2:
+		push_error("half health should be dragon phase 2")
+		failed += 1
+	dragon.free()
+	return failed
+
+func _boss_pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
+	var director := BossDirector.new(seed_value)
+	var events: Array[Dictionary] = []
+	var alive_until := -1.0
+	var t := 0.0
+	while t < until - 0.0001:
+		t += step
+		director.set_boss_alive(alive_until > t)
+		var due := director.pop_due(t)
+		if due.is_empty():
+			continue
+		var event: Dictionary = due[0]
+		events.append(event)
+		if str(event["slug"]) == "great_dragon":
+			alive_until = 100000.0
+		else:
+			alive_until = float(event["t"]) + BossDirector.LIFE
+		director.set_boss_alive(true)
+	return events
+
+func _check_boss_play() -> int:
+	var failed := 0
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game.phase = game.PHASE_PLAY
+	game.form_id = FormCatalog.Id.SLIME
+	game._player.form_id = FormCatalog.Id.SLIME
+	game.invuln = 30.0
+	game._player.invulnerable = true
+	var field := Vector2(480, 270)
+	var before: int = game.score
+	for slug in BossCatalog.SLUGS:
+		var data := {
+			"slug": slug,
+			"generation": 0,
+			"hold_x": 400.0,
+			"origin_y": 120.0,
+			"phase": 0.4,
+			"wave_amp": 12.0,
+		}
+		if not game._spawn_boss(data, field):
+			push_error("%s did not spawn" % slug)
+			failed += 1
+			continue
+		var boss: BossActor = null
+		for enemy in game._enemies:
+			if enemy.is_boss() and enemy.alive and enemy.boss_slug == slug:
+				boss = enemy
+		if boss == null:
+			push_error("%s was not on the field" % slug)
+			failed += 1
+			continue
+		var hp := boss.hp
+		var point := Vector2(-14, -20)
+		if slug == "death_knight":
+			point = Vector2(4, 10)
+		elif slug == "great_dragon":
+			point = Vector2(8, 10)
+		game._spawn_shot({
+			"position": boss.position + point,
+			"velocity": Vector2(-20, 0),
+			"sprite": "slime_shot.png",
+			"damage": 1,
+		}, true)
+		game._collide()
+		if boss.hp != hp - 1:
+			push_error("a shot on %s should hit the body, hp %s" % [slug, boss.hp])
+			failed += 1
+		while boss.alive:
+			boss.hurt(8)
+		game._award_kill(boss, true, true)
+	if game.score < before + BossCatalog.DRAGON_SCORE:
+		push_error("killing the dragon should pay at least 100,000, score %s" % game.score)
+		failed += 1
+	var saw_overdrive := false
+	for drop in game._powers:
+		if is_instance_valid(drop) and drop.kind == "overdrive":
+			saw_overdrive = true
+	if not saw_overdrive:
+		push_error("a dragon kill should guarantee an OVERDRIVE")
+		failed += 1
+	if game._loot.size() < BossCatalog.DRAGON_GEM_BURST:
+		push_error("a dragon kill should burst gems, got %d" % game._loot.size())
+		failed += 1
+	if game._boss_director.dragon_gen != 1:
+		push_error("the dragon kill should arm the 60 s return")
+		failed += 1
+	game._clear_field()
+	game.form_id = FormCatalog.Id.VENDING
+	game._player.form_id = FormCatalog.Id.VENDING
+	if not game._spawn_boss({"slug": "great_dragon", "generation": 1, "hold_x": 410.0, "origin_y": 130.0, "phase": 0.2, "wave_amp": 10.0}, field):
+		push_error("the return dragon did not spawn")
+		failed += 1
+	else:
+		var boss: EnemyActor = game._living_boss()
+		var hp := int(boss.hp)
+		if hp != 40:
+			push_error("the returned dragon should have 40 hp, got %s" % hp)
+			failed += 1
+		game._spawn_enemy({
+			"t": 0.0, "kind": SpawnDirector.EYE, "x_ratio": 0.4, "phase": 0.2,
+			"stop_ratio": 0.3, "y_bias": 0.0, "wave_amp": 4.0, "hold_fire": true,
+		}, field)
+		game._winner_clear()
+		if not boss.alive or boss.hp != hp:
+			push_error("WINNER should do no damage to a boss, hp %s alive %s" % [boss.hp, boss.alive])
+			failed += 1
+		var eye_alive := false
+		for enemy in game._enemies:
+			if not enemy.is_boss() and enemy.kind == SpawnDirector.EYE and enemy.alive:
+				eye_alive = true
+		if eye_alive:
+			push_error("WINNER should still clear a normal enemy")
+			failed += 1
+	for slug in BossCatalog.SLUGS:
+		if game._sound.play_count(BossCatalog.cue(slug, "enter")) < 1 or game._sound.play_count(BossCatalog.cue(slug, "death")) < 1:
+			push_error("missing boss cue playback for %s" % slug)
+			failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
 
 func _sample(id: int, drag: Vector2, bounds: Rect2, frames: int) -> Vector2:
 	var ship := PlayerShip.new()

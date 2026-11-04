@@ -37,9 +37,8 @@ const VENDING_MAX_SPEED := 400.0
 ## Rank-1 length. Play reads the per-rank list. This is the empty-list fallback.
 const VENDING_WINNER_KILLS := 10
 ## Heavy hit for a WINNER! clear, read off SpawnDirector.max_hp.
-## Eye and wolf are 2. Wyvern is 3, anvil is 4, archer and piano are 6.
-## 2 kills a full ordinary body and leaves every tougher one up. A piano
-## or an archer takes the hit and is never removed by the clear alone.
+## An eye is 2. Wolf, anvil, and archer are 4. Wyvern and piano are 6.
+## 2 kills an eye and chips every tougher body. Bosses take no damage.
 const VENDING_WINNER_DAMAGE := 2
 
 ## Short dash when the aim jumps. Fine corrections still use the snap.
