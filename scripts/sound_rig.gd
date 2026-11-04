@@ -214,6 +214,9 @@ func debug_play_vending_reveal() -> void:
 func play_event(event: String, gain_db: float = 0.0) -> void:
 	var data := AudioCues.spec(event)
 	if data.is_empty():
+		# Named hook, sample arrives later. Count it so the call site stays honest.
+		if AudioCues.is_hook(event):
+			played.append(event)
 		return
 	if not _claim_event(event):
 		return

@@ -1,0 +1,1046 @@
+[
+  {
+    "file": "dragon_enemies/ash_ring_bullet.png",
+    "size": [
+      36,
+      12
+    ],
+    "frames": 3,
+    "frame_size": [
+      12,
+      12
+    ],
+    "fps": 12,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      6,
+      6
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "ash_wraith",
+    "tier": "T3",
+    "sheet": "ash_ring_bullet"
+  },
+  {
+    "file": "dragon_enemies/ash_ring_warning.png",
+    "size": [
+      192,
+      48
+    ],
+    "frames": 4,
+    "frame_size": [
+      48,
+      48
+    ],
+    "fps": 10,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      24,
+      24
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "ash_wraith",
+    "tier": "T3",
+    "sheet": "ash_ring_warning"
+  },
+  {
+    "file": "dragon_enemies/ash_wraith_death.png",
+    "size": [
+      288,
+      58
+    ],
+    "frames": 6,
+    "frame_size": [
+      48,
+      58
+    ],
+    "fps": 15,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      24,
+      29
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "ash_wraith",
+    "tier": "T3",
+    "sheet": "ash_wraith_death",
+    "death_anchor_offset": [
+      0,
+      0
+    ]
+  },
+  {
+    "file": "dragon_enemies/ash_wraith_float.png",
+    "size": [
+      148,
+      50
+    ],
+    "frames": 4,
+    "frame_size": [
+      37,
+      50
+    ],
+    "fps": 8,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      18,
+      25
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "ash_wraith",
+    "tier": "T3",
+    "sheet": "ash_wraith_float"
+  },
+  {
+    "file": "dragon_enemies/ash_wraith_phase.png",
+    "size": [
+      148,
+      50
+    ],
+    "frames": 4,
+    "frame_size": [
+      37,
+      50
+    ],
+    "fps": 12,
+    "loop": false,
+    "play_mode": "reverse",
+    "anchor": [
+      18,
+      25
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "ash_wraith",
+    "tier": "T3",
+    "sheet": "ash_wraith_phase"
+  },
+  {
+    "file": "dragon_enemies/cultist_shield_loop.png",
+    "size": [
+      160,
+      40
+    ],
+    "frames": 4,
+    "frame_size": [
+      40,
+      40
+    ],
+    "fps": 10,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      20,
+      20
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "dragon_cultist",
+    "tier": "T3",
+    "sheet": "cultist_shield_loop"
+  },
+  {
+    "file": "dragon_enemies/dragon_cultist_cast.png",
+    "size": [
+      128,
+      49
+    ],
+    "frames": 4,
+    "frame_size": [
+      32,
+      49
+    ],
+    "fps": 12,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      15,
+      26
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "dragon_cultist",
+    "tier": "T3",
+    "sheet": "dragon_cultist_cast"
+  },
+  {
+    "file": "dragon_enemies/dragon_cultist_death.png",
+    "size": [
+      240,
+      54
+    ],
+    "frames": 6,
+    "frame_size": [
+      40,
+      54
+    ],
+    "fps": 15,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      20,
+      27
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "dragon_cultist",
+    "tier": "T3",
+    "sheet": "dragon_cultist_death",
+    "death_anchor_offset": [
+      0,
+      -4
+    ]
+  },
+  {
+    "file": "dragon_enemies/dragon_cultist_idle.png",
+    "size": [
+      128,
+      49
+    ],
+    "frames": 4,
+    "frame_size": [
+      32,
+      49
+    ],
+    "fps": 8,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      15,
+      26
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "dragon_cultist",
+    "tier": "T3",
+    "sheet": "dragon_cultist_idle"
+  },
+  {
+    "file": "dragon_enemies/dragon_egg_break.png",
+    "size": [
+      204,
+      32
+    ],
+    "frames": 6,
+    "frame_size": [
+      34,
+      32
+    ],
+    "fps": 15,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      17,
+      16
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "dragon_egg",
+    "tier": "T1",
+    "sheet": "dragon_egg_break",
+    "death_anchor_offset": [
+      0,
+      -2
+    ]
+  },
+  {
+    "file": "dragon_enemies/dragon_egg_crack.png",
+    "size": [
+      80,
+      25
+    ],
+    "frames": 4,
+    "frame_size": [
+      20,
+      25
+    ],
+    "fps": 0,
+    "loop": false,
+    "play_mode": "step",
+    "anchor": [
+      10,
+      12
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "dragon_egg",
+    "tier": "T1",
+    "sheet": "dragon_egg_crack"
+  },
+  {
+    "file": "dragon_enemies/dragon_egg_hatch.png",
+    "size": [
+      192,
+      32
+    ],
+    "frames": 6,
+    "frame_size": [
+      32,
+      32
+    ],
+    "fps": 12,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      16,
+      16
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "dragon_egg",
+    "tier": "T1",
+    "sheet": "dragon_egg_hatch",
+    "death_anchor_offset": [
+      0,
+      -4
+    ]
+  },
+  {
+    "file": "dragon_enemies/dragon_egg_idle_pulse.png",
+    "size": [
+      80,
+      25
+    ],
+    "frames": 4,
+    "frame_size": [
+      20,
+      25
+    ],
+    "fps": 6,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      10,
+      12
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "dragon_egg",
+    "tier": "T1",
+    "sheet": "dragon_egg_idle_pulse"
+  },
+  {
+    "file": "dragon_enemies/drake_rider_bolt.png",
+    "size": [
+      28,
+      8
+    ],
+    "frames": 2,
+    "frame_size": [
+      14,
+      8
+    ],
+    "fps": 12,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      7,
+      4
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "drake_rider",
+    "tier": "T2",
+    "sheet": "drake_rider_bolt"
+  },
+  {
+    "file": "dragon_enemies/drake_rider_death.png",
+    "size": [
+      504,
+      60
+    ],
+    "frames": 7,
+    "frame_size": [
+      72,
+      60
+    ],
+    "fps": 15,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      36,
+      30
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "drake_rider",
+    "tier": "T2",
+    "sheet": "drake_rider_death",
+    "death_anchor_offset": [
+      -6,
+      -6
+    ]
+  },
+  {
+    "file": "dragon_enemies/drake_rider_fire.png",
+    "size": [
+      165,
+      47
+    ],
+    "frames": 3,
+    "frame_size": [
+      55,
+      47
+    ],
+    "fps": 12,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      28,
+      24
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "drake_rider",
+    "tier": "T2",
+    "sheet": "drake_rider_fire"
+  },
+  {
+    "file": "dragon_enemies/drake_rider_fly.png",
+    "size": [
+      330,
+      47
+    ],
+    "frames": 6,
+    "frame_size": [
+      55,
+      47
+    ],
+    "fps": 10,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      28,
+      24
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "drake_rider",
+    "tier": "T2",
+    "sheet": "drake_rider_fly"
+  },
+  {
+    "file": "dragon_enemies/elder_breath_puff.png",
+    "size": [
+      64,
+      12
+    ],
+    "frames": 4,
+    "frame_size": [
+      16,
+      12
+    ],
+    "fps": 15,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      8,
+      6
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "elder_drake",
+    "tier": "T4",
+    "sheet": "elder_breath_puff"
+  },
+  {
+    "file": "dragon_enemies/elder_breath_telegraph.png",
+    "size": [
+      192,
+      48
+    ],
+    "frames": 2,
+    "frame_size": [
+      96,
+      48
+    ],
+    "fps": 8,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      48,
+      24
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "elder_drake",
+    "tier": "T4",
+    "sheet": "elder_breath_telegraph"
+  },
+  {
+    "file": "dragon_enemies/elder_drake_breath.png",
+    "size": [
+      428,
+      77
+    ],
+    "frames": 4,
+    "frame_size": [
+      107,
+      77
+    ],
+    "fps": 12,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      54,
+      38
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "elder_drake",
+    "tier": "T4",
+    "sheet": "elder_drake_breath"
+  },
+  {
+    "file": "dragon_enemies/elder_drake_death.png",
+    "size": [
+      1240,
+      96
+    ],
+    "frames": 10,
+    "frame_size": [
+      124,
+      96
+    ],
+    "fps": 12,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      62,
+      48
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "elder_drake",
+    "tier": "T4",
+    "sheet": "elder_drake_death",
+    "death_anchor_offset": [
+      0,
+      -4
+    ]
+  },
+  {
+    "file": "dragon_enemies/elder_drake_walk.png",
+    "size": [
+      642,
+      77
+    ],
+    "frames": 6,
+    "frame_size": [
+      107,
+      77
+    ],
+    "fps": 8,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      54,
+      38
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "elder_drake",
+    "tier": "T4",
+    "sheet": "elder_drake_walk"
+  },
+  {
+    "file": "dragon_enemies/elder_gem.png",
+    "size": [
+      56,
+      16
+    ],
+    "frames": 4,
+    "frame_size": [
+      14,
+      16
+    ],
+    "fps": 8,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      7,
+      8
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "elder_drake",
+    "tier": "T4",
+    "sheet": "elder_gem"
+  },
+  {
+    "file": "dragon_enemies/ember_bat_death.png",
+    "size": [
+      140,
+      26
+    ],
+    "frames": 5,
+    "frame_size": [
+      28,
+      26
+    ],
+    "fps": 15,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      14,
+      13
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "ember_bat",
+    "tier": "T1",
+    "sheet": "ember_bat_death",
+    "death_anchor_offset": [
+      0,
+      0
+    ]
+  },
+  {
+    "file": "dragon_enemies/ember_bat_fly.png",
+    "size": [
+      96,
+      20
+    ],
+    "frames": 4,
+    "frame_size": [
+      24,
+      20
+    ],
+    "fps": 12,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      12,
+      11
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "ember_bat",
+    "tier": "T1",
+    "sheet": "ember_bat_fly"
+  },
+  {
+    "file": "dragon_enemies/ember_wyvern_death.png",
+    "size": [
+      768,
+      82
+    ],
+    "frames": 8,
+    "frame_size": [
+      96,
+      82
+    ],
+    "fps": 15,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      48,
+      41
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "ember_wyvern",
+    "tier": "T2",
+    "sheet": "ember_wyvern_death",
+    "death_anchor_offset": [
+      0,
+      4
+    ]
+  },
+  {
+    "file": "dragon_enemies/ember_wyvern_dive.png",
+    "size": [
+      234,
+      70
+    ],
+    "frames": 3,
+    "frame_size": [
+      78,
+      70
+    ],
+    "fps": 12,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      39,
+      38
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "ember_wyvern",
+    "tier": "T2",
+    "sheet": "ember_wyvern_dive"
+  },
+  {
+    "file": "dragon_enemies/ember_wyvern_fly.png",
+    "size": [
+      468,
+      70
+    ],
+    "frames": 6,
+    "frame_size": [
+      78,
+      70
+    ],
+    "fps": 10,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      39,
+      38
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "ember_wyvern",
+    "tier": "T2",
+    "sheet": "ember_wyvern_fly"
+  },
+  {
+    "file": "dragon_enemies/ember_wyvern_warning.png",
+    "size": [
+      46,
+      22
+    ],
+    "frames": 2,
+    "frame_size": [
+      23,
+      22
+    ],
+    "fps": 8,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      11,
+      11
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "ember_wyvern",
+    "tier": "T2",
+    "sheet": "ember_wyvern_warning"
+  },
+  {
+    "file": "dragon_enemies/kobold_firebomb.png",
+    "size": [
+      36,
+      9
+    ],
+    "frames": 4,
+    "frame_size": [
+      9,
+      9
+    ],
+    "fps": 12,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      4,
+      4
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "kobold_torchbearer",
+    "tier": "T1",
+    "sheet": "kobold_firebomb"
+  },
+  {
+    "file": "dragon_enemies/kobold_torchbearer_death.png",
+    "size": [
+      204,
+      38
+    ],
+    "frames": 6,
+    "frame_size": [
+      34,
+      38
+    ],
+    "fps": 15,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      17,
+      19
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "kobold_torchbearer",
+    "tier": "T1",
+    "sheet": "kobold_torchbearer_death",
+    "death_anchor_offset": [
+      2,
+      -2
+    ]
+  },
+  {
+    "file": "dragon_enemies/kobold_torchbearer_throw.png",
+    "size": [
+      96,
+      34
+    ],
+    "frames": 4,
+    "frame_size": [
+      24,
+      34
+    ],
+    "fps": 12,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      12,
+      16
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "kobold_torchbearer",
+    "tier": "T1",
+    "sheet": "kobold_torchbearer_throw"
+  },
+  {
+    "file": "dragon_enemies/kobold_torchbearer_walk.png",
+    "size": [
+      144,
+      34
+    ],
+    "frames": 6,
+    "frame_size": [
+      24,
+      34
+    ],
+    "fps": 10,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      12,
+      16
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "kobold_torchbearer",
+    "tier": "T1",
+    "sheet": "kobold_torchbearer_walk"
+  },
+  {
+    "file": "dragon_enemies/magma_puddle_burn.png",
+    "size": [
+      96,
+      10
+    ],
+    "frames": 4,
+    "frame_size": [
+      24,
+      10
+    ],
+    "fps": 8,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      12,
+      5
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "magma_slime",
+    "tier": "T2",
+    "sheet": "magma_puddle_burn"
+  },
+  {
+    "file": "dragon_enemies/magma_slime_move.png",
+    "size": [
+      204,
+      29
+    ],
+    "frames": 6,
+    "frame_size": [
+      34,
+      29
+    ],
+    "fps": 10,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      17,
+      14
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "magma_slime",
+    "tier": "T2",
+    "sheet": "magma_slime_move"
+  },
+  {
+    "file": "dragon_enemies/magma_slime_split_death.png",
+    "size": [
+      240,
+      28
+    ],
+    "frames": 6,
+    "frame_size": [
+      40,
+      28
+    ],
+    "fps": 15,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      20,
+      14
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "magma_slime",
+    "tier": "T2",
+    "sheet": "magma_slime_split_death",
+    "death_anchor_offset": [
+      0,
+      0
+    ]
+  },
+  {
+    "file": "dragon_enemies/whelp_death.png",
+    "size": [
+      264,
+      44
+    ],
+    "frames": 6,
+    "frame_size": [
+      44,
+      44
+    ],
+    "fps": 15,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      22,
+      22
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "whelp",
+    "tier": "T1",
+    "sheet": "whelp_death",
+    "death_anchor_offset": [
+      3,
+      9
+    ]
+  },
+  {
+    "file": "dragon_enemies/whelp_fly.png",
+    "size": [
+      124,
+      26
+    ],
+    "frames": 4,
+    "frame_size": [
+      31,
+      26
+    ],
+    "fps": 12,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      16,
+      14
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "whelp",
+    "tier": "T1",
+    "sheet": "whelp_fly"
+  },
+  {
+    "file": "dragon_enemies/whelp_spit.png",
+    "size": [
+      93,
+      26
+    ],
+    "frames": 3,
+    "frame_size": [
+      31,
+      26
+    ],
+    "fps": 12,
+    "loop": false,
+    "play_mode": "once",
+    "anchor": [
+      16,
+      14
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "whelp",
+    "tier": "T1",
+    "sheet": "whelp_spit"
+  },
+  {
+    "file": "dragon_enemies/whelp_spit_proj.png",
+    "size": [
+      30,
+      7
+    ],
+    "frames": 3,
+    "frame_size": [
+      10,
+      7
+    ],
+    "fps": 12,
+    "loop": true,
+    "play_mode": "loop",
+    "anchor": [
+      5,
+      3
+    ],
+    "anchor_type": "center",
+    "category": "dragon_enemy",
+    "facing": "left",
+    "enemy": "whelp",
+    "tier": "T1",
+    "sheet": "whelp_spit_proj"
+  }
+]

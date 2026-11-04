@@ -357,12 +357,33 @@ static func _parts(file_name: String, role: String, frame: int = -1) -> Array:
 	var found := entry(file_name)
 	var raw: Variant = found.get(role, [])
 	if typeof(raw) != TYPE_ARRAY or (raw as Array).is_empty():
+		if file_name.begins_with("dragon_enemies/"):
+			return _dragon_hit(file_name, role)
 		var key := file_name + ":" + role
 		if not _warned.has(key):
 			_warned[key] = true
 			push_error("no %s hit shape for %s" % [role, file_name])
 		return []
 	return _decode_parts(raw)
+
+## Body centre is the anchor. A wide sprite gets a capsule; a projectile stays a circle.
+static func _dragon_hit(file_name: String, role: String) -> Array:
+	var box := ArtLibrary.art_bbox(file_name)
+	var body := role == "body"
+	if box.x <= 18.0 and box.y <= 18.0:
+		var radius := 0.42 * minf(box.x, box.y)
+		if not body:
+			radius *= 0.85
+		return [{"type": "circle", "center": Vector2.ZERO, "r": maxf(radius, 2.0)}]
+	var sx := 0.36 if body else 0.28
+	var sy := 0.34 if body else 0.26
+	var rx := maxf(box.x * sx, 3.0)
+	var ry := maxf(box.y * sy, 3.0)
+	if rx >= ry:
+		var reach := maxf(rx - ry, 0.0)
+		return [{"type": "capsule", "a": Vector2(-reach, 0.0), "b": Vector2(reach, 0.0), "r": ry}]
+	var reach_y := maxf(ry - rx, 0.0)
+	return [{"type": "capsule", "a": Vector2(0.0, -reach_y), "b": Vector2(0.0, reach_y), "r": rx}]
 
 static func _decode_parts(raw: Variant) -> Array:
 	if typeof(raw) != TYPE_ARRAY:

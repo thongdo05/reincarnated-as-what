@@ -9,9 +9,11 @@ var radius := 3.0
 var drift := 42.0
 var age := 0.0
 var life := 99.0
+var bonus_score := 0
 
 func setup(file_name: String) -> void:
 	sprite_name = file_name
+	bonus_score = 0
 	radius = ArtLibrary.radius_for(file_name, 0.65)
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
@@ -34,5 +36,5 @@ func bob_offset() -> float:
 
 func _draw() -> void:
 	draw_set_transform(Vector2(0.0, bob_offset()), 0.0, Vector2.ONE)
-	ArtLibrary.draw_anchored(self, sprite_name)
+	ArtLibrary.draw_loop(self, sprite_name, age)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
