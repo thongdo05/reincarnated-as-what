@@ -47,7 +47,7 @@ func _process(_delta: float) -> bool:
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
 	var live_failed: int = load("res://tests/dragon_phase_checks.gd").new().run_live(self)
-	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_meteor_shake() + _check_dragon_life()
+	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_meteor_shake() + _check_dragon_death()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
@@ -200,19 +200,27 @@ func _check_forms() -> int:
 	if FormCatalog.VENDING_WINNER_KILLS != 10:
 		push_error("vending winner fallback should be 10 kills")
 		failed += 1
+	var winner_kills := [10, 11, 12, 13, 14]
 	var winner_damage := [2, 4, 6, 8, 10]
 	for rank_i in 5:
-		if FormCatalog.vending_winner_kills(rank_i) != 10:
-			push_error("vending winner meter should be 10 at every rank, rank %d is %d" % [rank_i + 1, FormCatalog.vending_winner_kills(rank_i)])
+		if FormCatalog.vending_winner_kills(rank_i) != winner_kills[rank_i]:
+			push_error("vending winner meter should be 10, 11, 12, 13, 14, rank %d is %d" % [rank_i + 1, FormCatalog.vending_winner_kills(rank_i)])
 			failed += 1
 		if FormCatalog.vending_winner_damage(rank_i) != winner_damage[rank_i]:
 			push_error("vending winner blast should be 2, 4, 6, 8, 10, rank %d is %d" % [rank_i + 1, FormCatalog.vending_winner_damage(rank_i)])
 			failed += 1
-	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("WINNER! in 10") < 0 or FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("Blast 2") < 0:
-		push_error("rank 1 weapon line should quote a 10-kill meter and a 2 blast, got %s" % FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0))
+		var winner_line := "WINNER! in %d" % winner_kills[rank_i]
+		if FormCatalog.weapon_line(FormCatalog.Id.VENDING, rank_i).find(winner_line) < 0:
+			push_error("rank %d weapon line should quote %s, got %s" % [rank_i + 1, winner_line, FormCatalog.weapon_line(FormCatalog.Id.VENDING, rank_i)])
+			failed += 1
+	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("Blast 2") < 0:
+		push_error("rank 1 weapon line should quote a 2 blast, got %s" % FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0))
 		failed += 1
-	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4).find("WINNER! in 10") < 0 or FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4).find("Blast 10") < 0:
-		push_error("rank 5 weapon line should quote a 10-kill meter and a 10 blast, got %s" % FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4))
+	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4).find("Blast 10") < 0:
+		push_error("rank 5 weapon line should quote a 10 blast, got %s" % FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4))
+		failed += 1
+	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("10, then 11, 12, 13, and 14") < 0:
+		push_error("vending card should list the meter at 10 through 14, got %s" % FormCatalog.trait_line(FormCatalog.Id.VENDING, true))
 		failed += 1
 	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("drop loot") < 0 or FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("blast harder") < 0:
 		push_error("vending trait should say the blast scores loot and later ranks hit harder")
@@ -5900,7 +5908,6 @@ func _check_meteor_rain() -> int:
 		push_error("a rain started as the lair opens should clear every meteor after it ends")
 		failed += 1
 	game.invuln = 0.0
-	game._revert_marker = false
 	game._player.invulnerable = false
 	game._player.position = Vector2(80, 140)
 	game._spawn_shot({
@@ -5919,11 +5926,13 @@ func _check_meteor_rain() -> int:
 	game.free()
 	return failed
 
-func _check_dragon_life() -> int:
+func _check_dragon_death() -> int:
 	var failed := 0
+	CaptureMode.reset_for_test(PackedStringArray())
 	var game = _boot_play_game()
 	game.form_id = FormCatalog.Id.GOBLIN
 	game._player.form_id = FormCatalog.Id.GOBLIN
+	game._roster_form = FormCatalog.Id.GOBLIN
 	game.rank_index = 2
 	game._player.rank_index = 2
 	game._player.small = false
@@ -5932,75 +5941,115 @@ func _check_dragon_life() -> int:
 	game.score = 4321
 	game.elapsed = 66.0
 	game.combo = 3
+	game.dragon_kills = 1
+	game.day_seed = 20261101
 	game._background.apply_world(WorldCatalog.DRAGON_LAIR, false)
 	game._adopt_dragon_form()
-	if game.form_id != FormCatalog.Id.DRAGON or not game._dragon_saved or game._saved_form != FormCatalog.Id.GOBLIN or game._saved_rank != 2 or game._saved_evo != 40 or game._saved_power != 0:
-		push_error("adopting the dragon should save the goblin at rank 3 (index 2) with 40 evo")
+	if game.form_id != FormCatalog.Id.DRAGON or game._player.form_id != FormCatalog.Id.DRAGON or game._roster_form != FormCatalog.Id.GOBLIN:
+		push_error("adopting the dragon should keep the goblin as the run's roster form")
+		failed += 1
+	if game.rank_index != 2 or game.evo_points != 40:
+		push_error("adopting the dragon should keep the rank and evolution points already earned")
 		failed += 1
 	if not game._dragon_phase_on or game._background.world_id != WorldCatalog.DRAGON_LAIR:
-		push_error("the dragon phase and the lair should be up before the extra life is spent")
+		push_error("the dragon phase and the lair should be up before the hit")
 		failed += 1
 	game._dragon_show.rng_seed = 4
 	game._dragon_show.start_rain()
 	game._meteor_kills = 7
+	# The opening guard is a separate 0.5s. This hit is after that window.
+	game._meteor_guard = 0.0
+	game.invuln = 0.0
+	game._player.invulnerable = false
 	game._player.position = Vector2(140, 120)
-	game._kill_player("ember bat")
-	if game.phase != game.PHASE_PLAY or not game._player.alive or game.form_id != FormCatalog.Id.GOBLIN:
-		push_error("dying as the dragon should revert and keep the run going, phase %s form %s" % [game.phase, game.form_id])
+	game._kill_player("Ember Bat")
+	if game.phase != game.PHASE_DEAD or game._player.alive or game.form_id != FormCatalog.Id.DRAGON or game._player.form_id != FormCatalog.Id.DRAGON:
+		push_error("dying as the dragon should end the run as the dragon, phase %s form %s alive %s" % [game.phase, game.form_id, game._player.alive])
 		failed += 1
-	if game.rank_index != 2 or game._player.rank_index != 2 or game.evo_points != 40 or int(game._player.power_level) != 0:
-		push_error("revert should restore rank 2, 40 evo, and power 0, got rank %s evo %s power %s" % [game.rank_index, game.evo_points, game._player.power_level])
+	if game.killer_name != "Ember Bat":
+		push_error("the death card should keep the killer, got %s" % game.killer_name)
 		failed += 1
-	if game._player.position.distance_to(Vector2(140, 120)) > 1.0:
-		push_error("revert should keep the death position")
+	if game.invuln > 0.0 or game._player.invulnerable or game._meteor_guard > 0.0:
+		push_error("a dragon death should not grant i-frames, invuln %s guard %s" % [game.invuln, game._meteor_guard])
 		failed += 1
-	if absf(game.invuln - game.INVULN_SECONDS) > 0.01 or not game._player.invulnerable or not game._revert_marker:
-		push_error("revert i-frames should be the spawn window %.2fs, invuln %s" % [game.INVULN_SECONDS, game.invuln])
-		failed += 1
-	if game._meteor_guard > 0.0:
-		push_error("revert should end the meteor opening guard")
-		failed += 1
-	var life_marker: Label = game._hud.get_node_or_null("InvincibleMarker")
-	if life_marker == null or not life_marker.visible or str(life_marker.text) != "INVINCIBLE":
-		push_error("revert should show the INVINCIBLE marker")
-		failed += 1
-	if game._dragon_show.phase != DragonShow.IDLE or game._dragon_show.lingering_meteor_fx() != 0 or game._meteor_kills != 0:
-		push_error("revert should clear meteor rain, phase %s kills %s" % [game._dragon_show.phase, game._meteor_kills])
-		failed += 1
-	if game._hud_view == null or game._hud_view.meteor_px >= 0:
-		push_error("the meteor meter should hide after revert")
+	if game._dragon_show.phase != DragonShow.IDLE:
+		push_error("dying should cancel meteor rain, phase %s" % game._dragon_show.phase)
 		failed += 1
 	if game.score != 4321 or absf(game.elapsed - 66.0) > 0.001 or game.combo != 3:
-		push_error("score, time, and combo should continue through the revert")
+		push_error("the ended run should keep its score, time, and combo")
 		failed += 1
-	if not game._dragon_phase_on or game._background.world_id != WorldCatalog.DRAGON_LAIR:
-		push_error("the lair and the dragon phase should stay after revert")
+	if game._combat != null:
+		for item in game._combat.items:
+			if str(item.get("text", "")) == "REVERTED!":
+				push_error("a dragon death should not show REVERTED!")
+				failed += 1
+				break
+	var life_marker: Label = game._hud.get_node_or_null("InvincibleMarker")
+	if life_marker != null and life_marker.visible:
+		push_error("dying should hide the INVINCIBLE marker")
 		failed += 1
-	game._adopt_dragon_form()
-	if game.form_id != FormCatalog.Id.DRAGON or game._saved_form != FormCatalog.Id.GOBLIN:
-		push_error("killing the dragon again should grant the form again")
+	game._skip_death_to_card()
+	if not game.game_over_visible or game.phase != game.PHASE_DEAD:
+		push_error("a dragon death should open the death card, visible %s phase %s" % [game.game_over_visible, game.phase])
 		failed += 1
-	game.invuln = 0.0
-	game._revert_marker = false
-	game._player.invulnerable = false
-	game._kill_player("lich")
-	if game.phase != game.PHASE_PLAY or game.form_id != FormCatalog.Id.GOBLIN:
-		push_error("the second dragon life should revert to the goblin again")
+	if game._share_label == null or game._share_label.text != "Reached DRAGON":
+		push_error("the death card should name the dragon, got %s" % (game._share_label.text if game._share_label != null else "missing"))
 		failed += 1
-	game.invuln = 0.0
-	game._revert_marker = false
-	game._player.invulnerable = false
-	game._spawn_shot({
-		"position": game._player.position,
-		"velocity": Vector2.ZERO,
-		"sprite": "floating_eye_bolt.png",
-		"radius": 8.0,
-		"damage": 1,
-		"killer_name": "Floating Eye",
-	}, false)
-	game._collide()
-	if game.phase != game.PHASE_DEAD or game._player.alive or game.form_id != FormCatalog.Id.GOBLIN or game.killer_name != "Floating Eye":
-		push_error("dying in the reverted form should end the run as that form, phase %s form %s killer %s" % [game.phase, game.form_id, game.killer_name])
+	if game._best_label == null or not str(game._best_label.text).begins_with("DRAGON BEST"):
+		push_error("the death card should score the dragon form, got %s" % (game._best_label.text if game._best_label != null else "missing"))
+		failed += 1
+	if game._score_label == null or game._score_label.text != ScoreRules.format_score(4321):
+		push_error("the death card should show the run score, got %s" % (game._score_label.text if game._score_label != null else "missing"))
+		failed += 1
+	var run: Dictionary = game.share_run()
+	if str(run.get("form", "")) != "goblin" or int(run.get("rank_reached", 0)) != 3 or int(run.get("score", 0)) != 4321:
+		push_error("run stats should keep the roster form and the score, got %s" % run)
+		failed += 1
+	var resolved := ShareCard.resolve(run)
+	if str(resolved.get("form", "")) != "goblin":
+		push_error("the share card should resolve the roster form, got %s" % resolved.get("form", ""))
+		failed += 1
+	# A lair killer is not on the share table. Resolving it must not crash.
+	var lair_run: Dictionary = run.duplicate()
+	lair_run["killer"] = ShareCard.killer_id("Ember Bat")
+	var lair_card := ShareCard.resolve(lair_run)
+	if str(lair_card.get("form", "")) != "goblin" or str(lair_card.get("killer", "")) == "":
+		push_error("a dragon-lair killer should still resolve a share card, got %s" % lair_card)
+		failed += 1
+	if game._public_form() != FormCatalog.Id.GOBLIN:
+		push_error("a dragon death should count as the roster form for the next roll")
+		failed += 1
+	var repeat_at := -1
+	for step in 12:
+		if FormCatalog.id_for_run(game.day_seed, step) == FormCatalog.Id.GOBLIN:
+			repeat_at = step
+			break
+	if repeat_at < 0:
+		push_error("expected a goblin roll to prove the no-repeat rule")
+		failed += 1
+	else:
+		var avoided := FormCatalog.id_for_run_avoiding(game.day_seed, repeat_at, FormCatalog.Id.GOBLIN)
+		if avoided == FormCatalog.Id.GOBLIN or avoided == FormCatalog.Id.DRAGON:
+			push_error("avoiding the roster form should not roll goblin or dragon, got %s" % FormCatalog.display_name(avoided))
+			failed += 1
+		var daily_path := DailyRun.SAVE_PATH
+		var daily_body := FileAccess.get_file_as_string(daily_path) if FileAccess.file_exists(daily_path) else ""
+		_restore_user_file(daily_path, JSON.stringify({
+			"date": str(DailyRun.date_seed()),
+			"next_run": repeat_at,
+			"epoch": BestScores.SCORE_EPOCH,
+		}))
+		game._card_age = Replay.CARD_GUARD
+		game._reincarnate()
+		_restore_user_file(daily_path, daily_body)
+	if game.form_id == FormCatalog.Id.DRAGON or FormCatalog.IDS.find(game.form_id) < 0:
+		push_error("reincarnation must not roll the dragon, got %s" % FormCatalog.display_name(game.form_id))
+		failed += 1
+	if game.form_id == FormCatalog.Id.GOBLIN:
+		push_error("reincarnation after a dragon death should not repeat the roster form")
+		failed += 1
+	if game.phase != game.PHASE_REVEAL or not game._player.alive or not game._short_reveal:
+		push_error("reincarnation should open the next run's reveal, phase %s" % game.phase)
 		failed += 1
 	root.remove_child(game)
 	game.free()

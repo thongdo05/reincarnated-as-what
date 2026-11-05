@@ -140,16 +140,7 @@ var _meteor_shake_mag := 0.0
 var _slam_shake_left := 0.0
 var _shake_hold := Vector2.ZERO
 var _shake_hold_left := 0.0
-## Snapshot taken the moment the Great Dragon form is gained. Dying spends it.
-var _dragon_saved := false
-var _saved_form := 0
-var _saved_rank := 0
-var _saved_evo := 0
-var _saved_power := 0
-var _saved_small := false
-## Shows the INVINCIBLE label for the revert i-frames, and for the meteor opening.
-var _revert_marker := false
-## Seconds left on the Meteor Rain opening guard. Separate from revert i-frames.
+## Seconds left on the Meteor Rain opening guard.
 var _meteor_guard := 0.0
 var _invincible_marker: Label
 var _tutorial_active := false
@@ -870,8 +861,6 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		_player.add_drag(key * FormCatalog.max_speed(form_id) * delta, bounds)
 	invuln = maxf(invuln - delta, 0.0)
 	_player.invulnerable = invuln > 0.0 or _meteor_guard > 0.0
-	if _revert_marker and invuln <= 0.0:
-		_revert_marker = false
 	_player.tick(delta, bounds)
 	if _player.regrew:
 		invuln = maxf(invuln, REGROW_IFRAMES)
@@ -1750,10 +1739,8 @@ func _try_rank() -> void:
 func _kill_player(name: String) -> void:
 	if phase != PHASE_PLAY:
 		return
-	# Dragon form is an extra life. The enemy-death presentation stays in
+	# One life, including the Dragon form. Enemy deaths stay in
 	# _present_dragon_death. This is the player's death.
-	if _try_revert_dragon(name):
-		return
 	if _dragon_show != null:
 		_dragon_show.cancel()
 	_meteor_guard = 0.0
@@ -2072,14 +2059,14 @@ func _meteor_show_began() -> void:
 
 func _meteor_show_ended() -> void:
 	_slam_shake_left = 0.0
-	# Cancel, death, and a finished show drop the opening guard. Revert sets its own.
+	# Cancel, death, and a finished show drop the opening guard.
 	_meteor_guard = 0.0
 	if _player != null and invuln <= 0.0:
 		_player.invulnerable = false
 	_sync_invincible_marker()
 
 func _sync_invincible_marker() -> void:
-	var show := phase == PHASE_PLAY and (_meteor_guard > 0.0 or (_revert_marker and invuln > 0.0))
+	var show := phase == PHASE_PLAY and _meteor_guard > 0.0
 	if not show:
 		if _invincible_marker != null:
 			_invincible_marker.visible = false
@@ -2111,48 +2098,6 @@ func _block_meteor_bullets() -> void:
 			doomed.append(shot)
 	for shot in doomed:
 		_drop_shot(shot)
-
-## Dragon form is one extra life. The saved pre-transform form, rank, evolution
-## points, power level, and slime-split flag come back. Position stays. The
-## lair, the dragon-phase clock, and the score keep going.
-func _try_revert_dragon(_killer: String) -> bool:
-	if form_id != FormCatalog.Id.DRAGON or not _dragon_saved or _player == null:
-		return false
-	var at := _player.position
-	_meteor_guard = 0.0
-	if _dragon_show != null:
-		_dragon_show.cancel()
-	_meteor_kills = 0
-	_rain_budget = 0
-	_meteor_shake_left = 0.0
-	_meteor_shake_mag = 0.0
-	_slam_shake_left = 0.0
-	form_id = _saved_form
-	rank_index = _saved_rank
-	evo_points = _saved_evo
-	_player.form_id = _saved_form
-	_player.rank_index = _saved_rank
-	_player.small = _saved_small
-	_player.fit_scale = 1.0
-	_player.rear = 0.0
-	_player.power_level = _saved_power
-	_player.alive = true
-	_player.visible = true
-	_player.position = at
-	_player._apply_radius()
-	_player.queue_redraw()
-	_sync_power()
-	# Same window as the spawn i-frames at the start of a run.
-	invuln = INVULN_SECONDS
-	_player.invulnerable = true
-	_revert_marker = true
-	_sync_invincible_marker()
-	if _combat != null:
-		_combat.push_callout("REVERTED!", at + Vector2(-36, -28), Color("ffb15a"), 0.7, 2)
-	_spawn_fx("hit_flash.png", at, 0.22, 0.6, 1.4)
-	_refresh_hud()
-	_refresh_pause_card()
-	return true
 
 ## Top-left, just under the rank line, and lower when a power row is showing.
 func _invuln_banner_origin() -> Vector2:
@@ -2329,8 +2274,10 @@ func _on_restart() -> void:
 	_dismiss_name_prompt()
 	if CaptureMode.is_active():
 		# A challenged form sticks for that one run; the retry rolls, and
-		# does not repeat the form you died as.
-		CaptureMode.note_player_retry(form_id)
+		# does not repeat the form you died as. Dragon counts as the form
+		# the run started as, so the next roll is never Dragon and does not
+		# repeat that roster form.
+		CaptureMode.note_player_retry(_public_form())
 		get_tree().reload_current_scene()
 		return
 	if phase != PHASE_DEAD or not game_over_visible:
@@ -2561,6 +2508,10 @@ func _player_scale() -> float:
 		return _player.drawn_scale()
 	return FormCatalog.play_scale(form_id)
 
+## Form used by the daily chain, the share card, and the leaderboard.
+## Dragon is earned mid-run and is not in the roll. Dying in it still counts
+## as the form the run started as, so the next roll will not repeat that form
+## and will not offer Dragon. The death card names Dragon itself.
 func _public_form() -> int:
 	if form_id == FormCatalog.Id.DRAGON:
 		return _roster_form
@@ -2654,12 +2605,6 @@ func _dragon_rain(on: bool) -> void:
 func _adopt_dragon_form() -> void:
 	if _player == null or form_id == FormCatalog.Id.DRAGON:
 		return
-	_saved_form = form_id
-	_saved_rank = rank_index
-	_saved_evo = evo_points
-	_saved_power = int(_player.power_level)
-	_saved_small = _player.small
-	_dragon_saved = true
 	var old_file := _player.sprite_name()
 	var old_scale := _player.drawn_scale()
 	var fit := FormCatalog.dragon_fit_scale(old_file, old_scale)
@@ -2963,8 +2908,6 @@ func _reincarnate() -> void:
 	dragon_kills = 0
 	_meteor_kills = 0
 	_meteor_guard = 0.0
-	_dragon_saved = false
-	_revert_marker = false
 	if _dragon_show != null:
 		_dragon_show.cancel()
 	_dragon_phase_on = false

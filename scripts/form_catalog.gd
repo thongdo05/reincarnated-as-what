@@ -36,7 +36,7 @@ const SNAP_MAX_SPEED := 22000.0
 const VENDING_ARRIVE := 62.0
 const VENDING_MAX_SPEED := 400.0
 ## Kills and gems, not coins or powerups. A full meter is the only WINNER! in the game.
-## Every rank is 10. Play reads the per-rank list. This is the empty-list fallback.
+## Rank 1 is 10. Play reads the per-rank list. This is the empty-list fallback.
 const VENDING_WINNER_KILLS := 10
 
 ## Short dash when the aim jumps. Fine corrections still use the snap.
@@ -81,7 +81,7 @@ const GOBLIN := {
 
 ## Three forward cans. Spread is degrees off the forward axis, +y down.
 ## Rank 1 is slow enough that the heavy body is the tax. Later ranks hit
-## harder. WINNER! fills at 10 kills or gems at every rank. The blast deals
+## harder. WINNER! fills at 10, 11, 12, 13, then 14 kills or gems. The blast deals
 ## 2, 4, 6, 8, 10 to regular enemies (an eye is 2; wolf, anvil, and archer
 ## are 4; wyvern and piano are 6). Bosses still take 15% of max HP.
 ## A kill from the blast scores and drops loot like any other kill, and does
@@ -91,7 +91,7 @@ const VENDING := {
 	"shot_speed": [520.0, 580.0, 640.0, 700.0, 760.0],
 	"damage": [1, 1, 2, 2, 3],
 	"spread_deg": [16.0, 18.0, 20.0, 22.0, 24.0],
-	"winner_kills": [10, 10, 10, 10, 10],
+	"winner_kills": [10, 11, 12, 13, 14],
 	"winner_damage": [2, 4, 6, 8, 10],
 }
 
@@ -181,7 +181,7 @@ const FORM_CARD := {
 		"used": "",
 	},
 	Id.VENDING: {
-		"trait": "Heavy drift. Kills and gems fill a WINNER! meter. A full meter blasts the field and clears shots. Those kills score and drop loot. Later ranks blast harder.",
+		"trait": "Heavy drift. Kills and gems fill a WINNER! meter in 10, then 11, 12, 13, and 14. A full meter blasts the field and clears shots. Those kills score and drop loot. Later ranks blast harder.",
 		"ready": "",
 		"used": "",
 	},
