@@ -2560,7 +2560,8 @@ func _dragon_open_budget() -> int:
 	if boss == null:
 		_rain_budget = 0
 		return 0
-	_rain_budget = BossCatalog.winner_damage(boss.max_hp)
+	# Meteor Rain keeps a 15% chip. WINNER is a separate, smaller hit.
+	_rain_budget = BossCatalog.meteor_rain_damage(boss.max_hp)
 	return _rain_budget
 
 func _dragon_chip(amount: int) -> void:

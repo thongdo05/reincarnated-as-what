@@ -4580,11 +4580,17 @@ func _check_bosses() -> int:
 		if absf(float(pool / 2) / float(pool) - 0.5) > 0.0001:
 			push_error("%s half-health bar should sit at half" % slug)
 			failed += 1
-	if BossCatalog.winner_damage(500) != 75 or BossCatalog.winner_damage(2500) != 375 or BossCatalog.winner_damage(10000) != 1500 or BossCatalog.winner_damage(20000) != 3000 or BossCatalog.winner_damage(30000) != 4500:
-		push_error("WINNER should stay 15 percent of the new boss pools")
+	if BossCatalog.winner_damage(500) != 50 or BossCatalog.winner_damage(2500) != 250 or BossCatalog.winner_damage(10000) != 1000 or BossCatalog.winner_damage(20000) != 2000 or BossCatalog.winner_damage(30000) != 3000:
+		push_error("WINNER should stay 10 percent of the new boss pools")
 		failed += 1
 	if BossCatalog.winner_damage(2500) >= 2500 or BossCatalog.winner_damage(10000) >= 10000:
 		push_error("one WINNER must not finish a full boss")
+		failed += 1
+	if BossCatalog.meteor_rain_damage(500) != 75 or BossCatalog.meteor_rain_damage(2500) != 375 or BossCatalog.meteor_rain_damage(10000) != 1500 or BossCatalog.meteor_rain_damage(20000) != 3000 or BossCatalog.meteor_rain_damage(30000) != 4500:
+		push_error("Meteor Rain should stay 15 percent of the boss pools")
+		failed += 1
+	if BossCatalog.meteor_rain_damage(2500) >= 2500 or BossCatalog.meteor_rain_damage(10000) >= 10000:
+		push_error("one Meteor Rain must not finish a full boss")
 		failed += 1
 	if BossCatalog.attack_rate(180.0, 1, 2) <= BossCatalog.attack_rate(180.0, 0, 2):
 		push_error("a returning dragon should attack faster")
@@ -4660,14 +4666,23 @@ func _check_bosses() -> int:
 
 func _check_boss_rework() -> int:
 	var failed := 0
-	if BossCatalog.WINNER_BOSS_DMG_PCT != 0.15:
-		push_error("WINNER boss damage should be 15 percent")
+	if BossCatalog.WINNER_BOSS_DMG_PCT != 0.10:
+		push_error("WINNER boss damage should be 10 percent")
 		failed += 1
-	if BossCatalog.winner_damage(200) != 30 or BossCatalog.winner_damage(350) != 53 or BossCatalog.winner_damage(500) != 75:
-		push_error("WINNER chips should be 30, 53, and 75, got %d %d %d" % [BossCatalog.winner_damage(200), BossCatalog.winner_damage(350), BossCatalog.winner_damage(500)])
+	if BossCatalog.winner_damage(200) != 20 or BossCatalog.winner_damage(350) != 35 or BossCatalog.winner_damage(500) != 50:
+		push_error("WINNER chips should be 20, 35, and 50, got %d %d %d" % [BossCatalog.winner_damage(200), BossCatalog.winner_damage(350), BossCatalog.winner_damage(500)])
 		failed += 1
 	if BossCatalog.winner_damage(500) >= 500:
 		push_error("one WINNER must not be an instant kill")
+		failed += 1
+	if BossCatalog.METEOR_RAIN_BOSS_DMG_PCT != 0.15:
+		push_error("Meteor Rain boss damage should stay 15 percent")
+		failed += 1
+	if BossCatalog.meteor_rain_damage(200) != 30 or BossCatalog.meteor_rain_damage(350) != 53 or BossCatalog.meteor_rain_damage(500) != 75:
+		push_error("Meteor Rain chips should stay 30, 53, and 75, got %d %d %d" % [BossCatalog.meteor_rain_damage(200), BossCatalog.meteor_rain_damage(350), BossCatalog.meteor_rain_damage(500)])
+		failed += 1
+	if BossCatalog.meteor_rain_damage(500) >= 500:
+		push_error("one Meteor Rain must not be an instant kill")
 		failed += 1
 	var furious := BossCatalog.attack_cycle("lich_king", 2)
 	if furious.find("beam_rain") < 0 or furious.find("spiral_hands") < 0:
@@ -6409,6 +6424,11 @@ func _check_boss_play() -> int:
 		game._winner_clear()
 		if not boss.alive or boss.hp != hp - chip:
 			push_error("WINNER should chip a full boss by %d, hp %s alive %s" % [chip, boss.hp, boss.alive])
+			failed += 1
+		var rain := int(game._dragon_open_budget())
+		var rain_chip := BossCatalog.meteor_rain_damage(boss.max_hp)
+		if rain != rain_chip or rain != 3000 or rain <= chip or boss.hp != hp - chip:
+			push_error("Meteor Rain budget should stay 15 percent (%d) without hitting, got %d hp %s" % [rain_chip, rain, boss.hp])
 			failed += 1
 		var eye_alive := false
 		for enemy in game._enemies:
