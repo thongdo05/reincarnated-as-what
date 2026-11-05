@@ -47,7 +47,7 @@ func _process(_delta: float) -> bool:
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
 	var live_failed: int = load("res://tests/dragon_phase_checks.gd").new().run_live(self)
-	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_meteor_shake() + _check_dragon_death()
+	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_meteor_shake() + _check_dragon_death() + _check_daily_run_without_storage()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
@@ -6049,6 +6049,9 @@ func _check_dragon_death() -> int:
 			failed += 1
 		var daily_path := DailyRun.SAVE_PATH
 		var daily_body := FileAccess.get_file_as_string(daily_path) if FileAccess.file_exists(daily_path) else ""
+		# Earlier boots advanced the in-memory counter. This reincarnation
+		# must use the file's index, which is the goblin roll.
+		DailyRun.reset_session_for_test()
 		_restore_user_file(daily_path, JSON.stringify({
 			"date": str(DailyRun.date_seed()),
 			"next_run": repeat_at,
@@ -6068,6 +6071,61 @@ func _check_dragon_death() -> int:
 		failed += 1
 	root.remove_child(game)
 	game.free()
+	return failed
+
+## A user:// write that never sticks used to hand out run 0 forever, so death
+## alternated the run-0 form with its avoid partner. The session counter has
+## to keep moving anyway.
+func _check_daily_run_without_storage() -> int:
+	var failed := 0
+	var daily_path := DailyRun.SAVE_PATH
+	var backup := FileAccess.get_file_as_string(daily_path) if FileAccess.file_exists(daily_path) else ""
+	var today := str(DailyRun.date_seed())
+	DailyRun.reset_session_for_test()
+	_restore_user_file(daily_path, JSON.stringify({
+		"date": today,
+		"next_run": 7,
+		"epoch": BestScores.SCORE_EPOCH,
+	}))
+	if DailyRun.consume_run_index() != 7 or DailyRun.peek_run_index() != 8:
+		push_error("a saved daily index should still be the next run")
+		failed += 1
+	DailyRun.reset_session_for_test()
+	var stuck := JSON.stringify({
+		"date": today,
+		"next_run": 0,
+		"epoch": BestScores.SCORE_EPOCH,
+	})
+	_restore_user_file(daily_path, stuck)
+	CaptureMode.reset_for_test(PackedStringArray())
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	# Drop the boot write. From here the file stays on run 0.
+	_restore_user_file(daily_path, stuck)
+	game.day_seed = 20261105
+	var seen := {}
+	var names: PackedStringArray = []
+	var previous_index := 0
+	for _step in 10:
+		game._reincarnate()
+		_restore_user_file(daily_path, stuck)
+		var index := int(game.run_index)
+		if index != previous_index + 1:
+			push_error("a lost daily write should still advance the run, got %d after %d" % [index, previous_index])
+			failed += 1
+		previous_index = index
+		seen[int(game.form_id)] = true
+		names.append(FormCatalog.display_name(int(game.form_id)))
+	if seen.size() <= 2:
+		push_error("ten reincarnations with a daily file that never sticks should pass more than two forms, got %s" % ", ".join(names))
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	CaptureMode.reset_for_test(PackedStringArray())
+	_restore_user_file(daily_path, backup)
+	DailyRun.reset_session_for_test()
 	return failed
 
 func _check_meteor_clock() -> int:
