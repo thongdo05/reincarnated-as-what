@@ -47,7 +47,7 @@ func _process(_delta: float) -> bool:
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
 	var live_failed: int = load("res://tests/dragon_phase_checks.gd").new().run_live(self)
-	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_dragon_life()
+	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_meteor_shake() + _check_dragon_life()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
@@ -5608,6 +5608,112 @@ func _finish_show(show: DragonShow) -> void:
 		guard += 1
 	for _extra in 45:
 		show.tick(DragonShow.FRAME)
+
+func _check_meteor_shake() -> int:
+	var failed := 0
+	if absf(DragonShow.SLAM_SHAKE_PX - 2.0) > 0.001 or absf(DragonShow.SLAM_SHAKE_SECONDS - 0.2) > 0.001:
+		push_error("the giant slam bump should be 2px for 0.2s")
+		failed += 1
+	var game = _boot_play_game()
+	game.form_id = FormCatalog.Id.DRAGON
+	game._player.adopt_dragon(1.0)
+	game._dragon_show.rng_seed = 11
+	game.position = Vector2.ZERO
+	# Shakes that are not the slam must stay quiet for the whole show.
+	game._juice_shake = Replay.JUICE_SHAKE_SECONDS
+	game._shake_left = Difficulty.FINAL_SHAKE_SECONDS
+	game._dragon_shake(4.0, 0.45)
+	game._dragon_show.start_rain()
+	var dt := 1.0 / 60.0
+	var charge_rain_moved := false
+	var fall_moved := false
+	var poked := false
+	var saw_slam := false
+	var after_show := false
+	var bump: Array[Vector2] = []
+	var guard := 0
+	while guard < 800:
+		guard += 1
+		game._dragon_show.tick(DragonShow.FRAME)
+		var phase := int(game._dragon_show.phase)
+		if phase == DragonShow.RAIN and not poked:
+			poked = true
+			game._bump_shake()
+			game._dragon_shake(4.0, 0.45)
+		if phase == DragonShow.SLAM:
+			saw_slam = true
+		for _render in 4:
+			game._apply_shake(dt)
+			var off: Vector2 = game.position
+			if phase == DragonShow.CHARGE or phase == DragonShow.RAIN:
+				if off != Vector2.ZERO:
+					charge_rain_moved = true
+			elif phase == DragonShow.FALL:
+				if off != Vector2.ZERO:
+					fall_moved = true
+			elif saw_slam:
+				bump.append(off)
+		if phase == DragonShow.IDLE and saw_slam:
+			after_show = true
+			if game.position != Vector2.ZERO:
+				push_error("shake should be back to zero after meteor rain, offset %s" % game.position)
+				failed += 1
+			var stayed := true
+			for _extra in 8:
+				game._apply_shake(dt)
+				if game.position != Vector2.ZERO:
+					stayed = false
+			if not stayed:
+				push_error("shake should stay zero after the finale, offset %s" % game.position)
+				failed += 1
+			break
+	if not poked:
+		push_error("meteor shake check never reached the rain")
+		failed += 1
+	if charge_rain_moved:
+		push_error("shake offset should be zero throughout the meteor charge and rain")
+		failed += 1
+	if fall_moved:
+		push_error("the giant meteor's fall should not shake the screen")
+		failed += 1
+	if not saw_slam or not after_show:
+		push_error("meteor shake check did not finish the slam")
+		failed += 1
+	var runs: Array[Vector2] = []
+	var run_len: Array[int] = []
+	var spans := 0
+	var in_bump := false
+	for sample in bump:
+		if sample != Vector2.ZERO:
+			if not in_bump:
+				spans += 1
+				in_bump = true
+			if runs.is_empty() or sample != runs[runs.size() - 1]:
+				runs.append(sample)
+				run_len.append(1)
+			else:
+				run_len[run_len.size() - 1] += 1
+		else:
+			in_bump = false
+	if spans != 1 or runs.size() != 2 or runs[0] != Vector2(2, 0) or runs[1] != Vector2(1, 0):
+		push_error("the finale should be one bump, 2px then 1px, got %s" % str(runs))
+		failed += 1
+	elif run_len[0] < 4 or run_len[1] < 4:
+		push_error("slam bump should hold each offset for a show frame, held %s" % str(run_len))
+		failed += 1
+	# A shake that is not part of the show still moves the screen afterward.
+	game._bump_shake()
+	var juice := false
+	for _i in 8:
+		game._apply_shake(dt)
+		if game.position != Vector2.ZERO and game.position.length() <= Replay.JUICE_SHAKE_PX + 0.01:
+			juice = true
+	if not juice:
+		push_error("a hit shake after meteor rain should still move the screen")
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
 
 func _check_meteor_rain() -> int:
 	var failed := 0
