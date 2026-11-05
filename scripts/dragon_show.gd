@@ -247,7 +247,7 @@ func _step_frame() -> void:
 				_finish_show()
 				return
 
-## Stop the show now. Used when the run ends, the form changes, or the life is spent.
+## Stop the show now. Used when the run ends.
 func cancel() -> void:
 	_finish_show()
 	queue_redraw()
