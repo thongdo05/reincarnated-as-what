@@ -134,6 +134,8 @@ var _meteor_kills := 0
 var _rain_budget := 0
 var _meteor_shake_left := 0.0
 var _meteor_shake_mag := 0.0
+## Finale slam bump. Separate from the great-dragon entrance shake above.
+var _slam_shake_left := 0.0
 var _shake_hold := Vector2.ZERO
 var _shake_hold_left := 0.0
 ## Snapshot taken the moment the Great Dragon form is gained. Dying spends it.
@@ -2058,6 +2060,7 @@ func _meteor_show_began() -> void:
 	_sync_invincible_marker()
 
 func _meteor_show_ended() -> void:
+	_slam_shake_left = 0.0
 	if _player != null and invuln <= 0.0 and not (_revert_marker and invuln > 0.0):
 		_player.invulnerable = false
 	_sync_invincible_marker()
@@ -2109,6 +2112,7 @@ func _try_revert_dragon(_killer: String) -> bool:
 	_rain_budget = 0
 	_meteor_shake_left = 0.0
 	_meteor_shake_mag = 0.0
+	_slam_shake_left = 0.0
 	form_id = _saved_form
 	rank_index = _saved_rank
 	evo_points = _saved_evo
@@ -2165,29 +2169,38 @@ func _refresh_debug() -> void:
 	]
 
 func _apply_shake(delta: float) -> void:
+	var show_on := _dragon_show != null and _dragon_show.phase != DragonShow.IDLE
 	var mag := 0.0
 	if _shake_left > 0.0:
 		_shake_left = maxf(_shake_left - delta, 0.0)
-		mag = maxf(mag, Difficulty.FINAL_SHAKE_PX * clampf(_shake_left / Difficulty.FINAL_SHAKE_SECONDS, 0.0, 1.0))
+		if not show_on:
+			mag = maxf(mag, Difficulty.FINAL_SHAKE_PX * clampf(_shake_left / Difficulty.FINAL_SHAKE_SECONDS, 0.0, 1.0))
 	if _juice_shake > 0.0:
 		_juice_shake = maxf(_juice_shake - delta, 0.0)
-		mag = maxf(mag, Replay.JUICE_SHAKE_PX * clampf(_juice_shake / Replay.JUICE_SHAKE_SECONDS, 0.0, 1.0))
+		if not show_on:
+			mag = maxf(mag, Replay.JUICE_SHAKE_PX * clampf(_juice_shake / Replay.JUICE_SHAKE_SECONDS, 0.0, 1.0))
 	var cap := Replay.shake_cap()
 	if _meteor_shake_left > 0.0:
 		_meteor_shake_left = maxf(_meteor_shake_left - delta, 0.0)
-		mag = maxf(mag, _meteor_shake_mag)
-		cap = maxf(cap, _meteor_shake_mag)
+		if not show_on:
+			mag = maxf(mag, _meteor_shake_mag)
+			cap = maxf(cap, _meteor_shake_mag)
+	# Charge, barrage, and impacts stay still. Other shakes keep counting
+	# down so they do not resume when the finale ends. The slam bump is the
+	# only offset while the show is running.
+	if show_on:
+		_apply_slam_bump(delta)
+		return
 	# The everyday cap stays at 2px so a bullet cannot leave the eye.
-	# Meteor Rain may shake a little harder, and only while it is running.
+	# The great dragon's entrance may shake a little harder.
 	mag = minf(mag, cap)
 	if mag <= 0.05:
 		_shake_hold_left = 0.0
 		if position != Vector2.ZERO:
 			position = Vector2.ZERO
 		return
-	# Meteor Rain used to re-roll the offset every rendered frame, which made
-	# the lair scroll and enemy sheets look like they were stuttering. Hold one
-	# sample for a show frame so the shake steps with the 15 fps meteors.
+	# Hold one sample for a show frame so a lair entrance does not re-roll
+	# the offset on every rendered frame.
 	if _meteor_shake_left > 0.0:
 		_shake_hold_left -= delta
 		if _shake_hold_left <= 0.0:
@@ -2203,6 +2216,32 @@ func _apply_shake(delta: float) -> void:
 		round(_shake_rng.randf_range(-mag, mag)),
 		round(_shake_rng.randf_range(-mag, mag))
 	)
+
+## One decaying nudge. The offset is the show frame's sample, so several
+## render frames in that 15 fps step share it and cannot jitter.
+func _apply_slam_bump(delta: float) -> void:
+	if _slam_shake_left <= 0.0:
+		_clear_slam_bump()
+		return
+	var elapsed := DragonShow.SLAM_SHAKE_SECONDS - _slam_shake_left
+	var frame_i := int(floor(maxf(elapsed, 0.0) / DragonShow.FRAME))
+	var remain := DragonShow.SLAM_SHAKE_SECONDS - float(frame_i) * DragonShow.FRAME
+	var mag := DragonShow.SLAM_SHAKE_PX * clampf(remain / DragonShow.SLAM_SHAKE_SECONDS, 0.0, 1.0)
+	var stepped := Vector2(round(mag), 0.0)
+	_slam_shake_left = maxf(_slam_shake_left - delta, 0.0)
+	if mag <= 0.05 or stepped == Vector2.ZERO:
+		_clear_slam_bump()
+		return
+	_shake_hold = stepped
+	_shake_hold_left = DragonShow.FRAME
+	position = stepped
+
+func _clear_slam_bump() -> void:
+	_slam_shake_left = 0.0
+	_shake_hold_left = 0.0
+	_shake_hold = Vector2.ZERO
+	if position != Vector2.ZERO:
+		position = Vector2.ZERO
 
 func _refresh_hud() -> void:
 	if _hud_view == null:
@@ -2537,6 +2576,11 @@ func _dragon_slow(seconds: float) -> void:
 func _dragon_shake(amount: float, seconds: float) -> void:
 	_meteor_shake_mag = amount
 	_meteor_shake_left = maxf(_meteor_shake_left, seconds)
+
+func _dragon_slam_shake() -> void:
+	_slam_shake_left = DragonShow.SLAM_SHAKE_SECONDS
+	_shake_hold_left = 0.0
+	_shake_hold = Vector2.ZERO
 
 func _dragon_clear_shots() -> void:
 	_clear_enemy_shots()
@@ -2922,6 +2966,7 @@ func _reincarnate() -> void:
 		_sound.end_dragon_bed()
 	_rain_budget = 0
 	_meteor_shake_left = 0.0
+	_slam_shake_left = 0.0
 	if _player != null:
 		_player.fit_scale = 1.0
 		_player.rear = 0.0
