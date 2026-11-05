@@ -134,6 +134,18 @@ var _meteor_kills := 0
 var _rain_budget := 0
 var _meteor_shake_left := 0.0
 var _meteor_shake_mag := 0.0
+var _shake_hold := Vector2.ZERO
+var _shake_hold_left := 0.0
+## Snapshot taken the moment the Great Dragon form is gained. Dying spends it.
+var _dragon_saved := false
+var _saved_form := 0
+var _saved_rank := 0
+var _saved_evo := 0
+var _saved_power := 0
+var _saved_small := false
+## Shows the INVINCIBLE label for the revert i-frames. Meteor Rain uses the show phase.
+var _revert_marker := false
+var _invincible_marker: Label
 var _tutorial_active := false
 var _tut_eye := false
 var _tut_gem := false
@@ -845,7 +857,9 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	if key != Vector2.ZERO:
 		_player.add_drag(key * FormCatalog.max_speed(form_id) * delta, bounds)
 	invuln = maxf(invuln - delta, 0.0)
-	_player.invulnerable = invuln > 0.0
+	_player.invulnerable = invuln > 0.0 or _meteor_show_running()
+	if _revert_marker and invuln <= 0.0:
+		_revert_marker = false
 	_player.tick(delta, bounds)
 	if _player.regrew:
 		invuln = maxf(invuln, REGROW_IFRAMES)
@@ -975,6 +989,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	_refresh_hud()
 	_refresh_debug()
 	_sync_invuln_banner()
+	_sync_invincible_marker()
 	if _boss_banner != null:
 		_boss_banner.queue_redraw()
 
@@ -1080,6 +1095,7 @@ func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
 	return shot
 
 func _collide() -> void:
+	_block_meteor_bullets()
 	_reflect_swipes()
 	var spent: Array[Shot] = []
 	var splits: Array[Dictionary] = []
@@ -1724,6 +1740,12 @@ func _try_rank() -> void:
 func _kill_player(name: String) -> void:
 	if phase != PHASE_PLAY:
 		return
+	# Dragon form is an extra life. The enemy-death presentation stays in
+	# _present_dragon_death. This is the player's death.
+	if _try_revert_dragon(name):
+		return
+	if _dragon_show != null:
+		_dragon_show.cancel()
 	killer_name = name
 	phase = PHASE_DEAD
 	_paused = false
@@ -2027,6 +2049,93 @@ func _sync_invuln_banner() -> void:
 	_invuln_banner.visible = CaptureMode.invuln_notice_visible()
 	_invuln_banner.position = _invuln_banner_origin()
 
+func _meteor_show_running() -> bool:
+	return phase == PHASE_PLAY and form_id == FormCatalog.Id.DRAGON and _dragon_show != null and _dragon_show.phase != DragonShow.IDLE
+
+func _meteor_show_began() -> void:
+	if _player != null:
+		_player.invulnerable = true
+	_sync_invincible_marker()
+
+func _meteor_show_ended() -> void:
+	if _player != null and invuln <= 0.0 and not (_revert_marker and invuln > 0.0):
+		_player.invulnerable = false
+	_sync_invincible_marker()
+
+func _sync_invincible_marker() -> void:
+	var show := _meteor_show_running() or (_revert_marker and invuln > 0.0 and phase == PHASE_PLAY)
+	if not show:
+		if _invincible_marker != null:
+			_invincible_marker.visible = false
+		return
+	if _hud == null:
+		return
+	if _invincible_marker == null:
+		_invincible_marker = _make_label(9, INVULN_BANNER_COLOR)
+		_invincible_marker.name = "InvincibleMarker"
+		_invincible_marker.modulate = Color(1, 1, 1, 0.82)
+		_invincible_marker.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		_invincible_marker.autowrap_mode = TextServer.AUTOWRAP_OFF
+		_invincible_marker.clip_text = false
+		_invincible_marker.size = Vector2(220, 14)
+		_invincible_marker.custom_minimum_size = Vector2(220, 14)
+		_hud.add_child(_invincible_marker)
+	_invincible_marker.text = "INVINCIBLE"
+	_invincible_marker.visible = true
+	_invincible_marker.position = _invuln_banner_origin()
+
+func _block_meteor_bullets() -> void:
+	if _dragon_show == null or _dragon_show.phase == DragonShow.IDLE:
+		return
+	var doomed: Array[Shot] = []
+	for shot in _shots:
+		if not is_instance_valid(shot) or shot.from_player:
+			continue
+		if _dragon_show.blocks_bullet(shot.position, shot.radius):
+			doomed.append(shot)
+	for shot in doomed:
+		_drop_shot(shot)
+
+## Dragon form is one extra life. The saved pre-transform form, rank, evolution
+## points, power level, and slime-split flag come back. Position stays. The
+## lair, the dragon-phase clock, and the score keep going.
+func _try_revert_dragon(_killer: String) -> bool:
+	if form_id != FormCatalog.Id.DRAGON or not _dragon_saved or _player == null:
+		return false
+	var at := _player.position
+	if _dragon_show != null:
+		_dragon_show.cancel()
+	_meteor_kills = 0
+	_rain_budget = 0
+	_meteor_shake_left = 0.0
+	_meteor_shake_mag = 0.0
+	form_id = _saved_form
+	rank_index = _saved_rank
+	evo_points = _saved_evo
+	_player.form_id = _saved_form
+	_player.rank_index = _saved_rank
+	_player.small = _saved_small
+	_player.fit_scale = 1.0
+	_player.rear = 0.0
+	_player.power_level = _saved_power
+	_player.alive = true
+	_player.visible = true
+	_player.position = at
+	_player._apply_radius()
+	_player.queue_redraw()
+	_sync_power()
+	# Same window as the spawn i-frames at the start of a run.
+	invuln = INVULN_SECONDS
+	_player.invulnerable = true
+	_revert_marker = true
+	_sync_invincible_marker()
+	if _combat != null:
+		_combat.push_callout("REVERTED!", at + Vector2(-36, -28), Color("ffb15a"), 0.7, 2)
+	_spawn_fx("hit_flash.png", at, 0.22, 0.6, 1.4)
+	_refresh_hud()
+	_refresh_pause_card()
+	return true
+
 ## Top-left, just under the rank line, and lower when a power row is showing.
 func _invuln_banner_origin() -> Vector2:
 	var y := 68.0
@@ -2072,9 +2181,24 @@ func _apply_shake(delta: float) -> void:
 	# Meteor Rain may shake a little harder, and only while it is running.
 	mag = minf(mag, cap)
 	if mag <= 0.05:
+		_shake_hold_left = 0.0
 		if position != Vector2.ZERO:
 			position = Vector2.ZERO
 		return
+	# Meteor Rain used to re-roll the offset every rendered frame, which made
+	# the lair scroll and enemy sheets look like they were stuttering. Hold one
+	# sample for a show frame so the shake steps with the 15 fps meteors.
+	if _meteor_shake_left > 0.0:
+		_shake_hold_left -= delta
+		if _shake_hold_left <= 0.0:
+			_shake_hold = Vector2(
+				round(_shake_rng.randf_range(-mag, mag)),
+				round(_shake_rng.randf_range(-mag, mag))
+			)
+			_shake_hold_left = DragonShow.FRAME
+		position = _shake_hold
+		return
+	_shake_hold_left = 0.0
 	position = Vector2(
 		round(_shake_rng.randf_range(-mag, mag)),
 		round(_shake_rng.randf_range(-mag, mag))
@@ -2402,7 +2526,7 @@ func _charge_meteor() -> void:
 	if _meteor_kills < FormCatalog.DRAGON_METEOR_KILLS:
 		return
 	_meteor_kills = 0
-	# The player stays hittable. Meteor pictures sit under the ship and under bullets.
+	# Charge-up through the end of the finale keeps the player invulnerable.
 	if _dragon_show != null:
 		_dragon_show.rng_seed = day_seed + dragon_kills * 17 + int(elapsed * 10.0)
 		_dragon_show.start_rain()
@@ -2473,6 +2597,12 @@ func _dragon_rain(on: bool) -> void:
 func _adopt_dragon_form() -> void:
 	if _player == null or form_id == FormCatalog.Id.DRAGON:
 		return
+	_saved_form = form_id
+	_saved_rank = rank_index
+	_saved_evo = evo_points
+	_saved_power = int(_player.power_level)
+	_saved_small = _player.small
+	_dragon_saved = true
 	var old_file := _player.sprite_name()
 	var old_scale := _player.drawn_scale()
 	var fit := FormCatalog.dragon_fit_scale(old_file, old_scale)
@@ -2643,7 +2773,7 @@ func _splash_shot(shot: Shot, direct: EnemyActor) -> void:
 		return
 	if _sound != null:
 		_sound.play_event("dragon_form_fireball_explode")
-	_spawn_fx("dragon_form/dragon_explosion.png", shot.position, 7.0 / 15.0, 0.5, 1.2)
+	_spawn_fx("dragon_form/dragon_explosion.png", shot.position, 7.0 / 15.0, 0.5 * FormCatalog.DRAGON_SHOT_SCALE, 1.2 * FormCatalog.DRAGON_SHOT_SCALE)
 	var reach := shot.splash_radius * shot.splash_radius
 	for enemy in _enemies:
 		if enemy == direct or not enemy.alive or enemy.is_boss() or not enemy.can_be_hit():
@@ -2778,6 +2908,10 @@ func _reincarnate() -> void:
 	var died_as := _public_form()
 	dragon_kills = 0
 	_meteor_kills = 0
+	_dragon_saved = false
+	_revert_marker = false
+	if _dragon_show != null:
+		_dragon_show.cancel()
 	_dragon_phase_on = false
 	_dragon_phase_at = 0.0
 	_dragon_spawns = null
@@ -2913,6 +3047,9 @@ func _silence_death() -> void:
 	_sound.stop_event("reborn_tease")
 
 func _request_hit_stop(frames: int) -> void:
+	# A kill-freeze skips the show's tick, so the 15 fps rain hitch-steps.
+	if _dragon_show != null and _dragon_show.phase != DragonShow.IDLE:
+		return
 	if _hit_stop_cooldown > 0.0:
 		return
 	_hit_stop_frames = clampi(frames, 2, 4)
