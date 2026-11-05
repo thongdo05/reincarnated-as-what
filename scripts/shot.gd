@@ -22,6 +22,8 @@ var homing := 0.0
 var cruise := 0.0
 var expires := false
 var life := 0.0
+## Rising shots stop on this world y and hold until life runs out. NAN means never.
+var halt_y := NAN
 
 func setup(data: Dictionary, player_owned: bool) -> void:
 	position = data["position"]
@@ -46,6 +48,7 @@ func setup(data: Dictionary, player_owned: bool) -> void:
 	cruise = velocity.length()
 	expires = bool(data.get("expires", false))
 	life = float(data.get("life", 0.0))
+	halt_y = float(data.get("halt_y", NAN))
 	visible = bool(data.get("visible", true))
 	modulate = Color.WHITE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -56,6 +59,9 @@ func tick(delta: float) -> void:
 		life -= delta
 	velocity.y += gravity * delta
 	position += velocity * delta
+	if not is_nan(halt_y) and velocity.y < 0.0 and position.y <= halt_y:
+		position.y = halt_y
+		velocity = Vector2.ZERO
 	if visible and is_inside_tree():
 		queue_redraw()
 
@@ -70,10 +76,12 @@ func _draw() -> void:
 	# Art is already aimed: player shots face right, enemy shots face left. Do not flip.
 	# Player bullets stay translucent so enemy shots read through the stream.
 	var tint := Color(1, 1, 1, 0.42) if from_player else Color.WHITE
-	# The spiral skull is 8px. At 2x it still reads as a skull, and the hit stays inside it.
-	var scale := 2.0 if sprite_name == BossCatalog.SPIRAL_SKULL else 1.0
+	# Spiral skulls, grave hands, and bones are drawn larger than their source
+	# pixels. The hit scale matches that picture (the skull's circle is already
+	# sized for the doubled art).
+	var scale := BossCatalog.shot_draw_scale(sprite_name)
 	ArtLibrary.draw_loop(self, sprite_name, age, Vector2.ZERO, tint, scale)
 	if HitLibrary.show:
 		var role := "body" if from_player else "threat"
 		var color := Color(0.45, 0.9, 1.0, 0.95) if from_player else Color(1.0, 0.55, 0.2, 0.95)
-		HitLibrary.draw(self, sprite_name, role, color)
+		HitLibrary.draw(self, sprite_name, role, color, -1, BossCatalog.shot_hit_scale(sprite_name))

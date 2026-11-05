@@ -1160,7 +1160,8 @@ func _collide() -> void:
 	for shot in _shots:
 		if shot.from_player or not is_instance_valid(shot):
 			continue
-		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat", player_scale, 1.0, _player.anim_frame())
+		var shot_scale := BossCatalog.shot_hit_scale(shot.sprite_name)
+		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat", player_scale, shot_scale, _player.anim_frame())
 		if shot_gap <= 0.0:
 			_hurt_player(shot.killer_name if shot.killer_name != "" else "shot")
 			return
@@ -1562,7 +1563,7 @@ func _reflect_swipes() -> void:
 				continue
 			if swipe.position.distance_squared_to(bullet.position) > 64.0 * 64.0:
 				continue
-			if not HitLibrary.overlaps(swipe.position, swipe.sprite_name, "body", bullet.position, bullet.sprite_name, "threat"):
+			if not HitLibrary.overlaps(swipe.position, swipe.sprite_name, "body", bullet.position, bullet.sprite_name, "threat", 1.0, BossCatalog.shot_hit_scale(bullet.sprite_name)):
 				continue
 			_reflect_bullet(bullet)
 

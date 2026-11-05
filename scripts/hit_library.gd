@@ -166,8 +166,8 @@ static func bounds_radius(file_name: String, role: String) -> float:
 				best = maxf(best, (center + corner).length())
 	return best
 
-static func draw(canvas: CanvasItem, file_name: String, role: String, color: Color, frame: int = -1) -> void:
-	for part in _parts(file_name, role, frame):
+static func draw(canvas: CanvasItem, file_name: String, role: String, color: Color, frame: int = -1, scale: float = 1.0) -> void:
+	for part in _parts_scaled(file_name, role, scale, frame):
 		var kind := str(part["type"])
 		if kind == "circle":
 			canvas.draw_arc(part["center"], float(part["r"]), 0.0, TAU, 18, color, 1.0, false)
