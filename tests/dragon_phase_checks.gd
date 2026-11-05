@@ -10,6 +10,8 @@ func run() -> int:
 	failed += _check_returns()
 	failed += _check_spawns()
 	failed += _check_actors()
+	failed += _check_elder_breath()
+	failed += _check_lair_hp()
 	failed += load("res://tests/lair_reset.gd").new().run()
 	return failed
 
@@ -63,6 +65,7 @@ func run_live(tree: SceneTree) -> int:
 			failed += 1
 	tree.root.remove_child(game)
 	game.free()
+	failed += _check_boss_minion_spawns(tree)
 	failed += load("res://tests/lair_reset.gd").new().run_live(tree)
 	return failed
 
@@ -100,8 +103,8 @@ func _check_formula() -> int:
 	if opened + 0.001 < DragonPhase.SPAWN_INTERVAL_FLOOR:
 		push_error("spawn interval went under the floor")
 		failed += 1
-	if DragonPhase.scaled_hp(DragonPhase.BAT, 0.0) != 4:
-		push_error("an ember bat should open at 4 HP, got %d" % DragonPhase.scaled_hp(DragonPhase.BAT, 0.0))
+	if DragonPhase.scaled_hp(DragonPhase.BAT, 0.0) != 8:
+		push_error("an ember bat should open at 8 HP, got %d" % DragonPhase.scaled_hp(DragonPhase.BAT, 0.0))
 		failed += 1
 	if DragonPhase.tier_for(0.0) != 1 or DragonPhase.tier_for(59.9) != 1 or DragonPhase.tier_for(60.0) != 2:
 		push_error("tier 2 should unlock at 60s")
@@ -402,7 +405,7 @@ func _check_spawns() -> int:
 	director.arm_at(4.0)
 	var held := director.pop_due(150.0 + 40.0, true)
 	if not held.is_empty():
-		push_error("a living Great Dragon should pause dragon-phase spawns")
+		push_error("a paused poll should drop dragon-phase spawns instead of banking them")
 		failed += 1
 	var after := director.pop_due(150.0 + 43.0, false)
 	for event in after:
@@ -542,6 +545,235 @@ func _check_actors() -> int:
 	elder.free()
 	puddles.free()
 	return failed
+
+## Lair regulars, including the Elder Drake, open at twice the previous pools.
+## The Great Dragon and the normal-world roster stay put.
+func _check_lair_hp() -> int:
+	var failed := 0
+	var bases: Array[int] = [4, 8, 12, 6, 16, 14, 18, 16, 16, 320]
+	var opens: Array[int] = [8, 16, 24, 12, 32, 28, 36, 32, 32, 640]
+	if bases.size() != DragonPhase.STATS.size():
+		push_error("lair HP table should cover every dragon-phase enemy")
+		return 1
+	for i in bases.size():
+		if int(DragonPhase.stat(i)["hp"]) != bases[i]:
+			push_error("%s base HP should be %d, got %s" % [DragonPhase.stat(i)["name"], bases[i], DragonPhase.stat(i)["hp"]])
+			failed += 1
+		if DragonPhase.scaled_hp(i, 0.0) != opens[i]:
+			push_error("%s should open at %d HP, got %d" % [DragonPhase.stat(i)["name"], opens[i], DragonPhase.scaled_hp(i, 0.0)])
+			failed += 1
+	if DragonPhase.scaled_hp(DragonPhase.ELDER, 0.0) != 640:
+		push_error("the elder should open at 640 HP")
+		failed += 1
+	if BossCatalog.max_hp("great_dragon", 0) != 10000 or BossCatalog.max_hp("great_dragon", 1) != 20000:
+		push_error("the Great Dragon HP should stay 10000 then 20000")
+		failed += 1
+	if SpawnDirector.max_hp(SpawnDirector.EYE) != 2 or SpawnDirector.max_hp(SpawnDirector.ARCHER) != 4 or SpawnDirector.max_hp(SpawnDirector.WOLF) != 4 or SpawnDirector.max_hp(SpawnDirector.WYVERN) != 6:
+		push_error("normal-world enemy HP should stay unchanged")
+		failed += 1
+	return failed
+
+## Long aimed breath: 7-puff waves, a sweep, and a gap that is not the whole screen.
+func _check_elder_breath() -> int:
+	var failed := 0
+	if DragonPhase.ELDER_WARN != 0.8:
+		push_error("the elder telegraph should stay 0.8s")
+		failed += 1
+	if DragonPhase.elder_reach() + 0.1 < 0.70 * 480.0:
+		push_error("elder breath should cross at least 70%% of the field, reach %.1f" % DragonPhase.elder_reach())
+		failed += 1
+	if DragonPhase.ELDER_CONE != 7 or DragonPhase.ELDER_WAVES != 3:
+		push_error("the elder cone should be 7 puffs across 3 waves")
+		failed += 1
+	if DragonPhase.elder_wave_gap(1.65) >= DragonPhase.elder_wave_gap(1.0) or DragonPhase.elder_wave_gap(1.65) + 0.001 < DragonPhase.ELDER_WAVE_GAP_FLOOR:
+		push_error("wave spacing should tighten with bullet density and keep a floor")
+		failed += 1
+	if DragonPhase.attack_gap(DragonPhase.ELDER_INTERVAL, 1.65) >= DragonPhase.attack_gap(DragonPhase.ELDER_INTERVAL, 1.0):
+		push_error("the breath wait should still use attack_gap")
+		failed += 1
+	var field := Vector2(480, 270)
+	var aim := Vector2(80, 120)
+	var elder := _make(DragonPhase.ELDER, 21, Vector2(360, 180), field)
+	elder.fire_room = -1
+	elder.bullet_density = 1.0
+	elder._attack_wait = 0.0
+	var ear := _CueEar.new()
+	ear.add_child(elder)
+	var dt := 0.05
+	var telegraph := 0.0
+	var clock := 0.0
+	var puffs: Array[Dictionary] = []
+	var wave_at: Array[float] = []
+	var moved := false
+	while clock < 4.0 and wave_at.size() < DragonPhase.ELDER_WAVES:
+		var was := elder.is_telegraphing()
+		var fired := elder.tick(dt, aim, 1.0, 1.0)
+		if was:
+			telegraph += dt
+		var born := 0
+		for spec in fired:
+			if str(spec.get("sprite", "")) == DragonPhase.BREATH_PUFF:
+				puffs.append(spec)
+				born += 1
+		if born > 0:
+			wave_at.append(clock)
+			if not moved:
+				moved = true
+				aim = Vector2(80, 30)
+		clock += dt
+	if absf(telegraph - DragonPhase.ELDER_WARN) > 0.06:
+		push_error("the breath telegraph lasted %.2fs, wanted 0.80" % telegraph)
+		failed += 1
+	if puffs.size() != DragonPhase.ELDER_CONE * DragonPhase.ELDER_WAVES:
+		push_error("the breath should fire %d puffs, got %d" % [DragonPhase.ELDER_CONE * DragonPhase.ELDER_WAVES, puffs.size()])
+		failed += 1
+	elif wave_at.size() == 3:
+		if absf(wave_at[1] - wave_at[0] - DragonPhase.ELDER_WAVE_GAP) > 0.06 or absf(wave_at[2] - wave_at[1] - DragonPhase.ELDER_WAVE_GAP) > 0.06:
+			push_error("waves should be 0.30s apart at density 1, got %s" % str(wave_at))
+			failed += 1
+		var origin: Vector2 = puffs[DragonPhase.ELDER_CONE + 3]["position"]
+		var locked := Vector2(80, 120)
+		var want := (locked - origin).angle()
+		var mid: Vector2 = puffs[DragonPhase.ELDER_CONE + 3]["velocity"]
+		if absf(angle_difference(mid.angle(), want)) > 0.08:
+			push_error("the middle wave should aim where the player was at fire time")
+			failed += 1
+		var early: Vector2 = puffs[3]["velocity"]
+		var late: Vector2 = puffs[DragonPhase.ELDER_CONE * 2 + 3]["velocity"]
+		if absf(angle_difference(early.angle(), want + DragonPhase.ELDER_SWEEP * 0.5)) > 0.12 and absf(angle_difference(early.angle(), want - DragonPhase.ELDER_SWEEP * 0.5)) > 0.12:
+			push_error("the first wave should sit off the locked aim")
+			failed += 1
+		if absf(angle_difference(late.angle(), early.angle())) < 0.05:
+			push_error("the breath should sweep between the first and last wave")
+			failed += 1
+	var reach := 0.0
+	var ys: Array[float] = []
+	var radius := 0.0
+	for spec in puffs:
+		var vel: Vector2 = spec["velocity"]
+		var life := float(spec["life"])
+		reach = maxf(reach, vel.length() * life)
+		radius = float(spec["radius"])
+		if absf(float(spec.get("scale", 1.0)) - DragonPhase.ELDER_PUFF_SCALE) > 0.01:
+			push_error("breath puffs should draw at %.2f" % DragonPhase.ELDER_PUFF_SCALE)
+			failed += 1
+			break
+		var pos: Vector2 = spec["position"]
+		if absf(vel.x) < 1.0:
+			continue
+		var cross_x := 140.0
+		var t := (cross_x - pos.x) / vel.x
+		if t >= 0.0 and t <= life:
+			ys.append(pos.y + vel.y * t)
+	if reach + 0.1 < 0.70 * 480.0:
+		push_error("fired puffs only reach %.1f px" % reach)
+		failed += 1
+	if ys.size() < DragonPhase.ELDER_CONE:
+		push_error("the breath should still be in the air at x=140, samples %d" % ys.size())
+		failed += 1
+	else:
+		var band := float(ys.max()) - float(ys.min()) + radius * 2.0
+		if band > 220.0:
+			push_error("the breath covers %.0f px of the 270 px field and leaves no dodge gap" % band)
+			failed += 1
+	var telegraph_n := 0
+	var attack_n := 0
+	for cue in ear.cues:
+		if cue == "dragon_enemy_elder_drake_breath_telegraph":
+			telegraph_n += 1
+		elif cue == DragonPhase.HOOK_ELDER_ATTACK:
+			attack_n += 1
+	if telegraph_n != 1 or attack_n != 1:
+		push_error("breath hooks should fire once each, telegraph %d attack %d" % [telegraph_n, attack_n])
+		failed += 1
+	ear.free()
+	return failed
+
+## The Great Dragon does not pause lair spawns. The lair wipe still does.
+func _check_boss_minion_spawns(tree: SceneTree) -> int:
+	var failed := 0
+	var free_run := _count_lair_spawns(tree, false)
+	var boss_run := _count_lair_spawns(tree, true)
+	if int(free_run.get("error", 0)) != 0 or int(boss_run.get("error", 0)) != 0:
+		push_error("lair spawn probe died, free %s boss %s" % [free_run, boss_run])
+		return 1
+	var free_n := int(free_run["spawned"])
+	var boss_n := int(boss_run["spawned"])
+	if free_n < 4 or boss_n < 4:
+		push_error("lair spawns should keep coming, free %d boss %d" % [free_n, boss_n])
+		failed += 1
+	if boss_n != free_n:
+		push_error("boss fight should use the full lair rate, boss %d free %d" % [boss_n, free_n])
+		failed += 1
+	if int(boss_run["alive"]) <= 0 or not bool(boss_run["boss"]):
+		push_error("regular monsters should be on screen with the Great Dragon, alive %s boss %s" % [boss_run["alive"], boss_run["boss"]])
+		failed += 1
+	if absf(float(boss_run["next"]) - float(free_run["next"])) > 0.001:
+		push_error("the spawn clock should match with and without the boss, %.3f vs %.3f" % [float(boss_run["next"]), float(free_run["next"])])
+		failed += 1
+	var wiped := _count_lair_spawns(tree, false, true)
+	if int(wiped.get("spawned", -1)) != 0:
+		push_error("the lair wipe should still hold spawns, got %s" % wiped.get("spawned", -1))
+		failed += 1
+	return failed
+
+func _count_lair_spawns(tree: SceneTree, with_boss: bool, lair_wipe: bool = false) -> Dictionary:
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	tree.root.add_child(game)
+	game.phase = game.PHASE_PLAY
+	game.day_seed = 20261105
+	game.elapsed = 40.0
+	game.invuln = 100.0
+	game._player.invulnerable = true
+	game._player.alive = true
+	game._player.position = Vector2(48, 48)
+	game._tutorial_active = false
+	game._director._next_time = 100000.0
+	game._boss_director.dragon_at = 100000.0
+	game.form_id = FormCatalog.Id.DRAGON
+	game._player.adopt_dragon(1.0)
+	game._begin_dragon_phase()
+	var field := Vector2(480, 270)
+	if with_boss:
+		if not game._spawn_boss({"slug": "great_dragon", "generation": 1, "hold_x": 404.0, "origin_y": 120.0, "phase": 0.2, "wave_amp": 8.0}, field):
+			tree.root.remove_child(game)
+			game.free()
+			return {"error": 1}
+		var boss: EnemyActor = game._living_boss()
+		boss.intro_left = 0.0
+		if boss is BossActor:
+			(boss as BossActor).state = BossActor.HOLD
+	if lair_wipe and game._lair != null:
+		game._lair.begin()
+	var id0: int = game.next_enemy_id
+	var cursor := 0.0
+	while cursor < 12.0:
+		cursor += 0.05
+		game.elapsed = 40.0 + cursor
+		var living: EnemyActor = game._living_boss()
+		game._spawn_dragon_minions(living, field)
+	var spawned: int = game.next_enemy_id - id0
+	var alive := 0
+	for enemy in game._enemies:
+		if enemy is DragonEnemy and enemy.alive:
+			alive += 1
+	var boss_up := false
+	var living_boss: EnemyActor = game._living_boss()
+	boss_up = living_boss != null and living_boss.boss_slug == "great_dragon"
+	var next_t := 0.0
+	if game._dragon_spawns != null:
+		next_t = game._dragon_spawns._next_time
+	tree.root.remove_child(game)
+	game.free()
+	return {"spawned": spawned, "alive": alive, "boss": boss_up, "next": next_t, "error": 0}
+
+class _CueEar extends Node:
+	var cues: PackedStringArray = PackedStringArray()
+
+	func play_sfx_hook(cue: String, _delay: float = 0.0) -> void:
+		cues.append(cue)
 
 class _UpgradeEar extends Node:
 	var sound: SoundRig

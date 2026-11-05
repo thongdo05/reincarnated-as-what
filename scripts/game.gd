@@ -2,6 +2,8 @@ extends Node2D
 
 const REVEAL_SECONDS := 1.5
 const INVULN_SECONDS := 1.5
+## Meteor Rain's only i-frames. They start with CHARGE and do not cover the rain.
+const METEOR_INVULN_SECONDS := 0.5
 const GRAZE_PAD := 22.0
 const SPLIT_IFRAMES := 1.15
 const REGROW_IFRAMES := 0.45
@@ -145,8 +147,10 @@ var _saved_rank := 0
 var _saved_evo := 0
 var _saved_power := 0
 var _saved_small := false
-## Shows the INVINCIBLE label for the revert i-frames. Meteor Rain uses the show phase.
+## Shows the INVINCIBLE label for the revert i-frames, and for the meteor opening.
 var _revert_marker := false
+## Seconds left on the Meteor Rain opening guard. Separate from revert i-frames.
+var _meteor_guard := 0.0
 var _invincible_marker: Label
 var _tutorial_active := false
 var _tut_eye := false
@@ -773,9 +777,15 @@ func _process(delta: float) -> void:
 	if _paused:
 		return
 	delta = clampf(delta, 0.0, 0.033)
+	# Real time, not the meteor slow-mo, so the 0.5s guard does not cover the charge.
+	if phase == PHASE_PLAY and _meteor_guard > 0.0:
+		_meteor_guard = maxf(_meteor_guard - delta, 0.0)
 	# A few frozen frames. Elapsed does not move, so the spawn clock stays put.
 	if phase == PHASE_PLAY and _hit_stop_frames > 0:
 		_hit_stop_frames -= 1
+		if _player != null:
+			_player.invulnerable = invuln > 0.0 or _meteor_guard > 0.0
+		_sync_invincible_marker()
 		return
 	if phase == PHASE_PLAY and _dragon_show != null:
 		_dragon_show.tick(delta)
@@ -859,7 +869,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	if key != Vector2.ZERO:
 		_player.add_drag(key * FormCatalog.max_speed(form_id) * delta, bounds)
 	invuln = maxf(invuln - delta, 0.0)
-	_player.invulnerable = invuln > 0.0 or _meteor_show_running()
+	_player.invulnerable = invuln > 0.0 or _meteor_guard > 0.0
 	if _revert_marker and invuln <= 0.0:
 		_revert_marker = false
 	_player.tick(delta, bounds)
@@ -934,7 +944,6 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	if dragon_phase_elapsed() >= 0.0:
 		shot_cap = DragonPhase.shot_cap(dragon_phase_elapsed())
 	var shot_room := maxi(shot_cap - _reserved_enemy_shots(), 0)
-	var dragon_boss := _great_dragon_on_screen()
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
@@ -945,7 +954,6 @@ func _play_frame(delta: float, size: Vector2) -> void:
 				phase_t = 0.0
 			dragon.bullet_density = DragonPhase.bullet_density(phase_t)
 			dragon.move_scale = DragonPhase.speed_mul(phase_t)
-			dragon.suppress_fire = dragon_boss
 			dragon.bind_allies(_enemies)
 		enemy.fire_room = shot_room
 		for spec in enemy.tick(delta, player_pos, elapsed, Difficulty.speed_scale(elapsed)):
@@ -1748,8 +1756,13 @@ func _kill_player(name: String) -> void:
 		return
 	if _dragon_show != null:
 		_dragon_show.cancel()
+	_meteor_guard = 0.0
+	invuln = 0.0
+	if _player != null:
+		_player.invulnerable = false
 	killer_name = name
 	phase = PHASE_DEAD
+	_sync_invincible_marker()
 	_paused = false
 	_death_audio_stage = ""
 	if _world_flash != null:
@@ -2051,22 +2064,22 @@ func _sync_invuln_banner() -> void:
 	_invuln_banner.visible = CaptureMode.invuln_notice_visible()
 	_invuln_banner.position = _invuln_banner_origin()
 
-func _meteor_show_running() -> bool:
-	return phase == PHASE_PLAY and form_id == FormCatalog.Id.DRAGON and _dragon_show != null and _dragon_show.phase != DragonShow.IDLE
-
 func _meteor_show_began() -> void:
+	_meteor_guard = METEOR_INVULN_SECONDS
 	if _player != null:
 		_player.invulnerable = true
 	_sync_invincible_marker()
 
 func _meteor_show_ended() -> void:
 	_slam_shake_left = 0.0
-	if _player != null and invuln <= 0.0 and not (_revert_marker and invuln > 0.0):
+	# Cancel, death, and a finished show drop the opening guard. Revert sets its own.
+	_meteor_guard = 0.0
+	if _player != null and invuln <= 0.0:
 		_player.invulnerable = false
 	_sync_invincible_marker()
 
 func _sync_invincible_marker() -> void:
-	var show := _meteor_show_running() or (_revert_marker and invuln > 0.0 and phase == PHASE_PLAY)
+	var show := phase == PHASE_PLAY and (_meteor_guard > 0.0 or (_revert_marker and invuln > 0.0))
 	if not show:
 		if _invincible_marker != null:
 			_invincible_marker.visible = false
@@ -2106,6 +2119,7 @@ func _try_revert_dragon(_killer: String) -> bool:
 	if form_id != FormCatalog.Id.DRAGON or not _dragon_saved or _player == null:
 		return false
 	var at := _player.position
+	_meteor_guard = 0.0
 	if _dragon_show != null:
 		_dragon_show.cancel()
 	_meteor_kills = 0
@@ -2565,7 +2579,6 @@ func _charge_meteor() -> void:
 	if _meteor_kills < FormCatalog.DRAGON_METEOR_KILLS:
 		return
 	_meteor_kills = 0
-	# Charge-up through the end of the finale keeps the player invulnerable.
 	if _dragon_show != null:
 		_dragon_show.rng_seed = day_seed + dragon_kills * 17 + int(elapsed * 10.0)
 		_dragon_show.start_rain()
@@ -2672,15 +2685,12 @@ func _begin_dragon_phase() -> void:
 	_dragon_spawns = DragonSpawnDirector.new(day_seed)
 	_dragon_spawns.begin(elapsed)
 
-func _great_dragon_on_screen() -> bool:
-	var living := _living_boss()
-	return living != null and living.boss_slug == "great_dragon"
-
 func _spawn_dragon_minions(living: EnemyActor, size: Vector2) -> void:
 	_note_dragon_tier()
 	if _dragon_spawns == null:
 		return
-	var paused := (living != null and living.boss_slug == "great_dragon") or _lair_blocks_spawns()
+	# The lair wipe drops beats. A living Great Dragon keeps the normal clock and caps.
+	var paused := _lair_blocks_spawns()
 	var room := DragonPhase.MAX_ENEMIES - _alive_minion_count()
 	for event in _dragon_spawns.pop_due(elapsed, paused):
 		if room <= 0:
@@ -2952,6 +2962,7 @@ func _reincarnate() -> void:
 	var died_as := _public_form()
 	dragon_kills = 0
 	_meteor_kills = 0
+	_meteor_guard = 0.0
 	_dragon_saved = false
 	_revert_marker = false
 	if _dragon_show != null:

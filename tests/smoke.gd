@@ -5480,11 +5480,15 @@ func _check_dragon_form() -> int:
 			push_error("the dragon fireball hit radius should be 3x, got %s base %s" % [spec["radius"], base_radius])
 			failed += 1
 	var weapon := FormCatalog.weapon_line(FormCatalog.Id.DRAGON, 0)
-	if weapon.find("1 fireball") < 0 or weapon.find("Fan") >= 0 or weapon.find("Meteor Rain in 20") < 0 or weapon.find("Dmg 10") < 0 or weapon.find("splash 8") < 0:
-		push_error("dragon card should describe one fireball, dmg 10, splash 8, and 20 kills, got %s" % weapon)
+	if weapon.find("1 fireball") < 0 or weapon.find("Fan") >= 0 or weapon.find("Meteor Rain in 50") < 0 or weapon.find("Dmg 10") < 0 or weapon.find("splash 8") < 0:
+		push_error("dragon card should describe one fireball, dmg 10, splash 8, and 50 kills, got %s" % weapon)
 		failed += 1
-	if FormCatalog.DRAGON_METEOR_KILLS != 20:
-		push_error("meteor rain should charge in 20 kills, got %s" % FormCatalog.DRAGON_METEOR_KILLS)
+	if FormCatalog.DRAGON_METEOR_KILLS != 50:
+		push_error("meteor rain should charge in 50 kills, got %s" % FormCatalog.DRAGON_METEOR_KILLS)
+		failed += 1
+	var dragon_trait := FormCatalog.trait_line(FormCatalog.Id.DRAGON, true)
+	if dragon_trait.find("Meteor Rain in 50 kills") < 0 or dragon_trait.find("15%") < 0:
+		push_error("dragon trait should name Meteor Rain at 50 kills, got %s" % dragon_trait)
 		failed += 1
 	if FormCatalog.DRAGON_SPLASH != 8 or absf(FormCatalog.DRAGON_SPLASH_RADIUS - 126.0) > 0.01:
 		push_error("splash damage stays 8 and the radius is 3x (126), got %s / %s" % [FormCatalog.DRAGON_SPLASH, FormCatalog.DRAGON_SPLASH_RADIUS])
@@ -5818,7 +5822,13 @@ func _check_meteor_rain() -> int:
 		if game._shots.has(near) or game._shots.has(inside) or not game._shots.has(far):
 			push_error("meteor overlap and impact bullets should be removed, and a far bullet should stay")
 			failed += 1
-	var hp_before: bool = game._player.alive
+	if absf(game._meteor_guard - game.METEOR_INVULN_SECONDS) > 0.02 or not game._player.invulnerable:
+		push_error("meteor rain should open with %.2fs of invuln, guard %s" % [game.METEOR_INVULN_SECONDS, game._meteor_guard])
+		failed += 1
+	var open_marker: Label = game._hud.get_node_or_null("InvincibleMarker")
+	if open_marker == null or not open_marker.visible or str(open_marker.text) != "INVINCIBLE":
+		push_error("meteor rain should show INVINCIBLE during the opening invuln")
+		failed += 1
 	game._spawn_shot({
 		"position": game._player.position,
 		"velocity": Vector2.ZERO,
@@ -5828,8 +5838,62 @@ func _check_meteor_rain() -> int:
 		"killer_name": "bolt",
 	}, false)
 	game._collide()
-	if not hp_before or not game._player.alive or game.phase != game.PHASE_PLAY:
-		push_error("the player should take no damage during meteor rain")
+	if not game._player.alive or game.phase != game.PHASE_PLAY:
+		push_error("the player should be safe for the opening 0.5s of meteor rain")
+		failed += 1
+	game._clear_enemy_shots()
+	# The show was stepped on its own clock, so spend the guard the way play does.
+	game._director._next_time = 100000.0
+	game._boss_director.dragon_at = 100000.0
+	game._tutorial_active = false
+	var step := 1.0 / 60.0
+	for _i in 34:
+		game._process(step)
+	if game._dragon_show.phase == DragonShow.IDLE or game._meteor_guard > 0.0 or game._player.invulnerable or game.invuln > 0.0:
+		push_error("after 0.5s the rain should still be going with no invuln, phase %s guard %s invuln %s" % [game._dragon_show.phase, game._meteor_guard, game.invuln])
+		failed += 1
+	var late_marker: Label = game._hud.get_node_or_null("InvincibleMarker")
+	if late_marker != null and late_marker.visible:
+		push_error("INVINCIBLE should hide once the meteor opening ends")
+		failed += 1
+	var saw_rain: bool = game._dragon_show.phase == DragonShow.RAIN
+	var saw_slam: bool = game._dragon_show.phase == DragonShow.SLAM
+	var guard_frames := 0
+	while game._dragon_show.phase != DragonShow.IDLE and game._player.alive and guard_frames < 700:
+		if game._dragon_show.phase == DragonShow.RAIN:
+			saw_rain = true
+		elif game._dragon_show.phase == DragonShow.SLAM:
+			saw_slam = true
+		if game._player.invulnerable or game._meteor_guard > 0.0:
+			push_error("the rest of meteor rain should not grant invuln, phase %s" % game._dragon_show.phase)
+			failed += 1
+			break
+		game._process(step)
+		guard_frames += 1
+	if not saw_rain or not saw_slam:
+		push_error("the show should still reach the rain and the slam, rain %s slam %s phase %s" % [saw_rain, saw_slam, game._dragon_show.phase])
+		failed += 1
+	if game.phase != game.PHASE_PLAY or not game._player.alive:
+		push_error("a clear field should not kill the player during the unguarded rain")
+		failed += 1
+	game._spawn_shot({
+		"position": game._player.position,
+		"velocity": Vector2.ZERO,
+		"sprite": "floating_eye_bolt.png",
+		"radius": 8.0,
+		"damage": 1,
+		"killer_name": "bolt",
+	}, false)
+	game._collide()
+	if game._player.alive or game.phase != game.PHASE_DEAD:
+		push_error("the player should be hittable for the rest of meteor rain")
+		failed += 1
+	if game._meteor_guard > 0.0:
+		push_error("dying should clear the meteor guard")
+		failed += 1
+	var dead_marker: Label = game._hud.get_node_or_null("InvincibleMarker")
+	if dead_marker != null and dead_marker.visible:
+		push_error("dying should hide the INVINCIBLE marker")
 		failed += 1
 	_finish_show(game._dragon_show)
 	if game._dragon_show.phase != DragonShow.IDLE or game._dragon_show.active_meteors() != 0 or game._dragon_show._giant.get("on", false) or game._dragon_show._impacts.size() != 0 or game._dragon_show.visible_meteor_fx() != 0 or game._dragon_show.lingering_meteor_fx() != 0:
@@ -5892,6 +5956,9 @@ func _check_dragon_life() -> int:
 		failed += 1
 	if absf(game.invuln - game.INVULN_SECONDS) > 0.01 or not game._player.invulnerable or not game._revert_marker:
 		push_error("revert i-frames should be the spawn window %.2fs, invuln %s" % [game.INVULN_SECONDS, game.invuln])
+		failed += 1
+	if game._meteor_guard > 0.0:
+		push_error("revert should end the meteor opening guard")
 		failed += 1
 	var life_marker: Label = game._hud.get_node_or_null("InvincibleMarker")
 	if life_marker == null or not life_marker.visible or str(life_marker.text) != "INVINCIBLE":
@@ -6218,15 +6285,57 @@ func _check_boss_play() -> int:
 	game._player.invulnerable = false
 	game.form_id = FormCatalog.Id.DRAGON
 	game._player.adopt_dragon(1.0)
-	game._dragon_show.start_rain()
-	if not game._player.invulnerable:
-		push_error("meteor rain should make the player invulnerable from the charge")
+	game.form_id = FormCatalog.Id.DRAGON
+	game._meteor_kills = 25
+	game._refresh_hud()
+	if game._hud_view == null or game._hud_view.meteor_px != 9:
+		push_error("25 of 50 kills should fill half the meteor meter, got %s" % (game._hud_view.meteor_px if game._hud_view != null else -1))
+		failed += 1
+	game._meteor_kills = 49
+	game._refresh_hud()
+	if game._hud_view.meteor_ready:
+		push_error("49 kills should not mark meteor rain ready")
+		failed += 1
+	game._charge_meteor()
+	if game._dragon_show.phase != DragonShow.CHARGE or game._meteor_kills != 0:
+		push_error("the 50th kill should start meteor rain, phase %s kills %s" % [game._dragon_show.phase, game._meteor_kills])
+		failed += 1
+	if not game._player.invulnerable or absf(game._meteor_guard - game.METEOR_INVULN_SECONDS) > 0.02:
+		push_error("meteor rain should make the player invulnerable for 0.5s from the charge")
 		failed += 1
 	var marker: Label = game._hud.get_node_or_null("InvincibleMarker")
 	if marker == null or not marker.visible or str(marker.text) != "INVINCIBLE":
-		push_error("meteor rain should show the INVINCIBLE marker")
+		push_error("meteor rain should show the INVINCIBLE marker at the start of the charge")
 		failed += 1
+	game._director._next_time = 100000.0
+	game._boss_director.dragon_at = 100000.0
+	game._tutorial_active = false
+	game._clear_field()
+	for _i in 34:
+		game._process(1.0 / 60.0)
+	if game._dragon_show.phase != DragonShow.CHARGE or game._player.invulnerable or game._meteor_guard > 0.0:
+		push_error("the rest of the charge should be vulnerable, phase %s guard %s" % [game._dragon_show.phase, game._meteor_guard])
+		failed += 1
+	marker = game._hud.get_node_or_null("InvincibleMarker")
+	if marker != null and marker.visible:
+		push_error("the INVINCIBLE marker should leave before the charge ends")
+		failed += 1
+	var daily_path := "user://daily_run.json"
+	var daily_body := FileAccess.get_file_as_string(daily_path) if FileAccess.file_exists(daily_path) else ""
 	game._dragon_show.cancel()
+	game.phase = game.PHASE_PLAY
+	game._player.alive = true
+	game._meteor_guard = 0.4
+	game.invuln = 0.4
+	game._reincarnate()
+	_restore_user_file(daily_path, daily_body)
+	if game._meteor_guard > 0.0 or game.invuln > 0.0:
+		push_error("a new run should clear the meteor guard, guard %s invuln %s" % [game._meteor_guard, game.invuln])
+		failed += 1
+	marker = game._hud.get_node_or_null("InvincibleMarker")
+	if marker != null and marker.visible:
+		push_error("a new run should hide the INVINCIBLE marker")
+		failed += 1
 	if game._dragon_show.z_index >= game._player.z_index or game._dragon_show.z_index >= Replay.bullet_z():
 		push_error("meteor FX should draw under the ship and under enemy bullets")
 		failed += 1
