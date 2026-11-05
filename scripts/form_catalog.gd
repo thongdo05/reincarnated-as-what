@@ -133,7 +133,7 @@ const DRAGON_SHOT_SCALE := 3.0
 ## Hurt body is about 48px wide. 810 / 48 beats Goblin 560 / 34.
 const DRAGON_MAX_SPEED := 810.0
 const DRAGON_POWER_PER_LEVEL := 1
-const DRAGON_METEOR_KILLS := 20
+const DRAGON_METEOR_KILLS := 50
 const DRAGON_SPRITE := "dragon_form/dragon_fly.png"
 const DRAGON_SHOT := "dragon_form/dragon_fireball.png"
 
@@ -196,7 +196,7 @@ const FORM_CARD := {
 		"used": "",
 	},
 	Id.DRAGON: {
-		"trait": "Earned by slaying the Great Dragon. Fireballs explode. Kills fill Meteor Rain, which chips a boss for 15% of its max HP.",
+		"trait": "Earned by slaying the Great Dragon. Fireballs explode. Kills fill Meteor Rain in %d kills. It chips a boss for 15%% of its max HP.",
 		"ready": "",
 		"used": "",
 	},
@@ -800,6 +800,8 @@ static func trait_line(id: int, split_ready: bool) -> String:
 		if flag != "":
 			return "%s %s" % [flag, body]
 		return body
+	if id == Id.DRAGON:
+		return body % DRAGON_METEOR_KILLS
 	if id == Id.GOBLIN and goblin_f("loot_magnet") > 0.0:
 		return "%s Pulls in within %dpx." % [body, int(round(goblin_f("loot_magnet")))]
 	return body
