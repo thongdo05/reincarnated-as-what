@@ -4574,6 +4574,7 @@ func _check_bosses() -> int:
 		push_error("the death knight warning should stay about 0.8 s")
 		failed += 1
 	failed += _check_bone_rain()
+	failed += _check_lich_patterns()
 	failed += _check_boss_rework()
 	failed += _check_boss_gaps()
 	failed += _check_boss_flee()
@@ -4926,6 +4927,265 @@ func _check_bone_rain() -> int:
 				break
 	boss.free()
 	return failed
+
+## Skull spiral, grave hands, bone rain, and the two enraged mixes.
+## The across-map beam is only checked to still chain and keep its row.
+func _check_lich_patterns() -> int:
+	var failed := 0
+	for sprite in [BossCatalog.SPIRAL_SKULL, BossCatalog.GRAVE_HAND, BossCatalog.BONE_SHOT]:
+		if not _shot_hit_fits_sprite(sprite):
+			var draw_s := BossCatalog.shot_draw_scale(sprite)
+			var hit_s := BossCatalog.shot_hit_scale(sprite)
+			push_error("%s hitbox is outside the drawn sprite (draw %.1f hit %.1f)" % [sprite, draw_s, hit_s])
+			failed += 1
+	if absf(BossCatalog.shot_hit_scale(BossCatalog.SPIRAL_SKULL) - 1.0) > 0.001:
+		push_error("the spiral skull threat is authored for the doubled picture and should not scale again")
+		failed += 1
+	if absf(BossCatalog.shot_draw_scale(BossCatalog.SOUL_BEAM) - 1.0) > 0.001 or absf(BossCatalog.shot_hit_scale(BossCatalog.SOUL_BEAM) - 1.0) > 0.001:
+		push_error("the soul beam art scale drifted")
+		failed += 1
+	var tall := 0.0
+	for id in FormCatalog.IDS:
+		for rank in 5:
+			var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
+			tall = maxf(tall, HitLibrary.vertical_extent(file, "hurt"))
+	var skull_h := HitLibrary.vertical_extent(BossCatalog.SPIRAL_SKULL, "threat") * BossCatalog.shot_hit_scale(BossCatalog.SPIRAL_SKULL)
+	var lane_gap := BossCatalog.SPIRAL_LANE * 2.0 - BossCatalog.SPIRAL_WAVE * 2.0 - skull_h
+	if lane_gap <= tall:
+		push_error("spiral bands leave no lane (gap %.1f body %.1f)" % [lane_gap, tall])
+		failed += 1
+	var spiral := _fresh_lich()
+	spiral.fire_room = 0
+	spiral._attack_cd = 0.0
+	spiral._attack_i = BossCatalog.attack_cycle("lich_king", 1).find("skull_spiral")
+	var spiral_shots: Array[Dictionary] = []
+	var t := 0.0
+	while t < 2.4:
+		var fired := spiral.tick(0.05, Vector2(150, 120), 40.0, 1.0)
+		t += 0.05
+		for spec in fired:
+			if str(spec.get("sprite", "")) != BossCatalog.SPIRAL_SKULL:
+				continue
+			if t < BossCatalog.SPIRAL_WIND:
+				push_error("a spiral skull fired before the warning finished")
+				failed += 1
+			spiral_shots.append(spec)
+	if spiral_shots.size() < 6:
+		push_error("the skull spiral should keep firing with an empty shot cap, got %d" % spiral_shots.size())
+		failed += 1
+	else:
+		var low := false
+		var high := false
+		var body_left := spiral.position.x - ArtLibrary.anchor(spiral.sprite_file()).x
+		for spec in spiral_shots:
+			var at: Vector2 = spec["position"]
+			var vel: Vector2 = spec["velocity"]
+			if vel.x > -80.0 or absf(vel.y) > 1.0:
+				push_error("spiral skulls should travel straight left, got %s" % vel)
+				failed += 1
+				break
+			if at.x >= body_left - 4.0:
+				push_error("a spiral skull spawned inside the lich at %s (body left %.1f)" % [at, body_left])
+				failed += 1
+				break
+			var rel := at.y - (spiral.position.y + BossCatalog.SPIRAL_ORIGIN.y)
+			if absf(absf(rel) - BossCatalog.SPIRAL_LANE) > BossCatalog.SPIRAL_WAVE + 1.5:
+				push_error("a spiral skull left its warning band, y offset %s" % rel)
+				failed += 1
+				break
+			if rel > 0.0:
+				high = true
+			else:
+				low = true
+		if not low or not high:
+			push_error("the spiral should use both bands")
+			failed += 1
+	spiral.free()
+	var hands := _fresh_lich()
+	hands.fire_room = 0
+	hands._attack_cd = 0.0
+	hands._attack_i = BossCatalog.attack_cycle("lich_king", 1).find("grave_hands")
+	var hand_shots: Array[Dictionary] = []
+	var warned_hands: Array[float] = []
+	t = 0.0
+	while t < 1.6 and hand_shots.is_empty():
+		var fired_hands := hands.tick(0.05, Vector2(180, 140), 30.0, 1.0)
+		t += 0.05
+		if hands._hands_left > 0.2 and warned_hands.is_empty():
+			warned_hands.append_array(hands._hand_xs)
+		for spec in fired_hands:
+			if str(spec.get("sprite", "")) == BossCatalog.GRAVE_HAND:
+				hand_shots.append(spec)
+	if warned_hands.size() < 2 or hand_shots.size() != warned_hands.size():
+		push_error("grave hands should warn then rise on those columns, warn %s shots %d" % [warned_hands, hand_shots.size()])
+		failed += 1
+	else:
+		for spec in hand_shots:
+			var at: Vector2 = spec["position"]
+			var matched := false
+			for column in warned_hands:
+				if absf(at.x - column) <= 0.5:
+					matched = true
+			if not matched or absf(at.y - BossCatalog.HAND_START_Y) > 0.5:
+				push_error("a grave hand did not start on its marked column, at %s marks %s" % [at, warned_hands])
+				failed += 1
+				break
+			if absf(float(spec.get("halt_y", -1.0)) - BossCatalog.HAND_HALT_Y) > 0.1:
+				push_error("a grave hand has no hold height")
+				failed += 1
+				break
+			var risen := Shot.new()
+			risen.setup(spec, false)
+			var guard := 0
+			while risen.velocity.y < -1.0 and risen.life > 0.0 and guard < 80:
+				risen.tick(0.05)
+				guard += 1
+			if absf(risen.position.y - BossCatalog.HAND_HALT_Y) > 1.0 or risen.velocity.length() > 0.1:
+				push_error("a grave hand should rise and hold, y %s vel %s" % [risen.position.y, risen.velocity])
+				failed += 1
+			var held := risen.position.y
+			risen.tick(0.05)
+			if absf(risen.position.y - held) > 0.01:
+				push_error("a grave hand drifted after it held")
+				failed += 1
+			risen.free()
+	hands.free()
+	var rain := _fresh_lich()
+	rain.fire_room = 0
+	rain._attack_cd = 0.0
+	rain._attack_i = BossCatalog.attack_cycle("lich_king", 1).find("bone_rain")
+	var marks: Array[float] = []
+	var bone_specs: Array[Dictionary] = []
+	t = 0.0
+	while t < 2.0 and bone_specs.size() < 2:
+		var fired_bones := rain.tick(0.05, Vector2(160, 120), 40.0, 1.0)
+		t += 0.05
+		if rain._rain_left > 0.3 and marks.is_empty():
+			marks.append_array(rain._rain_columns)
+		for spec in fired_bones:
+			if str(spec.get("sprite", "")) == BossCatalog.BONE_SHOT:
+				bone_specs.append(spec)
+	if marks.size() < 3 or bone_specs.is_empty():
+		push_error("bone rain should mark columns and then drop bones")
+		failed += 1
+	else:
+		for column in marks:
+			if absf(BossCatalog.bone_mark_at(column).x - column) > 0.01:
+				push_error("the bone warning mark left its column")
+				failed += 1
+				break
+		var land := BossCatalog.bone_land_y()
+		for spec in bone_specs:
+			var at: Vector2 = spec["position"]
+			var on_mark := false
+			for column in marks:
+				if absf(at.x - column) <= 0.5 and absf(BossCatalog.bone_mark_at(column).y - land) <= 0.01:
+					on_mark = true
+			if not on_mark:
+				push_error("a bone did not spawn on a marked column at %s" % at)
+				failed += 1
+				break
+			var bone := Shot.new()
+			bone.setup(spec, false)
+			var speed := float((spec["velocity"] as Vector2).y)
+			var steps := 0
+			while bone.life > 0.0 and steps < 200:
+				bone.tick(0.05)
+				steps += 1
+			if bone.life > 0.0 or bone.position.y > land + speed * 0.05 + 1.5:
+				push_error("a bone should vanish at the ground mark, y %s land %s life %s" % [bone.position.y, land, bone.life])
+				failed += 1
+			bone.free()
+	rain.free()
+	var mix := _fresh_lich()
+	mix.hp = int(mix.max_hp / 2)
+	mix.enraged = true
+	mix.fire_room = 0
+	mix._attack_cd = 0.0
+	mix._attack_i = BossCatalog.attack_cycle("lich_king", 2).find("beam_rain")
+	mix.tick(0.05, Vector2(150, 110), 40.0, 1.0)
+	if mix._attack_id != "beam_rain" or mix._beam_mode != 1 or mix._rain_columns.size() < 3:
+		push_error("beam rain should keep both the beam and the columns, id %s mode %s cols %s" % [mix._attack_id, mix._beam_mode, mix._rain_columns])
+		failed += 1
+	var mix_bones := 0
+	var mix_beam := 0
+	t = 0.0
+	while t < 2.4 and (mix_bones < 2 or mix_beam < 4):
+		mix.fire_room = 0
+		for spec in mix.tick(0.05, Vector2(150, 110), 40.0, 1.0):
+			var picture := str(spec.get("sprite", ""))
+			if picture == BossCatalog.BONE_SHOT:
+				mix_bones += 1
+			elif picture == BossCatalog.SOUL_BEAM:
+				mix_beam += 1
+		t += 0.05
+	if mix_bones < 2 or mix_beam < 4:
+		push_error("beam rain should fire bones and the beam, bones %d beam %d" % [mix_bones, mix_beam])
+		failed += 1
+	mix.free()
+	var chained := _fresh_lich()
+	chained.hp = int(chained.max_hp / 2)
+	chained.enraged = true
+	chained._attack_cd = 0.0
+	chained._attack_i = BossCatalog.attack_cycle("lich_king", 2).find("double_beam")
+	chained._summon_cd = 80.0
+	chained.tick(0.05, Vector2(120, 100), 40.0, 1.0)
+	if chained._attack_id != "double_beam" or chained._beam_chain != 1 or chained._beam_mode != 1:
+		push_error("double beam should still arm a second pass, id %s chain %s mode %s" % [chained._attack_id, chained._beam_chain, chained._beam_mode])
+		failed += 1
+	var second := false
+	t = 0.05
+	while t < 3.4:
+		chained.fire_room = -1
+		chained.tick(0.05, Vector2(120, 160), 40.0, 1.0)
+		t += 0.05
+		if chained._beam_chain == 0 and chained._beam_mode == 1 and t > 1.2:
+			second = true
+			break
+	if not second:
+		push_error("double beam should start a second track after the first row")
+		failed += 1
+	chained.free()
+	var both := _fresh_lich()
+	both.hp = int(both.max_hp / 2)
+	both.enraged = true
+	both.fire_room = 0
+	both._attack_cd = 0.0
+	both._attack_i = BossCatalog.attack_cycle("lich_king", 2).find("spiral_hands")
+	both.tick(0.05, Vector2(170, 140), 40.0, 1.0)
+	if both._attack_id != "spiral_hands" or both._spiral_wind <= 0.0 or both._hand_xs.size() < 2:
+		push_error("spiral hands should warn with both patterns, id %s wind %s cols %s" % [both._attack_id, both._spiral_wind, both._hand_xs])
+		failed += 1
+	both.free()
+	return failed
+
+func _fresh_lich() -> BossActor:
+	var boss := BossActor.new()
+	boss.setup(11, {"slug": "lich_king", "hold_x": 428.0, "origin_y": 128.0, "phase": 0.2, "wave_amp": 0.0, "generation": 0}, Vector2(480, 270), null)
+	boss.state = BossActor.HOLD
+	boss.intro_left = 0.0
+	boss.fight_left = 40.0
+	boss.position = Vector2(428, 128)
+	boss._summon_cd = 80.0
+	return boss
+
+func _shot_hit_fits_sprite(sprite: String) -> bool:
+	if not HitLibrary.contains_local(sprite, "threat", Vector2.ZERO):
+		return false
+	var draw_s := BossCatalog.shot_draw_scale(sprite)
+	var hit_s := BossCatalog.shot_hit_scale(sprite)
+	var anchor := ArtLibrary.anchor(sprite) * draw_s
+	var size := ArtLibrary.art_bbox(sprite) * draw_s
+	var across := HitLibrary.horizontal_span(sprite, "threat") * hit_s
+	var down := HitLibrary.vertical_span(sprite, "threat") * hit_s
+	var slop := 2.0
+	if across.x < -anchor.x - slop or across.y > size.x - anchor.x + slop:
+		return false
+	if down.x < -anchor.y - slop or down.y > size.y - anchor.y + slop:
+		return false
+	if absf((across.x + across.y) * 0.5) > 3.0 or absf((down.x + down.y) * 0.5) > 3.0:
+		return false
+	return true
 
 func _check_boss_gaps() -> int:
 	var failed := 0

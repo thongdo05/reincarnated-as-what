@@ -241,7 +241,13 @@ func _release_telegraphs(fired: Array[Dictionary], delta: float) -> void:
 		var left := float(item["left"]) - delta
 		if left <= 0.0:
 			var world: Vector2 = item["pos"]
-			fired.append(_bolt(item["velocity"], world - position, str(item["sprite"])))
+			var bolt := _bolt(item["velocity"], world - position, str(item["sprite"]))
+			if item.has("expires"):
+				bolt["expires"] = bool(item["expires"])
+				bolt["life"] = float(item.get("life", 0.0))
+			if item.has("halt_y"):
+				bolt["halt_y"] = float(item["halt_y"])
+			fired.append(bolt)
 		else:
 			item["left"] = left
 			still.append(item)
