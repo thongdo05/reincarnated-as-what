@@ -67,10 +67,11 @@ Do these before flipping `USE_TEST_ADS` off.
 
 1. Create an AdMob account and two apps (Android and iOS), or one app per platform. The package name and bundle id must match `com.thongdo.reincarnatedaswhat`.
 2. Copy each **App ID** (`ca-app-pub-…~…`) into `REAL_ANDROID_APP_ID` and `REAL_IOS_APP_ID`.
-3. Create one **Interstitial** ad unit per platform. Copy the unit ids (`ca-app-pub-…/…`) into `REAL_ANDROID_INTERSTITIAL_UNIT_ID` and `REAL_IOS_INTERSTITIAL_UNIT_ID`.
-4. Do not create a banner. Leave the rewarded ids empty until a "pick your form" reward exists. When it does, create a Rewarded unit per platform and paste those ids into the `REAL_*_REWARDED_UNIT_ID` constants. The game calls `Monetization.request_rewarded_form_pick()` and nothing else; that function is not used yet.
-5. Privacy & messaging: create a GDPR / EEA message so the UMP form can show in Europe. Do not also create an IDFA message there. The game already shows Apple's tracking prompt after the GDPR form, and a second message would ask twice.
-6. Set `USE_TEST_ADS` to `false` and export again. The export step copies the app ids into the binary. Ad unit ids are read when the app runs.
+3. Create one **Banner** ad unit per platform. Paste them into `REAL_ANDROID_BANNER_UNIT_ID` and `REAL_IOS_BANNER_UNIT_ID`. The game uses this as an adaptive banner on the death card only.
+4. Create one **Interstitial** ad unit per platform. Paste them into `REAL_ANDROID_INTERSTITIAL_UNIT_ID` and `REAL_IOS_INTERSTITIAL_UNIT_ID`.
+5. Create one **Rewarded** ad unit per platform. Paste them into `REAL_ANDROID_REWARDED_UNIT_ID` and `REAL_IOS_REWARDED_UNIT_ID`. This is the "choose your form" ad.
+6. Privacy & messaging: create a GDPR / EEA message so the UMP form can show in Europe. Do not also create an IDFA message there. The game already shows Apple's tracking prompt after the GDPR form, and a second message would ask twice.
+7. Set `USE_TEST_ADS` to `false` and export again. The export step copies the app ids into the binary. Ad unit ids are read when the app runs. While the flag is on, the game uses Google's sample banner, interstitial, and rewarded units.
 
 ### App Store Connect
 
@@ -86,24 +87,24 @@ Do these before flipping `USE_TEST_ADS` off.
 2. Monetize → Products → In-app products → one-time product. Product id exactly `remove_ads`. Price $2.99. Activate it.
 3. Internal testing track, upload the AAB, add your account as a license tester. Play Billing will not complete a purchase on a sideloaded APK.
 4. Data safety form: see below.
-5. Ads declaration: yes, the app contains ads. Then, after a tester buys remove ads, ads stop.
+5. Ads declaration: yes, the app contains ads. After a tester buys remove ads, the banner and the interstitial stop. Choosing a form no longer asks for an ad.
 
 ## When ads show
 
-- Only an interstitial, only after death, and only once the player asks for the next run.
-- Not during the first three completed runs. The first chance is between run 3 and run 4, then between 6 and 7, 9 and 10, and so on. That is one ad per three runs.
-- Not while a run is being played, and not while a boss fight is still in progress. Dying to a boss ends the fight; the ad, if one is due, waits until the next run is requested.
-- No banners. No rewarded ads.
-- Buying `remove_ads` turns interstitials off for good. A later refund, once the store query says the product is gone, turns them back on.
-- If the ad is not loaded yet, the next run starts anyway.
+Phone builds only. The web build never loads AdMob and has no form-pick button.
 
-The pause menu (the form card) has **Remove ads** and **Restore** on a phone build. After the first interstitial that actually plays, the same offer appears before the next run, with **Not now**.
+- **Banner.** An adaptive banner on the death card, along the bottom of the safe area, so the score and the buttons stay above it. It hides when the next run starts, while the leaderboard is open, and while a full-screen ad is up. It is never on screen during play.
+- **Interstitial.** Full screen, only after death, and only once the player asks for the next run. Not during the first five completed runs. The first chance is between run 5 and run 6, then between 10 and 11, 15 and 16, and so on. Not during a boss fight. If it is not loaded, the next run starts anyway.
+- **Rewarded.** The death card has **Watch ad: choose your form**. There is no limit. The picker opens only when the reward callback fires. The player can pick Slime, Goblin, Vending Machine, Cat, or Demon Lord. Dragon is not in the list. That pick is the next run only. The daily index still advances, so the run after that is the normal random roll again, and that roll still will not repeat the form they just played. If the ad fails or they skip it, the picker stays closed and the next form is the normal roll. **Keep random** on the picker does the same.
+- Buying `remove_ads` removes the banner and the interstitial. The death-card button becomes **Choose your form** and opens the picker with no ad. Restore still works. A later refund, once the store query says the product is gone, turns the ads back on.
+
+The pause menu has **Remove ads** and **Restore**. After the first interstitial that actually plays, the same offer appears before the next run, with **Not now**.
 
 ## What the game collects
 
 Three things, and nothing else. No email, phone number, contacts, photos, precise location, or health data.
 
-1. **Ads.** Google AdMob, only on the iOS and Android builds. Google receives the advertising identifier and related device data so it can show and measure the interstitial. If the player taps Ask App Not to Track, iOS does not give AdMob the advertising identifier. Buying `remove_ads` stops the interstitials. The web build does not load AdMob.
+1. **Ads.** Google AdMob, only on the iOS and Android builds: a death-card banner, an interstitial every five runs, and an optional rewarded ad to choose the next form. Google receives the advertising identifier and related device data. If the player taps Ask App Not to Track, iOS does not give AdMob the advertising identifier. Buying `remove_ads` stops the banner and the interstitial. The web build does not load AdMob.
 2. **Remove ads.** The purchase is handled by Apple (StoreKit) or Google Play. The game keeps a local flag that ads are removed. It does not send the receipt or the payment to our server.
 3. **Leaderboard.** The name the player chooses and their scores are stored in Supabase (`scripts/leaderboard.gd`). The same row includes how long the run lasted, which form it was, and a random id the game creates so that device keeps its row. That id is not the advertising identifier. It is stored on the device and sent only with the leaderboard.
 

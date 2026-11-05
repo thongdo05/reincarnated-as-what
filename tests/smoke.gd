@@ -4309,11 +4309,23 @@ func _check_ad_policy() -> int:
 	if StoreConfig.REMOVE_ADS_PRODUCT_ID != "remove_ads":
 		push_error("remove ads product id changed")
 		failed += 1
+	if StoreConfig.TEST_ANDROID_BANNER_UNIT_ID != "ca-app-pub-3940256099942544/6300978111":
+		push_error("android test banner is not Google's sample unit")
+		failed += 1
+	if StoreConfig.TEST_IOS_BANNER_UNIT_ID != "ca-app-pub-3940256099942544/2934735716":
+		push_error("ios test banner is not Google's sample unit")
+		failed += 1
 	if StoreConfig.TEST_ANDROID_INTERSTITIAL_UNIT_ID != "ca-app-pub-3940256099942544/1033173712":
 		push_error("android test interstitial is not Google's sample unit")
 		failed += 1
 	if StoreConfig.TEST_IOS_INTERSTITIAL_UNIT_ID != "ca-app-pub-3940256099942544/4411468910":
 		push_error("ios test interstitial is not Google's sample unit")
+		failed += 1
+	if StoreConfig.TEST_ANDROID_REWARDED_UNIT_ID != "ca-app-pub-3940256099942544/5224354917":
+		push_error("android test rewarded unit is not Google's sample")
+		failed += 1
+	if StoreConfig.RUNS_BEFORE_ADS != 5 or StoreConfig.RUNS_BETWEEN_ADS != 5:
+		push_error("interstitials should be every 5 runs, after the first 5")
 		failed += 1
 	if StoreConfig.ATT_USAGE_DESCRIPTION.is_empty() or StoreConfig.att_plist().find("NSUserTrackingUsageDescription") < 0:
 		push_error("the tracking prompt text should land in the iOS plist")
@@ -4321,11 +4333,11 @@ func _check_ad_policy() -> int:
 	if StoreConfig.stores_available():
 		push_error("ads and purchases should be inert in the editor, on the web, and in this check")
 		failed += 1
-	for completed in [0, 1, 2, 4, 5, 7, 8]:
+	for completed in [0, 1, 2, 3, 4, 6, 7, 8, 9]:
 		if AdPolicy.interstitial_due(completed, false, false, false):
 			push_error("run %d should not be an interstitial slot" % completed)
 			failed += 1
-	for completed in [3, 6, 9]:
+	for completed in [5, 10, 15]:
 		if not AdPolicy.interstitial_due(completed, false, false, false):
 			push_error("run %d should be an interstitial slot" % completed)
 			failed += 1
@@ -4338,6 +4350,31 @@ func _check_ad_policy() -> int:
 		if AdPolicy.interstitial_due(completed, false, false, true):
 			push_error("an interstitial must not show during a boss fight")
 			failed += 1
+	if not AdPolicy.banner_visible(true, false, false):
+		push_error("the banner belongs on the death screen")
+		failed += 1
+	if AdPolicy.banner_visible(false, false, false) or AdPolicy.banner_visible(true, true, false) or AdPolicy.banner_visible(true, false, true):
+		push_error("the banner must stay off during play, off the death card, and after remove ads")
+		failed += 1
+	if not AdPolicy.rewarded_opens_picker(true) or AdPolicy.rewarded_opens_picker(false):
+		push_error("the form picker opens only from the rewarded callback")
+		failed += 1
+	if AdPolicy.form_is_pickable(FormCatalog.Id.DRAGON):
+		push_error("Dragon is not a pickable form")
+		failed += 1
+	for id in FormCatalog.IDS:
+		if not AdPolicy.form_is_pickable(id):
+			push_error("regular form %s should be pickable" % FormCatalog.display_name(id))
+			failed += 1
+	var script = load("res://scripts/game.gd")
+	var safe := Rect2(80, 0, 1760, 1080)
+	var band: Rect2 = script.death_banner_rect(safe, 90.0)
+	if band.position.y + band.size.y != safe.position.y + safe.size.y or band.position.x != safe.position.x or band.size.x != safe.size.x:
+		push_error("banner should sit on the bottom of the safe area, got %s" % band)
+		failed += 1
+	if not safe.encloses(band):
+		push_error("banner left the safe area %s" % band)
+		failed += 1
 	return failed
 
 

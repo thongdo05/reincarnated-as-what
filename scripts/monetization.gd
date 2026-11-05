@@ -2,9 +2,10 @@ extends Node
 
 ## Mobile ads and the remove_ads purchase. A no-op on the web and in the editor.
 ##
-## Interstitials are loaded after a run ends and shown only when the player
-## asks for the next run. Rewarded ads are not used. request_rewarded_form_pick()
-## is the hook a later "pick your form" button can await.
+## Banner: death card only. Interstitial: between runs, every five completed
+## runs, never during the first five. Rewarded: request_rewarded_form_pick()
+## returns true only from the reward callback. remove_ads drops the banner
+## and the interstitial, and the form picker is free.
 
 signal state_changed
 
@@ -18,6 +19,9 @@ var localized_price := ""
 var _billing
 var _ios_store: Object
 var _att: Object
+var _banner: Object
+var _banner_loaded := false
+var _death_banner_open := false
 var _interstitial: Object
 var _interstitial_loading := false
 var _show_result := ""
@@ -35,6 +39,14 @@ func _ready() -> void:
 
 func store_buttons_visible() -> bool:
 	return StoreConfig.stores_available()
+
+
+func banner_wanted() -> bool:
+	return StoreConfig.stores_available() and not ads_removed
+
+
+func choose_form_is_free() -> bool:
+	return ads_removed
 
 
 func remove_ads_label() -> String:
@@ -103,8 +115,8 @@ func restore_purchases() -> void:
 		_billing.query_purchases(BillingClient.ProductType.INAPP)
 
 
-## Later hook. Returns true only when a rewarded ad actually pays out.
-## Nothing in the game calls this yet.
+## True only when the rewarded ad's reward callback fires. A skip, a dismiss,
+## or a failed load returns false and the next form stays the normal roll.
 func request_rewarded_form_pick() -> bool:
 	if not StoreConfig.stores_available():
 		return false
@@ -375,12 +387,48 @@ func _drop_interstitial() -> void:
 	_interstitial_loading = false
 
 
+func show_death_banner(screen_rect: Rect2i) -> void:
+	_death_banner_open = true
+	if not banner_wanted() or not AdPolicy.banner_visible(true, false, ads_removed):
+		hide_banner()
+		return
+	var unit := StoreConfig.banner_unit_id()
+	if unit.is_empty() or not ClassDB.class_exists("AdView") or not ClassDB.class_exists("AdSize"):
+		return
+	if _banner == null:
+		var width_px := maxi(screen_rect.size.x, 1)
+		var scale := maxf(DisplayServer.screen_get_scale(), 1.0)
+		var width_dp := maxi(int(round(float(width_px) / scale)), 1)
+		var ad_size: Object = AdSize.get_landscape_anchored_adaptive_banner_ad_size(width_dp)
+		_banner = AdView.new(unit, ad_size, AdPosition.custom(screen_rect.position.x, screen_rect.position.y))
+		_banner.ad_listener.on_ad_loaded = func() -> void:
+			_banner_loaded = true
+			if _death_banner_open and banner_wanted():
+				_banner.show()
+			elif _banner != null:
+				_banner.hide()
+		_banner.ad_listener.on_ad_failed_to_load = func(_error) -> void:
+			_banner_loaded = false
+		_banner.load_ad(AdRequest.new())
+		return
+	_banner.set_position(AdPosition.custom(screen_rect.position.x, screen_rect.position.y))
+	if _banner_loaded:
+		_banner.show()
+
+
+func hide_banner() -> void:
+	_death_banner_open = false
+	if _banner != null:
+		_banner.hide()
+
+
 func _set_removed(owned: bool, query_ok: bool) -> void:
 	if not query_ok or owned == ads_removed:
 		return
 	ads_removed = owned
 	if owned:
 		_drop_interstitial()
+		hide_banner()
 	_save()
 	state_changed.emit()
 

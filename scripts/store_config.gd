@@ -13,9 +13,10 @@ const USE_TEST_ADS := true
 
 const REAL_ANDROID_APP_ID := ""
 const REAL_IOS_APP_ID := ""
+const REAL_ANDROID_BANNER_UNIT_ID := ""
+const REAL_IOS_BANNER_UNIT_ID := ""
 const REAL_ANDROID_INTERSTITIAL_UNIT_ID := ""
 const REAL_IOS_INTERSTITIAL_UNIT_ID := ""
-## Reserved for a later rewarded "pick your form" ad. Nothing requests it yet.
 const REAL_ANDROID_REWARDED_UNIT_ID := ""
 const REAL_IOS_REWARDED_UNIT_ID := ""
 
@@ -23,6 +24,8 @@ const REMOVE_ADS_PRODUCT_ID := "remove_ads"
 
 const TEST_ANDROID_APP_ID := "ca-app-pub-3940256099942544~3347511713"
 const TEST_IOS_APP_ID := "ca-app-pub-3940256099942544~1458002511"
+const TEST_ANDROID_BANNER_UNIT_ID := "ca-app-pub-3940256099942544/6300978111"
+const TEST_IOS_BANNER_UNIT_ID := "ca-app-pub-3940256099942544/2934735716"
 const TEST_ANDROID_INTERSTITIAL_UNIT_ID := "ca-app-pub-3940256099942544/1033173712"
 const TEST_IOS_INTERSTITIAL_UNIT_ID := "ca-app-pub-3940256099942544/4411468910"
 const TEST_ANDROID_REWARDED_UNIT_ID := "ca-app-pub-3940256099942544/5224354917"
@@ -31,11 +34,11 @@ const TEST_IOS_REWARDED_UNIT_ID := "ca-app-pub-3940256099942544/1712485313"
 ## Shown by iOS as the App Tracking Transparency prompt. Plain language, no joke.
 const ATT_USAGE_DESCRIPTION := "This lets Reincarnated as WHAT?! show ads that are more relevant to you between runs. The game plays the same if you choose Ask App Not to Track."
 
-## First three completed runs never get an interstitial. After that, at most one
-## interstitial per three completed runs (runs 3, 6, 9, ...), and only between
-## runs. A boss that is still being fought blocks the ad.
-const RUNS_BEFORE_ADS := 3
-const RUNS_BETWEEN_ADS := 3
+## The first five completed runs never get an interstitial. After that, one
+## interstitial per five completed runs (after runs 5, 10, 15, ...), and only
+## between runs. A boss that is still being fought blocks the ad.
+const RUNS_BEFORE_ADS := 5
+const RUNS_BETWEEN_ADS := 5
 
 
 static func stores_available() -> bool:
@@ -54,6 +57,16 @@ static func android_app_id() -> String:
 	if USE_TEST_ADS:
 		return TEST_ANDROID_APP_ID
 	return REAL_ANDROID_APP_ID.strip_edges()
+
+
+static func banner_unit_id() -> String:
+	if not stores_available():
+		return ""
+	var ios := OS.has_feature("ios")
+	if USE_TEST_ADS:
+		return TEST_IOS_BANNER_UNIT_ID if ios else TEST_ANDROID_BANNER_UNIT_ID
+	var real := REAL_IOS_BANNER_UNIT_ID if ios else REAL_ANDROID_BANNER_UNIT_ID
+	return real.strip_edges()
 
 
 static func interstitial_unit_id() -> String:
@@ -80,6 +93,8 @@ static func real_ids_are_empty() -> bool:
 	return (
 		REAL_ANDROID_APP_ID.strip_edges().is_empty()
 		and REAL_IOS_APP_ID.strip_edges().is_empty()
+		and REAL_ANDROID_BANNER_UNIT_ID.strip_edges().is_empty()
+		and REAL_IOS_BANNER_UNIT_ID.strip_edges().is_empty()
 		and REAL_ANDROID_INTERSTITIAL_UNIT_ID.strip_edges().is_empty()
 		and REAL_IOS_INTERSTITIAL_UNIT_ID.strip_edges().is_empty()
 		and REAL_ANDROID_REWARDED_UNIT_ID.strip_edges().is_empty()
