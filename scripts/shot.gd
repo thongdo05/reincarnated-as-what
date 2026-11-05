@@ -22,6 +22,10 @@ var homing := 0.0
 var cruise := 0.0
 var expires := false
 var life := 0.0
+## Drawn size and the hit shape. 1 leaves the source art alone.
+var hit_scale := 1.0
+## Final-form cat swipe. Cull when the sprite and hit shape are past the right edge.
+var exit_right := false
 
 func setup(data: Dictionary, player_owned: bool) -> void:
 	position = data["position"]
@@ -46,6 +50,8 @@ func setup(data: Dictionary, player_owned: bool) -> void:
 	cruise = velocity.length()
 	expires = bool(data.get("expires", false))
 	life = float(data.get("life", 0.0))
+	hit_scale = float(data.get("scale", 1.0))
+	exit_right = bool(data.get("exit_right", false))
 	visible = bool(data.get("visible", true))
 	modulate = Color.WHITE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -71,9 +77,9 @@ func _draw() -> void:
 	# Player bullets stay translucent so enemy shots read through the stream.
 	var tint := Color(1, 1, 1, 0.42) if from_player else Color.WHITE
 	# The spiral skull is 8px. At 2x it still reads as a skull, and the hit stays inside it.
-	var scale := 2.0 if sprite_name == BossCatalog.SPIRAL_SKULL else 1.0
+	var scale := 2.0 if sprite_name == BossCatalog.SPIRAL_SKULL else hit_scale
 	ArtLibrary.draw_loop(self, sprite_name, age, Vector2.ZERO, tint, scale)
 	if HitLibrary.show:
 		var role := "body" if from_player else "threat"
 		var color := Color(0.45, 0.9, 1.0, 0.95) if from_player else Color(1.0, 0.55, 0.2, 0.95)
-		HitLibrary.draw(self, sprite_name, role, color)
+		HitLibrary.draw(self, sprite_name, role, color, -1, hit_scale)

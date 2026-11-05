@@ -36,12 +36,8 @@ const SNAP_MAX_SPEED := 22000.0
 const VENDING_ARRIVE := 62.0
 const VENDING_MAX_SPEED := 400.0
 ## Kills and gems, not coins or powerups. A full meter is the only WINNER! in the game.
-## Rank-1 length. Play reads the per-rank list. This is the empty-list fallback.
+## Every rank is 10. Play reads the per-rank list. This is the empty-list fallback.
 const VENDING_WINNER_KILLS := 10
-## Heavy hit for a WINNER! clear, read off SpawnDirector.max_hp.
-## An eye is 2. Wolf, anvil, and archer are 4. Wyvern and piano are 6.
-## 2 kills an eye and chips every tougher body. Bosses take 15% of max HP instead.
-const VENDING_WINNER_DAMAGE := 2
 
 ## Short dash when the aim jumps. Fine corrections still use the snap.
 const CAT_BLINK_DIST := 34.0
@@ -85,28 +81,37 @@ const GOBLIN := {
 
 ## Three forward cans. Spread is degrees off the forward axis, +y down.
 ## Rank 1 is slow enough that the heavy body is the tax. Later ranks hit
-## harder. WINNER! takes more kills as the rank climbs and no longer wipes
-## the screen. The body is the original large art again. Drift, damage, and
-## the WINNER! meter are unchanged.
+## harder. WINNER! fills at 10 kills or gems at every rank. The blast deals
+## 2, 4, 6, 8, 10 to regular enemies (an eye is 2; wolf, anvil, and archer
+## are 4; wyvern and piano are 6). Bosses still take 15% of max HP.
+## A kill from the blast scores and drops loot like any other kill, and does
+## not refill the meter. There is no bonus score.
 const VENDING := {
 	"fire_interval": [0.24, 0.20, 0.16, 0.135, 0.115],
 	"shot_speed": [520.0, 580.0, 640.0, 700.0, 760.0],
 	"damage": [1, 1, 2, 2, 3],
 	"spread_deg": [16.0, 18.0, 20.0, 22.0, 24.0],
-	"winner_kills": [10, 12, 14, 16, 18],
-	"winner_bonus": [200, 300, 400, 500, 600],
+	"winner_kills": [10, 10, 10, 10, 10],
+	"winner_damage": [2, 4, 6, 8, 10],
 }
 
-## The swipe is short. Reflecting bullets is the defense, not a long stream.
-## Swipes pierce. Later ranks dash farther and swipe harder.
-## Damage stays the int list, so the +15% is fire_interval times 1/1.15.
-## Swipe life is 1.10x. Dash distance, dash guard, pierce, and reflect are unchanged.
+## Reflecting bullets is the defense. The sprite, the hit shape, and the
+## reflect reach all use scale. Damage stays the int list, so the +15% is
+## fire_interval times 1/1.15. Ranks 1-4 keep this life and pierce 2.
+## Rank 5 does not expire by life: it flies until it is fully past the right
+## edge and pierces every target once. Dash distance, dash guard, and the
+## reflect flip itself are unchanged.
+## Pierce below 0 means the swipe is never spent on a hit.
+const CAT_PIERCE_ALL := -1
+## Coarse distance check before a swipe tests a bullet. Scaled with the swipe.
+const CAT_REFLECT_REACH := 64.0
 const CAT := {
 	"fire_interval": [0.24 / 1.15, 0.20 / 1.15, 0.17 / 1.15, 0.145 / 1.15, 0.12 / 1.15],
 	"shot_speed": 420.0,
 	"life": [0.58 * 1.10, 0.60 * 1.10, 0.64 * 1.10, 0.70 * 1.10, 0.78 * 1.10],
 	"damage": [1, 1, 2, 2, 3],
 	"pierce": 2,
+	"scale": [1.0, 1.1, 1.2, 1.3, 1.45],
 	"blink_dist": [34.0, 38.0, 44.0, 52.0, 62.0],
 	"blink_guard": [0.10, 0.10, 0.11, 0.13, 0.15],
 }
@@ -179,12 +184,12 @@ const FORM_CARD := {
 		"used": "",
 	},
 	Id.VENDING: {
-		"trait": "Heavy drift. Kills and gems fill a WINNER! meter. A full meter blasts the field and clears shots. Later ranks pay a bigger WINNER!.",
+		"trait": "Heavy drift. Kills and gems fill a WINNER! meter. A full meter blasts the field and clears shots. Those kills score and drop loot. Later ranks blast harder.",
 		"ready": "",
 		"used": "",
 	},
 	Id.CAT: {
-		"trait": "A hard flick blinks a short dash. Swipes pierce and knock bullets away. Later ranks dash farther and swipe harder.",
+		"trait": "A hard flick blinks a short dash. Swipes pierce and knock bullets away. Later ranks dash farther and swipe bigger. The final form crosses the screen and hits everything in its path.",
 		"ready": "",
 		"used": "",
 	},
@@ -248,6 +253,21 @@ static func cat_life(rank_index: int) -> float:
 	var values: Array = CAT["life"]
 	return float(values[clampi(rank_index, 0, values.size() - 1)])
 
+static func cat_swipe_scale(rank_index: int) -> float:
+	return cat_rank_f("scale", rank_index)
+
+## Rank 5 (index 4) is the only swipe that does not expire and does not run out of pierce.
+static func cat_swipe_final(rank_index: int) -> bool:
+	return clampi(rank_index, 0, 4) >= 4
+
+static func cat_pierce(rank_index: int) -> int:
+	if cat_swipe_final(rank_index):
+		return CAT_PIERCE_ALL
+	return int(CAT["pierce"])
+
+static func cat_reflect_reach(scale: float) -> float:
+	return CAT_REFLECT_REACH * scale
+
 static func demon_rank_f(key: String, rank_index: int) -> float:
 	var values: Array = DEMON[key]
 	return float(values[clampi(rank_index, 0, values.size() - 1)])
@@ -271,8 +291,8 @@ static func vending_winner_kills(rank_index: int = 0) -> int:
 		return VENDING_WINNER_KILLS
 	return int(values[clampi(rank_index, 0, values.size() - 1)])
 
-static func vending_winner_bonus(rank_index: int) -> int:
-	var values: Array = VENDING["winner_bonus"]
+static func vending_winner_damage(rank_index: int) -> int:
+	var values: Array = VENDING["winner_damage"]
 	return int(values[clampi(rank_index, 0, values.size() - 1)])
 
 ## Modest, and slower for the slime stream, whose shots start at 1 damage.
@@ -654,11 +674,20 @@ static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array
 			shots.append(fireball)
 	elif id == Id.CAT:
 		var damage := int(cat_rank_f("damage", rank_index))
+		var scale := cat_swipe_scale(rank_index)
 		var swipe := _blob(origin + Vector2(muzzle, -2), Vector2(cat_f("shot_speed"), 0), 0, shot_color, shot_sprite, damage)
 		swipe["style"] = "swipe"
-		swipe["expires"] = true
-		swipe["life"] = cat_life(rank_index)
-		swipe["pierce"] = int(CAT["pierce"])
+		swipe["scale"] = scale
+		swipe["radius"] = float(swipe["radius"]) * scale
+		swipe["pierce"] = cat_pierce(rank_index)
+		if cat_swipe_final(rank_index):
+			# Life would stop a swipe that started on the left before the right edge.
+			swipe["expires"] = false
+			swipe["life"] = 0.0
+			swipe["exit_right"] = true
+		else:
+			swipe["expires"] = true
+			swipe["life"] = cat_life(rank_index)
 		shots.append(swipe)
 	else:
 		var damage := int(demon_rank_f("damage", rank_index))
@@ -734,7 +763,7 @@ static func weapon_line(id: int, rank_index: int) -> String:
 			return "%s Splits on hit." % head
 		return head
 	if id == Id.VENDING:
-		return "%d cans every %s. Spread %d. WINNER! in %d kills or gems." % [count, every, int(round(float(spec["spread_deg"]))), vending_winner_kills(rank_index)]
+		return "%d cans every %s. Spread %d. WINNER! in %d kills or gems. Blast %d." % [count, every, int(round(float(spec["spread_deg"]))), vending_winner_kills(rank_index), vending_winner_damage(rank_index)]
 	if id == Id.CAT:
 		var line := "Swipe every %s. Reflects shots." % every
 		var damage := int(first.get("damage", 1))
