@@ -22,7 +22,10 @@ const BONE_LEFT := 28.0
 const BONE_RIGHT := 376.0
 const BONE_TOP := 12.0
 const BONE_SPAWN_Y := -8.0
-const WINNER_BOSS_DMG_PCT := 0.15
+## Vending WINNER chip. Meteor Rain uses METEOR_RAIN_BOSS_DMG_PCT.
+const WINNER_BOSS_DMG_PCT := 0.10
+## One Meteor Rain's boss budget. Stays at 15% when the jackpot changes.
+const METEOR_RAIN_BOSS_DMG_PCT := 0.15
 const LICH_INTRO := 1.7
 ## Longer than the lich entrance: shadow, roar, crash, title.
 const DRAGON_INTRO := 2.6
@@ -302,9 +305,18 @@ static func bone_columns(player_x: float, elapsed: float, field_w: float) -> Arr
 	cols.sort()
 	return cols
 
-## 15% of max HP, rounded. A full boss always survives one WINNER.
+## 10% of max HP, rounded. A full boss always survives one WINNER.
 static func winner_damage(max_hp: int) -> int:
-	var pct := int(round(WINNER_BOSS_DMG_PCT * 100.0))
+	return _rounded_hp_chip(max_hp, WINNER_BOSS_DMG_PCT)
+
+## 15% of max HP, rounded. Meteor Rain's boss budget.
+## A full boss always survives one rain.
+static func meteor_rain_damage(max_hp: int) -> int:
+	return _rounded_hp_chip(max_hp, METEOR_RAIN_BOSS_DMG_PCT)
+
+## Percent of max HP, rounded. One chip never finishes a full-HP boss.
+static func _rounded_hp_chip(max_hp: int, fraction: float) -> int:
+	var pct := int(round(fraction * 100.0))
 	var chip := int((maxi(max_hp, 1) * pct + 50) / 100)
 	if chip >= max_hp:
 		chip = maxi(max_hp - 1, 1)

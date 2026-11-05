@@ -83,7 +83,7 @@ const GOBLIN := {
 ## Rank 1 is slow enough that the heavy body is the tax. Later ranks hit
 ## harder. WINNER! fills at 10, 11, 12, 13, then 14 kills or gems. The blast deals
 ## 2, 4, 6, 8, 10 to regular enemies (an eye is 2; wolf, anvil, and archer
-## are 4; wyvern and piano are 6). Bosses still take 15% of max HP.
+## are 4; wyvern and piano are 6). Bosses still take 10% of max HP.
 ## A kill from the blast scores and drops loot like any other kill, and does
 ## not refill the meter. There is no bonus score.
 const VENDING := {
