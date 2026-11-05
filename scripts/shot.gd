@@ -24,6 +24,10 @@ var expires := false
 var life := 0.0
 ## Rising shots stop on this world y and hold until life runs out. NAN means never.
 var halt_y := NAN
+## Drawn size and the hit shape. 1 leaves the source art alone.
+var hit_scale := 1.0
+## Final-form cat swipe. Cull when the sprite and hit shape are past the right edge.
+var exit_right := false
 
 func setup(data: Dictionary, player_owned: bool) -> void:
 	position = data["position"]
@@ -49,6 +53,8 @@ func setup(data: Dictionary, player_owned: bool) -> void:
 	expires = bool(data.get("expires", false))
 	life = float(data.get("life", 0.0))
 	halt_y = float(data.get("halt_y", NAN))
+	hit_scale = float(data.get("scale", 1.0))
+	exit_right = bool(data.get("exit_right", false))
 	visible = bool(data.get("visible", true))
 	modulate = Color.WHITE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -76,12 +82,28 @@ func _draw() -> void:
 	# Art is already aimed: player shots face right, enemy shots face left. Do not flip.
 	# Player bullets stay translucent so enemy shots read through the stream.
 	var tint := Color(1, 1, 1, 0.42) if from_player else Color.WHITE
-	# Spiral skulls, grave hands, and bones are drawn larger than their source
-	# pixels. The hit scale matches that picture (the skull's circle is already
-	# sized for the doubled art).
-	var scale := BossCatalog.shot_draw_scale(sprite_name)
+	# Lich bones, hands, and spiral skulls carry their own draw size. Every
+	# other shot, including a ranked cat swipe, uses the scale on the shot.
+	var scale := drawn_scale()
 	ArtLibrary.draw_loop(self, sprite_name, age, Vector2.ZERO, tint, scale)
 	if HitLibrary.show:
 		var role := "body" if from_player else "threat"
 		var color := Color(0.45, 0.9, 1.0, 0.95) if from_player else Color(1.0, 0.55, 0.2, 0.95)
-		HitLibrary.draw(self, sprite_name, role, color, -1, BossCatalog.shot_hit_scale(sprite_name))
+		var box_scale := drawn_scale() if from_player else threat_scale()
+		HitLibrary.draw(self, sprite_name, role, color, -1, box_scale)
+
+## Picture size. A catalog scale other than 1 wins, so the lich art stays put
+## when a shot also carries a rank scale.
+func drawn_scale() -> float:
+	var catalog := BossCatalog.shot_draw_scale(sprite_name)
+	if not is_equal_approx(catalog, 1.0):
+		return catalog
+	return hit_scale
+
+## Hit size. The spiral skull's circle is already sized for its doubled picture,
+## so that catalog scale of 1 is kept. A cat swipe uses hit_scale.
+func threat_scale() -> float:
+	var catalog := BossCatalog.shot_hit_scale(sprite_name)
+	if not is_equal_approx(catalog, 1.0):
+		return catalog
+	return hit_scale

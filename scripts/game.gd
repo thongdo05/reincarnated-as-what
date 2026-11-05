@@ -1097,8 +1097,9 @@ func _collide() -> void:
 			if shot.ignore_id == enemy.id and shot.age < 0.1:
 				continue
 			var enemy_file := enemy.sprite_file()
-			var reach_x := 128.0 if enemy.is_boss() else 96.0
-			var reach_y := 96.0 if enemy.is_boss() else 72.0
+			var reach_scale := shot.hit_scale
+			var reach_x := (128.0 if enemy.is_boss() else 96.0) * reach_scale
+			var reach_y := (96.0 if enemy.is_boss() else 72.0) * reach_scale
 			if absf(shot.position.x - enemy.position.x) > reach_x or absf(shot.position.y - enemy.position.y) > reach_y:
 				continue
 			if not enemy.can_be_hit():
@@ -1107,15 +1108,21 @@ func _collide() -> void:
 				_spawn_fx("hit_flash.png", shot.position, 0.14, 0.8, 1.3)
 				if _combat != null:
 					_combat.push("BLOCK", shot.position + Vector2(-10, -12), Color("d4dcf5"), 0.28)
+				if shot.pierce < 0:
+					shot.hit_ids.append(enemy.id)
+					continue
 				spent.append(shot)
 				break
-			if not HitLibrary.overlaps(shot.position, shot.sprite_name, "body", enemy.position, enemy_file, "body"):
+			if not HitLibrary.overlaps(shot.position, shot.sprite_name, "body", enemy.position, enemy_file, "body", shot.hit_scale):
 				continue
 			enemy.hurt(shot.damage)
 			if enemy is DragonEnemy and (enemy as DragonEnemy).consume_block():
 				_spawn_fx("hit_flash.png", shot.position, 0.14, 0.8, 1.3)
 				if _combat != null:
 					_combat.push("BLOCK", shot.position + Vector2(-10, -12), Color("d7c4ff"), 0.28)
+				if shot.pierce < 0:
+					shot.hit_ids.append(enemy.id)
+					continue
 				spent.append(shot)
 				break
 			shot.hit_ids.append(enemy.id)
@@ -1131,8 +1138,10 @@ func _collide() -> void:
 					_spawn_fx("death_puff.png", enemy.position, 0.42, 0.45, 1.55)
 			else:
 				_spawn_fx("hit_flash.png", shot.position, 0.16, 0.75, 1.35)
-			if shot.pierce > 0:
-				shot.pierce -= 1
+			# Pierce below 0 is unlimited. hit_ids already keeps one hit per target.
+			if shot.pierce < 0 or shot.pierce > 0:
+				if shot.pierce > 0:
+					shot.pierce -= 1
 				continue
 			spent.append(shot)
 			break
@@ -1160,23 +1169,17 @@ func _collide() -> void:
 	for shot in _shots:
 		if shot.from_player or not is_instance_valid(shot):
 			continue
-		var shot_scale := BossCatalog.shot_hit_scale(shot.sprite_name)
-		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat", player_scale, shot_scale, _player.anim_frame())
+		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat", player_scale, shot.threat_scale(), _player.anim_frame())
 		if shot_gap <= 0.0:
 			_hurt_player(shot.killer_name if shot.killer_name != "" else "shot")
 			return
 		_graze_gap(shot, shot_gap)
 
-func _award_kill(enemy: EnemyActor, drop_loot: bool = true, chain_combo: bool = true) -> void:
-	var points := 0
-	if chain_combo:
-		var result := ScoreRules.on_kill(enemy.score_value, combo, combo_left, rank_index)
-		combo = int(result["combo"])
-		combo_left = float(result["combo_left"])
-		points = int(result["points"])
-	else:
-		# WINNER clear. Half the listed value. The combo does not step or refresh.
-		points = int(enemy.score_value / 2)
+func _award_kill(enemy: EnemyActor, drop_loot: bool = true) -> void:
+	var result := ScoreRules.on_kill(enemy.score_value, combo, combo_left, rank_index)
+	combo = int(result["combo"])
+	combo_left = float(result["combo_left"])
+	var points := int(result["points"])
 	score += points
 	if points >= Difficulty.POPUP_MIN:
 		_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-6, -12), Color("241428"), Difficulty.POPUP_LIFE)
@@ -1488,13 +1491,14 @@ func _charge_winner() -> void:
 ## The only WINNER! in the game. Kills and gems fill it. Coins and powerups do not.
 ## Flying enemy shots and pending pattern shots (the rake windup included)
 ## are cleared. A survivor can still loose a telegraph it already started.
+## Kills score and drop loot like any other kill. _winner_busy keeps them
+## from refilling this meter. There is no bonus score.
 func _winner_clear() -> void:
 	if _winner_busy:
 		return
 	_winner_busy = true
 	winner_pops += 1
 	_clear_enemy_shots()
-	score += FormCatalog.vending_winner_bonus(rank_index)
 	_overdrive_flash = 0.28
 	_clear_banner_fx()
 	_combat.push_callout("WINNER!", _player.position + Vector2(-28, -28), Color("ffe56a"), 0.5)
@@ -1502,6 +1506,7 @@ func _winner_clear() -> void:
 	_spawn_fx("winner_burst.png", field * 0.5, 0.55, 1.2, 2.4)
 	_request_hit_stop(4)
 	_bump_shake()
+	var blast := FormCatalog.vending_winner_damage(rank_index)
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
@@ -1517,14 +1522,13 @@ func _winner_clear() -> void:
 				if _combat != null:
 					_combat.push_callout("-%d" % dealt, enemy.position + Vector2(-18, -40), Color("ffe56a"), 0.7, 2)
 			if not enemy.alive:
-				_award_kill(enemy, false, false)
+				_award_kill(enemy, true)
 				if not enemy is DragonEnemy:
 					_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 			continue
-		enemy.hurt(FormCatalog.VENDING_WINNER_DAMAGE)
+		enemy.hurt(blast)
 		if not enemy.alive:
-			# Half points, no combo step, no drop. Same no-drop path as OVERDRIVE.
-			_award_kill(enemy, false, false)
+			_award_kill(enemy, true)
 			if not enemy is DragonEnemy:
 				_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 	_winner_busy = false
@@ -1561,9 +1565,10 @@ func _reflect_swipes() -> void:
 		for bullet in _shots:
 			if bullet == swipe or not is_instance_valid(bullet) or bullet.from_player:
 				continue
-			if swipe.position.distance_squared_to(bullet.position) > 64.0 * 64.0:
+			var reach := FormCatalog.cat_reflect_reach(swipe.hit_scale)
+			if swipe.position.distance_squared_to(bullet.position) > reach * reach:
 				continue
-			if not HitLibrary.overlaps(swipe.position, swipe.sprite_name, "body", bullet.position, bullet.sprite_name, "threat", 1.0, BossCatalog.shot_hit_scale(bullet.sprite_name)):
+			if not HitLibrary.overlaps(swipe.position, swipe.sprite_name, "body", bullet.position, bullet.sprite_name, "threat", swipe.hit_scale, bullet.threat_scale()):
 				continue
 			_reflect_bullet(bullet)
 
@@ -1963,12 +1968,26 @@ func _sweep(size: Vector2) -> void:
 	var shot_write := 0
 	var wide := field.grow(20)
 	for shot in _shots:
-		if not is_instance_valid(shot) or not wide.has_point(shot.position) or (shot.expires and shot.life <= 0.0):
+		if not is_instance_valid(shot) or _shot_left_play(shot, size, wide):
 			_release_shot(shot)
 			continue
 		_shots[shot_write] = shot
 		shot_write += 1
 	_shots.resize(shot_write)
+
+func _shot_left_play(shot: Shot, size: Vector2, wide: Rect2) -> bool:
+	if shot.exit_right and _swipe_clear_of_right(shot, size.x):
+		return true
+	if not wide.has_point(shot.position):
+		return true
+	return shot.expires and shot.life <= 0.0
+
+## True when the drawn sprite and the hit shape are both past the right edge.
+func _swipe_clear_of_right(shot: Shot, width: float) -> bool:
+	var scale := shot.hit_scale
+	var art_left := -ArtLibrary.anchor(shot.sprite_name).x * scale
+	var hit_left := HitLibrary.horizontal_span(shot.sprite_name, "body").x * scale
+	return shot.position.x + minf(art_left, hit_left) >= width
 
 func _drop_shot(shot: Shot) -> void:
 	_shots.erase(shot)
@@ -2423,7 +2442,7 @@ func _dragon_chip(amount: int) -> void:
 		var dealt := before - boss.hp
 		_rain_budget = maxi(_rain_budget - maxi(dealt, pay), 0)
 		if not boss.alive:
-			_award_kill(boss, true, true)
+			_award_kill(boss, true)
 	else:
 		_rain_budget = maxi(_rain_budget - pay, 0)
 
@@ -2635,7 +2654,7 @@ func _splash_shot(shot: Shot, direct: EnemyActor) -> void:
 		if enemy is DragonEnemy and (enemy as DragonEnemy).consume_block():
 			continue
 		if not enemy.alive:
-			_award_kill(enemy, true, true)
+			_award_kill(enemy, true)
 
 func _spawn_fx(file_name: String, at: Vector2, duration: float, from_scale: float, to_scale: float) -> void:
 	if _effects.size() >= Difficulty.MAX_FX:

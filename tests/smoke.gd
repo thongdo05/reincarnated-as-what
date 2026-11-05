@@ -47,7 +47,7 @@ func _process(_delta: float) -> bool:
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
 	var live_failed: int = load("res://tests/dragon_phase_checks.gd").new().run_live(self)
-	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular()
+	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
@@ -197,23 +197,55 @@ func _check_forms() -> int:
 	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("cans") < 0 or FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("WINNER!") < 0:
 		push_error("vending weapon line should name the cans and no burst")
 		failed += 1
-	if FormCatalog.VENDING_WINNER_KILLS != 10 or FormCatalog.VENDING_WINNER_DAMAGE != 2:
-		push_error("vending winner fallback should be 10 kills and a 2-damage blast")
+	if FormCatalog.VENDING_WINNER_KILLS != 10:
+		push_error("vending winner fallback should be 10 kills")
 		failed += 1
-	if FormCatalog.vending_winner_kills(0) != 10 or FormCatalog.vending_winner_kills(1) != 12 or FormCatalog.vending_winner_kills(2) != 14 or FormCatalog.vending_winner_kills(3) != 16 or FormCatalog.vending_winner_kills(4) != 18:
-		push_error("vending winner meter should be 10, 12, 14, 16, 18 kills")
+	var winner_damage := [2, 4, 6, 8, 10]
+	for rank_i in 5:
+		if FormCatalog.vending_winner_kills(rank_i) != 10:
+			push_error("vending winner meter should be 10 at every rank, rank %d is %d" % [rank_i + 1, FormCatalog.vending_winner_kills(rank_i)])
+			failed += 1
+		if FormCatalog.vending_winner_damage(rank_i) != winner_damage[rank_i]:
+			push_error("vending winner blast should be 2, 4, 6, 8, 10, rank %d is %d" % [rank_i + 1, FormCatalog.vending_winner_damage(rank_i)])
+			failed += 1
+	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("WINNER! in 10") < 0 or FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("Blast 2") < 0:
+		push_error("rank 1 weapon line should quote a 10-kill meter and a 2 blast, got %s" % FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0))
 		failed += 1
-	if FormCatalog.vending_winner_bonus(0) != 200 or FormCatalog.vending_winner_bonus(1) != 300 or FormCatalog.vending_winner_bonus(2) != 400 or FormCatalog.vending_winner_bonus(3) != 500 or FormCatalog.vending_winner_bonus(4) != 600:
-		push_error("vending winner bonus should be 200, 300, 400, 500, 600")
+	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4).find("WINNER! in 10") < 0 or FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4).find("Blast 10") < 0:
+		push_error("rank 5 weapon line should quote a 10-kill meter and a 10 blast, got %s" % FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4))
 		failed += 1
-	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4).find("18") < 0:
-		push_error("rank 5 weapon line should quote the 18-kill meter")
+	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("drop loot") < 0 or FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("blast harder") < 0:
+		push_error("vending trait should say the blast scores loot and later ranks hit harder")
 		failed += 1
 	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("WINNER!") < 0:
 		push_error("vending trait should name the WINNER meter")
 		failed += 1
-	if FormCatalog.trait_line(FormCatalog.Id.CAT, true) != "A hard flick blinks a short dash. Swipes pierce and knock bullets away. Later ranks dash farther and swipe harder." or FormCatalog.weapon_line(FormCatalog.Id.CAT, 0).find("Reflects") < 0:
+	if FormCatalog.trait_line(FormCatalog.Id.CAT, true) != "A hard flick blinks a short dash. Swipes pierce and knock bullets away. Later ranks dash farther and swipe bigger. The final form crosses the screen and hits everything in its path." or FormCatalog.weapon_line(FormCatalog.Id.CAT, 0).find("Reflects") < 0:
 		push_error("cat card should describe the blink dash, the piercing swipe, and the reflect")
+		failed += 1
+	var swipe_scale := [1.0, 1.1, 1.2, 1.3, 1.45]
+	var rank_lives := [0.58 * 1.10, 0.60 * 1.10, 0.64 * 1.10, 0.70 * 1.10]
+	for rank_i in 5:
+		var spec: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2.ZERO, rank_i)[0]
+		if absf(float(spec["scale"]) - swipe_scale[rank_i]) > 0.001 or absf(FormCatalog.cat_swipe_scale(rank_i) - swipe_scale[rank_i]) > 0.001:
+			push_error("cat swipe scale rank %d should be %s, got %s" % [rank_i + 1, swipe_scale[rank_i], spec["scale"]])
+			failed += 1
+		if absf(FormCatalog.cat_reflect_reach(swipe_scale[rank_i]) - 64.0 * swipe_scale[rank_i]) > 0.001:
+			push_error("cat reflect reach should scale with the swipe")
+			failed += 1
+		if rank_i < 4:
+			if absf(FormCatalog.cat_life(rank_i) - rank_lives[rank_i]) > 0.001 or absf(float(spec["life"]) - rank_lives[rank_i]) > 0.001 or not bool(spec["expires"]) or int(spec["pierce"]) != 2:
+				push_error("ranks 1-4 should keep their life and pierce 2, rank %d life %s expires %s pierce %s" % [rank_i + 1, spec["life"], spec["expires"], spec["pierce"]])
+				failed += 1
+		elif bool(spec["expires"]) or int(spec["pierce"]) != FormCatalog.CAT_PIERCE_ALL or not bool(spec.get("exit_right", false)):
+			push_error("rank 5 swipe should pierce without a cap and not expire by life, pierce %s expires %s" % [spec["pierce"], spec["expires"]])
+			failed += 1
+	var bolt_at := Vector2(0, -18)
+	if HitLibrary.overlaps(Vector2.ZERO, "cat_swipe.png", "body", bolt_at, "floating_eye_bolt.png", "threat", 1.0):
+		push_error("a rank 1 swipe should miss a bolt just outside the claw")
+		failed += 1
+	if not HitLibrary.overlaps(Vector2.ZERO, "cat_swipe.png", "body", bolt_at, "floating_eye_bolt.png", "threat", 1.1):
+		push_error("a larger swipe should hit a bolt the rank 1 claw misses")
 		failed += 1
 	if FormCatalog.trait_line(FormCatalog.Id.DEMON, true).find("enemies") < 0:
 		push_error("demon trait should scale with enemies on screen")
@@ -1897,8 +1929,8 @@ func _check_lb_parse() -> int:
 	if clear_180 > cap_180:
 		push_error("a 3:00 vending clear should still fit the server cap (%d vs %d)" % [clear_180, cap_180])
 		failed += 1
-	if clear_300 <= cap_300:
-		push_error("a 5:00 full vending clear should be able to pass the server cap (%d vs %d)" % [clear_300, cap_300])
+	if clear_300 > cap_300:
+		push_error("a 5:00 full vending clear should fit the server cap without the WINNER bonus (%d vs %d)" % [clear_300, cap_300])
 		failed += 1
 	return failed
 
@@ -3770,6 +3802,125 @@ func _check_power_level_cue(game) -> int:
 		failed += 1
 	return failed
 
+func _check_cat_swipe() -> int:
+	var failed := 0
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game.phase = game.PHASE_PLAY
+	game.form_id = FormCatalog.Id.CAT
+	game._player.form_id = FormCatalog.Id.CAT
+	game._player.position = Vector2(40, 140)
+	game._player.aim = game._player.position
+	game._clear_field()
+	var short: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2(40, 140), 0)[0]
+	var short_shot = game._spawn_shot(short, true)
+	short_shot.life = 0.0
+	short_shot.position = Vector2(40, 140)
+	game._sweep(Vector2(480, 270))
+	if game._shots.has(short_shot):
+		push_error("a rank 1 swipe should still expire when its life runs out")
+		failed += 1
+	var final_spec: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2(20, 140), 4)[0]
+	var final_shot = game._spawn_shot(final_spec, true)
+	final_shot.position = Vector2(20, 140)
+	final_shot.life = -5.0
+	game._sweep(Vector2(480, 270))
+	if not game._shots.has(final_shot):
+		push_error("a rank 5 swipe on the left should not expire by life")
+		failed += 1
+	else:
+		var scale := float(final_shot.hit_scale)
+		var art_left := -ArtLibrary.anchor("cat_swipe.png").x * scale
+		var hit_left := HitLibrary.horizontal_span("cat_swipe.png", "body").x * scale
+		var extent := minf(art_left, hit_left)
+		final_shot.position.x = 480.0 - extent - 1.0
+		game._sweep(Vector2(480, 270))
+		if not game._shots.has(final_shot):
+			push_error("a rank 5 swipe still touching the right edge should stay")
+			failed += 1
+		final_shot.position.x = 480.0 - extent
+		game._sweep(Vector2(480, 270))
+		if game._shots.has(final_shot):
+			push_error("a rank 5 swipe should despawn once it is fully past the right edge")
+			failed += 1
+	game._clear_field()
+	var early: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2(120, 140), 0)[0]
+	var early_shot = game._spawn_shot(early, true)
+	var early_hits := 0
+	for i in 4:
+		var foe := EnemyActor.new()
+		foe.id = 10 + i
+		foe.kind = SpawnDirector.EYE
+		foe.hp = 5
+		foe.max_hp = 5
+		foe.alive = true
+		foe.position = early_shot.position
+		foe.score_value = 100
+		game.add_child(foe)
+		game._enemies.append(foe)
+	game._collide()
+	for foe in game._enemies:
+		if foe.hp < 5:
+			early_hits += 1
+	if early_hits != 3 or game._shots.has(early_shot):
+		push_error("ranks 1-4 should pierce 2 (three hits) and then stop, hits %d shot %s" % [early_hits, game._shots.has(early_shot)])
+		failed += 1
+	game._clear_field()
+	var late: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2(120, 140), 4)[0]
+	var late_shot = game._spawn_shot(late, true)
+	var row: Array[EnemyActor] = []
+	for i in 4:
+		var foe := EnemyActor.new()
+		foe.id = 20 + i
+		foe.kind = SpawnDirector.EYE
+		foe.hp = 8
+		foe.max_hp = 8
+		foe.alive = true
+		foe.position = late_shot.position
+		foe.score_value = 100
+		game.add_child(foe)
+		game._enemies.append(foe)
+		row.append(foe)
+	var boss_ok: bool = game._spawn_boss({
+		"slug": "death_knight",
+		"generation": 0,
+		"hold_x": 120.0,
+		"origin_y": 140.0,
+		"phase": 0.0,
+		"wave_amp": 0.0,
+	}, Vector2(480, 270))
+	if not boss_ok:
+		push_error("rank 5 pierce test should spawn a boss")
+		failed += 1
+	else:
+		var boss: EnemyActor = game._living_boss()
+		boss.intro_left = 0.0
+		boss.position = late_shot.position
+		if boss is BossActor:
+			(boss as BossActor).shield_left = 0.0
+		var boss_hp := boss.hp
+		game._collide()
+		var late_hits := 0
+		for foe in row:
+			if foe.hp == 8 - int(late["damage"]):
+				late_hits += 1
+		if late_hits != 4 or not game._shots.has(late_shot) or boss.hp != boss_hp - int(late["damage"]):
+			push_error("rank 5 swipe should hit every enemy and the boss once, hits %d boss %s shot %s" % [late_hits, boss.hp, game._shots.has(late_shot)])
+			failed += 1
+		game._collide()
+		var again := false
+		for foe in row:
+			if foe.hp != 8 - int(late["damage"]):
+				again = true
+		if again or boss.hp != boss_hp - int(late["damage"]):
+			push_error("a rank 5 swipe should not damage the same target twice")
+			failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
 func _check_vending_gem_meter() -> int:
 	var failed := 0
 	var vending_trait := FormCatalog.trait_line(FormCatalog.Id.VENDING, true)
@@ -3965,26 +4116,47 @@ func _check_roster_play() -> int:
 			"sprite": "floating_eye_bolt.png",
 			"killer": "Floating Eye",
 		})
+		game.rank_index = 0
+		game._drop_seeded = false
+		game.day_seed = 20261101
+		var drop_probe := RandomNumberGenerator.new()
+		drop_probe.seed = int(game.day_seed) * 17 + 3
+		var expect_gem := drop_probe.randf() < Difficulty.GEM_CHANCE
+		var over_blocked := float(game.elapsed) < float(game._overdrive_lock) or bool(game._overdrive_live())
+		var expect_over := false
+		if not over_blocked:
+			expect_over = drop_probe.randf() < Difficulty.overdrive_drop_chance(game.elapsed)
+		var expect_power := false
+		if not expect_over:
+			expect_power = drop_probe.randf() < Difficulty.POWER_CHANCE
+		var kill_pay: Dictionary = ScoreRules.on_kill(eye.score_value, game.combo, game.combo_left, game.rank_index)
+		var blast := FormCatalog.vending_winner_damage(0)
 		game._winner_clear()
-		var bonus := FormCatalog.vending_winner_bonus(game.rank_index)
-		var half := int(eye.score_value / 2)
-		if eye.alive or not wyvern.alive or wyvern.hp != wyvern.max_hp - FormCatalog.VENDING_WINNER_DAMAGE:
-			push_error("winner blast should kill an eye and leave a wyvern at %d, hp %d alive %s" % [wyvern.max_hp - FormCatalog.VENDING_WINNER_DAMAGE, wyvern.hp, wyvern.alive])
+		if eye.alive or not wyvern.alive or wyvern.hp != wyvern.max_hp - blast:
+			push_error("winner blast should kill an eye and leave a wyvern at %d, hp %d alive %s" % [wyvern.max_hp - blast, wyvern.hp, wyvern.alive])
 			failed += 1
-		if not piano.alive or piano.hp != piano.max_hp - FormCatalog.VENDING_WINNER_DAMAGE or piano.hp <= 0:
+		if not piano.alive or piano.hp != piano.max_hp - blast or piano.hp <= 0:
 			push_error("winner blast should chip a piano, not delete it, hp %d" % piano.hp)
 			failed += 1
-		if game.combo != 4 or absf(game.combo_left - 0.8) > 0.001:
-			push_error("winner kills should not step or refresh the combo, got %s / %s" % [game.combo, game.combo_left])
+		if game.combo != int(kill_pay["combo"]) or absf(game.combo_left - float(kill_pay["combo_left"])) > 0.001:
+			push_error("winner kill should step the combo like a normal kill, got %s / %s" % [game.combo, game.combo_left])
 			failed += 1
 		if game.winner != 3:
 			push_error("winner kills should not refill the meter, got %s" % game.winner)
 			failed += 1
-		if game.score != score_before + bonus + half:
-			push_error("winner kill should pay the bonus plus half points, got %s want %s" % [game.score, score_before + bonus + half])
+		if game.score != score_before + int(kill_pay["points"]):
+			push_error("winner kill should pay a normal kill and no bonus, got %s want %s" % [game.score, score_before + int(kill_pay["points"])])
 			failed += 1
-		if game._loot.size() != loot_before or game._powers.size() != powers_before:
-			push_error("winner kills should not roll drops")
+		var gems_gained := int(game._loot.size()) - loot_before
+		var powers_gained := int(game._powers.size()) - powers_before
+		if gems_gained != (1 if expect_gem else 0) or powers_gained != (1 if expect_over or expect_power else 0):
+			push_error("winner kill should drop loot like a normal kill, gems %d powers %d" % [gems_gained, powers_gained])
+			failed += 1
+		game.rank_index = 4
+		var held_winner := int(game.winner)
+		game._winner_clear()
+		if wyvern.alive or piano.alive or game.winner != held_winner:
+			push_error("rank 5 blast should finish the survivors without refilling the meter, wyvern %s piano %s winner %s" % [wyvern.alive, piano.alive, game.winner])
 			failed += 1
 		var hostile_left := false
 		var friendly_kept := false
@@ -5508,7 +5680,7 @@ func _check_boss_play() -> int:
 			failed += 1
 		while boss.alive:
 			boss.hurt(8)
-		game._award_kill(boss, true, true)
+		game._award_kill(boss, true)
 	if game.score < before + BossCatalog.DRAGON_SCORE:
 		push_error("killing the dragon should pay at least 100,000, score %s" % game.score)
 		failed += 1
