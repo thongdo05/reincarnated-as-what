@@ -97,21 +97,19 @@ const VENDING := {
 
 ## Reflecting bullets is the defense. The sprite, the hit shape, and the
 ## reflect reach all use scale. Damage stays the int list, so the +15% is
-## fire_interval times 1/1.15. Ranks 1-4 keep this life and pierce 2.
-## Rank 5 does not expire by life: it flies until it is fully past the right
-## edge and pierces every target once. Dash distance, dash guard, and the
-## reflect flip itself are unchanged.
-## Pierce below 0 means the swipe is never spent on a hit.
-const CAT_PIERCE_ALL := -1
+## fire_interval times 1/1.15. Every rank pierces 2. Rank 5 does not expire
+## by life: it flies until it is fully past the right edge, at the rank-5
+## scale. Dash distance, dash guard, and the reflect flip itself are unchanged.
+## hit_ids still allow one hit per target.
 ## Coarse distance check before a swipe tests a bullet. Scaled with the swipe.
 const CAT_REFLECT_REACH := 64.0
 const CAT := {
 	"fire_interval": [0.24 / 1.15, 0.20 / 1.15, 0.17 / 1.15, 0.145 / 1.15, 0.12 / 1.15],
 	"shot_speed": 420.0,
 	"life": [0.58 * 1.10, 0.60 * 1.10, 0.64 * 1.10, 0.70 * 1.10, 0.78 * 1.10],
-	"damage": [1, 1, 2, 2, 3],
+	"damage": [1, 2, 3, 4, 5],
 	"pierce": 2,
-	"scale": [1.0, 1.1, 1.2, 1.3, 1.45],
+	"scale": [1.0, 1.05, 1.1, 1.15, 1.25],
 	"blink_dist": [34.0, 38.0, 44.0, 52.0, 62.0],
 	"blink_guard": [0.10, 0.10, 0.11, 0.13, 0.15],
 }
@@ -189,7 +187,7 @@ const FORM_CARD := {
 		"used": "",
 	},
 	Id.CAT: {
-		"trait": "A hard flick blinks a short dash. Swipes pierce and knock bullets away. Later ranks dash farther and swipe bigger. The final form crosses the screen and hits everything in its path.",
+		"trait": "A hard flick blinks a short dash. Swipes pierce 2 and knock bullets away. Later ranks dash farther and swipe bigger. The final form crosses the screen.",
 		"ready": "",
 		"used": "",
 	},
@@ -256,13 +254,12 @@ static func cat_life(rank_index: int) -> float:
 static func cat_swipe_scale(rank_index: int) -> float:
 	return cat_rank_f("scale", rank_index)
 
-## Rank 5 (index 4) is the only swipe that does not expire and does not run out of pierce.
+## Rank 5 (index 4) is the full-screen swipe. It does not expire by life.
+## Pierce is the same cap as ranks 1-4.
 static func cat_swipe_final(rank_index: int) -> bool:
 	return clampi(rank_index, 0, 4) >= 4
 
-static func cat_pierce(rank_index: int) -> int:
-	if cat_swipe_final(rank_index):
-		return CAT_PIERCE_ALL
+static func cat_pierce(_rank_index: int) -> int:
 	return int(CAT["pierce"])
 
 static func cat_reflect_reach(scale: float) -> float:
