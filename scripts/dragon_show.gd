@@ -8,7 +8,9 @@ class_name DragonShow
 ## drawn at 1x. They step +9,+9 px each mock frame. The finale uses the
 ## native 168px meteor and 270px impact (13 frames, each held 2 ticks).
 ## Meteors still in the air when the rain phase ends are removed without an
-## extra splash. Returning to IDLE, or cancelling early, clears every meteor,
+## extra splash. The screen stays still through the charge, the barrage, and
+## every barrage impact. The giant slam is the only shake: one 2px bump for
+## 0.2s. Returning to IDLE, or cancelling early, clears every meteor,
 ## giant, impact, decal, ember, debris, and flash. Nothing from the
 ## show is drawn while IDLE. At most POOL meteors fly at once. FX on this
 ## node sit above enemies and the background, and under the ship and bullets.
@@ -25,6 +27,9 @@ const GIANT_IMPACT_FRAMES := 13
 const IMPACT_HOLD := 2
 const FLASH_FRAMES := 6
 const AFTERMATH_FRAMES := 14
+## Finale slam only. Charge, the barrage, and barrage impacts do not shake.
+const SLAM_SHAKE_PX := 2.0
+const SLAM_SHAKE_SECONDS := 0.2
 const DRAW_SCALE := 1.0
 const METEOR_CELL := 78.0
 const IMPACT_CELL := 174.0
@@ -160,8 +165,6 @@ func start_rain() -> void:
 	sky = 0.0
 	if host != null and host.has_method("_dragon_slow"):
 		host._dragon_slow(1.0)
-	if host != null and host.has_method("_dragon_shake"):
-		host._dragon_shake(4.0, 1.0)
 	if host != null and host.has_method("_dragon_clear_shots"):
 		host._dragon_clear_shots()
 	if host != null and host.has_method("_dragon_rain"):
@@ -215,8 +218,6 @@ func _step_frame() -> void:
 				_spawn_wait = false
 			_move_meteors()
 			_pay_barrage_chip()
-			if host != null and host.has_method("_dragon_shake"):
-				host._dragon_shake(4.0, FRAME * 2.0)
 			if _frame >= RAIN_FRAMES:
 				# Still-falling barrage rocks would freeze for the finale and stay
 				# on screen after IDLE. Drop them with no splash and no impact.
@@ -226,8 +227,6 @@ func _step_frame() -> void:
 				_launch_giant()
 		FALL:
 			_move_giant()
-			if host != null and host.has_method("_dragon_shake"):
-				host._dragon_shake(4.0, FRAME * 2.0)
 			if _frame >= FALL_FRAMES:
 				_slam_giant()
 				phase = SLAM
@@ -414,8 +413,8 @@ func _slam_giant() -> void:
 	_throw_debris(at, 24, 2.2)
 	if host != null and host.has_method("_dragon_clear_regulars"):
 		host._dragon_clear_regulars()
-	if host != null and host.has_method("_dragon_shake"):
-		host._dragon_shake(5.0, 0.28)
+	if host != null and host.has_method("_dragon_slam_shake"):
+		host._dragon_slam_shake()
 	var rest := _budget - _barrage_paid
 	if rest > 0 and host != null and host.has_method("_dragon_chip"):
 		host._dragon_chip(rest)
