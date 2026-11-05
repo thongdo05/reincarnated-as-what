@@ -47,7 +47,7 @@ func _process(_delta: float) -> bool:
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
 	var live_failed: int = load("res://tests/dragon_phase_checks.gd").new().run_live(self)
-	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular()
+	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_dragon_life()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
@@ -5456,20 +5456,38 @@ func _check_dragon_form() -> int:
 		best = maxf(best, float(total) / interval)
 		move = maxf(move, FormCatalog.max_speed(id))
 	var dragon_shots := FormCatalog.player_shots(FormCatalog.Id.DRAGON, Vector2.ZERO, 0)
-	if dragon_shots.size() != 3:
-		push_error("the dragon attack should fire 3 fireballs")
+	if dragon_shots.size() != 1:
+		push_error("the dragon attack should fire 1 fireball")
 		failed += 1
 	var dragon_dmg := 0
-	var fan := 0.0
+	var base_radius := HitLibrary.bounds_radius(FormCatalog.DRAGON_SHOT, "body")
 	for spec in dragon_shots:
 		dragon_dmg += int(spec["damage"])
 		var vel: Vector2 = spec["velocity"]
 		if absf(vel.length() - FormCatalog.DRAGON_SHOT_SPEED) > 0.6:
 			push_error("dragon fireballs should keep speed %.1f, got %.1f" % [FormCatalog.DRAGON_SHOT_SPEED, vel.length()])
 			failed += 1
-		fan = maxf(fan, absf(rad_to_deg(vel.angle())))
-	if fan < 10.0 or fan > 12.0:
-		push_error("dragon fireball fan should be about 10 to 12 degrees, got %.2f" % fan)
+		if absf(vel.y) > 0.01 or vel.x <= 0.0:
+			push_error("the dragon fireball should fly straight ahead, vel %s" % vel)
+			failed += 1
+		if int(spec["damage"]) != 10:
+			push_error("the dragon fireball should deal 10, got %s" % spec["damage"])
+			failed += 1
+		if absf(float(spec.get("scale", 1.0)) - FormCatalog.DRAGON_SHOT_SCALE) > 0.001:
+			push_error("the dragon fireball should draw at 3x, scale %s" % spec.get("scale", 1.0))
+			failed += 1
+		if absf(float(spec["radius"]) - base_radius * FormCatalog.DRAGON_SHOT_SCALE) > 0.01:
+			push_error("the dragon fireball hit radius should be 3x, got %s base %s" % [spec["radius"], base_radius])
+			failed += 1
+	var weapon := FormCatalog.weapon_line(FormCatalog.Id.DRAGON, 0)
+	if weapon.find("1 fireball") < 0 or weapon.find("Fan") >= 0 or weapon.find("Meteor Rain in 20") < 0 or weapon.find("Dmg 10") < 0 or weapon.find("splash 8") < 0:
+		push_error("dragon card should describe one fireball, dmg 10, splash 8, and 20 kills, got %s" % weapon)
+		failed += 1
+	if FormCatalog.DRAGON_METEOR_KILLS != 20:
+		push_error("meteor rain should charge in 20 kills, got %s" % FormCatalog.DRAGON_METEOR_KILLS)
+		failed += 1
+	if FormCatalog.DRAGON_SPLASH != 8 or absf(FormCatalog.DRAGON_SPLASH_RADIUS - 126.0) > 0.01:
+		push_error("splash damage stays 8 and the radius is 3x (126), got %s / %s" % [FormCatalog.DRAGON_SPLASH, FormCatalog.DRAGON_SPLASH_RADIUS])
 		failed += 1
 	var dragon_dps := float(dragon_dmg) / FormCatalog.DRAGON_FIRE_INTERVAL
 	if dragon_dps + 0.01 < best:
@@ -5484,8 +5502,8 @@ func _check_dragon_form() -> int:
 	if FormCatalog.DRAGON_MAX_SPEED + 0.1 < move:
 		push_error("dragon move speed should be at least the fastest rank-5 form")
 		failed += 1
-	if int(dragon_shots[0]["splash"]) != FormCatalog.DRAGON_SPLASH:
-		push_error("dragon fireballs should splash")
+	if dragon_shots.is_empty() or int(dragon_shots[0]["splash"]) != FormCatalog.DRAGON_SPLASH or absf(float(dragon_shots[0]["splash_radius"]) - FormCatalog.DRAGON_SPLASH_RADIUS) > 0.01:
+		push_error("dragon fireballs should splash for 8 inside a 126px radius")
 		failed += 1
 	var body_img := ArtLibrary.texture("dragon_form/dragon_fly_body.png").get_image()
 	var fx_img := ArtLibrary.texture("dragon_form/dragon_fly_fx.png").get_image()
@@ -5565,10 +5583,263 @@ func _check_dragon_form() -> int:
 	screen.free()
 	return failed
 
+func _boot_play_game() -> Node:
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game.phase = game.PHASE_PLAY
+	game._reveal.visible = false
+	if game._hint_label != null:
+		game._hint_label.visible = false
+	if game._world_flash != null:
+		game._world_flash.visible = false
+	game._world_flash_left = 0.0
+	game.invuln = 0.0
+	game._player.invulnerable = false
+	game._player.alive = true
+	game._clear_field()
+	return game
+
+func _finish_show(show: DragonShow) -> void:
+	var guard := 0
+	while show.phase != DragonShow.IDLE and guard < 400:
+		show.tick(DragonShow.FRAME)
+		guard += 1
+	for _extra in 45:
+		show.tick(DragonShow.FRAME)
+
+func _check_meteor_rain() -> int:
+	var failed := 0
+	var show := DragonShow.new()
+	show.rng_seed = 3
+	show.start_rain()
+	var saw_flying := false
+	var saw_impact := false
+	for _i in DragonShow.CHARGE_FRAMES + DragonShow.RAIN_FRAMES:
+		show.tick(DragonShow.FRAME)
+		if not saw_flying:
+			for item in show._meteors:
+				if item.get("on", false) and int(item.get("boom", -1)) < 0:
+					var at: Vector2 = item["pos"]
+					saw_flying = true
+					if not show.blocks_bullet(at, 4.0) or not show.blocks_bullet(at, 0.0):
+						push_error("a bullet overlapping a falling meteor should be blocked")
+						failed += 1
+					if show.blocks_bullet(at + Vector2(DragonShow.METEOR_HIT_RADIUS + 2.0, 0), 0.0):
+						push_error("meteor block radius should match the 78px body")
+						failed += 1
+					if show.blocks_bullet(Vector2(-800, -800), 4.0):
+						push_error("a bullet far from every meteor should survive")
+						failed += 1
+					break
+		if not saw_impact and not show._impacts.is_empty():
+			var blast: Vector2 = show._impacts[0]["pos"]
+			saw_impact = true
+			if not show.blocks_bullet(blast, 4.0):
+				push_error("a bullet inside an impact should be blocked")
+				failed += 1
+		if saw_flying and saw_impact:
+			break
+	if not saw_flying or not saw_impact:
+		push_error("the rain should have a falling meteor and an impact to test bullets")
+		failed += 1
+	_finish_show(show)
+	show.free()
+	var game = _boot_play_game()
+	game.form_id = FormCatalog.Id.DRAGON
+	game._player.adopt_dragon(1.0)
+	game._player.position = Vector2(80, 140)
+	game._begin_lair_transition()
+	if game._lair == null or not game._lair.running:
+		push_error("the lair transition should be running when the rain starts")
+		failed += 1
+	game._dragon_show.rng_seed = 9
+	game._dragon_show.start_rain()
+	var near: Shot = game._spawn_shot({
+		"position": Vector2.ZERO,
+		"velocity": Vector2(-10, 0),
+		"sprite": "floating_eye_bolt.png",
+		"radius": 4.0,
+		"damage": 1,
+		"killer_name": "bolt",
+	}, false)
+	var inside: Shot = game._spawn_shot({
+		"position": Vector2(1, 1),
+		"velocity": Vector2(-10, 0),
+		"sprite": "floating_eye_bolt.png",
+		"radius": 4.0,
+		"damage": 1,
+		"killer_name": "boss",
+	}, false)
+	var far: Shot = game._spawn_shot({
+		"position": Vector2(8, 8),
+		"velocity": Vector2(-10, 0),
+		"sprite": "floating_eye_bolt.png",
+		"radius": 4.0,
+		"damage": 1,
+		"killer_name": "bolt",
+	}, false)
+	var placed_near := false
+	var placed_impact := false
+	for _i in DragonShow.CHARGE_FRAMES + DragonShow.RAIN_FRAMES:
+		game._dragon_show.tick(DragonShow.FRAME)
+		if not placed_near:
+			for item in game._dragon_show._meteors:
+				if item.get("on", false) and int(item.get("boom", -1)) < 0:
+					near.position = item["pos"]
+					placed_near = true
+					break
+		if not placed_impact and not game._dragon_show._impacts.is_empty():
+			inside.position = game._dragon_show._impacts[0]["pos"]
+			placed_impact = true
+		if placed_near and placed_impact:
+			for item in game._dragon_show._meteors:
+				if item.get("on", false) and int(item.get("boom", -1)) < 0:
+					near.position = item["pos"]
+					break
+			inside.position = game._dragon_show._impacts[0]["pos"]
+			break
+	far.position = Vector2(24, 250)
+	if game._dragon_show.blocks_bullet(far.position, far.radius):
+		push_error("the control bullet should sit clear of every meteor")
+		failed += 1
+	if not placed_near or not placed_impact:
+		push_error("could not place bullets on a meteor and an impact")
+		failed += 1
+	else:
+		game._block_meteor_bullets()
+		if game._shots.has(near) or game._shots.has(inside) or not game._shots.has(far):
+			push_error("meteor overlap and impact bullets should be removed, and a far bullet should stay")
+			failed += 1
+	var hp_before: bool = game._player.alive
+	game._spawn_shot({
+		"position": game._player.position,
+		"velocity": Vector2.ZERO,
+		"sprite": "floating_eye_bolt.png",
+		"radius": 8.0,
+		"damage": 1,
+		"killer_name": "bolt",
+	}, false)
+	game._collide()
+	if not hp_before or not game._player.alive or game.phase != game.PHASE_PLAY:
+		push_error("the player should take no damage during meteor rain")
+		failed += 1
+	_finish_show(game._dragon_show)
+	if game._dragon_show.phase != DragonShow.IDLE or game._dragon_show.active_meteors() != 0 or game._dragon_show._giant.get("on", false) or game._dragon_show._impacts.size() != 0 or game._dragon_show.visible_meteor_fx() != 0 or game._dragon_show.lingering_meteor_fx() != 0:
+		push_error("a rain started as the lair opens should clear every meteor after it ends")
+		failed += 1
+	game.invuln = 0.0
+	game._revert_marker = false
+	game._player.invulnerable = false
+	game._player.position = Vector2(80, 140)
+	game._spawn_shot({
+		"position": game._player.position,
+		"velocity": Vector2.ZERO,
+		"sprite": "floating_eye_bolt.png",
+		"radius": 8.0,
+		"damage": 1,
+		"killer_name": "after",
+	}, false)
+	game._collide()
+	if game._player.alive or game.phase != game.PHASE_DEAD:
+		push_error("the player should be hittable again after meteor rain")
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
+func _check_dragon_life() -> int:
+	var failed := 0
+	var game = _boot_play_game()
+	game.form_id = FormCatalog.Id.GOBLIN
+	game._player.form_id = FormCatalog.Id.GOBLIN
+	game.rank_index = 2
+	game._player.rank_index = 2
+	game._player.small = false
+	game.evo_points = 40
+	game._player.power_level = 0
+	game.score = 4321
+	game.elapsed = 66.0
+	game.combo = 3
+	game._background.apply_world(WorldCatalog.DRAGON_LAIR, false)
+	game._adopt_dragon_form()
+	if game.form_id != FormCatalog.Id.DRAGON or not game._dragon_saved or game._saved_form != FormCatalog.Id.GOBLIN or game._saved_rank != 2 or game._saved_evo != 40 or game._saved_power != 0:
+		push_error("adopting the dragon should save the goblin at rank 3 (index 2) with 40 evo")
+		failed += 1
+	if not game._dragon_phase_on or game._background.world_id != WorldCatalog.DRAGON_LAIR:
+		push_error("the dragon phase and the lair should be up before the extra life is spent")
+		failed += 1
+	game._dragon_show.rng_seed = 4
+	game._dragon_show.start_rain()
+	game._meteor_kills = 7
+	game._player.position = Vector2(140, 120)
+	game._kill_player("ember bat")
+	if game.phase != game.PHASE_PLAY or not game._player.alive or game.form_id != FormCatalog.Id.GOBLIN:
+		push_error("dying as the dragon should revert and keep the run going, phase %s form %s" % [game.phase, game.form_id])
+		failed += 1
+	if game.rank_index != 2 or game._player.rank_index != 2 or game.evo_points != 40 or int(game._player.power_level) != 0:
+		push_error("revert should restore rank 2, 40 evo, and power 0, got rank %s evo %s power %s" % [game.rank_index, game.evo_points, game._player.power_level])
+		failed += 1
+	if game._player.position.distance_to(Vector2(140, 120)) > 1.0:
+		push_error("revert should keep the death position")
+		failed += 1
+	if absf(game.invuln - game.INVULN_SECONDS) > 0.01 or not game._player.invulnerable or not game._revert_marker:
+		push_error("revert i-frames should be the spawn window %.2fs, invuln %s" % [game.INVULN_SECONDS, game.invuln])
+		failed += 1
+	var life_marker: Label = game._hud.get_node_or_null("InvincibleMarker")
+	if life_marker == null or not life_marker.visible or str(life_marker.text) != "INVINCIBLE":
+		push_error("revert should show the INVINCIBLE marker")
+		failed += 1
+	if game._dragon_show.phase != DragonShow.IDLE or game._dragon_show.lingering_meteor_fx() != 0 or game._meteor_kills != 0:
+		push_error("revert should clear meteor rain, phase %s kills %s" % [game._dragon_show.phase, game._meteor_kills])
+		failed += 1
+	if game._hud_view == null or game._hud_view.meteor_px >= 0:
+		push_error("the meteor meter should hide after revert")
+		failed += 1
+	if game.score != 4321 or absf(game.elapsed - 66.0) > 0.001 or game.combo != 3:
+		push_error("score, time, and combo should continue through the revert")
+		failed += 1
+	if not game._dragon_phase_on or game._background.world_id != WorldCatalog.DRAGON_LAIR:
+		push_error("the lair and the dragon phase should stay after revert")
+		failed += 1
+	game._adopt_dragon_form()
+	if game.form_id != FormCatalog.Id.DRAGON or game._saved_form != FormCatalog.Id.GOBLIN:
+		push_error("killing the dragon again should grant the form again")
+		failed += 1
+	game.invuln = 0.0
+	game._revert_marker = false
+	game._player.invulnerable = false
+	game._kill_player("lich")
+	if game.phase != game.PHASE_PLAY or game.form_id != FormCatalog.Id.GOBLIN:
+		push_error("the second dragon life should revert to the goblin again")
+		failed += 1
+	game.invuln = 0.0
+	game._revert_marker = false
+	game._player.invulnerable = false
+	game._spawn_shot({
+		"position": game._player.position,
+		"velocity": Vector2.ZERO,
+		"sprite": "floating_eye_bolt.png",
+		"radius": 8.0,
+		"damage": 1,
+		"killer_name": "Floating Eye",
+	}, false)
+	game._collide()
+	if game.phase != game.PHASE_DEAD or game._player.alive or game.form_id != FormCatalog.Id.GOBLIN or game.killer_name != "Floating Eye":
+		push_error("dying in the reverted form should end the run as that form, phase %s form %s killer %s" % [game.phase, game.form_id, game.killer_name])
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
 func _check_meteor_clock() -> int:
 	var failed := 0
-	if DragonShow.METEOR_COUNT < 22 or DragonShow.METEOR_COUNT > 25 or DragonShow.RAIN_FRAMES != 45 or DragonShow.SPAWN_EVERY != 2 or DragonShow.CHARGE_FRAMES != 15:
-		push_error("meteor rain should be 1.0s of charge and 3.0s with about 22-25 meteors every 2 frames")
+	if DragonShow.METEOR_COUNT != 15 or DragonShow.RAIN_FRAMES != 45 or DragonShow.SPAWN_EVERY != 3 or DragonShow.CHARGE_FRAMES != 15:
+		push_error("meteor rain should be 1.0s of charge and 3.0s with exactly 15 meteors every 3 frames")
+		failed += 1
+	if absf(DragonShow.METEOR_HIT_RADIUS - 39.0) > 0.01 or absf(DragonShow.IMPACT_HIT_RADIUS - 87.0) > 0.01 or absf(DragonShow.GIANT_HIT_RADIUS - 84.0) > 0.01 or absf(DragonShow.GIANT_IMPACT_HIT_RADIUS - 135.0) > 0.01:
+		push_error("meteor hit radii should be half the drawn cells (39, 87, 84, 135)")
 		failed += 1
 	if absf(DragonShow.DRAW_SCALE - 1.0) > 0.001 or absf(DragonShow.METEOR_CELL * DragonShow.DRAW_SCALE - 78.0) > 0.1 or absf(DragonShow.IMPACT_CELL * DragonShow.DRAW_SCALE - 174.0) > 0.1:
 		push_error("barrage meteors should draw at 1x, 78 and 174")
@@ -5599,14 +5870,23 @@ func _check_meteor_clock() -> int:
 	for _i in steps:
 		show.tick(DragonShow.FRAME)
 		peak = maxi(peak, show.active_meteors())
-	if show._spawned != DragonShow.METEOR_COUNT:
-		push_error("the rain should spawn %d meteors, got %d" % [DragonShow.METEOR_COUNT, show._spawned])
+	if show._spawned != 15:
+		push_error("the rain should spawn exactly 15 barrage meteors, got %d" % show._spawned)
 		failed += 1
 	if peak > DragonShow.POOL:
 		push_error("too many meteors on screen at once (%d, cap %d)" % [peak, DragonShow.POOL])
 		failed += 1
 	if show.phase != DragonShow.FALL and show.phase != DragonShow.SLAM:
 		push_error("the giant meteor should start when the rain ends, phase %s" % show.phase)
+		failed += 1
+	var guard := 0
+	while show.phase != DragonShow.IDLE and guard < 400:
+		show.tick(DragonShow.FRAME)
+		guard += 1
+	for _extra in 45:
+		show.tick(DragonShow.FRAME)
+	if show.phase != DragonShow.IDLE or show.active_meteors() != 0 or show._giant.get("on", false) or show._impacts.size() != 0 or show.visible_meteor_fx() != 0 or show.lingering_meteor_fx() != 0 or show.flash_frames != 0:
+		push_error("a finished rain should leave no meteor, giant, or impact, phase %s flying %s giant %s impacts %s visible %s" % [show.phase, show.active_meteors(), show._giant.get("on", false), show._impacts.size(), show.visible_meteor_fx()])
 		failed += 1
 	show.free()
 	return failed
@@ -5710,11 +5990,17 @@ func _check_boss_play() -> int:
 		failed += 1
 	game.invuln = 0.0
 	game._player.invulnerable = false
+	game.form_id = FormCatalog.Id.DRAGON
 	game._player.adopt_dragon(1.0)
 	game._dragon_show.start_rain()
-	if game.invuln > 0.0 or game._player.invulnerable:
-		push_error("meteor rain should not make the player invulnerable")
+	if not game._player.invulnerable:
+		push_error("meteor rain should make the player invulnerable from the charge")
 		failed += 1
+	var marker: Label = game._hud.get_node_or_null("InvincibleMarker")
+	if marker == null or not marker.visible or str(marker.text) != "INVINCIBLE":
+		push_error("meteor rain should show the INVINCIBLE marker")
+		failed += 1
+	game._dragon_show.cancel()
 	if game._dragon_show.z_index >= game._player.z_index or game._dragon_show.z_index >= Replay.bullet_z():
 		push_error("meteor FX should draw under the ship and under enemy bullets")
 		failed += 1

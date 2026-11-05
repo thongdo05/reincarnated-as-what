@@ -3,18 +3,21 @@ class_name DragonShow
 
 ## Meteor Rain, timed at 15 fps on the 480x270 field.
 ## Charge-up is 1.0 s (15 frames). The rain itself is 3.0 s (45 frames).
-## One meteor is scheduled every 2 frames, which is 23 meteors. Barrage
-## meteors and impacts are the native 78px and 174px sheets drawn at 1x, so
-## they stay the same size on screen. They step +9,+9 px each mock frame.
-## The finale uses the native 168px meteor and 270px impact (each impact
-## frame held 2 ticks). At most POOL meteors fly at once. FX on this node
-## stay under the player and under enemy bullets.
+## Fifteen barrage meteors are spread evenly across that rain, one every 3
+## frames. Barrage meteors and impacts are the native 78px and 174px sheets
+## drawn at 1x. They step +9,+9 px each mock frame. The finale uses the
+## native 168px meteor and 270px impact (each impact frame held 2 ticks).
+## Meteors still in the air when the rain phase ends are removed without an
+## extra splash. Returning to IDLE, or cancelling early, clears every meteor,
+## giant, impact, warning, decal, ember, debris, and flash. Nothing from the
+## show is drawn while IDLE. At most POOL meteors fly at once. FX on this
+## node sit above enemies and the background, and under the ship and bullets.
 
 const FRAME := 1.0 / 15.0
 const CHARGE_FRAMES := 15
 const RAIN_FRAMES := 45
-const SPAWN_EVERY := 2
-const METEOR_COUNT := 23
+const SPAWN_EVERY := 3
+const METEOR_COUNT := 15
 const WARN_LEAD := 10
 const FALL_FRAMES := 16
 const IMPACT_ART_FRAMES := 8
@@ -27,11 +30,18 @@ const METEOR_CELL := 78.0
 const IMPACT_CELL := 174.0
 const GIANT_METEOR := 168.0
 const GIANT_IMPACT := 270.0
+## Circle radius whose diameter is the drawn cell. Anchors are the cell centres,
+## so a bullet touches the body when it overlaps this circle.
+const METEOR_HIT_RADIUS := METEOR_CELL * DRAW_SCALE * 0.5
+const IMPACT_HIT_RADIUS := IMPACT_CELL * DRAW_SCALE * 0.5
+const GIANT_HIT_RADIUS := GIANT_METEOR * 0.5
+const GIANT_IMPACT_HIT_RADIUS := GIANT_IMPACT * 0.5
 const STEP := 9.0
 const SPAWN_LEAD_EXTRA := 60.0
 const RETICLE := Vector2(300, 150)
 const POOL := 16
-const IMPACT_POOL := 8
+## One slot per barrage meteor, so a blast is never cut off to free a slot.
+const IMPACT_POOL := 16
 const EMBER_CAP := 48
 const DEBRIS_CAP := 64
 const DECAL_CAP := 16
@@ -81,7 +91,8 @@ var _giant := {}
 var _banner: Node2D
 
 func _ready() -> void:
-	z_index = 1
+	# Above dragon enemies (z 3) and the background, under the ship (z 5) and bullets (z 20).
+	z_index = 4
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_ensure_pools()
 
@@ -158,6 +169,8 @@ func start_rain() -> void:
 	if host != null and host.has_method("_dragon_cue"):
 		host._dragon_cue("dragon_form_meteor_ready")
 		host._dragon_cue("dragon_form_meteor_charge")
+	if host != null and host.has_method("_meteor_show_began"):
+		host._meteor_show_began()
 	queue_redraw()
 
 func tick(delta: float) -> void:
@@ -183,6 +196,8 @@ func tick(delta: float) -> void:
 		_banner.queue_redraw()
 
 func _step_frame() -> void:
+	# Age what already exists before this frame spawns, so a new impact keeps frame 0.
+	_age_particles()
 	_frame += 1
 	match phase:
 		CHARGE:
@@ -203,6 +218,9 @@ func _step_frame() -> void:
 			if host != null and host.has_method("_dragon_shake"):
 				host._dragon_shake(4.0, FRAME * 2.0)
 			if _frame >= RAIN_FRAMES:
+				# Still-falling barrage rocks would freeze for the finale and stay
+				# on screen after IDLE. Drop them with no splash and no impact.
+				_drop_flying_meteors()
 				phase = FALL
 				_frame = 0
 				_launch_giant()
@@ -227,14 +245,98 @@ func _step_frame() -> void:
 			sky = SKY_ALPHA * (1.0 - u)
 			shock = maxf(shock - 0.08, 0.0)
 			if _frame >= AFTERMATH_FRAMES:
-				phase = IDLE
-				_frame = 0
-				sky = 0.0
-				shock = 0.0
-				_pose_rear(0.0)
-				if host != null and host.has_method("_dragon_rain"):
-					host._dragon_rain(false)
-	_age_particles()
+				_finish_show()
+				return
+
+## Stop the show now. Used when the run ends, the form changes, or the life is spent.
+func cancel() -> void:
+	_finish_show()
+	queue_redraw()
+
+func _finish_show() -> void:
+	var notify := phase != IDLE
+	phase = IDLE
+	_frame = 0
+	_acc = 0.0
+	_spawn_wait = false
+	sky = 0.0
+	shock = 0.0
+	flash_frames = 0
+	_clear_show_fx()
+	_pose_rear(0.0)
+	if not notify or host == null:
+		return
+	if host.has_method("_dragon_rain"):
+		host._dragon_rain(false)
+	if host.has_method("_meteor_show_ended"):
+		host._meteor_show_ended()
+
+func _clear_show_fx() -> void:
+	_drop_flying_meteors()
+	for i in _meteors.size():
+		_meteors[i] = {"on": false}
+	_impacts.clear()
+	_giant = {}
+	for i in _embers.size():
+		_embers[i] = {"on": false}
+	for i in _debris.size():
+		_debris[i] = {"on": false}
+	_decals.clear()
+
+## In-flight barrage bodies only. Impacts that already started keep playing.
+func _drop_flying_meteors() -> void:
+	for i in _meteors.size():
+		var item: Dictionary = _meteors[i]
+		if not item.get("on", false):
+			continue
+		if int(item.get("boom", -1)) >= 0:
+			continue
+		_meteors[i] = {"on": false}
+
+## True when a bullet disc overlaps a falling body or an impact blast.
+func blocks_bullet(point: Vector2, bullet_radius: float) -> bool:
+	if phase == IDLE:
+		return false
+	var pad := maxf(bullet_radius, 0.0)
+	for item in _meteors:
+		if not item.get("on", false) or int(item.get("boom", -1)) >= 0:
+			continue
+		if _within(point, item.get("pos", Vector2.ZERO), METEOR_HIT_RADIUS * float(item.get("scale", DRAW_SCALE)), pad):
+			return true
+	if _giant.get("on", false) and int(_giant.get("boom", -1)) < 0:
+		if _within(point, _giant.get("pos", Vector2.ZERO), GIANT_HIT_RADIUS, pad):
+			return true
+	for impact in _impacts:
+		var reach := GIANT_IMPACT_HIT_RADIUS if impact.get("giant", false) else IMPACT_HIT_RADIUS * float(impact.get("scale", DRAW_SCALE))
+		if _within(point, impact.get("pos", Vector2.ZERO), reach, pad):
+			return true
+	if _giant.get("on", false) and int(_giant.get("boom", -1)) >= 0:
+		if _within(point, _giant.get("pos", Vector2.ZERO), GIANT_IMPACT_HIT_RADIUS, pad):
+			return true
+	return false
+
+func _within(point: Vector2, at: Vector2, radius: float, pad: float) -> bool:
+	var reach := radius + pad
+	return point.distance_squared_to(at) <= reach * reach
+
+## Sprites _draw would paint. IDLE paints none of the show.
+func visible_meteor_fx() -> int:
+	if phase == IDLE:
+		return 0
+	return lingering_meteor_fx()
+
+## Bodies, blasts, and the giant, ignoring phase. Zero after a finished show.
+func lingering_meteor_fx() -> int:
+	var n := 0
+	for item in _meteors:
+		if item.get("on", false):
+			n += 1
+	if _giant.get("on", false):
+		n += 1
+	n += _impacts.size()
+	if flash_frames > 0:
+		n += 1
+	return n
 
 func _spawn_barrage() -> bool:
 	var slot := _free_meteor()
@@ -488,17 +590,17 @@ func active_meteors() -> int:
 	return n
 
 func _draw() -> void:
+	# Slay scorch marks are decals added while IDLE. The rain clears its own
+	# decals in _finish_show, so an idle draw never keeps a meteor or a blast.
+	if phase == IDLE:
+		_draw_decals()
+		return
 	var field := Vector2(480, 270)
 	if host != null and host.has_method("_viewport_size"):
 		field = host._viewport_size()
 	if sky > 0.01:
 		draw_rect(Rect2(Vector2.ZERO, field), Color(0.18, 0.04, 0.02, sky))
-	for item in _decals:
-		if item.has("boom"):
-			continue
-		var at: Vector2 = item["pos"]
-		var a := clampf(float(item["life"]) / 20.0, 0.15, 0.7)
-		_paint_mark(at + Vector2(0, 4), Vector2(22, 7), Color(0.9, 0.28, 0.05, a))
+	_draw_decals()
 	for i in _embers.size():
 		if not _embers[i].get("on", false):
 			continue
@@ -570,6 +672,14 @@ class Banner extends Node2D:
 	func _draw() -> void:
 		if rain != null:
 			rain.paint_banner(self)
+
+func _draw_decals() -> void:
+	for item in _decals:
+		if item.has("boom"):
+			continue
+		var at: Vector2 = item["pos"]
+		var a := clampf(float(item["life"]) / 20.0, 0.15, 0.7)
+		_paint_mark(at + Vector2(0, 4), Vector2(22, 7), Color(0.9, 0.28, 0.05, a))
 
 func _paint_mark(at: Vector2, radii: Vector2, color: Color) -> void:
 	draw_set_transform(at, 0.0, radii)
