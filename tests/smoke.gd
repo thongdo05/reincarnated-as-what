@@ -220,10 +220,12 @@ func _check_forms() -> int:
 	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("WINNER!") < 0:
 		push_error("vending trait should name the WINNER meter")
 		failed += 1
-	if FormCatalog.trait_line(FormCatalog.Id.CAT, true) != "A hard flick blinks a short dash. Swipes pierce and knock bullets away. Later ranks dash farther and swipe bigger. The final form crosses the screen and hits everything in its path." or FormCatalog.weapon_line(FormCatalog.Id.CAT, 0).find("Reflects") < 0:
+	if FormCatalog.trait_line(FormCatalog.Id.CAT, true) != "A hard flick blinks a short dash. Swipes pierce 2 and knock bullets away. Later ranks dash farther and swipe bigger. The final form crosses the screen." or FormCatalog.weapon_line(FormCatalog.Id.CAT, 0).find("Reflects") < 0:
 		push_error("cat card should describe the blink dash, the piercing swipe, and the reflect")
 		failed += 1
-	var swipe_scale := [1.0, 1.1, 1.2, 1.3, 1.45]
+	var swipe_scale := [1.0, 1.05, 1.1, 1.15, 1.25]
+	var swipe_damage := [1, 2, 3, 4, 5]
+	var swipe_radius := HitLibrary.bounds_radius("cat_swipe.png", "body")
 	var rank_lives := [0.58 * 1.10, 0.60 * 1.10, 0.64 * 1.10, 0.70 * 1.10]
 	for rank_i in 5:
 		var spec: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2.ZERO, rank_i)[0]
@@ -233,12 +235,26 @@ func _check_forms() -> int:
 		if absf(FormCatalog.cat_reflect_reach(swipe_scale[rank_i]) - 64.0 * swipe_scale[rank_i]) > 0.001:
 			push_error("cat reflect reach should scale with the swipe")
 			failed += 1
+		if absf(float(spec["radius"]) - swipe_radius * swipe_scale[rank_i]) > 0.001:
+			push_error("cat swipe hit radius rank %d should match scale %s, got %s" % [rank_i + 1, swipe_scale[rank_i], spec["radius"]])
+			failed += 1
+		if int(spec["damage"]) != swipe_damage[rank_i] or int(FormCatalog.cat_pierce(rank_i)) != 2:
+			push_error("cat swipe rank %d should deal %d and pierce 2, damage %s pierce %s" % [rank_i + 1, swipe_damage[rank_i], spec["damage"], spec["pierce"]])
+			failed += 1
+		var weapon := FormCatalog.weapon_line(FormCatalog.Id.CAT, rank_i)
+		if swipe_damage[rank_i] == 1:
+			if weapon.find("Dmg") >= 0:
+				push_error("rank 1 cat card should not quote a damage number, got %s" % weapon)
+				failed += 1
+		elif weapon.find("Dmg %d." % swipe_damage[rank_i]) < 0:
+			push_error("cat card rank %d should quote dmg %d, got %s" % [rank_i + 1, swipe_damage[rank_i], weapon])
+			failed += 1
 		if rank_i < 4:
 			if absf(FormCatalog.cat_life(rank_i) - rank_lives[rank_i]) > 0.001 or absf(float(spec["life"]) - rank_lives[rank_i]) > 0.001 or not bool(spec["expires"]) or int(spec["pierce"]) != 2:
 				push_error("ranks 1-4 should keep their life and pierce 2, rank %d life %s expires %s pierce %s" % [rank_i + 1, spec["life"], spec["expires"], spec["pierce"]])
 				failed += 1
-		elif bool(spec["expires"]) or int(spec["pierce"]) != FormCatalog.CAT_PIERCE_ALL or not bool(spec.get("exit_right", false)):
-			push_error("rank 5 swipe should pierce without a cap and not expire by life, pierce %s expires %s" % [spec["pierce"], spec["expires"]])
+		elif bool(spec["expires"]) or int(spec["pierce"]) != 2 or not bool(spec.get("exit_right", false)) or absf(float(spec["scale"]) - 1.25) > 0.001:
+			push_error("rank 5 swipe should pierce 2, stay full-screen at 1.25 scale, and not expire by life, pierce %s expires %s scale %s exit %s" % [spec["pierce"], spec["expires"], spec["scale"], spec.get("exit_right", false)])
 			failed += 1
 	var bolt_at := Vector2(0, -18)
 	if HitLibrary.overlaps(Vector2.ZERO, "cat_swipe.png", "body", bolt_at, "floating_eye_bolt.png", "threat", 1.0):
@@ -2404,7 +2420,7 @@ func _check_pause_card(game) -> int:
 			push_error("vending pause card should describe the cans and the WINNER meter")
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.CAT:
-		if card.trait_text().find("Swipes pierce and knock bullets away.") < 0 or card.weapon_text().find("Reflects") < 0:
+		if card.trait_text().find("Swipes pierce 2 and knock bullets away.") < 0 or card.weapon_text().find("Reflects") < 0:
 			push_error("cat pause card should describe the piercing swipe and the reflect")
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.DEMON:
@@ -3824,6 +3840,9 @@ func _check_cat_swipe() -> int:
 		failed += 1
 	var final_spec: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2(20, 140), 4)[0]
 	var final_shot = game._spawn_shot(final_spec, true)
+	if absf(float(final_shot.hit_scale) - 1.25) > 0.001 or not final_shot.exit_right or final_shot.expires or int(final_shot.pierce) != 2 or int(final_shot.damage) != 5:
+		push_error("rank 5 swipe should cross the screen at 1.25 scale, pierce 2, and deal 5, scale %s exit %s expires %s pierce %s damage %s" % [final_shot.hit_scale, final_shot.exit_right, final_shot.expires, final_shot.pierce, final_shot.damage])
+		failed += 1
 	final_shot.position = Vector2(20, 140)
 	final_shot.life = -5.0
 	game._sweep(Vector2(480, 270))
@@ -3883,40 +3902,32 @@ func _check_cat_swipe() -> int:
 		game.add_child(foe)
 		game._enemies.append(foe)
 		row.append(foe)
-	var boss_ok: bool = game._spawn_boss({
-		"slug": "death_knight",
-		"generation": 0,
-		"hold_x": 120.0,
-		"origin_y": 140.0,
-		"phase": 0.0,
-		"wave_amp": 0.0,
-	}, Vector2(480, 270))
-	if not boss_ok:
-		push_error("rank 5 pierce test should spawn a boss")
+	game._collide()
+	var late_hits := 0
+	for foe in row:
+		if foe.hp == 8 - int(late["damage"]):
+			late_hits += 1
+	if late_hits != 3 or game._shots.has(late_shot):
+		push_error("rank 5 should pierce 2 (three hits) and then stop, hits %d shot %s" % [late_hits, game._shots.has(late_shot)])
 		failed += 1
-	else:
-		var boss: EnemyActor = game._living_boss()
-		boss.intro_left = 0.0
-		boss.position = late_shot.position
-		if boss is BossActor:
-			(boss as BossActor).shield_left = 0.0
-		var boss_hp := boss.hp
-		game._collide()
-		var late_hits := 0
-		for foe in row:
-			if foe.hp == 8 - int(late["damage"]):
-				late_hits += 1
-		if late_hits != 4 or not game._shots.has(late_shot) or boss.hp != boss_hp - int(late["damage"]):
-			push_error("rank 5 swipe should hit every enemy and the boss once, hits %d boss %s shot %s" % [late_hits, boss.hp, game._shots.has(late_shot)])
-			failed += 1
-		game._collide()
-		var again := false
-		for foe in row:
-			if foe.hp != 8 - int(late["damage"]):
-				again = true
-		if again or boss.hp != boss_hp - int(late["damage"]):
-			push_error("a rank 5 swipe should not damage the same target twice")
-			failed += 1
+	game._clear_field()
+	var once: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2(120, 140), 4)[0]
+	var once_shot = game._spawn_shot(once, true)
+	var target := EnemyActor.new()
+	target.id = 30
+	target.kind = SpawnDirector.EYE
+	target.hp = 8
+	target.max_hp = 8
+	target.alive = true
+	target.position = once_shot.position
+	target.score_value = 100
+	game.add_child(target)
+	game._enemies.append(target)
+	game._collide()
+	game._collide()
+	if target.hp != 8 - int(once["damage"]) or not game._shots.has(once_shot):
+		push_error("a rank 5 swipe should hit one target once and keep the rest of its pierce, hp %s shot %s" % [target.hp, game._shots.has(once_shot)])
+		failed += 1
 	root.remove_child(game)
 	game.free()
 	return failed
