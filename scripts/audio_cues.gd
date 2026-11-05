@@ -34,6 +34,8 @@ const GEM_MIN_INTERVAL := 0.05
 const GEM_CHAIN_RESET := 0.6
 const GEM_CHAIN_CAP := 7
 const POWER_POLYPHONY := 1
+## Level 1 stays at the recorded pitch. Each level above that is one semitone.
+const POWER_LEVEL_PITCH_CAP := 12
 
 ## Fanfare chord inside sfx_evolve.wav. Evolve frame 5, the EVOLVED! pop.
 const EVOLVE_HIT_SECONDS := 0.42
@@ -41,7 +43,14 @@ const EVOLVE_HIT_SECONDS := 0.42
 ## Plays with the Vending Machine title card. The other forms stay silent.
 const VENDING_TITLE := "title_cards/title_vending_machine.png"
 
+## A DragonPhase hook name is a cue even when its sample has not been matched.
+static func is_hook(event: String) -> bool:
+	return DragonPhase.is_hook(event)
+
 static func spec(event: String) -> Dictionary:
+	var dragon := DragonAudio.spec(event)
+	if not dragon.is_empty():
+		return dragon
 	match event:
 		"gameplay_music":
 			return {
@@ -85,6 +94,16 @@ static func spec(event: String) -> Dictionary:
 				"pitch_semitones": 0.0,
 				"duration": 0.80,
 				"optional": true,
+			}
+		"power_level_up":
+			return {
+				"file": "res://audio/sfx_power_level_up.wav",
+				"bus": SFX_BUS,
+				"loop": false,
+				"lufs": -19.8,
+				"polyphony": 1,
+				"pitch_semitones": 0.0,
+				"duration": 0.68,
 			}
 		"enemy_killed":
 			return {
@@ -185,6 +204,7 @@ static func all_events() -> PackedStringArray:
 		"demon_lord_shot",
 		"gem_pickup",
 		"power_pickup",
+		"power_level_up",
 		"enemy_killed",
 		"player_death",
 		"reborn_tease",
@@ -196,10 +216,12 @@ static func all_events() -> PackedStringArray:
 		"boss_death_knight_death",
 		"boss_great_dragon_enter",
 		"boss_great_dragon_death",
+		"dragon_slain",
 	])
 
 static func is_shot_event(event: String) -> bool:
-	return event == "slime_shot" or event == "goblin_shot" or event == "vending_machine_shot" or event == "cat_shot" or event == "demon_lord_shot"
+	var key := DragonAudio.canonical(event)
+	return key == "slime_shot" or key == "goblin_shot" or key == "vending_machine_shot" or key == "cat_shot" or key == "demon_lord_shot" or key == "dragon_form_shot"
 
 ## Missing designer files are skipped. A required cue still reports the gap.
 ## ResourceLoader sees the imported sample inside an exported pck. FileAccess
@@ -224,12 +246,21 @@ static func shot_event_for_form(form_id: int) -> String:
 			return "cat_shot"
 		FormCatalog.Id.DEMON:
 			return "demon_lord_shot"
+		FormCatalog.Id.DRAGON:
+			return "dragon_form_shot"
 		_:
 			return ""
 
 ## Step 0 is the recorded pitch. Each pickup in a chain adds one semitone.
 static func gem_chain_semitones(step: int) -> float:
 	return float(clampi(step, 0, GEM_CHAIN_CAP))
+
+## Level 1 is the file as mastered. One semitone per level above that, capped at +12.
+static func power_level_semitones(level: int) -> float:
+	return float(clampi(level - 1, 0, POWER_LEVEL_PITCH_CAP))
+
+static func power_level_pitch(level: int) -> float:
+	return semitone_to_pitch(power_level_semitones(level))
 
 static func reveal_event_for_card(card: String) -> String:
 	if card == VENDING_TITLE or card.ends_with(VENDING_TITLE):
@@ -313,12 +344,20 @@ static func simulate_burst(rate: float, duration: float, cap: int, seconds: floa
 		t += step
 	return {"max_active": max_active, "stolen": stolen}
 
-static func prepare_stream(stream: AudioStream, event: String) -> void:
+static func prepare_stream(stream: AudioStream, event: String) -> AudioStream:
 	var data := spec(event)
 	if stream is AudioStreamOggVorbis and bool(data.get("loop", false)):
 		var ogg := stream as AudioStreamOggVorbis
 		ogg.loop = true
 		ogg.loop_offset = float(data.get("loop_offset", 0.0))
+		return ogg
+	if stream is AudioStreamWAV and int(data.get("loop_end", 0)) > 0:
+		var wav := stream.duplicate() as AudioStreamWAV
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = int(data.get("loop_begin", 0))
+		wav.loop_end = int(data.get("loop_end", -1))
+		return wav
+	return stream
 
 static func ensure_bus(bus_name: String) -> int:
 	var idx := AudioServer.get_bus_index(bus_name)

@@ -13,6 +13,8 @@ const CHALLENGE_COPIED := "LINK COPIED!"
 const COPY_FEEDBACK := 1.4
 ## The world name stays up with the form card, then for this long once play starts.
 const WORLD_NAME_HOLD := 0.9
+## Muted warning ink for the capture invuln note. Alpha lives on the label.
+const INVULN_BANNER_COLOR := Color(0.86, 0.48, 0.22, 1)
 
 const PHASE_REVEAL := 0
 const PHASE_PLAY := 1
@@ -56,8 +58,6 @@ var overdrive_spawned := 0
 var _overdrive_lock := 0.0
 var winner := 0
 var winner_pops := 0
-var _graze_streak := 0
-var _graze_left := 0.0
 var _winner_busy := false
 var rapid_left := 0.0
 var magnet_left := 0.0
@@ -94,6 +94,7 @@ var _rotate: Control
 var _paused := false
 var _debug_on := false
 var _debug_label: Label
+var _invuln_banner: Label
 var _final_evolve := false
 var _slow_left := 0.0
 var _shake_left := 0.0
@@ -128,6 +129,19 @@ var _death_shade: ColorRect
 var _hit_stop_frames := 0
 var _hit_stop_cooldown := 0.0
 var _juice_shake := 0.0
+var _dragon_show: DragonShow
+var _lair: LairTransition
+var _dragon_phase_on := false
+var _dragon_phase_at := 0.0
+var _dragon_spawns: DragonSpawnDirector
+var _dragon_tier := 0
+var _sheets: Array[SheetFx] = []
+var _roster_form := 0
+var dragon_kills := 0
+var _meteor_kills := 0
+var _rain_budget := 0
+var _meteor_shake_left := 0.0
+var _meteor_shake_mag := 0.0
 var _tutorial_active := false
 var _tut_eye := false
 var _tut_gem := false
@@ -189,6 +203,14 @@ func _build_world() -> void:
 	_player.z_index = 5
 	_player.setup(form_id, Vector2(size.x * 0.28, size.y * 0.5))
 	add_child(_player)
+	_roster_form = form_id
+	_dragon_show = DragonShow.new()
+	_dragon_show.host = self
+	_dragon_show.rng_seed = day_seed
+	add_child(_dragon_show)
+	_lair = LairTransition.new()
+	_lair.name = "LairTransition"
+	add_child(_lair)
 
 	_combat = CombatText.new()
 	_combat.z_index = 8
@@ -514,6 +536,7 @@ func _build_hud() -> void:
 	_debug_label.visible = false
 	_debug_label.z_index = 4
 	_hud.add_child(_debug_label)
+	_build_invuln_banner()
 	_title_board_button = _make_death_button("LEADERBOARD", Color("2a2140"))
 	_title_board_button.z_index = 3
 	_title_board_button.visible = false
@@ -535,6 +558,7 @@ func _build_hud() -> void:
 	_name_prompt.cancelled.connect(_on_name_cancelled)
 	_hud.add_child(_name_prompt)
 	_refresh_hud()
+	_sync_invuln_banner()
 
 func _load_fonts() -> void:
 	_font_outlined = load("res://ui/font_kaito5x7_outlined.fnt")
@@ -748,13 +772,22 @@ func _process(delta: float) -> void:
 	if phase == PHASE_PLAY and _hit_stop_frames > 0:
 		_hit_stop_frames -= 1
 		return
+	if phase == PHASE_PLAY and _dragon_show != null:
+		_dragon_show.tick(delta)
 	var world_delta := delta
 	if phase == PHASE_PLAY and _slow_left > 0.0:
 		_slow_left = maxf(_slow_left - delta, 0.0)
 		world_delta = delta * Difficulty.FINAL_SLOWMO_SCALE
-	_background.tick(world_delta if phase == PHASE_PLAY else delta, size, Difficulty.scroll_scale(elapsed))
+	var scroll_delta := world_delta if phase == PHASE_PLAY else delta
+	var scroll_scale := Difficulty.scroll_scale(elapsed)
+	_background.tick(scroll_delta, size, scroll_scale)
+	if _lair != null and _lair.running:
+		_lair.scroll(scroll_delta, size, scroll_scale)
+		if _lair.advance(delta):
+			_finish_lair_swap()
 	_combat.tick(delta)
 	_tick_effects(delta)
+	_tick_sheets(delta)
 	if phase == PHASE_REVEAL:
 		if CaptureMode.holding():
 			return
@@ -849,6 +882,9 @@ func _play_frame(delta: float, size: Vector2) -> void:
 				spec["velocity"] = Vector2(speed, aim.y)
 				spec["homing"] = FormCatalog.demon_homing(rank_index, crowd) + float(level) * 0.5
 				spec["damage"] = FormCatalog.demon_damage(rank_index, crowd) + level / 8
+			elif form_id == FormCatalog.Id.DRAGON:
+				spec["damage"] = int(spec["damage"]) + FormCatalog.dragon_power_bonus(level)
+				_spawn_fx("dragon_form/dragon_muzzle.png", spec["position"], 3.0 / 15.0, 0.8, 1.3)
 			elif level > 0:
 				spec["damage"] = int(spec["damage"]) + FormCatalog.power_damage_bonus(form_id, level)
 			_spawn_shot(spec, true)
@@ -864,32 +900,65 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		if _boss_director != null:
 			_boss_director.set_boss_alive(living != null)
 			for event in _boss_director.pop_due(elapsed):
+				# A regular boss no longer walks off, so it would hold the
+				# dragon's clock. Clear it with no reward, then the dragon enters.
+				if str(event.get("slug", "")) == "great_dragon" and living != null and living.boss_slug != "great_dragon":
+					if living is BossActor:
+						(living as BossActor).dismiss()
+					else:
+						living.alive = false
+						living.visible = false
+					living = null
 				if _spawn_boss(event, size):
 					living = _living_boss()
-		var enemy_room := Difficulty.enemy_cap(elapsed) - _alive_enemy_count()
-		for event in _director.pop_due(elapsed):
-			if living != null and _throttle_spawn(living):
-				continue
-			if enemy_room <= 0:
-				continue
-			if _spawn_enemy(event, size):
-				enemy_room -= 1
+		if dragon_phase_elapsed() >= 0.0:
+			_spawn_dragon_minions(living, size)
+		else:
+			var enemy_room := Difficulty.enemy_cap(elapsed) - _alive_enemy_count()
+			for event in _director.pop_due(elapsed):
+				if living != null and _throttle_spawn(living):
+					continue
+				if enemy_room <= 0:
+					continue
+				if _spawn_enemy(event, size):
+					enemy_room -= 1
 	var player_pos := _player.position
-	var shot_room := maxi(Difficulty.enemy_shot_cap(elapsed) - _reserved_enemy_shots(), 0)
+	var shot_cap := Difficulty.enemy_shot_cap(elapsed)
+	if dragon_phase_elapsed() >= 0.0:
+		shot_cap = DragonPhase.shot_cap(dragon_phase_elapsed())
+	var shot_room := maxi(shot_cap - _reserved_enemy_shots(), 0)
+	var dragon_boss := _great_dragon_on_screen()
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
+		if enemy is DragonEnemy:
+			var dragon := enemy as DragonEnemy
+			var phase_t := dragon_phase_elapsed()
+			if phase_t < 0.0:
+				phase_t = 0.0
+			dragon.bullet_density = DragonPhase.bullet_density(phase_t)
+			dragon.move_scale = DragonPhase.speed_mul(phase_t)
+			dragon.suppress_fire = dragon_boss
+			dragon.bind_allies(_enemies)
 		enemy.fire_room = shot_room
 		for spec in enemy.tick(delta, player_pos, elapsed, Difficulty.speed_scale(elapsed)):
+			_note_enemy_shot(spec)
 			_spawn_shot(spec, false)
+		if enemy.gust_push != 0.0 and _player.alive:
+			_player.position.x = clampf(_player.position.x + enemy.gust_push * delta, 18.0, size.x - 18.0)
 		for extra in enemy.take_spawns():
 			_spawn_enemy(extra, size)
+		var bye := enemy.take_farewell()
+		if not bye.is_empty():
+			var offset: Vector2 = bye.get("offset", Vector2.ZERO)
+			_play_sheet(str(bye.get("file", "")), enemy.position + offset)
+			play_sfx_hook(str(bye.get("cue", "")))
 		if shot_room >= 0:
 			shot_room = enemy.fire_room
-	_tick_charm(delta)
 	_guide_orbs(delta)
 	for shot in _shots:
 		shot.tick(delta)
+	_sync_puddle_loop()
 	_tick_patterns(delta, size)
 	_collide()
 	_tick_loot(delta)
@@ -914,6 +983,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 		_hint_label.visible = false
 	_refresh_hud()
 	_refresh_debug()
+	_sync_invuln_banner()
 	if _boss_banner != null:
 		_boss_banner.queue_redraw()
 
@@ -946,7 +1016,10 @@ func _spawn_boss(data: Dictionary, size: Vector2) -> bool:
 	add_child(enemy)
 	_enemies.append(enemy)
 	if _sound != null:
-		_sound.play_event(BossCatalog.cue(str(data.get("slug", "")), "enter"))
+		var enter := BossCatalog.cue(str(data.get("slug", "")), "enter")
+		if str(data.get("slug", "")) == "great_dragon":
+			enter = "great_dragon_entrance"
+		_sound.play_event(enter)
 	return true
 
 func _living_boss() -> EnemyActor:
@@ -964,7 +1037,7 @@ func _throttle_spawn(boss: EnemyActor) -> bool:
 	return _boss_throttle % 2 == 0
 
 func _spawn_enemy(data: Dictionary, size: Vector2) -> bool:
-	var enemy := EnemyActor.new()
+	var enemy: EnemyActor = DragonEnemy.new() if bool(data.get("dragon", false)) else EnemyActor.new()
 	enemy.z_index = 3
 	enemy.setup(next_enemy_id, data, size, _background)
 	next_enemy_id += 1
@@ -1000,7 +1073,7 @@ func _spawn_overlaps_player(enemy: EnemyActor) -> bool:
 	if enemy.position.distance_to(_player.position) > enemy.radius + _player.radius + 6.0:
 		return false
 	var enemy_file := enemy.sprite_file()
-	return HitLibrary.overlaps(_player.position, _player.sprite_name(), "hurt", enemy.position, enemy_file, "threat", FormCatalog.play_scale(form_id), 1.0)
+	return HitLibrary.overlaps(_player.position, _player.sprite_name(), "hurt", enemy.position, enemy_file, "threat", _player_scale(), 1.0, _player.anim_frame())
 
 func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
 	var shot: Shot
@@ -1037,6 +1110,8 @@ func _collide() -> void:
 			var reach_y := 96.0 if enemy.is_boss() else 72.0
 			if absf(shot.position.x - enemy.position.x) > reach_x or absf(shot.position.y - enemy.position.y) > reach_y:
 				continue
+			if not enemy.can_be_hit():
+				continue
 			if enemy.blocks_player_shot(shot):
 				_spawn_fx("hit_flash.png", shot.position, 0.14, 0.8, 1.3)
 				if _combat != null:
@@ -1046,14 +1121,23 @@ func _collide() -> void:
 			if not HitLibrary.overlaps(shot.position, shot.sprite_name, "body", enemy.position, enemy_file, "body"):
 				continue
 			enemy.hurt(shot.damage)
+			if enemy is DragonEnemy and (enemy as DragonEnemy).consume_block():
+				_spawn_fx("hit_flash.png", shot.position, 0.14, 0.8, 1.3)
+				if _combat != null:
+					_combat.push("BLOCK", shot.position + Vector2(-10, -12), Color("d7c4ff"), 0.28)
+				spent.append(shot)
+				break
 			shot.hit_ids.append(enemy.id)
 			if shot.splits > 0:
 				for spec in FormCatalog.split_shots(shot.velocity, shot.position, shot.splits):
 					spec["ignore_id"] = enemy.id
 					splits.append(spec)
+			if shot.splash > 0:
+				_splash_shot(shot, enemy)
 			if not enemy.alive:
 				_award_kill(enemy, true)
-				_spawn_fx("death_puff.png", enemy.position, 0.42, 0.45, 1.55)
+				if not enemy is DragonEnemy:
+					_spawn_fx("death_puff.png", enemy.position, 0.42, 0.45, 1.55)
 			else:
 				_spawn_fx("hit_flash.png", shot.position, 0.16, 0.75, 1.35)
 			if shot.pierce > 0:
@@ -1069,13 +1153,15 @@ func _collide() -> void:
 	if not _player.alive or _player.invulnerable or _player.blink_guard > 0.0:
 		return
 	var player_file := _player.sprite_name()
-	var player_scale := FormCatalog.play_scale(form_id)
+	var player_scale := _player_scale()
 	for enemy in _enemies:
-		if not enemy.alive or enemy.charmed > 0.0:
+		if not enemy.alive or not enemy.threatens_player():
 			continue
 		var enemy_file := enemy.sprite_file()
 		# Every hurt part, not the movement bounds radius.
-		var enemy_gap := HitLibrary.gap(_player.position, player_file, "hurt", enemy.position, enemy_file, "threat", player_scale, 1.0)
+		if enemy.is_boss() and enemy.intro_left > 0.0:
+			continue
+		var enemy_gap := HitLibrary.gap(_player.position, player_file, "hurt", enemy.position, enemy_file, "threat", player_scale, 1.0, _player.anim_frame())
 		if enemy_gap <= 0.0:
 			_hurt_player(enemy.kind_name)
 			return
@@ -1083,7 +1169,7 @@ func _collide() -> void:
 	for shot in _shots:
 		if shot.from_player or not is_instance_valid(shot):
 			continue
-		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat", player_scale, 1.0)
+		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat", player_scale, 1.0, _player.anim_frame())
 		if shot_gap <= 0.0:
 			_hurt_player(shot.killer_name if shot.killer_name != "" else "shot")
 			return
@@ -1107,6 +1193,7 @@ func _award_kill(enemy: EnemyActor, drop_loot: bool = true, chain_combo: bool = 
 		if boss.boss_slug == "great_dragon" and not boss.return_booked and _boss_director != null:
 			boss.return_booked = true
 			_boss_director.on_dragon_killed(elapsed)
+			_begin_dragon_slay(points, boss.position)
 	if drop_loot:
 		if enemy.is_boss():
 			_reward_boss(enemy)
@@ -1118,6 +1205,10 @@ func _award_kill(enemy: EnemyActor, drop_loot: bool = true, chain_combo: bool = 
 			_sound.play_event(BossCatalog.cue(enemy.boss_slug, "death"))
 	if drop_loot and not _winner_busy and form_id == FormCatalog.Id.VENDING:
 		_charge_winner()
+	if drop_loot and form_id == FormCatalog.Id.DRAGON:
+		_charge_meteor()
+	if enemy is DragonEnemy:
+		_present_dragon_death(enemy as DragonEnemy)
 	if enemy.max_hp >= 3:
 		_request_hit_stop(3)
 		_bump_shake()
@@ -1130,8 +1221,6 @@ func _graze_gap(hazard: Object, separation: float) -> void:
 	hazard.grazed = true
 	var grazed := ScoreRules.graze_points(rank_index)
 	score += grazed
-	if form_id == FormCatalog.Id.CAT:
-		_note_cat_graze()
 
 func _hurt_player(killer: String) -> void:
 	if CaptureMode.ignore_hit(self, killer):
@@ -1193,15 +1282,20 @@ func _tick_loot(delta: float) -> void:
 	for gem in _loot:
 		if not is_instance_valid(gem):
 			continue
+		var started := gem.position
 		if not gem.tick(delta):
 			_release_gem(gem)
 			continue
 		if _player.alive and magnet > 0.0:
 			var offset := _player.position - gem.position
 			var dist := offset.length()
-			if dist <= magnet and dist > 0.5:
+			# tick() already drifted the gem left. A gem that began this frame
+			# inside the radius stays in the pull, or the trailing rim would
+			# scroll out before the speed could matter.
+			var in_range := dist <= magnet or started.distance_to(_player.position) <= magnet
+			if in_range and dist > 0.5:
 				gem.position += offset / dist * magnet_speed * delta
-		if _player.alive and _loot_reached(gem, magnet):
+		if _player.alive and _loot_reached(gem):
 			_collect_gem(gem)
 			continue
 		if gem.position.x < -40.0:
@@ -1213,20 +1307,29 @@ func _tick_loot(delta: float) -> void:
 
 func _collect_gem(gem: LootGem) -> void:
 	var at := gem.position
+	var winner_gem := _pickup_is_gem(gem)
 	_release_gem(gem)
 	loot_count += 1
-	score += Difficulty.GEM_SCORE
+	score += Difficulty.GEM_SCORE + gem.bonus_score
+	if gem.bonus_score > 0 and _combat != null:
+		_combat.push("+%d" % (Difficulty.GEM_SCORE + gem.bonus_score), at + Vector2(-10, -14), Color("ffe56a"), 0.45)
 	if _sound != null:
 		_sound.play_event("gem_pickup")
+		if gem.sprite_name == DragonPhase.ELDER_GEM:
+			_sound.play_event("dragon_enemy_elder_drake_gem_pickup")
 	_spawn_fx("graze_sparkle.png", at, 0.22, 0.6, 1.2)
 	_add_evo(Difficulty.GEM_EVO)
+	# Same step as one kill. Coins share this pickup and do not count. Powerups do not come through here.
+	if winner_gem and form_id == FormCatalog.Id.VENDING and not _winner_busy:
+		_charge_winner()
 
-func _loot_reached(gem: LootGem, magnet: float) -> bool:
-	if _overlaps(_player.position, _player.radius, gem.position, gem.radius):
-		return true
-	if magnet <= 0.0 or not _player.alive:
-		return false
-	return _player.position.distance_to(gem.position) <= magnet
+## Evolution gems and Elder Drake gems. A coin uses the same node and does not count.
+func _pickup_is_gem(gem: LootGem) -> bool:
+	return gem.sprite_name.find("gem") >= 0
+
+## Touch only. The magnet radius pulls; it does not collect.
+func _loot_reached(gem: LootGem) -> bool:
+	return _overlaps(_player.position, _player.radius, gem.position, gem.radius)
 
 func _roll_drops(at: Vector2) -> void:
 	if _drop_unit() < Difficulty.GEM_CHANCE:
@@ -1364,7 +1467,8 @@ func _detonate() -> void:
 		enemy.hurt(Difficulty.BOMB_DAMAGE)
 		if not enemy.alive:
 			_award_kill(enemy, false)
-			_spawn_fx("death_puff.png", enemy.position, 0.28, 0.4, 1.2)
+			if not enemy is DragonEnemy:
+				_spawn_fx("death_puff.png", enemy.position, 0.28, 0.4, 1.2)
 
 func _overdrive_blast() -> void:
 	_clear_enemy_shots()
@@ -1389,7 +1493,7 @@ func _charge_winner() -> void:
 	winner = 0
 	_winner_clear()
 
-## The only WINNER! in the game. Kills fill it. Coins do not.
+## The only WINNER! in the game. Kills and gems fill it. Coins and powerups do not.
 ## Flying enemy shots and pending pattern shots (the rake windup included)
 ## are cleared. A survivor can still loose a telegraph it already started.
 func _winner_clear() -> void:
@@ -1422,93 +1526,21 @@ func _winner_clear() -> void:
 					_combat.push_callout("-%d" % dealt, enemy.position + Vector2(-18, -40), Color("ffe56a"), 0.7, 2)
 			if not enemy.alive:
 				_award_kill(enemy, false, false)
-				_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
+				if not enemy is DragonEnemy:
+					_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 			continue
 		enemy.hurt(FormCatalog.VENDING_WINNER_DAMAGE)
 		if not enemy.alive:
 			# Half points, no combo step, no drop. Same no-drop path as OVERDRIVE.
 			_award_kill(enemy, false, false)
-			_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
+			if not enemy is DragonEnemy:
+				_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 	_winner_busy = false
-
-func _note_cat_graze() -> void:
-	_graze_left = FormCatalog.CAT_GRAZE_WINDOW
-	_graze_streak += 1
-	if _graze_streak < FormCatalog.cat_graze_need(rank_index):
-		return
-	_graze_streak = 0
-	_charm_nearby()
-
-func _charm_nearby() -> void:
-	var ranked: Array[EnemyActor] = []
-	for enemy in _enemies:
-		if not enemy.alive or enemy.charmed > 0.0:
-			continue
-		if enemy.is_boss() or enemy.kind == SpawnDirector.ANVIL or enemy.kind == SpawnDirector.PIANO:
-			continue
-		if enemy.position.distance_to(_player.position) > FormCatalog.cat_charm_radius(rank_index):
-			continue
-		ranked.append(enemy)
-	ranked.sort_custom(func(a: EnemyActor, b: EnemyActor) -> bool:
-		return a.position.distance_squared_to(_player.position) < b.position.distance_squared_to(_player.position)
-	)
-	var turned := 0
-	for enemy in ranked:
-		enemy.charmed = FormCatalog.CAT_CHARM_TIME
-		enemy.charm_cd = 0.12
-		turned += 1
-		if turned >= FormCatalog.cat_charm_max(rank_index):
-			break
-	if turned > 0 and _combat != null:
-		_combat.push("TAKEOVER!", _player.position + Vector2(-36, -26), Color("ff9ad8"), 0.4)
-
-func _tick_charm(delta: float) -> void:
-	if _graze_left > 0.0:
-		_graze_left = maxf(_graze_left - delta, 0.0)
-		if _graze_left <= 0.0:
-			_graze_streak = 0
-	if form_id != FormCatalog.Id.CAT:
-		return
-	for enemy in _enemies:
-		if not is_instance_valid(enemy) or enemy.charmed <= 0.0:
-			continue
-		enemy.charmed = maxf(enemy.charmed - delta, 0.0)
-		if enemy.charmed <= 0.0:
-			enemy.modulate = Color.WHITE
-			continue
-		enemy.charm_cd -= delta
-		if enemy.charm_cd > 0.0:
-			continue
-		var foe: EnemyActor = null
-		var best := 999999.0
-		for other in _enemies:
-			if other == enemy or not other.alive or other.charmed > 0.0:
-				continue
-			if other.kind == SpawnDirector.ANVIL or other.kind == SpawnDirector.PIANO:
-				continue
-			var dist := enemy.position.distance_squared_to(other.position)
-			if dist < best:
-				best = dist
-				foe = other
-		if foe == null:
-			continue
-		var aim := foe.position - enemy.position
-		if aim.length() < 1.0:
-			continue
-		enemy.charm_cd = 0.55
-		_spawn_shot({
-			"position": enemy.position,
-			"velocity": aim.normalized() * 240.0,
-			"sprite": "reflected_bullet.png",
-			"damage": 1,
-			"radius": HitLibrary.bounds_radius("reflected_bullet.png", "body"),
-			"color": Color("8ecbff"),
-		}, true)
 
 func _guide_orbs(delta: float) -> void:
 	var foes: Array[EnemyActor] = []
 	for enemy in _enemies:
-		if enemy.alive and enemy.charmed <= 0.0:
+		if enemy.alive:
 			foes.append(enemy)
 	if foes.is_empty():
 		return
@@ -1653,10 +1685,18 @@ func _sync_power() -> void:
 	var level := _power_level()
 	var before := int(_player.power_level)
 	_player.power_level = level
+	# A latch at boot or a restore keeps the same level, so it stays silent.
+	# One call that jumps several levels still plays once, at the level it landed on.
 	if level > before and phase == PHASE_PLAY and _combat != null:
 		_combat.push_callout("POWER +%d" % level, _player.position + Vector2(-28, -22), Color("ffe56a"), 0.36)
+		if _sound != null:
+			_sound.play_event("power_level_up", 0.0, AudioCues.power_level_pitch(level))
 
 func _try_rank() -> void:
+	if form_id == FormCatalog.Id.DRAGON:
+		_refresh_hud()
+		_refresh_debug()
+		return
 	var reached := FormCatalog.rank_for_points(evo_points)
 	if reached > rank_index:
 		var gate_count := FormCatalog.rank_gates().size()
@@ -1696,6 +1736,7 @@ func _kill_player(name: String) -> void:
 		_world_flash_left = 0.0
 	if _sound != null:
 		_sound.set_music_paused(false)
+		_sound.end_dragon_bed()
 	if _pause_overlay != null:
 		_pause_overlay.visible = false
 	if _pause_button != null:
@@ -1922,6 +1963,8 @@ func _sweep(size: Vector2) -> void:
 		var gone := not is_instance_valid(enemy) or not enemy.alive or not field.has_point(enemy.position)
 		if gone:
 			if is_instance_valid(enemy):
+				if enemy is DragonEnemy:
+					(enemy as DragonEnemy).detach()
 				enemy.queue_free()
 			continue
 		_enemies[enemy_write] = enemy
@@ -1954,6 +1997,40 @@ func _bank_survival(delta: float) -> void:
 		survival_bank -= 1.0
 		score += ScoreRules.SURVIVAL_PER_SECOND
 
+func _build_invuln_banner() -> void:
+	if CaptureMode.invuln_notice_text() == "":
+		return
+	_invuln_banner = _make_label(9, INVULN_BANNER_COLOR)
+	_invuln_banner.name = "InvulnBanner"
+	_invuln_banner.modulate = Color(1, 1, 1, 0.82)
+	_invuln_banner.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_invuln_banner.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_invuln_banner.clip_text = false
+	_invuln_banner.size = Vector2(220, 14)
+	_invuln_banner.custom_minimum_size = Vector2(220, 14)
+	_hud.add_child(_invuln_banner)
+	_sync_invuln_banner()
+
+func _sync_invuln_banner() -> void:
+	if _invuln_banner == null:
+		return
+	_invuln_banner.text = CaptureMode.invuln_notice_text()
+	_invuln_banner.visible = CaptureMode.invuln_notice_visible()
+	_invuln_banner.position = _invuln_banner_origin()
+
+## Top-left, just under the rank line, and lower when a power row is showing.
+func _invuln_banner_origin() -> Vector2:
+	var y := 68.0
+	if _hud_view == null:
+		return Vector2(6, y)
+	if _hud_view.shield_on or _hud_view.rapid_s > 0 or _hud_view.magnet_s > 0 or _hud_view.overdrive_px >= 0:
+		y = 84.0
+	if _hud_view.winner_px >= 0:
+		y = 94.0
+	if _hud_view.meteor_px >= 0:
+		y = 114.0
+	return Vector2(6, y)
+
 func _refresh_debug() -> void:
 	if _debug_label == null:
 		return
@@ -1977,9 +2054,14 @@ func _apply_shake(delta: float) -> void:
 	if _juice_shake > 0.0:
 		_juice_shake = maxf(_juice_shake - delta, 0.0)
 		mag = maxf(mag, Replay.JUICE_SHAKE_PX * clampf(_juice_shake / Replay.JUICE_SHAKE_SECONDS, 0.0, 1.0))
-	# Stay inside a 2px cap (1px when the platform asks for reduced motion)
-	# so a bullet cannot leave the eye.
-	mag = minf(mag, Replay.shake_cap())
+	var cap := Replay.shake_cap()
+	if _meteor_shake_left > 0.0:
+		_meteor_shake_left = maxf(_meteor_shake_left - delta, 0.0)
+		mag = maxf(mag, _meteor_shake_mag)
+		cap = maxf(cap, _meteor_shake_mag)
+	# The everyday cap stays at 2px so a bullet cannot leave the eye.
+	# Meteor Rain may shake a little harder, and only while it is running.
+	mag = minf(mag, cap)
 	if mag <= 0.05:
 		if position != Vector2.ZERO:
 			position = Vector2.ZERO
@@ -1997,6 +2079,12 @@ func _refresh_hud() -> void:
 	if form_id == FormCatalog.Id.VENDING:
 		var need := float(FormCatalog.vending_winner_kills(rank_index))
 		winner_px = int(round(float(HudLayout.FILL_FULL) * clampf(float(winner) / need, 0.0, 1.0)))
+	var meteor_px := -1
+	var meteor_ready := false
+	if form_id == FormCatalog.Id.DRAGON:
+		var need_m := float(FormCatalog.DRAGON_METEOR_KILLS)
+		meteor_px = int(round(18.0 * clampf(float(_meteor_kills) / need_m, 0.0, 1.0)))
+		meteor_ready = _meteor_kills >= FormCatalog.DRAGON_METEOR_KILLS or (_dragon_show != null and _dragon_show.phase == DragonShow.CHARGE)
 	var rank_label := FormCatalog.rank_name(form_id, rank_index).to_upper()
 	var level := _power_level()
 	if level > 0:
@@ -2013,12 +2101,14 @@ func _refresh_hud() -> void:
 		int(ceil(rapid_left)) if rapid_left > 0.0 else 0,
 		int(ceil(magnet_left)) if magnet_left > 0.0 else 0,
 		-1,
-		winner_px
+		winner_px,
+		meteor_px,
+		meteor_ready
 	)
 
 func share_run() -> Dictionary:
 	return {
-		"form": ShareCard.form_key(form_id),
+		"form": ShareCard.form_key(_public_form()),
 		"rank_reached": rank_index + 1,
 		"time": ScoreRules.format_time(elapsed),
 		"score": score,
@@ -2092,7 +2182,7 @@ func _seed_line() -> String:
 	return "UTC seed %d - run %d" % [day_seed, run_index + 1]
 
 func _on_beat_link() -> void:
-	_copy_text(Replay.beat_url_for(day_seed, form_id))
+	_copy_text(Replay.beat_url_for(day_seed, _public_form()))
 	_flash_copy()
 
 func _copy_text(text: String) -> void:
@@ -2486,6 +2576,283 @@ func _overlaps(a: Vector2, a_radius: float, b: Vector2, b_radius: float) -> bool
 	var reach := a_radius + b_radius
 	return a.distance_squared_to(b) <= reach * reach
 
+func _player_scale() -> float:
+	if _player != null:
+		return _player.drawn_scale()
+	return FormCatalog.play_scale(form_id)
+
+func _public_form() -> int:
+	if form_id == FormCatalog.Id.DRAGON:
+		return _roster_form
+	return form_id
+
+func _begin_dragon_slay(points: int, at: Vector2) -> void:
+	dragon_kills += 1
+	if _dragon_show != null:
+		_dragon_show.begin_slay(points, at)
+	_begin_lair_transition()
+
+func _charge_meteor() -> void:
+	if _dragon_show != null and _dragon_show.phase != DragonShow.IDLE:
+		return
+	_meteor_kills += 1
+	if _meteor_kills < FormCatalog.DRAGON_METEOR_KILLS:
+		return
+	_meteor_kills = 0
+	# The player stays hittable. Meteor pictures sit under the ship and under bullets.
+	if _dragon_show != null:
+		_dragon_show.rng_seed = day_seed + dragon_kills * 17 + int(elapsed * 10.0)
+		_dragon_show.start_rain()
+
+func _dragon_slow(seconds: float) -> void:
+	_slow_left = maxf(_slow_left, seconds)
+
+func _dragon_shake(amount: float, seconds: float) -> void:
+	_meteor_shake_mag = amount
+	_meteor_shake_left = maxf(_meteor_shake_left, seconds)
+
+func _dragon_clear_shots() -> void:
+	_clear_enemy_shots()
+
+func _dragon_clear_regulars() -> void:
+	for enemy in _enemies:
+		if enemy.alive and not enemy.is_boss():
+			enemy.alive = false
+	_clear_enemy_shots()
+
+func _dragon_open_budget() -> int:
+	var boss := _living_boss()
+	if boss == null:
+		_rain_budget = 0
+		return 0
+	_rain_budget = BossCatalog.winner_damage(boss.max_hp)
+	return _rain_budget
+
+func _dragon_chip(amount: int) -> void:
+	if amount <= 0 or _rain_budget <= 0:
+		return
+	var pay := mini(amount, _rain_budget)
+	var boss := _living_boss()
+	if boss != null and boss.alive and boss.intro_left <= 0.0:
+		var before := boss.hp
+		boss.hurt(pay)
+		var dealt := before - boss.hp
+		_rain_budget = maxi(_rain_budget - maxi(dealt, pay), 0)
+		if not boss.alive:
+			_award_kill(boss, true, true)
+	else:
+		_rain_budget = maxi(_rain_budget - pay, 0)
+
+func _dragon_splash(at: Vector2, radius: float) -> void:
+	var reach := radius * radius
+	for enemy in _enemies:
+		if not enemy.alive or enemy.is_boss() or not enemy.can_be_hit():
+			continue
+		if enemy.position.distance_squared_to(at) <= reach:
+			enemy.alive = false
+
+func _dragon_jingle() -> void:
+	if _sound != null:
+		_sound.play_event("dragon_slain")
+
+func _dragon_roar() -> void:
+	if _sound != null:
+		_sound.play_event("great_dragon_phase_roar")
+
+func _dragon_cue(event: String) -> void:
+	if _sound != null and event != "":
+		_sound.play_event(event)
+
+func _dragon_rain(on: bool) -> void:
+	if _sound != null:
+		_sound.set_meteor_mix(on)
+
+func _adopt_dragon_form() -> void:
+	if _player == null or form_id == FormCatalog.Id.DRAGON:
+		return
+	var old_file := _player.sprite_name()
+	var old_scale := _player.drawn_scale()
+	var fit := FormCatalog.dragon_fit_scale(old_file, old_scale)
+	form_id = FormCatalog.Id.DRAGON
+	_player.adopt_dragon(fit)
+	_begin_dragon_phase()
+	if _sound != null:
+		_sound.play_event("dragon_transform")
+		_sound.play_dragon_music()
+	_spawn_fx("dragon_form/dragon_transform.png", _player.position, 9.0 / 15.0, 0.6, 1.5)
+
+func dragon_phase_elapsed() -> float:
+	if not _dragon_phase_on:
+		return -1.0
+	return maxf(elapsed - _dragon_phase_at, 0.0)
+
+func _begin_dragon_phase() -> void:
+	if _dragon_phase_on:
+		return
+	_dragon_phase_on = true
+	_dragon_phase_at = elapsed
+	_dragon_tier = 1
+	_dragon_spawns = DragonSpawnDirector.new(day_seed)
+	_dragon_spawns.begin(elapsed)
+
+func _great_dragon_on_screen() -> bool:
+	var living := _living_boss()
+	return living != null and living.boss_slug == "great_dragon"
+
+func _spawn_dragon_minions(living: EnemyActor, size: Vector2) -> void:
+	_note_dragon_tier()
+	if _dragon_spawns == null:
+		return
+	var paused := (living != null and living.boss_slug == "great_dragon") or _lair_blocks_spawns()
+	var room := DragonPhase.MAX_ENEMIES - _alive_minion_count()
+	for event in _dragon_spawns.pop_due(elapsed, paused):
+		if room <= 0:
+			continue
+		if _spawn_enemy(event, size):
+			room -= 1
+
+func _note_dragon_tier() -> void:
+	var tier := DragonPhase.tier_for(maxf(dragon_phase_elapsed(), 0.0))
+	if tier <= _dragon_tier:
+		return
+	_dragon_tier = tier
+	play_sfx_hook(DragonPhase.HOOK_TIER)
+	if _combat != null:
+		var field := _viewport_size()
+		_combat.push_callout("TIER %d" % tier, Vector2(field.x * 0.5, 36.0), Color("ffb15a"), 0.9, 2)
+
+func _lair_blocks_spawns() -> bool:
+	return _lair != null and _lair.blocks_spawns()
+
+func _begin_lair_transition() -> void:
+	if _lair == null or _background == null:
+		return
+	if _background.world_id == WorldCatalog.DRAGON_LAIR and not _lair.running:
+		return
+	_lair.begin()
+	if _sound != null:
+		_sound.play_event("dragon_lair_transition")
+
+func _finish_lair_swap() -> void:
+	if _background == null or _lair == null:
+		return
+	var preview := _lair.preview_background()
+	_background.apply_world(WorldCatalog.DRAGON_LAIR, false)
+	_background.copy_scroll_from(preview)
+	if _world_flash != null:
+		_world_flash.visible = false
+		_world_flash_left = 0.0
+
+func _note_enemy_shot(spec: Dictionary) -> void:
+	if _sound == null:
+		return
+	var sprite := str(spec.get("sprite", ""))
+	if sprite == BossCatalog.BOSS_EMBER:
+		_sound.play_event("great_dragon_ember_burst")
+		return
+	if sprite != BossCatalog.BOSS_METEOR:
+		return
+	var velocity: Vector2 = spec.get("velocity", Vector2.ZERO)
+	var at: Vector2 = spec.get("position", Vector2.ZERO)
+	var fall := FieldBackground.GROUND_FEET - at.y
+	var delay := fall / maxf(velocity.y, 1.0)
+	_sound.play_later("great_dragon_meteor_impact", clampf(delay, 0.05, 3.0))
+
+func _sync_puddle_loop() -> void:
+	if _sound == null:
+		return
+	var live := false
+	for shot in _shots:
+		if is_instance_valid(shot) and shot.sprite_name == DragonPhase.PUDDLE:
+			live = true
+			break
+	if live:
+		_sound.play_event("dragon_enemy_magma_puddle_sizzle_loop")
+	else:
+		_sound.stop_event("dragon_enemy_magma_puddle_sizzle_loop")
+
+func _alive_minion_count() -> int:
+	var count := 0
+	for enemy in _enemies:
+		if enemy.alive and not enemy.is_boss():
+			count += 1
+	return count
+
+func play_sfx_hook(cue: String, delay: float = 0.0) -> void:
+	if cue == "" or _sound == null:
+		return
+	if delay > 0.0:
+		_sound.play_later(cue, delay)
+		return
+	_sound.play_event(cue)
+
+func _present_dragon_death(dragon: DragonEnemy) -> void:
+	dragon.detach()
+	var visual := dragon.death_visual()
+	var file := str(visual.get("file", ""))
+	if file != "":
+		var offset: Vector2 = visual.get("offset", Vector2.ZERO)
+		_play_sheet(file, dragon.position + offset)
+	play_sfx_hook(str(visual.get("cue", "")))
+	for spec in dragon.death_shots():
+		_spawn_shot(spec, false)
+	var gem: Dictionary = dragon.death_gem()
+	if gem.is_empty():
+		return
+	_spawn_bonus_gem(gem["at"], str(gem["sprite"]), int(gem["bonus"]), float(gem["life"]))
+
+func _spawn_bonus_gem(at: Vector2, sprite: String, bonus: int, life: float) -> void:
+	var gem := _take_gem()
+	gem.setup(sprite)
+	gem.bonus_score = bonus
+	gem.life = life
+	gem.drift = Difficulty.GEM_DRIFT
+	gem.age = 0.0
+	gem.position = at
+	gem.modulate = Color.WHITE
+	gem.z_index = 7
+	_loot.append(gem)
+
+func _play_sheet(file_name: String, at: Vector2) -> void:
+	if file_name == "" or not ArtLibrary.has_file(file_name):
+		return
+	var fx := SheetFx.new()
+	fx.z_index = 8
+	fx.setup(file_name, at)
+	add_child(fx)
+	_sheets.append(fx)
+
+func _tick_sheets(delta: float) -> void:
+	if _sheets.is_empty():
+		return
+	var write := 0
+	for fx in _sheets:
+		if is_instance_valid(fx) and fx.tick(delta):
+			_sheets[write] = fx
+			write += 1
+			continue
+		if is_instance_valid(fx):
+			fx.queue_free()
+	_sheets.resize(write)
+
+func _splash_shot(shot: Shot, direct: EnemyActor) -> void:
+	if shot.splash <= 0 or shot.splash_radius <= 0.0:
+		return
+	if _sound != null:
+		_sound.play_event("dragon_form_fireball_explode")
+	_spawn_fx("dragon_form/dragon_explosion.png", shot.position, 7.0 / 15.0, 0.5, 1.2)
+	var reach := shot.splash_radius * shot.splash_radius
+	for enemy in _enemies:
+		if enemy == direct or not enemy.alive or enemy.is_boss() or not enemy.can_be_hit():
+			continue
+		if enemy.position.distance_squared_to(shot.position) > reach:
+			continue
+		enemy.hurt(shot.splash)
+		if enemy is DragonEnemy and (enemy as DragonEnemy).consume_block():
+			continue
+		if not enemy.alive:
+			_award_kill(enemy, true, true)
+
 func _spawn_fx(file_name: String, at: Vector2, duration: float, from_scale: float, to_scale: float) -> void:
 	if _effects.size() >= Difficulty.MAX_FX:
 		return
@@ -2605,11 +2972,27 @@ func _reincarnate() -> void:
 	_force_close_board()
 	_dismiss_name_prompt()
 	_clear_field()
-	var died_as := form_id
+	var died_as := _public_form()
+	dragon_kills = 0
+	_meteor_kills = 0
+	_dragon_phase_on = false
+	_dragon_phase_at = 0.0
+	_dragon_spawns = null
+	_dragon_tier = 0
+	if _lair != null:
+		_lair.cancel()
+	if _sound != null:
+		_sound.end_dragon_bed()
+	_rain_budget = 0
+	_meteor_shake_left = 0.0
+	if _player != null:
+		_player.fit_scale = 1.0
+		_player.rear = 0.0
 	run_index = DailyRun.consume_run_index()
 	form_id = FormCatalog.id_for_run(day_seed, run_index)
 	if form_id == died_as:
 		form_id = FormCatalog.id_for_run_avoiding(day_seed, run_index, died_as)
+	_roster_form = form_id
 	score = 0
 	combo = 0
 	combo_left = 0.0
@@ -2623,8 +3006,6 @@ func _reincarnate() -> void:
 	overdrive_spawned = 0
 	_overdrive_lock = 0.0
 	winner = 0
-	_graze_streak = 0
-	_graze_left = 0.0
 	_winner_busy = false
 	rapid_left = 0.0
 	magnet_left = 0.0
@@ -2700,6 +3081,10 @@ func _clear_field() -> void:
 			enemy.alive = false
 			enemy.queue_free()
 	_enemies.clear()
+	for fx in _sheets:
+		if is_instance_valid(fx):
+			fx.queue_free()
+	_sheets.clear()
 	for shot in _shots:
 		_release_shot(shot)
 	_shots.clear()
@@ -2789,6 +3174,10 @@ func draw_boss_banner(canvas: CanvasItem) -> void:
 	var label := boss.kind_name.to_upper()
 	if boss.boss_slug == "great_dragon" and boss.dragon_phase() == 2:
 		label += " II"
+	elif boss.boss_slug == "great_dragon" and boss.dragon_phase() >= 3:
+		label += " III"
+	if boss.boss_slug == "great_dragon" and boss is BossActor and (boss as BossActor).generation > 0:
+		label += " R%d" % ((boss as BossActor).generation + 1)
 	var fill := BossCatalog.banner_color(boss.boss_slug)
 	var tex := PixelFont.outlined_texture(label, fill)
 	var pen := Vector2((field.x - tex.get_width()) * 0.5, 1.0)
@@ -2886,9 +3275,10 @@ func _present_online_score() -> void:
 		return
 	# This run only. A local best from before SCORE_EPOCH is already gone and is not posted.
 	_pending_score = {
-		"form": FormCatalog.key_for(form_id),
+		"form": FormCatalog.key_for(_public_form()),
 		"score": maxi(score, 0),
 		"survival_ms": maxi(int(round(elapsed * 1000.0)), 0),
+		"dragon_slayer": dragon_kills > 0,
 	}
 	_lb_gen += 1
 	if _leaderboard.player_name() == "":
@@ -3014,7 +3404,8 @@ func _send_submit(gen: int) -> void:
 		int(_pending_score.get("score", 0)),
 		int(_pending_score.get("survival_ms", 0)),
 		func(parsed: Dictionary) -> void:
-			_on_submit_parsed(parsed, gen)
+			_on_submit_parsed(parsed, gen),
+		bool(_pending_score.get("dragon_slayer", false))
 	)
 
 func _on_submit_parsed(parsed: Dictionary, gen: int) -> void:

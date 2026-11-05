@@ -45,7 +45,7 @@ func setup(_seed_value: int, size: Vector2) -> void:
 
 ## Swap the four painted layers. Decks and the ground line stay put.
 ## Scroll restarts so the new tile is not already half off the left edge.
-func apply_world(id: String) -> void:
+func apply_world(id: String, restart_scroll: bool = true) -> void:
 	world_id = id
 	var set := WorldCatalog.layers(id)
 	if set.size() == 4:
@@ -59,12 +59,21 @@ func apply_world(id: String) -> void:
 		factor_clouds = speeds[1]
 		factor_far = speeds[2]
 		factor_near = speeds[3]
-	scroll_sky = 0.0
-	scroll_clouds = 0.0
-	scroll_far = 0.0
-	scroll_near = 0.0
+	if restart_scroll:
+		scroll_sky = 0.0
+		scroll_clouds = 0.0
+		scroll_far = 0.0
+		scroll_near = 0.0
 	if is_inside_tree():
 		queue_redraw()
+
+func copy_scroll_from(other: FieldBackground) -> void:
+	if other == null:
+		return
+	scroll_sky = other.scroll_sky
+	scroll_clouds = other.scroll_clouds
+	scroll_far = other.scroll_far
+	scroll_near = other.scroll_near
 
 func tick(delta: float, size: Vector2, scroll_scale: float = 1.0) -> void:
 	field_size = size

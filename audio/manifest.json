@@ -198,5 +198,25 @@
     "lufs": -19.3,
     "true_peak": -6.3,
     "notes": "Great Dragon death. Same SFX-bus level as the other stings, no pitch shift. 48000 Hz, 16-bit mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sting_dragon_slain.wav",
+    "type": "sting",
+    "duration": 2.04,
+    "loop": false,
+    "event": "dragon_slain",
+    "lufs": -19.2,
+    "true_peak": -8.9,
+    "notes": "DRAGON SLAIN sting. Replaces the evolve-fanfare stand-in. Plays with sfx_dragon_lair_transition.wav. 48000 Hz, stereo. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
+    "file": "sfx_power_level_up.wav",
+    "type": "sfx",
+    "duration": 0.68,
+    "loop": false,
+    "event": "power_level_up",
+    "lufs": -19.8,
+    "true_peak": -5.9,
+    "notes": "Plays on each POWER +N callout after the final form. One shot per increase, even when several levels land at once. The game pitches it up one semitone per level above 1, capped at +12. Do not change the file gain. Gem pickups duck 5 dB for 0.25 s while it plays. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
   }
 ]

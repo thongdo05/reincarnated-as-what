@@ -13,6 +13,9 @@ var rapid_s := 0
 var magnet_s := 0
 var overdrive_px := -1
 var winner_px := -1
+var meteor_px := -1
+var meteor_ready := false
+var meteor_clock := 0.0
 
 var _score: Texture2D
 var _time: Texture2D
@@ -20,9 +23,9 @@ var _rank: Texture2D
 var _coin: Texture2D
 var _built := ""
 
-func set_run(score: String, time: String, coins: int, rank_name: String, rank: int, fill: int, loot: bool, shield: bool = false, rapid: int = 0, magnet: int = 0, overdrive: int = -1, winner: int = -1) -> void:
+func set_run(score: String, time: String, coins: int, rank_name: String, rank: int, fill: int, loot: bool, shield: bool = false, rapid: int = 0, magnet: int = 0, overdrive: int = -1, winner: int = -1, meteor: int = -1, meteor_armed: bool = false) -> void:
 	var coin := "x%d" % coins
-	var signature := "%s|%s|%s|%s|%d|%d|%s|%s|%d|%d|%d|%d" % [score, time, coin, rank_name, rank, fill, loot, shield, rapid, magnet, overdrive, winner]
+	var signature := "%s|%s|%s|%s|%d|%d|%s|%s|%d|%d|%d|%d|%d|%s" % [score, time, coin, rank_name, rank, fill, loot, shield, rapid, magnet, overdrive, winner, meteor, meteor_armed]
 	if signature == _built:
 		return
 	score_text = score
@@ -37,6 +40,8 @@ func set_run(score: String, time: String, coins: int, rank_name: String, rank: i
 	magnet_s = magnet
 	overdrive_px = overdrive
 	winner_px = winner
+	meteor_px = meteor
+	meteor_ready = meteor_armed
 	_score = PixelFont.score_texture(score_text)
 	_time = PixelFont.outlined_texture(time_text, HudLayout.TIME_COLOR)
 	_rank = PixelFont.outlined_texture(rank_text, HudLayout.RANK_COLOR)
@@ -87,3 +92,33 @@ func _draw() -> void:
 			var fill := ArtLibrary.texture("ui/hud_evo_meter_fill_64x6.png")
 			draw_texture_rect_region(fill, Rect2(bar.position, Vector2(width, 6)), Rect2(0, 0, width, 6), Color("ff4d5e"))
 		draw_texture(PixelFont.outlined_texture("WIN", Color("ffe56a")), Vector2(HudLayout.FILL_POS.x + 66.0, 76.0) - Vector2(PixelFont.PAD, PixelFont.PAD))
+	if meteor_px >= 0:
+		_draw_meteor_meter()
+
+func _process(delta: float) -> void:
+	if meteor_px < 0:
+		return
+	meteor_clock += delta
+	if meteor_ready or meteor_px > 0:
+		queue_redraw()
+
+func _draw_meteor_meter() -> void:
+	var at := Vector2(6, 92)
+	var empty := ArtLibrary.texture("dragon_form/dragon_meter_empty.png")
+	if empty != null:
+		draw_texture(empty, at)
+	if meteor_ready:
+		var ready := ArtLibrary.texture("dragon_form/dragon_meter_ready.png")
+		if ready != null:
+			var src := ArtLibrary.frame_source("dragon_form/dragon_meter_ready.png", meteor_clock)
+			draw_texture_rect_region(ready, Rect2(at, src.size), src)
+		return
+	var pct := clampf(float(meteor_px) / 18.0, 0.0, 1.0)
+	if pct <= 0.0:
+		return
+	var fill := ArtLibrary.texture("dragon_form/dragon_meter_fill.png")
+	if fill == null:
+		return
+	var h := maxf(1.0, 18.0 * pct)
+	var src := Rect2(0, 18.0 - h, 18, h)
+	draw_texture_rect_region(fill, Rect2(at + Vector2(0, 18.0 - h), Vector2(18, h)), src)

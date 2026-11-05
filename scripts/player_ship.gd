@@ -9,6 +9,10 @@ class_name PlayerShip
 ## are drawn only. They do not move the hurt circle.
 
 var form_id := FormCatalog.Id.SLIME
+## Extra fit on top of FormCatalog.play_scale. 1 for every form except a
+## dragon that had to shrink to the body it replaced.
+var fit_scale := 1.0
+var rear := 0.0
 var aim := Vector2.ZERO
 var velocity := Vector2.ZERO
 var radius := 8.0
@@ -283,8 +287,20 @@ func _record_trail(delta: float) -> void:
 	_trim_trail()
 
 ## Next run in the same visit. Does not add another evolve node.
+func drawn_scale() -> float:
+	return FormCatalog.play_scale(form_id) * fit_scale
+
+func adopt_dragon(fit: float) -> void:
+	form_id = FormCatalog.Id.DRAGON
+	small = false
+	fit_scale = fit
+	rear = 0.0
+	_apply_radius()
+
 func respawn(id: int, start: Vector2) -> void:
 	form_id = id
+	fit_scale = 1.0
+	rear = 0.0
 	position = start
 	aim = start
 	velocity = Vector2.ZERO
@@ -382,10 +398,10 @@ func _draw() -> void:
 	var hurt := hurt_draw_pose()
 	draw_set_transform(hurt["offset"], float(hurt["rotation"]), hurt["scale"])
 	if shield_hits > 0:
-		var fitted := FormCatalog.play_scale(form_id)
+		var fitted := drawn_scale()
 		draw_arc(Vector2.ZERO, radius / maxf(fitted, 0.01) + 5.0, 0.0, TAU, 22, Color("f2fbff"), 1.5, true)
 	if HitLibrary.show:
-		HitLibrary.draw(self, sprite_name(), "hurt", Color(0.35, 1.0, 0.55, 0.95))
+		HitLibrary.draw(self, sprite_name(), "hurt", Color(0.35, 1.0, 0.55, 0.95), anim_frame())
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 ## Rank 5 jackpot rays are a separate canvas item so they render under
@@ -407,7 +423,7 @@ func _draw_back_aura() -> void:
 ## Cosmetic transform for the body only. Rank 4 and 5 have no idle sheet, so
 ## this bob is what keeps them from looking frozen.
 func cosmetic_pose() -> Dictionary:
-	var fitted := FormCatalog.play_scale(form_id)
+	var fitted := drawn_scale()
 	var offset := Vector2.ZERO
 	var rotation := 0.0
 	var scale := Vector2(fitted, fitted)
@@ -437,12 +453,16 @@ func cosmetic_pose() -> Dictionary:
 		FormCatalog.Id.DEMON:
 			var amp := lerpf(DEMON_IDLE_PX, DEMON_MOVE_PX, moving)
 			offset.y = sin(_wobble * DEMON_FLOAT_RATE) * amp
+		FormCatalog.Id.DRAGON:
+			offset.y = sin(_wobble * 1.8) * lerpf(1.0, 2.0, moving)
+			offset.y -= rear * 6.0
+			rotation = -rear * 0.35
 	offset.x -= RECOIL_PX * _recoil
 	return {"offset": offset, "rotation": rotation, "scale": scale}
 
 ## Shield ring and the hurt overlay. No bob, so the drawn circle matches collision.
 func hurt_draw_pose() -> Dictionary:
-	var fitted := FormCatalog.play_scale(form_id)
+	var fitted := drawn_scale()
 	return {"offset": Vector2.ZERO, "rotation": 0.0, "scale": Vector2(fitted, fitted)}
 
 func _draw_final_banner() -> void:
@@ -480,6 +500,9 @@ func _draw_body(file: String) -> void:
 			ArtLibrary.draw_loop(self, file, _wobble, point - position, tint)
 	ArtLibrary.draw_loop(self, file, _wobble)
 
+func anim_frame() -> int:
+	return ArtLibrary.frame_index(sprite_name(), _wobble)
+
 func sprite_name() -> String:
 	var spec := FormCatalog.rank_spec(form_id, rank_index)
 	if small and spec.has("sprite_small"):
@@ -487,5 +510,5 @@ func sprite_name() -> String:
 	return str(spec["sprite"])
 
 func _apply_radius() -> void:
-	radius = FormCatalog.hit_radius_for(form_id, rank_index, small)
+	radius = FormCatalog.hit_radius_for(form_id, rank_index, small) * fit_scale
 

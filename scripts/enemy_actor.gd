@@ -29,15 +29,14 @@ var y_bias := 0.0
 var speed_scale := 1.0
 var move_velocity := Vector2.ZERO
 var hold_fire := false
-## Seconds left fighting for the Cat. Body and shots ignore the player.
-var charmed := 0.0
-var charm_cd := 0.0
 ## Shots promised by a telegraph. Each entry is left, velocity, offset, sprite.
 var telegraphs: Array[Dictionary] = []
 ## How many new aimed shots this enemy may still start. -1 means unlimited.
 var fire_room := -1
 var boss_slug := ""
 var intro_left := 0.0
+## Wing gust from the Great Dragon. Other enemies leave this at 0.
+var gust_push := 0.0
 var _pending_spawns: Array[Dictionary] = []
 var _last_player := Vector2.ZERO
 var _have_player := false
@@ -53,6 +52,15 @@ func sprite_file() -> String:
 
 func dragon_phase() -> int:
 	return 1
+
+func can_be_hit() -> bool:
+	return alive
+
+func threatens_player() -> bool:
+	return true
+
+func take_farewell() -> Dictionary:
+	return {}
 
 func take_spawns() -> Array[Dictionary]:
 	return []
@@ -192,7 +200,7 @@ func _tick_archer(delta: float, fired: Array[Dictionary], player_pos: Vector2, p
 		_pattern_fire(fired, delta, player_pos, player_vel, run_time, 1.25, muzzle, "arrow.png")
 
 func _pattern_fire(fired: Array[Dictionary], delta: float, player_pos: Vector2, player_vel: Vector2, run_time: float, interval: float, offset: Vector2, sprite: String) -> void:
-	if hold_fire or charmed > 0.0:
+	if hold_fire:
 		return
 	if fire_room == 0:
 		return
@@ -274,10 +282,7 @@ func _draw() -> void:
 	_draw_telegraphs()
 	var file := SpawnDirector.sprite_for(kind)
 	# Enemies and hazards are drawn facing the way the files face. Do not flip.
-	if charmed > 0.0:
-		modulate = Color(0.62, 1.0, 0.72)
-	else:
-		modulate = Color.WHITE
+	modulate = Color.WHITE
 	ArtLibrary.draw_loop(self, file, age)
 	if HitLibrary.show:
 		HitLibrary.draw(self, file, "body", Color(1.0, 0.86, 0.2, 0.95))

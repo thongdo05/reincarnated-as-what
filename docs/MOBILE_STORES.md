@@ -99,28 +99,34 @@ Do these before flipping `USE_TEST_ADS` off.
 
 The pause menu (the form card) has **Remove ads** and **Restore** on a phone build. After the first interstitial that actually plays, the same offer appears before the next run, with **Not now**.
 
+## What the game collects
+
+Three things, and nothing else. No email, phone number, contacts, photos, precise location, or health data.
+
+1. **Ads.** Google AdMob, only on the iOS and Android builds. Google receives the advertising identifier and related device data so it can show and measure the interstitial. If the player taps Ask App Not to Track, iOS does not give AdMob the advertising identifier. Buying `remove_ads` stops the interstitials. The web build does not load AdMob.
+2. **Remove ads.** The purchase is handled by Apple (StoreKit) or Google Play. The game keeps a local flag that ads are removed. It does not send the receipt or the payment to our server.
+3. **Leaderboard.** The name the player chooses and their scores are stored in Supabase (`scripts/leaderboard.gd`). The same row includes how long the run lasted, which form it was, and a random id the game creates so that device keeps its row. That id is not the advertising identifier. It is stored on the device and sent only with the leaderboard.
+
 ## Privacy labels
+
+Use the list above when you fill the forms. The binary privacy manifest (device id and advertising data, third-party advertising, tracking) covers AdMob only.
 
 ### App Store (App Privacy)
 
-Declare these. AdMob is a third party.
-
-- **Data used to track you:** Device ID, Advertising Data. Tracking is on because an allowed advertising identifier is used to measure and personalize ads across apps. Players who tap Ask App Not to Track are not tracked; the label still has to cover the case where they allow it.
-- **Identifiers → Device ID:** collected, used for third-party advertising, used for tracking.
-- **Identifiers → Advertising Data** (or the Advertising Data type, if the form lists it separately): same purpose.
-- **Purchases:** we do not send receipts to our own server. We store a local "ads removed" flag. Declare Purchase History only if the form forces a StoreKit answer; if you do, mark it used for app functionality, not linked to identity, not used for tracking.
-- **Diagnostics:** this project does not add a crash SDK. If Google's SDK privacy manifest that gets merged into the app lists crash or performance data, declare those as diagnostics, not linked, not used for tracking. Check the merged `PrivacyInfo.xcprivacy` in the Xcode archive before you submit.
-- **Not collected by us:** name, email, precise location, contacts, photos, gameplay content sent to a server.
-
-The binary's privacy manifest (the iOS export preset) already marks device id and advertising data as collected for third-party advertising and tracking, and sets `NSPrivacyTracking`.
+- **Data used to track you:** Device ID and Advertising Data, from AdMob, when the player allows tracking.
+- **Identifiers:** the advertising identifier and device data AdMob collects, for third-party advertising and tracking. Also the random leaderboard id, linked to the player's chosen name and scores, for app functionality, not for tracking.
+- **Name and gameplay:** the leaderboard name and scores (and the run length and form on that row), stored in Supabase, for app functionality. Not used to track the player across other companies' apps.
+- **Purchases:** Apple processes `remove_ads`. Declare purchase history only if the form requires it for a StoreKit purchase. We do not receive the receipt.
+- **Diagnostics:** this project does not add a crash SDK. If the merged `PrivacyInfo.xcprivacy` in the Xcode archive lists crash or performance data from Google's SDK, declare those as diagnostics, not linked, not used for tracking.
 
 ### Play Console (Data safety)
 
-- **Device or other IDs:** collected and shared with Google (AdMob), for advertising. Optional, in the sense that remove-ads buyers and people who limit ad tracking send less, but the form still says collected.
-- **App activity / app interactions:** AdMob can collect ad interactions. Declare collected and shared, for advertising.
-- **Financial info / purchase history:** not collected by the app. Google Play processes the payment.
+- **Device or other IDs:** the advertising id and device data, collected and shared with Google for advertising. Separately, the random leaderboard id, collected and stored in Supabase with the score row, for app functionality.
+- **App activity:** scores, form, and run length, stored in Supabase. AdMob may also collect ad interactions and share them with Google for advertising.
+- **Name:** the leaderboard name the player types, stored in Supabase.
+- **Financial info:** Google Play processes `remove_ads`. The app does not collect the card or the receipt.
 - Data is encrypted in transit.
-- Users cannot ask the developer to delete data, because there is no account. Say so. Players can reset the advertising id in Android settings.
+- There is no account to delete. Players can reset the advertising id in Android settings, and they can choose another leaderboard name on the device.
 - Data is not sold.
 
 ## What was not run here

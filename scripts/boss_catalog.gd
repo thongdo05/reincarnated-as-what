@@ -5,7 +5,8 @@ class_name BossCatalog
 ## art/hitboxes.json. Anchors stay at the center of the 96x84 frame.
 ##
 ## The Great Dragon is not in the Lich King / Death Knight cycle. It arrives
-## on its own clock, stays until it dies, and comes back harder.
+## on its own clock, stays until it dies, and comes back with another 10000 HP.
+## Once it has appeared, the Lich King and the Death Knight do not spawn again.
 
 const MOUTH := Vector2(-60, -4)
 const SKULL_MUZZLE := Vector2(-36, -20)
@@ -23,6 +24,18 @@ const BONE_TOP := 12.0
 const BONE_SPAWN_Y := -8.0
 const WINNER_BOSS_DMG_PCT := 0.15
 const LICH_INTRO := 1.7
+## Longer than the lich entrance: shadow, roar, crash, title.
+const DRAGON_INTRO := 2.6
+## Safe lane in the full-screen breath. Wider than every rank-5 body.
+const HELL_GAP := 96.0
+## Sky-breath band, measured across the shot centers.
+const SKY_BAND := 40.0
+## Horizontal spacing of the dragon's own meteors.
+const METEOR_SPACING := 96.0
+const BOSS_METEOR := "dragon_form/boss_meteor.png"
+const BOSS_EMBER := "dragon_form/boss_ember.png"
+const BOSS_BREATH := "dragon_form/boss_breath.png"
+const BOSS_GUST := "dragon_form/boss_gust.png"
 ## The thin line follows the player, then freezes. The lock is not shortened
 ## when the lich is enraged, so there is always time to leave the row.
 const BEAM_TRACK := 0.55
@@ -87,11 +100,12 @@ static func banner_color(slug: String) -> Color:
 static func max_hp(slug: String, generation: int = 0) -> int:
 	match slug:
 		"lich_king":
-			return 200
+			return 500
 		"death_knight":
-			return 350
+			return 2500
 		"great_dragon":
-			return 500 + maxi(generation, 0) * 10
+			# 10000, then 20000, 30000, ... Each return adds another 10000.
+			return 10000 * (maxi(generation, 0) + 1)
 		_:
 			return 20
 
@@ -120,14 +134,20 @@ static func attack_unit(elapsed: float) -> float:
 static func attack_rate(elapsed: float, generation: int, phase: int) -> float:
 	var gentle := lerpf(1.0, 1.28, attack_unit(elapsed))
 	var gen := 1.0 + float(mini(maxi(generation, 0), 6)) * 0.16
-	var phase_mul := 1.0 if phase <= 1 else 1.22
+	var phase_mul := 1.0
+	if phase == 2:
+		phase_mul = 1.22
+	elif phase >= 3:
+		phase_mul = 1.45
 	return gentle * gen * phase_mul
 
 static func attack_cycle(slug: String, phase: int) -> Array[String]:
 	if slug == "great_dragon":
 		if phase <= 1:
-			return ["sweep", "volley"]
-		return ["sweep", "fan", "dive"]
+			return ["sky_breath", "ember_fan"]
+		if phase == 2:
+			return ["sky_breath", "dive", "wing_gust", "boss_meteor"]
+		return ["hell_breath", "dive", "boss_meteor"]
 	if slug == "death_knight":
 		if phase >= 2:
 			return ["charge", "charge", "fake_charge", "sword_waves", "shield"]
@@ -161,6 +181,16 @@ static func windup(pattern: String, phase: int, generation: int) -> float:
 			base = 0.44
 		"dive":
 			base = 0.7
+		"sky_breath":
+			base = 0.7
+		"ember_fan":
+			base = 0.52
+		"wing_gust":
+			base = 0.62
+		"boss_meteor":
+			base = 0.78
+		"hell_breath":
+			base = 0.88
 	var shaved := base - float(mini(maxi(generation, 0), 4)) * 0.015
 	if pattern == "dive":
 		return maxf(shaved, 0.6)
@@ -196,8 +226,23 @@ static func cooldown(pattern: String, phase: int, elapsed: float, generation: in
 		"fan":
 			base = 1.12
 		"dive":
-			base = 1.45
-	return maxf(base / attack_rate(elapsed, generation, phase), 0.58)
+			base = 1.45 if phase < 3 else 1.05
+		"sky_breath":
+			base = 1.7
+		"ember_fan":
+			base = 1.55
+		"wing_gust":
+			base = 1.85
+		"boss_meteor":
+			base = 1.7 if phase < 3 else 1.15
+		"hell_breath":
+			base = 1.2
+	var cooled := maxf(base / attack_rate(elapsed, generation, phase), 0.58)
+	# Return 3 and later. The floor stays long enough to read the next warning.
+	# Windups are not touched here.
+	if generation >= 3:
+		cooled = maxf(cooled * DragonPhase.RETURN_GAP_SCALE, DragonPhase.RETURN_GAP_FLOOR)
+	return cooled
 
 static func skull_speed(elapsed: float) -> float:
 	return lerpf(68.0, 90.0, attack_unit(elapsed))
@@ -265,7 +310,11 @@ static func fury_time(seconds: float, phase: int) -> float:
 	return seconds
 
 static func bullet_speed(phase: int, generation: int) -> float:
-	var base := 150.0 if phase <= 1 else 176.0
+	var base := 150.0
+	if phase == 2:
+		base = 176.0
+	elif phase >= 3:
+		base = 196.0
 	return base + float(mini(maxi(generation, 0), 6)) * 6.0
 
 static func sweep_angles(phase: int, generation: int) -> Array[float]:
@@ -291,6 +340,65 @@ static func stream_offsets(pattern: String) -> Array[float]:
 ## the gap between them stays STREAM_GAP even when the aim tilts.
 static func shot_plan(pattern: String, phase: int, generation: int, origin: Vector2, aim: Vector2, speed: float) -> Array[Dictionary]:
 	var plans: Array[Dictionary] = []
+	if pattern == "sky_breath":
+		var lane := clampf(aim.y, 48.0, 200.0)
+		var scaled := speed * DragonPhase.breath_speed_scale(generation)
+		var index := 0
+		for off in [-20.0, -10.0, 0.0, 10.0, 20.0]:
+			plans.append({
+				"offset": Vector2(MOUTH.x, lane - origin.y + off),
+				"velocity": Vector2(-scaled, 0.0),
+				"stagger": index,
+				"sprite": DRAGON_SHOT,
+			})
+			index += 1
+		return plans
+	if pattern == "hell_breath":
+		return hell_breath_plan(origin, hell_gap_center(aim.y), speed, generation)
+	if pattern == "ember_fan":
+		var to := aim - (origin + MOUTH)
+		if to.length() < 1.0:
+			to = Vector2.LEFT
+		var dir := to.normalized()
+		var perp := Vector2(-dir.y, dir.x)
+		var index := 0
+		for off in [-150.0, -70.0, 70.0, 150.0]:
+			plans.append({
+				"offset": MOUTH + perp * off,
+				"velocity": dir * speed,
+				"stagger": index,
+				"sprite": DRAGON_SHOT,
+			})
+			plans.append({
+				"offset": MOUTH + perp * off,
+				"velocity": dir * (speed * 0.72),
+				"stagger": index + 3,
+				"sprite": BOSS_EMBER,
+			})
+			index += 1
+		if DragonPhase.has_return(generation, 4):
+			var extra: Array[Dictionary] = []
+			for spec in plans:
+				var copy: Dictionary = spec.duplicate()
+				copy["stagger"] = int(copy["stagger"]) + DragonPhase.RETURN_EXTRA_STAGGER
+				extra.append(copy)
+			plans.append_array(extra)
+		return plans
+	if pattern == "boss_meteor":
+		var count := DragonPhase.meteor_count(generation)
+		var span := METEOR_SPACING * float(count - 1)
+		var left := clampf(aim.x - span * 0.5, 64.0, 400.0 - span)
+		for step in count:
+			var column := left + float(step) * METEOR_SPACING
+			plans.append({
+				"offset": Vector2(column - origin.x, -36.0 - origin.y),
+				"velocity": Vector2(-16.0, 170.0),
+				"stagger": step,
+				"sprite": BOSS_METEOR,
+			})
+		return plans
+	if pattern == "wing_gust":
+		return plans
 	if pattern == "sweep":
 		var index := 0
 		for angle in sweep_angles(phase, generation):
@@ -315,6 +423,33 @@ static func shot_plan(pattern: String, phase: int, generation: int, origin: Vect
 			"stagger": index,
 		})
 		index += 1
+	return plans
+
+static func hell_gap_center(aim_y: float) -> float:
+	var half := HELL_GAP * 0.5
+	return clampf(aim_y + 72.0, 36.0 + half, 206.0 - half)
+
+static func hell_gap_speed(generation: int) -> float:
+	if DragonPhase.has_return(generation, 3):
+		return DragonPhase.RETURN_HELL_GAP_SPEED
+	return 0.0
+
+static func hell_breath_plan(origin: Vector2, gap_center: float, speed: float, generation: int) -> Array[Dictionary]:
+	var scaled := speed * DragonPhase.breath_speed_scale(generation)
+	var half := HELL_GAP * 0.5
+	var plans: Array[Dictionary] = []
+	var index := 0
+	var y := 40.0
+	while y <= 214.0:
+		if absf(y - gap_center) >= half + 10.0:
+			plans.append({
+				"offset": Vector2(MOUTH.x, y - origin.y),
+				"velocity": Vector2(-scaled, 0.0),
+				"stagger": index % 4,
+				"sprite": DRAGON_SHOT,
+			})
+			index += 1
+		y += 12.0
 	return plans
 
 ## Y where this bullet crosses column_x. Empty when it never travels that way.

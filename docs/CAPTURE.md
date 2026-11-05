@@ -22,13 +22,13 @@ If both are present, the query string wins.
 | --- | --- | --- |
 | `form` | `slime`, `goblin`, `vending_machine`, `cat`, `demon_lord` | Forces the form for that run. All five play. A retry after a challenged form rolls a different form. |
 | `seed` | integer | Forces the day seed, so the spawn timeline repeats. |
-| `clean` | `1` | Hides the D pacing overlay, hitbox draw, and the engine collision / path / navigation debug hints. Blocks the H and D debug keys. Arrow keys and WASD still move. |
+| `clean` | `1` | Hides the D pacing overlay, hitbox draw, the invincibility label, and the engine collision / path / navigation debug hints. Blocks the H and D debug keys. Arrow keys and WASD still move. |
 | `hitbox` | `1` | Draws the hurt, body, and threat shapes. Works on a normal run (`?hitbox=1`) without the other capture flags. `clean=1` hides them. |
 | `rank` | `1` through `5` | Starts the run at that rank. The meter matches the gate. |
 | `evo` | `1` | The E key grants enough points to reach the next rank, through the real EVOLVED! / FINAL FORM! FX. Four presses go from rank 1 to rank 5. |
-| `hazard` | `piano` | A piano falls on the player's lane. Other hits do not end the run before it lands, and a Slime does not spend its split on it, so the clip is the piano death. At the end of the `REBORN AS...?` tease the next run's title card starts. Omit `form` if that next card should be the other form in the day's order. |
+| `hazard` | `piano` | A piano falls on the player's lane. Other hits do not end the run before it lands, and a Slime does not spend its split on it, so the clip is the piano death. Until the piano connects, a small `INVINCIBLE (until piano)` label sits under the HUD. `clean=1` hides it. At the end of the `REBORN AS...?` tease the next run's title card starts. Omit `form` if that next card should be the other form in the day's order. |
 | `hazard_t` | seconds | When the piano lands, measured from the first frame, title card included. Default `6`. The card is 1.5s and the fall needs about 3s, so values under about 4.5s can miss the kill. |
-| `invuln` | `1` | The player cannot die. This wins over `hazard=piano`. |
+| `invuln` | `1` | The player cannot die. This wins over `hazard=piano`. A small `INVINCIBLE (invuln=1)` label sits under the HUD, including on the title card, so a bookmarked link is not mistaken for a bug. `clean=1` hides that label. |
 
 `clean=1` does not hide the score, the clock, or the evolution meter. Those are the game HUD.
 

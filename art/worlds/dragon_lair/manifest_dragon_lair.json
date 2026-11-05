@@ -1,0 +1,299 @@
+{
+ "world": "dragon_lair",
+ "title": "Dragon Lair",
+ "status": "FINAL - approved by Thong, Nov 4 2026, 2:21 PM ET (his own answer in Gon's chat)",
+ "repo_target": "art/worlds/dragon_lair/",
+ "loader": "scripts/field_background.gd / world_catalog.gd: bg_sky, bg_clouds, bg_far, bg_near (drawn in that order, tiled on x)",
+ "use": "One Dragon-phase background that replaces every world after the Great Dragon is slain.",
+ "tile": [
+  480,
+  270
+ ],
+ "ground_feet_y": 234,
+ "decks_feet": [
+  [
+   63,
+   43
+  ],
+  [
+   227,
+   59
+  ]
+ ],
+ "deck_spans_x": {
+  "63,43": [
+   37,
+   89
+  ],
+  "227,59": [
+   210,
+   244
+  ]
+ },
+ "deck_feet_rgb": "#4a6a52",
+ "files": [
+  {
+   "file": "bg_sky.png",
+   "size": [
+    480,
+    270
+   ],
+   "scroll_factor": 0.05,
+   "type": "opaque"
+  },
+  {
+   "file": "bg_clouds.png",
+   "size": [
+    480,
+    270
+   ],
+   "scroll_factor": 0.15,
+   "type": "transparent"
+  },
+  {
+   "file": "bg_far.png",
+   "size": [
+    480,
+    270
+   ],
+   "scroll_factor": 0.3,
+   "type": "transparent"
+  },
+  {
+   "file": "bg_near.png",
+   "size": [
+    480,
+    270
+   ],
+   "scroll_factor": 0.6,
+   "type": "transparent"
+  }
+ ],
+ "n_colours": 27,
+ "background_only_colours": {
+  "approved": "Thong, Nov 4 2026, 2:21 PM ET",
+  "note": "Background-only; not used by any sprite. Add to the master palette as background colours.",
+  "colours": [
+   "#120a0c",
+   "#16191d",
+   "#1a0d10",
+   "#1d2126",
+   "#2a1214",
+   "#2a3036",
+   "#3d1612",
+   "#454e56",
+   "#47515a",
+   "#49525a",
+   "#4a6a52",
+   "#4c555d",
+   "#4f5860",
+   "#515a62",
+   "#535c64",
+   "#5a7260",
+   "#5c656d",
+   "#68727c",
+   "#6a3a2a",
+   "#6b2a12",
+   "#6e2414",
+   "#7a2a10",
+   "#8a3a14",
+   "#9a3a14",
+   "#b04a12",
+   "#d06a18",
+   "#e89a30"
+  ]
+ },
+ "transition": {
+  "status": "PROPOSED timings (Gon may retime to the slain sting)",
+  "seconds": {
+   "banner": 0.4,
+   "flash": 0.1,
+   "cracks": 0.6,
+   "wipe": 0.6,
+   "settle": 0.8
+  },
+  "steps": [
+   "banner: old world stays, DRAGON SLAIN banner (code)",
+   "flash: full screen #ffffff",
+   "cracks: show the lair through crack_mask_r1..r8 (step through r by elapsed/0.6*8, hard mask, no alpha); 1 px rim around the mask in #d06a18/#e89a30 alternating each frame",
+   "wipe: column wipe right to left, lair for x >= wipe_x, 4 px ember edge #e89a30,#d06a18,#b04a12,#7a2a10 trailing left, scattered #d06a18/#e89a30 sparks; cracks (r8) stay open during the wipe",
+   "settle: lair only"
+  ],
+  "masks": [
+   {
+    "file": "transition/crack_mask_r1.png",
+    "size": [
+     480,
+     270
+    ],
+    "radius_px": 1,
+    "opaque_px": 5026
+   },
+   {
+    "file": "transition/crack_mask_r2.png",
+    "size": [
+     480,
+     270
+    ],
+    "radius_px": 2,
+    "opaque_px": 8674
+   },
+   {
+    "file": "transition/crack_mask_r3.png",
+    "size": [
+     480,
+     270
+    ],
+    "radius_px": 3,
+    "opaque_px": 12054
+   },
+   {
+    "file": "transition/crack_mask_r4.png",
+    "size": [
+     480,
+     270
+    ],
+    "radius_px": 4,
+    "opaque_px": 15145
+   },
+   {
+    "file": "transition/crack_mask_r5.png",
+    "size": [
+     480,
+     270
+    ],
+    "radius_px": 5,
+    "opaque_px": 18006
+   },
+   {
+    "file": "transition/crack_mask_r6.png",
+    "size": [
+     480,
+     270
+    ],
+    "radius_px": 6,
+    "opaque_px": 20712
+   },
+   {
+    "file": "transition/crack_mask_r7.png",
+    "size": [
+     480,
+     270
+    ],
+    "radius_px": 7,
+    "opaque_px": 23276
+   },
+   {
+    "file": "transition/crack_mask_r8.png",
+    "size": [
+     480,
+     270
+    ],
+    "radius_px": 8,
+    "opaque_px": 25703
+   }
+  ],
+  "mask_format": "480x270 RGBA, white opaque = show lair, alpha 0 = keep old world. Screen-space (not scrolled)."
+ },
+ "checks": {
+  "layers": {
+   "bg_sky": {
+    "size": [
+     480,
+     270
+    ],
+    "mode": "RGBA",
+    "equals_source": true,
+    "seamless_shift240_equals_roll": true,
+    "alpha_0_255": [
+     255
+    ],
+    "opaque_all": true
+   },
+   "bg_clouds": {
+    "size": [
+     480,
+     270
+    ],
+    "mode": "RGBA",
+    "equals_source": true,
+    "seamless_shift240_equals_roll": true,
+    "alpha_0_255": [
+     0,
+     255
+    ],
+    "opaque_all": false
+   },
+   "bg_far": {
+    "size": [
+     480,
+     270
+    ],
+    "mode": "RGBA",
+    "equals_source": true,
+    "seamless_shift240_equals_roll": true,
+    "alpha_0_255": [
+     0,
+     255
+    ],
+    "opaque_all": false
+   },
+   "bg_near": {
+    "size": [
+     480,
+     270
+    ],
+    "mode": "RGBA",
+    "equals_source": true,
+    "seamless_shift240_equals_roll": true,
+    "alpha_0_255": [
+     0,
+     255
+    ],
+    "opaque_all": false
+   }
+  },
+  "decks": {
+   "63,43": {
+    "feet_rgb": "#4a6a52",
+    "opaque": true,
+    "green_dominant": true,
+    "far_px_in_archer_box": 0,
+    "feet_y_ge_40": true,
+    "span": [
+     37,
+     89,
+     53
+    ]
+   },
+   "227,59": {
+    "feet_rgb": "#4a6a52",
+    "opaque": true,
+    "green_dominant": true,
+    "far_px_in_archer_box": 0,
+    "feet_y_ge_40": true,
+    "span": [
+     210,
+     244,
+     35
+    ]
+   }
+  },
+  "near_row_234": {
+   "smoke_samples_x_step8_opaque": 60,
+   "of": 60,
+   "all_480_opaque": true
+  }
+ },
+ "previews": "preview/ (approved: composite_still, transition_storyboard.png, lair_showcase.gif, transition.gif)",
+ "source": "src/",
+ "contrast_on_lair": {
+  "method": "dragon_enemies/src/contrast.py edge method; target >=90% edge at >=2:1",
+  "gold_fireball": 100.0,
+  "dragon_fly": 100.0,
+  "all other dragon-phase move/attack sheets, bullets and telegraphs": ">=95.7",
+  "ash_wraith_phase_outlined": 99.9,
+  "dragon_egg_break_outlined": 100.0,
+  "detail": "preview/contrast_report.json (pre-outline numbers) + outline re-measure"
+ }
+}

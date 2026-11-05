@@ -14,24 +14,14 @@ const ROOT := "res://art/"
 static var _entries: Dictionary = {}
 static var _textures: Dictionary = {}
 static var _ready := false
+static var _main_count := 0
 
 static func _ensure() -> void:
 	if _ready:
 		return
 	_ready = true
-	var path := ROOT + "manifest.json"
-	if not FileAccess.file_exists(path):
-		push_error("art manifest missing at %s" % path)
-		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if typeof(parsed) != TYPE_ARRAY:
-		push_error("art manifest is not a list")
-		return
-	for item in parsed:
-		if typeof(item) != TYPE_DICTIONARY:
-			continue
-		var entry: Dictionary = item
-		_entries[str(entry.get("file", ""))] = entry
+	_main_count = _load_list(ROOT + "manifest.json", true)
+	_load_list(ROOT + "dragon_enemies/manifest.json", false)
 
 static func entry(file_name: String) -> Dictionary:
 	_ensure()
@@ -42,7 +32,25 @@ static func has_file(file_name: String) -> bool:
 
 static func file_count() -> int:
 	_ensure()
-	return _entries.size()
+	return _main_count
+
+static func _load_list(path: String, required: bool) -> int:
+	if not FileAccess.file_exists(path):
+		if required:
+			push_error("art manifest missing at %s" % path)
+		return 0
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(parsed) != TYPE_ARRAY:
+		push_error("art manifest is not a list: %s" % path)
+		return 0
+	var added := 0
+	for item in parsed:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = item
+		_entries[str(entry.get("file", ""))] = entry
+		added += 1
+	return added
 
 static func texture(file_name: String) -> Texture2D:
 	if _textures.has(file_name):
@@ -115,15 +123,23 @@ static func frame_source(file_name: String, time_sec: float) -> Rect2:
 		return Rect2(Vector2.ZERO, art_bbox(file))
 	var frame_box: Array = data.get("frame_size", [1, 1])
 	var frame := Vector2(float(frame_box[0]), float(frame_box[1]))
+	var index := frame_index(file, time_sec)
+	return Rect2(frame.x * float(index), 0.0, frame.x, frame.y)
+
+## Same index draw_loop uses, so a hurt frame can follow the picture.
+static func frame_index(file_name: String, time_sec: float) -> int:
+	var file := loop_file(file_name)
+	var data := entry(file)
+	var frames := int(data.get("frames", 1))
+	if frames <= 1:
+		return 0
 	var fps := float(data.get("fps", 6))
 	if fps <= 0.0:
 		fps = 6.0
 	var index := int(floor(time_sec * fps))
 	if bool(data.get("loop", true)):
-		index = posmod(index, frames)
-	else:
-		index = clampi(index, 0, frames - 1)
-	return Rect2(frame.x * float(index), 0.0, frame.x, frame.y)
+		return posmod(index, frames)
+	return clampi(index, 0, frames - 1)
 
 ## Draw base_file, or its idle sheet, around origin. origin is the actor's
 ## anchor point in the canvas's local space (Vector2.ZERO for the actor itself).
@@ -147,3 +163,20 @@ static func draw_loop(canvas: CanvasItem, base_file: String, time_sec: float, or
 		return
 	var src := frame_source(base_file, time_sec)
 	canvas.draw_texture_rect_region(tex, Rect2(at, src.size * scale), src, tint)
+
+## One cell of a strip, by index. Used for sheets the code steps (egg cracks, phase).
+static func draw_frame(canvas: CanvasItem, file_name: String, index: int, origin: Vector2 = Vector2.ZERO, tint: Color = Color.WHITE) -> void:
+	var tex := texture(file_name)
+	if tex == null:
+		return
+	var data := entry(file_name)
+	var frames := int(data.get("frames", 1))
+	var point := anchor(file_name)
+	if frames <= 1:
+		canvas.draw_texture(tex, origin - point, tint)
+		return
+	var frame_box: Array = data.get("frame_size", [1, 1])
+	var frame := Vector2(float(frame_box[0]), float(frame_box[1]))
+	var cell := clampi(index, 0, frames - 1)
+	var src := Rect2(frame.x * float(cell), 0.0, frame.x, frame.y)
+	canvas.draw_texture_rect_region(tex, Rect2(origin - point, src.size), src, tint)

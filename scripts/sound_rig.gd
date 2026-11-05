@@ -36,6 +36,27 @@ var _fade_left := 0.0
 var _fade_total := 0.0
 var _pools: Dictionary = {}
 var _cursors: Dictionary = {}
+var _later: Array[Dictionary] = []
+var _tier_armed := false
+var _tier_name := ""
+var _tier_gain := 0.0
+var _dragon_lock := false
+var _rain_mix := false
+var _limiter: AudioEffectLimiter
+var _loop_latched: Dictionary = {}
+## Seconds left on the gem duck and on the shared SFX limiter.
+var _gem_duck := 0.0
+var _cue_headroom := 0.0
+
+## Meteor falls sit under the impacts while a rain is up. The SFX bus
+## also gives the stack 1.5 dB of headroom and a limiter. The power
+## level-up cue borrows that same guard for its own length.
+const FALL_DUCK_DB := -6.0
+const RAIN_HEADROOM_DB := 1.5
+## Gem pickups sit under the power level-up sting so a chain does not cover it.
+const GEM_DUCK_DB := -5.0
+const GEM_DUCK_SECONDS := 0.25
+const DOWNBEAT_SLACK := 0.03
 
 ## Equal-power crossfade when a reincarnation lands in a different track.
 const CROSSFADE_SECONDS := 0.4
@@ -76,6 +97,8 @@ func start_gameplay_music() -> void:
 ## file is different crossfades over CROSSFADE_SECONDS. The same file (Sky
 ## Castle, or a world whose track is not imported yet) keeps playing.
 func play_world_music(world_id: String) -> void:
+	if _dragon_lock:
+		return
 	_music_wanted = true
 	if _music == null:
 		return
@@ -187,6 +210,10 @@ func _update_output_blocked(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_tick_crossfade(delta)
+	_tick_later(delta)
+	_tick_tier()
+	_apply_fall_duck()
+	_tick_power_mix(delta)
 	if _shot_lockout > 0.0:
 		_shot_lockout = maxf(_shot_lockout - delta, 0.0)
 	var gap_keys: Array = _gaps.keys()
@@ -211,32 +238,222 @@ func play_title_card(card: String) -> void:
 func debug_play_vending_reveal() -> void:
 	play_event("reveal_vending_machine")
 
-func play_event(event: String, gain_db: float = 0.0) -> void:
-	var data := AudioCues.spec(event)
+func play_event(event: String, gain_db: float = 0.0, pitch_scale: float = -1.0) -> void:
+	if DragonAudio.is_tier(event):
+		_arm_tier(event, gain_db)
+		return
+	_emit(event, gain_db, pitch_scale)
+
+func play_later(event: String, delay: float, gain_db: float = 0.0) -> void:
+	if delay <= 0.0:
+		play_event(event, gain_db)
+		return
+	_later.append({"t": delay, "event": event, "gain": gain_db})
+
+## Dragon-phase loop, from the transform until death. It replaces whatever
+## world track is playing and does not follow a later map change.
+func play_dragon_music() -> void:
+	_dragon_lock = true
+	_music_wanted = true
+	if _music == null:
+		return
+	var path := DragonAudio.MUSIC_PATH
+	var stream := _load_loop(path)
+	if stream == null:
+		return
+	if not _music_started:
+		_assign_music(stream, path)
+		_music_started = true
+		_ensure_music()
+		return
+	if path == _music_path and _fade_left <= 0.0:
+		_ensure_music()
+		return
+	begin_crossfade(stream, path)
+
+func dragon_music_active() -> bool:
+	return _dragon_lock
+
+func end_dragon_bed() -> void:
+	set_meteor_mix(false)
+	stop_event("great_dragon_breath_loop")
+	stop_event("dragon_enemy_magma_puddle_sizzle_loop")
+	_tier_armed = false
+	_later.clear()
+	stop_dragon_music()
+
+func stop_dragon_music() -> void:
+	_dragon_lock = false
+	_music_wanted = false
+	_fade_left = 0.0
+	if _music != null:
+		_music.stop()
+		_music.volume_db = 0.0
+	if _music_fade != null:
+		_music_fade.stop()
+		_music_fade.volume_db = 0.0
+
+## 1.5 dB of bus headroom plus a limiter while Meteor Rain is stacking voices.
+## The power level-up cue turns the same guard on for the length of the file.
+func set_meteor_mix(on: bool) -> void:
+	if on == _rain_mix:
+		return
+	_rain_mix = on
+	_sync_sfx_guard()
+
+func _sfx_guard_on() -> bool:
+	return _rain_mix or _cue_headroom > 0.0
+
+func _sync_sfx_guard() -> void:
+	var bus := AudioCues.ensure_bus(AudioCues.SFX_BUS)
+	var trim := RAIN_HEADROOM_DB if _sfx_guard_on() else 0.0
+	AudioServer.set_bus_volume_db(bus, AudioCues.SFX_BUS_DB - trim)
+	if _sfx_guard_on():
+		if _limiter == null:
+			_limiter = AudioEffectLimiter.new()
+			_limiter.ceiling_db = -1.5
+			_limiter.threshold_db = -8.0
+			_limiter.soft_clip_db = 2.0
+			_limiter.soft_clip_ratio = 10.0
+			AudioServer.add_bus_effect(bus, _limiter)
+		return
+	if _limiter == null:
+		return
+	var count := AudioServer.get_bus_effect_count(bus)
+	for i in count:
+		if AudioServer.get_bus_effect(bus, i) == _limiter:
+			AudioServer.remove_bus_effect(bus, i)
+			break
+	_limiter = null
+
+func _emit(event: String, gain_db: float, pitch_scale: float = -1.0) -> void:
+	var key := DragonAudio.canonical(event)
+	var data := AudioCues.spec(key)
 	if data.is_empty():
+		# Named hook with no sample in the pack. Count it so the call site stays honest.
+		if AudioCues.is_hook(event):
+			played.append(event)
 		return
-	if not _claim_event(event):
+	if key == "dragon_enemy_magma_puddle_sizzle_loop" and bool(_loop_latched.get(key, false)):
 		return
-	var pitch := _pitch_for(event)
+	if bool(data.get("loop", false)) and key != "dragon_phase_bgm" and active_voices(key) > 0:
+		stop_event(key)
+	if key == "great_dragon_breath_end":
+		stop_event("great_dragon_breath_loop")
+	if not _claim_event(key):
+		return
+	var pitch := pitch_scale if pitch_scale > 0.0 else _pitch_for(key)
 	played.append(event)
+	if bool(data.get("loop", false)):
+		_loop_latched[key] = true
 	last_gain_db = gain_db
 	last_pitch_scale = pitch
+	if key == "power_level_up" and enabled:
+		_begin_power_level_mix()
+	if DragonAudio.is_breath_warning(key):
+		play_later("great_dragon_breath_loop", DragonAudio.BREATH_LOOP_DELAY)
+		play_later("great_dragon_breath_end", DragonAudio.BREATH_END_DELAY)
 	if not enabled:
 		return
-	# Same reason as the music player: a stream left running at process
-	# exit is reported as a leak, and the headless check fails CI on it.
-	if DisplayServer.get_name() == "headless":
-		return
-	var player := _take_player(event)
+	var player := _take_player(key)
 	if player == null:
 		return
 	player.pitch_scale = pitch
 	var base_db := float(data.get("volume_db", 0.0))
+	if key == "dragon_form_meteor_fall" and active_voices("dragon_form_meteor_impact") > 0:
+		base_db += FALL_DUCK_DB
+	if key == "gem_pickup" and _gem_duck > 0.0:
+		base_db += GEM_DUCK_DB
 	player.volume_db = base_db + gain_db
+	# Same reason as the music player: a stream left running at process
+	# exit is reported as a leak, and the headless check fails CI on it.
+	if DisplayServer.get_name() == "headless":
+		return
 	player.play()
 
+func _arm_tier(event: String, gain_db: float) -> void:
+	_tier_armed = true
+	_tier_name = event
+	_tier_gain = gain_db
+	if _on_downbeat():
+		_fire_tier()
+
+func _tick_tier() -> void:
+	if _tier_armed and _on_downbeat():
+		_fire_tier()
+
+func _fire_tier() -> void:
+	_tier_armed = false
+	_emit(_tier_name, _tier_gain)
+
+func _on_downbeat() -> bool:
+	if not _dragon_lock or _music == null or not _music.playing:
+		return true
+	var bar := DragonAudio.bar_seconds()
+	if bar <= 0.001:
+		return true
+	var into := fposmod(_music.get_playback_position(), bar)
+	return into <= DOWNBEAT_SLACK or bar - into <= DOWNBEAT_SLACK
+
+func _tick_later(delta: float) -> void:
+	if _later.is_empty():
+		return
+	var keep: Array[Dictionary] = []
+	var due: Array[Dictionary] = []
+	for item in _later:
+		var left := float(item["t"]) - delta
+		if left <= 0.0:
+			due.append(item)
+		else:
+			item["t"] = left
+			keep.append(item)
+	_later = keep
+	for item in due:
+		play_event(str(item["event"]), float(item["gain"]))
+
+func _apply_fall_duck() -> void:
+	var fall := player_for("dragon_form_meteor_fall")
+	if fall == null:
+		return
+	var base := float(AudioCues.spec("dragon_form_meteor_fall").get("volume_db", 0.0))
+	var duck := FALL_DUCK_DB if active_voices("dragon_form_meteor_impact") > 0 else 0.0
+	fall.volume_db = base + duck
+
+func _begin_power_level_mix() -> void:
+	_gem_duck = GEM_DUCK_SECONDS
+	_apply_gem_duck()
+	var length := float(AudioCues.spec("power_level_up").get("duration", 0.68))
+	_cue_headroom = maxf(_cue_headroom, length)
+	_sync_sfx_guard()
+
+func _tick_power_mix(delta: float) -> void:
+	if _gem_duck > 0.0:
+		_gem_duck = maxf(_gem_duck - delta, 0.0)
+		if _gem_duck <= 0.0:
+			_apply_gem_duck()
+	if _cue_headroom <= 0.0:
+		return
+	_cue_headroom = maxf(_cue_headroom - delta, 0.0)
+	if _cue_headroom <= 0.0:
+		_sync_sfx_guard()
+
+func _apply_gem_duck() -> void:
+	var base := float(AudioCues.spec("gem_pickup").get("volume_db", 0.0))
+	var duck := GEM_DUCK_DB if _gem_duck > 0.0 else 0.0
+	for item in _pool("gem_pickup"):
+		var player := item as AudioStreamPlayer
+		player.volume_db = base + duck
+
+func _exit_tree() -> void:
+	_cue_headroom = 0.0
+	_rain_mix = false
+	_gem_duck = 0.0
+	_sync_sfx_guard()
+
 func stop_event(event: String) -> void:
-	for item in _pool(event):
+	var key := DragonAudio.canonical(event)
+	_loop_latched.erase(key)
+	for item in _pool(key):
 		var player := item as AudioStreamPlayer
 		if player.playing:
 			player.stop()
@@ -296,43 +513,50 @@ func _pool(event: String) -> Array:
 
 func _build_players() -> void:
 	for event in AudioCues.all_events():
-		var data := AudioCues.spec(event)
-		var path := str(data["file"])
-		# The exported pack has the imported sample, not the source wav.
-		if not ResourceLoader.exists(path):
-			if AudioCues.should_report_missing(data):
-				push_error("missing test audio %s" % path)
-			continue
-		var stream := load(path) as AudioStream
-		if stream == null:
-			if not bool(data.get("optional", false)):
-				push_error("missing test audio %s" % path)
-			continue
-		AudioCues.prepare_stream(stream, event)
-		if event == "gameplay_music":
-			_music = _make_player(event, stream)
-			# Desktop streams the ogg. The web build uses a sample so the
-			# single-threaded export does not garble the loop. loop_offset stays 0.
-			_music.playback_type = AudioCues.music_playback_type(OS.has_feature("web"))
-			_music.max_polyphony = 1
-			_music_fade = _make_player(event, stream)
-			_music_fade.name = "world_music_fade"
-			_music_fade.playback_type = _music.playback_type
-			_music_fade.max_polyphony = 1
-			_music_fade.volume_db = 0.0
-			continue
-		var voices := 1
-		if float(data.get("pitch_semitones", 0.0)) > 0.0 or bool(data.get("pitch_chain", false)):
-			voices = int(data.get("polyphony", 1))
-		var pool: Array[AudioStreamPlayer] = []
-		for _i in voices:
-			var player := _make_player(event, stream)
-			if voices == 1:
-				player.max_polyphony = int(data.get("polyphony", 1))
-			else:
-				player.max_polyphony = 1
-			pool.append(player)
-		_pools[event] = pool
+		_register_event(event, event == "gameplay_music")
+	for event in DragonAudio.player_events():
+		_register_event(event, false)
+
+func _register_event(event: String, music: bool) -> void:
+	var data := AudioCues.spec(event)
+	if data.is_empty():
+		return
+	var path := str(data["file"])
+	# The exported pack has the imported sample, not the source wav.
+	if not ResourceLoader.exists(path):
+		if AudioCues.should_report_missing(data):
+			push_error("missing test audio %s" % path)
+		return
+	var stream := load(path) as AudioStream
+	if stream == null:
+		if not bool(data.get("optional", false)):
+			push_error("missing test audio %s" % path)
+		return
+	stream = AudioCues.prepare_stream(stream, event)
+	if music:
+		_music = _make_player(event, stream)
+		# Desktop streams the ogg. The web build uses a sample so the
+		# single-threaded export does not garble the loop. loop_offset stays 0.
+		_music.playback_type = AudioCues.music_playback_type(OS.has_feature("web"))
+		_music.max_polyphony = 1
+		_music_fade = _make_player(event, stream)
+		_music_fade.name = "world_music_fade"
+		_music_fade.playback_type = _music.playback_type
+		_music_fade.max_polyphony = 1
+		_music_fade.volume_db = 0.0
+		return
+	var voices := 1
+	if float(data.get("pitch_semitones", 0.0)) > 0.0 or bool(data.get("pitch_chain", false)):
+		voices = int(data.get("polyphony", 1))
+	var pool: Array[AudioStreamPlayer] = []
+	for _i in voices:
+		var player := _make_player(event, stream)
+		if voices == 1:
+			player.max_polyphony = int(data.get("polyphony", 1))
+		else:
+			player.max_polyphony = 1
+		pool.append(player)
+	_pools[event] = pool
 
 func _make_player(event: String, stream: AudioStream) -> AudioStreamPlayer:
 	var data := AudioCues.spec(event)
@@ -405,8 +629,8 @@ func _load_loop(path: String) -> AudioStream:
 	var stream := load(path) as AudioStream
 	if stream == null:
 		return null
-	AudioCues.prepare_stream(stream, "gameplay_music")
-	return stream
+	var cue := "dragon_phase_bgm" if path == DragonAudio.MUSIC_PATH else "gameplay_music"
+	return AudioCues.prepare_stream(stream, cue)
 
 func _assign_music(stream: AudioStream, path: String) -> void:
 	_music.stream = stream

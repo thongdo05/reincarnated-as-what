@@ -10,6 +10,9 @@ class_name WorldCatalog
 ## FileAccess.file_exists does not see res:// files inside an exported pck.
 
 const SKY_CASTLE := "sky_castle"
+## After the Great Dragon dies the run stays here. It is not part of ORDER,
+## so a normal reincarnation never rolls it.
+const DRAGON_LAIR := "dragon_lair"
 const FALLBACK_MUSIC := "res://audio/music_gameplay_loop.ogg"
 const WORLD_MUSIC := "res://audio/music/world_%s.ogg"
 const MANIFEST_PATH := "res://art/worlds/manifest.json"
@@ -34,6 +37,7 @@ const _FLASH := {
 	"candy_kingdom": "CANDY KINGDOM",
 	"ice_tundra": "ICE TUNDRA",
 	"sunken_ruins": "SUNKEN RUINS",
+	DRAGON_LAIR: "DRAGON LAIR",
 }
 
 const _SKY: Array[Texture2D] = [
@@ -78,6 +82,12 @@ const _SUNKEN: Array[Texture2D] = [
 	preload("res://art/worlds/sunken_ruins/bg_far.png"),
 	preload("res://art/worlds/sunken_ruins/bg_near.png"),
 ]
+const _LAIR: Array[Texture2D] = [
+	preload("res://art/worlds/dragon_lair/bg_sky.png"),
+	preload("res://art/worlds/dragon_lair/bg_clouds.png"),
+	preload("res://art/worlds/dragon_lair/bg_far.png"),
+	preload("res://art/worlds/dragon_lair/bg_near.png"),
+]
 
 const _SETS := {
 	SKY_CASTLE: _SKY,
@@ -87,6 +97,7 @@ const _SETS := {
 	"candy_kingdom": _CANDY,
 	"ice_tundra": _ICE,
 	"sunken_ruins": _SUNKEN,
+	DRAGON_LAIR: _LAIR,
 }
 
 static var last_id := ""
@@ -146,6 +157,8 @@ static func _ensure() -> void:
 	for id in ORDER:
 		_flashes[id] = str(_FLASH[id])
 		_factors[id] = DEFAULT_FACTORS.duplicate()
+	_flashes[DRAGON_LAIR] = str(_FLASH[DRAGON_LAIR])
+	_factors[DRAGON_LAIR] = DEFAULT_FACTORS.duplicate()
 	_apply_manifest(_read_manifest())
 
 static func _read_manifest() -> Variant:

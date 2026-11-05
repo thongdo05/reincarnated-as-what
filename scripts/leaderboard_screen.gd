@@ -326,6 +326,11 @@ func _fill_row(panel: Control, row: Dictionary, mine: bool, row_h: float, overal
 	name_clip.size = Vector2(float(boxes["name_w"]) + scale * 2.0, row_h)
 	panel.add_child(name_clip)
 	_place_text(name_clip, who, ink, outlined, scale, float(scale), row_h, "NameText")
+	if Leaderboard.row_is_slayer(row):
+		var tag := "DRAGONSLAYER"
+		var tag_w := float(PixelFont.plain_advance(tag))
+		var tag_x := maxf(float(scale), float(boxes["name_w"]) - tag_w - 2.0)
+		_place_text(name_clip, tag, Color("ffe56a"), true, 1, tag_x, row_h, "Dragonslayer")
 	var score_pen := float(boxes["score_x"]) + float(boxes["score_w"]) - PixelFont.plain_advance(points) * scale
 	_place_text(panel, points, ink, outlined, scale, score_pen, row_h, "Score")
 	if form != "":

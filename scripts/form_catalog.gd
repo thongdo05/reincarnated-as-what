@@ -16,8 +16,10 @@ class_name FormCatalog
 ## Every Goblin balance number lives in GOBLIN. The three new forms live in
 ## VENDING, CAT, and DEMON.
 
-enum Id { SLIME, GOBLIN, VENDING, CAT, DEMON }
+enum Id { SLIME, GOBLIN, VENDING, CAT, DEMON, DRAGON }
 
+## The random reincarnation roll. Dragon is earned by killing the Great Dragon
+## and is never part of this list.
 const IDS: Array[int] = [Id.SLIME, Id.GOBLIN, Id.VENDING, Id.CAT, Id.DEMON]
 
 const SLIME_FIRE_INTERVAL := 0.16
@@ -33,7 +35,7 @@ const SNAP_MAX_SPEED := 22000.0
 ## 8 frames, and the first frame of a drag already moves. No overshoot.
 const VENDING_ARRIVE := 62.0
 const VENDING_MAX_SPEED := 400.0
-## Kills, not coins. A full meter is the only WINNER! in the game.
+## Kills and gems, not coins or powerups. A full meter is the only WINNER! in the game.
 ## Rank-1 length. Play reads the per-rank list. This is the empty-list fallback.
 const VENDING_WINNER_KILLS := 10
 ## Heavy hit for a WINNER! clear, read off SpawnDirector.max_hp.
@@ -47,21 +49,17 @@ const CAT_BLINK_MIN := 26.0
 const CAT_BLINK_CD := 0.14
 ## A few frames where the dash body cannot be hit.
 const CAT_BLINK_GUARD := 0.10
-const CAT_GRAZE_NEED := 3
-const CAT_GRAZE_WINDOW := 1.6
-const CAT_CHARM_TIME := 1.55
-const CAT_CHARM_RADIUS := 92.0
-const CAT_CHARM_MAX := 2
 
 ## Every Goblin balance number. Rank arrays are rank 1 through rank 5.
-## Movement, stones, and loot all read this table.
+## Movement and stones read this table. The gem magnet radius and speed are
+## Difficulty.GOBLIN_MAGNET and Difficulty.GOBLIN_MAGNET_SPEED. A gem in range
+## glides in and is collected on touch.
 ## Before this pass: fire_interval [0.48, 0.36, 0.28], shot_speed 780, gravity 170,
 ## spread [±110], [±150, ±50], [±180, ±90, 0], damage 1, pierce 0,
 ## loot_points 40, loot_magnet 0, loot_magnet_speed 0.
 ## Movement used to sprint and then plant. Snap forms now use SNAP_ARRIVE.
-## Stride still clocks the goblin's drawn hop. Loot points stay 40. A magnet was
-## measured and left at 0: it inflated score past the bot band without being
-## what closed the survival gap.
+## Stride still clocks the goblin's drawn hop. Loot points stay 40. The table
+## magnet stays 0; the live pull does not read it.
 const GOBLIN := {
 	"fire_interval": [0.30, 0.24, 0.20, 0.16, 0.13],
 	"shot_speed": 780.0,
@@ -100,27 +98,55 @@ const VENDING := {
 }
 
 ## The swipe is short. Reflecting bullets is the defense, not a long stream.
-## Later ranks dash farther, graze into a charm sooner, and swipe harder.
+## Swipes pierce. Later ranks dash farther and swipe harder.
+## Damage stays the int list, so the +15% is fire_interval times 1/1.15.
+## Swipe life is 1.10x. Dash distance, dash guard, pierce, and reflect are unchanged.
 const CAT := {
-	"fire_interval": [0.24, 0.20, 0.17, 0.145, 0.12],
+	"fire_interval": [0.24 / 1.15, 0.20 / 1.15, 0.17 / 1.15, 0.145 / 1.15, 0.12 / 1.15],
 	"shot_speed": 420.0,
-	"life": [0.58, 0.60, 0.64, 0.70, 0.78],
+	"life": [0.58 * 1.10, 0.60 * 1.10, 0.64 * 1.10, 0.70 * 1.10, 0.78 * 1.10],
 	"damage": [1, 1, 2, 2, 3],
 	"pierce": 2,
 	"blink_dist": [34.0, 38.0, 44.0, 52.0, 62.0],
 	"blink_guard": [0.10, 0.10, 0.11, 0.13, 0.15],
-	"graze_need": [3, 3, 3, 2, 2],
-	"charm_max": [2, 2, 2, 3, 4],
-	"charm_radius": [92.0, 100.0, 110.0, 124.0, 140.0],
 }
 
 ## Drawn and hurt at this fraction of the source art. The hurt circles are the
 ## same fit, scaled with the sprite, so a shot that touches the picture hits.
 const DEMON_PLAY_SCALE := 0.75
+## 30% smaller than the source art. The hurt shape uses the same scale.
+const VENDING_PLAY_SCALE := 0.7
+## Rank-5 combat from the first frame. There are no stages.
+## Three fireballs in an 11 degree fan. Each is 5, so a volley that all hits is 15.
+## That is 214 DPS at 0.07s, above a rank-5 Goblin's 138.
+## Direct DPS does not change with the fan. The +1 per fireball is +3 on the
+## volley, the same slope as the Goblin.
+const DRAGON_FIRE_INTERVAL := 0.07
+const DRAGON_SHOT_SPEED := 820.0
+const DRAGON_DAMAGE := 5
+const DRAGON_SPLASH := 8
+const DRAGON_SPLASH_RADIUS := 42.0
+## Hurt body is about 48px wide. 810 / 48 beats Goblin 560 / 34.
+const DRAGON_MAX_SPEED := 810.0
+const DRAGON_POWER_PER_LEVEL := 1
+const DRAGON_METEOR_KILLS := 8
+const DRAGON_SPRITE := "dragon_form/dragon_fly.png"
+const DRAGON_SHOT := "dragon_form/dragon_fireball.png"
+## Degrees off the forward axis, +y down. 11 is the middle of a 10-12 degree fan.
+const DRAGON_SPREAD_DEG := 11.0
 
 static func play_scale(id: int) -> float:
 	if id == Id.DEMON:
 		return DEMON_PLAY_SCALE
+	if id == Id.VENDING:
+		return VENDING_PLAY_SCALE
+	return 1.0
+
+static func dragon_power_bonus(level: int) -> int:
+	return maxi(level, 0) * DRAGON_POWER_PER_LEVEL
+
+## The fly sheet is already the on-screen size. Do not shrink it.
+static func dragon_fit_scale(_file_name: String, _old_scale: float) -> float:
 	return 1.0
 
 ## Slow homing orbs. Damage, speed, and turn rate climb with the crowd.
@@ -148,22 +174,27 @@ const FORM_CARD := {
 		"used": "Split used.",
 	},
 	Id.GOBLIN: {
-		"trait": "Kills can drop gems. Picking one up adds score and evolution points. Later ranks throw more rocks that hit harder.",
+		"trait": "Gems nearby get pulled in. Later ranks throw more rocks that hit harder.",
 		"ready": "",
 		"used": "",
 	},
 	Id.VENDING: {
-		"trait": "Heavy drift. Kills fill a WINNER! meter. A full meter blasts the field and clears shots. Later ranks pay a bigger WINNER!.",
+		"trait": "Heavy drift. Kills and gems fill a WINNER! meter. A full meter blasts the field and clears shots. Later ranks pay a bigger WINNER!.",
 		"ready": "",
 		"used": "",
 	},
 	Id.CAT: {
-		"trait": "A hard flick blinks a short dash. A graze streak makes nearby enemies fight for you. Later ranks dash farther and charm more.",
+		"trait": "A hard flick blinks a short dash. Swipes pierce and knock bullets away. Later ranks dash farther and swipe harder.",
 		"ready": "",
 		"used": "",
 	},
 	Id.DEMON: {
 		"trait": "Big slow orbs home in. They hit harder the more enemies are on screen. Later ranks loose more orbs.",
+		"ready": "",
+		"used": "",
+	},
+	Id.DRAGON: {
+		"trait": "Earned by slaying the Great Dragon. Fireballs explode. Kills fill Meteor Rain, which chips a boss for 15% of its max HP.",
 		"ready": "",
 		"used": "",
 	},
@@ -212,18 +243,6 @@ static func cat_blink_guard(rank_index: int, power_level: int = 0) -> float:
 	var values: Array = CAT["blink_guard"]
 	var guard := float(values[clampi(rank_index, 0, values.size() - 1)]) + float(maxi(power_level, 0)) * 0.008
 	return minf(guard, 0.2)
-
-static func cat_graze_need(rank_index: int) -> int:
-	var values: Array = CAT["graze_need"]
-	return int(values[clampi(rank_index, 0, values.size() - 1)])
-
-static func cat_charm_max(rank_index: int) -> int:
-	var values: Array = CAT["charm_max"]
-	return int(values[clampi(rank_index, 0, values.size() - 1)])
-
-static func cat_charm_radius(rank_index: int) -> float:
-	var values: Array = CAT["charm_radius"]
-	return float(values[clampi(rank_index, 0, values.size() - 1)])
 
 static func cat_life(rank_index: int) -> float:
 	var values: Array = CAT["life"]
@@ -275,7 +294,7 @@ static func demon_orbs(rank_index: int) -> int:
 	var values: Array = DEMON["orbs"]
 	return int(values[clampi(rank_index, 0, values.size() - 1)])
 
-## A Goblin pickup. Added to the score and to the evolution meter. Not a weapon upgrade.
+## Gem points stored on GOBLIN. Live pickups score with Difficulty.GEM_SCORE. Not a weapon upgrade.
 static func loot_points() -> int:
 	return int(GOBLIN["loot_points"])
 
@@ -304,6 +323,8 @@ static func key_for(id: int) -> String:
 			return "cat"
 		Id.DEMON:
 			return "demon_lord"
+		Id.DRAGON:
+			return "dragon"
 		_:
 			return "slime"
 
@@ -319,6 +340,8 @@ static func display_name(id: int) -> String:
 			return "CAT"
 		Id.DEMON:
 			return "DEMON LORD"
+		Id.DRAGON:
+			return "DRAGON"
 		_:
 			return "UNKNOWN"
 
@@ -334,6 +357,8 @@ static func gag(id: int) -> String:
 			return "The board voted to pounce."
 		Id.DEMON:
 			return "The crown was already on fire."
+		Id.DRAGON:
+			return "The sky learned your name."
 		_:
 			return ""
 
@@ -365,6 +390,8 @@ static func title_color(id: int) -> Color:
 			return Color("ff9ad8")
 		Id.DEMON:
 			return Color("ff6b8a")
+		Id.DRAGON:
+			return Color("ffb15a")
 		_:
 			return Color("ffd56a")
 
@@ -386,6 +413,8 @@ static func core_radius(id: int, rank_index: int, small: bool) -> float:
 	return HitLibrary.max_part_radius(_sprite_file(id, rank_index, small), "hurt")
 
 static func max_speed(id: int) -> float:
+	if id == Id.DRAGON:
+		return DRAGON_MAX_SPEED
 	if id == Id.SLIME or id == Id.CAT or id == Id.DEMON:
 		return SLIME_MAX_SPEED
 	if id == Id.VENDING:
@@ -513,6 +542,19 @@ static func rank_table(id: int) -> Array[Dictionary]:
 				"spread": [],
 			})
 		return rows
+	if id == Id.DRAGON:
+		var dragon_rows: Array[Dictionary] = []
+		for _i in 5:
+			dragon_rows.append({
+				"name": "Dragon",
+				"sprite": DRAGON_SPRITE,
+				"fire_interval": DRAGON_FIRE_INTERVAL,
+				"shot_sprite": DRAGON_SHOT,
+				"shot_color": Color("ffb15a"),
+				"lanes": [],
+				"spread": [],
+			})
+		return dragon_rows
 	var names := ["Demon Lord", "Demon Emperor", "True Demon King", "Demon Overlord", "Abyss Sovereign"]
 	var orbs := ["demon_orb_r1.png", "demon_orb_r2.png", "demon_orb_r3.png", "demon_orb_r3.png", "demon_orb_r3.png"]
 	var colors: Array[Color] = [Color("ff4d6a"), Color("ff6b8a"), Color("ffd0dc"), Color("ffe0e8"), Color("fff4f7")]
@@ -601,6 +643,15 @@ static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array
 			var can := _blob(origin + Vector2(muzzle, 0), vel, 0, shot_color, shot_sprite, damage)
 			can["style"] = "can"
 			shots.append(can)
+	elif id == Id.DRAGON:
+		for sign in [-1.0, 0.0, 1.0]:
+			var angle := deg_to_rad(sign * DRAGON_SPREAD_DEG)
+			var vel := Vector2(cos(angle), sin(angle)) * DRAGON_SHOT_SPEED
+			var fireball := _blob(origin + Vector2(muzzle, 0), vel, 0, shot_color, shot_sprite, DRAGON_DAMAGE)
+			fireball["style"] = "dragon"
+			fireball["splash"] = DRAGON_SPLASH
+			fireball["splash_radius"] = DRAGON_SPLASH_RADIUS
+			shots.append(fireball)
 	elif id == Id.CAT:
 		var damage := int(cat_rank_f("damage", rank_index))
 		var swipe := _blob(origin + Vector2(muzzle, -2), Vector2(cat_f("shot_speed"), 0), 0, shot_color, shot_sprite, damage)
@@ -647,6 +698,8 @@ static func _blob(pos: Vector2, velocity: Vector2, splits: int, color: Color, sp
 		"gravity": 0.0,
 		"damage": damage,
 		"pierce": 0,
+		"splash": 0,
+		"splash_radius": 0.0,
 		"radius": HitLibrary.bounds_radius(sprite, "body"),
 		"splits": splits,
 		"color": color,
@@ -681,13 +734,15 @@ static func weapon_line(id: int, rank_index: int) -> String:
 			return "%s Splits on hit." % head
 		return head
 	if id == Id.VENDING:
-		return "%d cans every %s. Spread %d. WINNER! in %d kills." % [count, every, int(round(float(spec["spread_deg"]))), vending_winner_kills(rank_index)]
+		return "%d cans every %s. Spread %d. WINNER! in %d kills or gems." % [count, every, int(round(float(spec["spread_deg"]))), vending_winner_kills(rank_index)]
 	if id == Id.CAT:
 		var line := "Swipe every %s. Reflects shots." % every
 		var damage := int(first.get("damage", 1))
 		if damage != 1:
 			line += " Dmg %d." % damage
 		return line
+	if id == Id.DRAGON:
+		return "3 fireballs every %s. Fan %d. Dmg %d each, splash %d. Meteor Rain in %d kills." % [every, int(round(DRAGON_SPREAD_DEG)), DRAGON_DAMAGE, DRAGON_SPLASH, DRAGON_METEOR_KILLS]
 	if id == Id.DEMON:
 		var line := "Homing orb every %s." % every
 		if count > 1:
