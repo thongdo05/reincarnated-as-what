@@ -4448,10 +4448,10 @@
   {
     "file": "dragon_form/dragon_meteor_giant_impact.png",
     "size": [
-      2700,
+      3510,
       270
     ],
-    "frames": 10,
+    "frames": 13,
     "fps": 15,
     "anchor": [
       135,
@@ -4462,7 +4462,7 @@
     "facing": "none",
     "idle": false,
     "loop": false,
-    "note": "Final giant impact. Native 270x270, 10 frames, 15 fps, anchor centre. Each frame is held 2 ticks.",
+    "note": "Final giant impact. Native 270x270, 13 frames, 15 fps, anchor centre. Each frame is held 2 ticks.",
     "frame_size": [
       270,
       270
@@ -4489,7 +4489,7 @@
     "facing": "none",
     "idle": false,
     "loop": true,
-    "note": "Reticle for the giant meteor. 72x72, 4 frames, 8 fps, loops while the warning is up.",
+    "note": "Giant meteor reticle sheet, 72x72, 4 frames, 8 fps. Meteor Rain does not draw it, and barrage meteors have no landing marker either.",
     "frame_size": [
       72,
       72
@@ -4497,6 +4497,33 @@
     "art_bbox": [
       72,
       72
+    ]
+  },
+  {
+    "file": "dragon_form/dragon_meteor_scorch.png",
+    "size": [
+      104,
+      32
+    ],
+    "frames": 1,
+    "fps": 0,
+    "anchor": [
+      52,
+      16
+    ],
+    "anchor_type": "center",
+    "category": "fx",
+    "facing": "none",
+    "idle": false,
+    "loop": false,
+    "note": "Scorch decal for a barrage meteor that lands on the ground (y 226). 104x32, 1 frame, anchor centre. Drawn at the impact plus (0, 4) and faded with the decal. Not a hit.",
+    "frame_size": [
+      104,
+      32
+    ],
+    "art_bbox": [
+      104,
+      32
     ]
   },
   {

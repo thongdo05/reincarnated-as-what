@@ -500,8 +500,8 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 
 func _check_art() -> int:
 	var failed := 0
-	if ArtLibrary.file_count() != 202:
-		push_error("art manifest should have 202 entries, found %d" % ArtLibrary.file_count())
+	if ArtLibrary.file_count() != 203:
+		push_error("art manifest should have 203 entries, found %d" % ArtLibrary.file_count())
 		failed += 1
 	var text := FileAccess.get_file_as_string("res://art/manifest.json")
 	var parsed: Variant = JSON.parse_string(text)
@@ -5853,8 +5853,8 @@ func _check_meteor_clock() -> int:
 	if absf(ArtLibrary.art_bbox("dragon_form/dragon_meteor_giant.png").x - DragonShow.GIANT_METEOR) > 0.1 or absf(ArtLibrary.art_bbox("dragon_form/dragon_meteor_giant_impact.png").x - DragonShow.GIANT_IMPACT) > 0.1:
 		push_error("the giant meteor and impact should be native 168 and 270")
 		failed += 1
-	if DragonShow.GIANT_IMPACT_FRAMES != 10 or DragonShow.IMPACT_HOLD != 2:
-		push_error("the giant impact should hold each of its 10 frames for 2 ticks")
+	if DragonShow.GIANT_IMPACT_FRAMES != 13 or DragonShow.IMPACT_HOLD != 2:
+		push_error("the giant impact should hold each of its 13 frames for 2 ticks")
 		failed += 1
 	if absf(DragonShow.GIANT_METEOR - 168.0) > 0.1 or absf(DragonShow.GIANT_IMPACT - 270.0) > 0.1:
 		push_error("the final meteor should be 168px with a 270px impact")
@@ -5887,6 +5887,126 @@ func _check_meteor_clock() -> int:
 		show.tick(DragonShow.FRAME)
 	if show.phase != DragonShow.IDLE or show.active_meteors() != 0 or show._giant.get("on", false) or show._impacts.size() != 0 or show.visible_meteor_fx() != 0 or show.lingering_meteor_fx() != 0 or show.flash_frames != 0:
 		push_error("a finished rain should leave no meteor, giant, or impact, phase %s flying %s giant %s impacts %s visible %s" % [show.phase, show.active_meteors(), show._giant.get("on", false), show._impacts.size(), show.visible_meteor_fx()])
+		failed += 1
+	show.free()
+	failed += _check_meteor_sheets()
+	return failed
+
+func _png_size(path: String) -> Vector2i:
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.size() < 24 or bytes[0] != 137:
+		return Vector2i(-1, -1)
+	var w := (int(bytes[16]) << 24) | (int(bytes[17]) << 16) | (int(bytes[18]) << 8) | int(bytes[19])
+	var h := (int(bytes[20]) << 24) | (int(bytes[21]) << 16) | (int(bytes[22]) << 8) | int(bytes[23])
+	return Vector2i(w, h)
+
+## v2 sheets, the 13-frame giant slam, ground scorch, and no landing marker.
+func _check_meteor_sheets() -> int:
+	var failed := 0
+	var sheets: Array[Dictionary] = [
+		{"file": "dragon_form/dragon_meteor.png", "w": 312, "h": 78, "fw": 78, "fh": 78, "frames": 4, "fps": 15, "ax": 39, "ay": 39, "loop": true},
+		{"file": "dragon_form/dragon_meteor_impact.png", "w": 1392, "h": 174, "fw": 174, "fh": 174, "frames": 8, "fps": 15, "ax": 87, "ay": 87, "loop": false},
+		{"file": "dragon_form/dragon_meteor_giant.png", "w": 672, "h": 168, "fw": 168, "fh": 168, "frames": 4, "fps": 15, "ax": 84, "ay": 84, "loop": true},
+		{"file": "dragon_form/dragon_meteor_giant_impact.png", "w": 3510, "h": 270, "fw": 270, "fh": 270, "frames": 13, "fps": 15, "ax": 135, "ay": 135, "loop": false},
+		{"file": "dragon_form/dragon_meteor_warning.png", "w": 288, "h": 72, "fw": 72, "fh": 72, "frames": 4, "fps": 8, "ax": 36, "ay": 36, "loop": true},
+		{"file": "dragon_form/dragon_meteor_scorch.png", "w": 104, "h": 32, "fw": 104, "fh": 32, "frames": 1, "fps": 0, "ax": 52, "ay": 16, "loop": false},
+	]
+	for spec in sheets:
+		var file_name := str(spec["file"])
+		var data := ArtLibrary.entry(file_name)
+		var png := _png_size("res://art/" + file_name)
+		var tex := ArtLibrary.texture(file_name)
+		var box := ArtLibrary.art_bbox(file_name)
+		var anchor := ArtLibrary.anchor(file_name)
+		if data.is_empty() or png.x != int(spec["w"]) or png.y != int(spec["h"]):
+			push_error("%s sheet size should be %sx%s, png %s" % [file_name, spec["w"], spec["h"], png])
+			failed += 1
+		if tex == null or tex.get_width() != int(spec["w"]) or tex.get_height() != int(spec["h"]):
+			push_error("%s did not load at its sheet size" % file_name)
+			failed += 1
+		if int(data.get("frames", 0)) != int(spec["frames"]) or absf(float(data.get("fps", -1)) - float(spec["fps"])) > 0.01 or bool(data.get("loop", true)) != bool(spec["loop"]):
+			push_error("%s frames/fps/loop drifted from the v2 sheet" % file_name)
+			failed += 1
+		if absf(box.x - float(spec["fw"])) > 0.1 or absf(box.y - float(spec["fh"])) > 0.1 or anchor != Vector2(float(spec["ax"]), float(spec["ay"])):
+			push_error("%s cell or anchor drifted, box %s anchor %s" % [file_name, box, anchor])
+			failed += 1
+	var giant_impact := "dragon_form/dragon_meteor_giant_impact.png"
+	if ArtLibrary.frame_index(giant_impact, 0.0) != 0 or ArtLibrary.frame_index(giant_impact, 12.0 / 15.0) != 12 or ArtLibrary.frame_index(giant_impact, 20.0 / 15.0) != 12:
+		push_error("the giant impact should play 13 frames once and hold the last")
+		failed += 1
+	if ArtLibrary.frame_index("dragon_form/dragon_meteor.png", 4.0 / 15.0) != 0:
+		push_error("the barrage meteor should loop after 4 frames")
+		failed += 1
+	var src := FileAccess.get_file_as_string("res://scripts/dragon_show.gd")
+	if src.contains("dragon_meteor_warning") or src.contains("_draw_reticle") or src.contains("_show_reticle") or src.contains("WARN_LEAD") or src.contains("_paint_mark") or src.contains("draw_circle"):
+		push_error("meteor rain must not draw a landing warning, reticle, or painted mark")
+		failed += 1
+	if src.count("draw_arc(") != 1:
+		push_error("the slam shock ring should be the only code-drawn arc")
+		failed += 1
+	var show := DragonShow.new()
+	if show.phase != DragonShow.IDLE or not show._sprite_commands().is_empty() or show.visible_meteor_fx() != 0:
+		push_error("nothing should be drawn while meteor rain is idle")
+		failed += 1
+	show.rng_seed = 5
+	show.start_rain()
+	var saw_scorch := false
+	var scorch_bad := 0
+	var warning_hits := 0
+	var preview_shock := false
+	var giant_frames := {}
+	var saw_barrage := false
+	var saw_impact := false
+	var saw_giant := false
+	var guard := 0
+	while show.phase != DragonShow.IDLE and guard < 400:
+		for cmd in show._sprite_commands():
+			var file_name := str(cmd["file"])
+			if file_name.contains("warning"):
+				warning_hits += 1
+			if file_name == DragonShow.METEOR:
+				saw_barrage = true
+			elif file_name == DragonShow.IMPACT:
+				saw_impact = true
+			elif file_name == DragonShow.GIANT_METEOR_ART:
+				saw_giant = true
+			elif file_name == DragonShow.GIANT_IMPACT_ART:
+				giant_frames[ArtLibrary.frame_index(file_name, float(cmd["time"]))] = true
+			elif file_name == DragonShow.SCORCH:
+				saw_scorch = true
+				var at: Vector2 = cmd["at"]
+				var tint: Color = cmd["tint"]
+				if absf(at.y - 230.0) > 0.01 or tint.a < 0.149 or tint.a > 0.701:
+					scorch_bad += 1
+		for item in show._decals:
+			if item.has("boom"):
+				continue
+			if absf(float(item["pos"].y) - 226.0) > 0.01:
+				scorch_bad += 1
+		if show.phase == DragonShow.CHARGE or show.phase == DragonShow.RAIN or show.phase == DragonShow.FALL:
+			if show.shock > 0.02:
+				preview_shock = true
+		show.tick(DragonShow.FRAME)
+		guard += 1
+	if not saw_scorch or scorch_bad > 0:
+		push_error("ground landings should draw the scorch at impact + (0, 4) with the existing fade")
+		failed += 1
+	if warning_hits > 0 or preview_shock:
+		push_error("no warning or reticle should be drawn for the giant or the barrage")
+		failed += 1
+	if not saw_barrage or not saw_impact or not saw_giant:
+		push_error("barrage meteors, impacts, and the falling giant should still draw")
+		failed += 1
+	if giant_frames.size() != 13:
+		push_error("the giant impact should play all 13 frames, saw %d" % giant_frames.size())
+		failed += 1
+	for index in 13:
+		if not giant_frames.has(index):
+			push_error("the giant impact skipped frame %d" % index)
+			failed += 1
+			break
+	if show.phase != DragonShow.IDLE or not show._sprite_commands().is_empty() or show._decals.size() != 0 or show.visible_meteor_fx() != 0 or show.lingering_meteor_fx() != 0:
+		push_error("scorch and every other meteor sprite should clear when the show ends")
 		failed += 1
 	show.free()
 	return failed
