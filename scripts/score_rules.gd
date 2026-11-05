@@ -33,12 +33,13 @@ static func server_score_cap(survival_ms: int) -> int:
 
 ## Points in `seconds` if a rank-5 vending run kills every spawned enemy.
 ## Combo is capped, bodies are priced as archers (the best non-heavy), and
-## each kill also pays the rank-5 WINNER share, a gem, and a graze.
+## each kill also pays a gem and a graze. WINNER! pays that same kill score
+## and adds no bonus.
 ## Power and the final form add no score of their own.
 static func vending_clear_score(seconds: float) -> int:
 	var elapsed := maxf(seconds, 0.0)
 	var mult := Difficulty.kill_multiplier(COMBO_CAP, 1)
-	var per_kill := 220.0 * mult + 2000.0 / 3.0 + Difficulty.GEM_CHANCE * float(Difficulty.GEM_SCORE) + float(Difficulty.GRAZE_RANK2)
+	var per_kill := 220.0 * mult + Difficulty.GEM_CHANCE * float(Difficulty.GEM_SCORE) + float(Difficulty.GRAZE_RANK2)
 	var total := 0.0
 	var whole := int(ceil(elapsed))
 	for second in whole:
