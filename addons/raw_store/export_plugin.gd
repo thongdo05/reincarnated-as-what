@@ -23,7 +23,7 @@ func _export_begin(features: PackedStringArray, _is_debug: bool, _path: String, 
 func _apply_ios() -> void:
 	var app_id := StoreConfig.ios_app_id()
 	if app_id.is_empty():
-		push_error("iOS export needs an AdMob app id. Fill scripts/store_config.gd, or leave USE_TEST_ADS on.")
+		push_error("iOS export needs the real AdMob app id in scripts/store_config.gd.")
 		return
 	ProjectSettings.set_setting("admob/general/ios/enabled", true)
 	ProjectSettings.set_setting("admob/general/ios/app_id", app_id)
@@ -37,7 +37,7 @@ func _apply_ios() -> void:
 func _apply_android() -> void:
 	var app_id := StoreConfig.android_app_id()
 	if app_id.is_empty():
-		push_error("Android export needs an AdMob app id. Fill scripts/store_config.gd, or leave USE_TEST_ADS on.")
+		push_error("Android export needs the real AdMob app id in scripts/store_config.gd.")
 		return
 	ProjectSettings.set_setting("admob/general/android/enabled", true)
 	ProjectSettings.set_setting("admob/general/android/app_id", app_id)

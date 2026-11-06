@@ -1,6 +1,6 @@
 # iOS and Android
 
-The web build is still the one GitHub Pages ships. Ads and the remove-ads purchase do nothing on the web and in the editor. On a phone they use test ads until `scripts/store_config.gd` says otherwise.
+The web build is still the one GitHub Pages ships. Ads and the remove-ads purchase do nothing on the web and in the editor. On a phone, dev and TestFlight builds request Google's test ad units until `USE_TEST_ADS` in `scripts/store_config.gd` is turned off. The AdMob app id in the binary is the real one either way.
 
 Landscape only. The project setting `display/window/handheld/orientation` is sensor landscape, so the phone may lie on either side and never in portrait. Dragging still moves the ship: touch is `InputEventScreenTouch` / `InputEventScreenDrag`, and the pause target stays at least 44 points, inset by the notch when the phone has one.
 
@@ -17,13 +17,12 @@ The prompt text is `StoreConfig.ATT_USAGE_DESCRIPTION`. The export plugin writes
 
 `scripts/store_config.gd`
 
-- `USE_TEST_ADS` defaults to `true`. Test ad units are Google's public samples.
-- Real app ids and ad unit ids are the empty strings in that file. Paste them there. Do not put them in a second file.
-- On export, `addons/raw_store` copies the app id (the one with `~`) into the AdMob project settings that the Poing exporter bakes into the manifest and Info.plist.
-- Ad unit ids (the ones with `/`) are read at runtime from the same file.
-- `remove_ads` is the product id. The $2.99 price is set in the stores, not in code. The button shows the store's localized price once the store returns it.
+- `USE_TEST_ADS` defaults to `true`. Dev and TestFlight builds request Google's sample ad units. Real interstitial units are already in this file and are used only when the flag is `false`.
+- The real AdMob app ids are filled in. Export always writes those into Info.plist (`GADApplicationIdentifier`) and the Android manifest (`com.google.android.gms.ads.APPLICATION_ID`), including while test units are on.
+- Banner and rewarded real unit ids are still empty. Those formats stay on Google's sample units until the ids are pasted and the flag is off.
+- `remove_ads` is the product id. It is already created in App Store Connect as a non-consumable. The $2.99 price is set in the stores, not in code.
 
-A store build that should earn money sets `USE_TEST_ADS` to `false` and fills the real ids. Exporting with the flag off and an empty app id stops with an error.
+To serve real interstitials, set `USE_TEST_ADS` to `false` in `scripts/store_config.gd` and export again. Leave it `true` for a Mac dev run or a TestFlight build.
 
 ## Build the iOS app on a Mac
 
@@ -32,18 +31,20 @@ Godot 4.7.2, Xcode 15 or newer, and an Apple Developer account.
 1. Install the matching Godot export templates (`4.7.2.stable`).
 2. Open this folder in Godot. Project → Export → iOS. The preset is already filled in:
    - Name: `Reincarnated as WHAT?!`
-   - Bundle id: `com.thongdo.reincarnatedaswhat` (change it here and in App Store Connect if you want a different one)
+   - Bundle id: `com.thongdo.reincarnatedaswhat`
    - iPhone only, landscape, minimum iOS 15
    - Icon: `res://app_icon/app_icon_1024.png` (Godot downsizes it). Home screen also uses `app_icon_180.png`.
    - Plugins `IOSInAppPurchase` and `godot-ios-att` are on.
+   - Team ID `9589T6378Y` is already in the preset (`application/app_store_team_id`). Leave the provisioning fields empty if Xcode will sign automatically.
    - Export Project Only is on, so Godot writes an Xcode project and does not try to sign an IPA.
-3. Put your Team ID in the iOS preset (`application/app_store_team_id`). Leave the provisioning fields empty if Xcode will sign automatically.
+3. Leave `USE_TEST_ADS` as `true` in `scripts/store_config.gd` for this build. The export still writes the real iOS AdMob app id `ca-app-pub-1397621797560860~9031599553` into Info.plist as `GADApplicationIdentifier`. Requests use Google's test ad units.
 4. Export to `build/ios/reincarnated.ipa`. Godot creates `build/ios/` with the Xcode project.
 5. Open that `.xcodeproj` in Xcode.
-6. Select the app target. Signing & Capabilities: your team, Automatically manage signing. Add the **In-App Purchase** capability.
+6. Select the app target. Signing & Capabilities: team `9589T6378Y`, Automatically manage signing. Add the **In-App Purchase** capability. The product id is `remove_ads`.
 7. Pick your iPhone (the StoreKit plugin is unreliable in the Simulator) and press Run.
-8. The first launch asks for tracking, then the game. Ads between runs use Google's test ads while `USE_TEST_ADS` is true. Test ads do not earn money.
-9. For TestFlight or the App Store, in the iOS preset set Export Project Only off, Export Method Release to App Store, and archive from Xcode (Product → Archive → Distribute).
+8. The first launch asks for tracking, then the game. With the flag on, the ads are Google's test ads and do not earn money.
+9. For TestFlight, keep `USE_TEST_ADS` true, set Export Project Only off, keep Release export method on App Store, and archive from Xcode (Product → Archive → Distribute).
+10. For an App Store build that should serve the real interstitial, set `USE_TEST_ADS` to `false`, export again, then archive. Banner and rewarded stay on test units until their real ids are filled in the same file.
 
 ## Build the Android app
 
@@ -56,27 +57,34 @@ Godot 4.7.2, Android SDK, and a JDK that matches the Godot 4.7 Android docs. The
    - Min SDK 24, arm64-v8a, landscape
    - Adaptive icons from `app_icon/android_adaptive_foreground_432.png` and `android_adaptive_background_432.png`
    - Export format: AAB (`build/android/reincarnated.aab`) for Play
-3. For a cable install, switch Export Format to APK and set the path to `build/android/reincarnated.apk`. Debug exports use Godot's debug keystore. Release exports need a keystore filled in on the preset (do not commit the passwords; Godot keeps those in `export_credentials.cfg`, which is gitignored).
-4. Install the APK, or upload the AAB to Play Console's internal testing track. Billing and real ads only work on a build Play signed, installed from a testing track, with a license tester account.
+3. Leave `USE_TEST_ADS` true. Export still writes the real Android AdMob app id `ca-app-pub-1397621797560860~1097269219` into the manifest. Requests use Google's test ad units. Set the flag to `false` and export again only when the build should serve the real interstitial.
+4. For a cable install, switch Export Format to APK and set the path to `build/android/reincarnated.apk`. Debug exports use Godot's debug keystore. Release exports need a keystore filled in on the preset (do not commit the passwords; Godot keeps those in `export_credentials.cfg`, which is gitignored).
+5. Install the APK, or upload the AAB to Play Console's internal testing track. Billing and real ads only work on a build Play signed, installed from a testing track, with a license tester account.
 
 ## What to create in the consoles
 
-Do these before flipping `USE_TEST_ADS` off.
+App ids and interstitial units are already in `scripts/store_config.gd`. Banner and rewarded real units are not.
 
 ### AdMob
 
-1. Create an AdMob account and two apps (Android and iOS), or one app per platform. The package name and bundle id must match `com.thongdo.reincarnatedaswhat`.
-2. Copy each **App ID** (`ca-app-pub-…~…`) into `REAL_ANDROID_APP_ID` and `REAL_IOS_APP_ID`.
-3. Create one **Banner** ad unit per platform. Paste them into `REAL_ANDROID_BANNER_UNIT_ID` and `REAL_IOS_BANNER_UNIT_ID`. The game uses this as an adaptive banner on the death card only.
-4. Create one **Interstitial** ad unit per platform. Paste them into `REAL_ANDROID_INTERSTITIAL_UNIT_ID` and `REAL_IOS_INTERSTITIAL_UNIT_ID`.
-5. Create one **Rewarded** ad unit per platform. Paste them into `REAL_ANDROID_REWARDED_UNIT_ID` and `REAL_IOS_REWARDED_UNIT_ID`. This is the "choose your form" ad.
-6. Privacy & messaging: create a GDPR / EEA message so the UMP form can show in Europe. Do not also create an IDFA message there. The game already shows Apple's tracking prompt after the GDPR form, and a second message would ask twice.
-7. Set `USE_TEST_ADS` to `false` and export again. The export step copies the app ids into the binary. Ad unit ids are read when the app runs. While the flag is on, the game uses Google's sample banner, interstitial, and rewarded units.
+1. The Android app id `ca-app-pub-1397621797560860~1097269219` is `REAL_ANDROID_APP_ID`. Export writes it into the manifest as `com.google.android.gms.ads.APPLICATION_ID`.
+2. The iOS app id `ca-app-pub-1397621797560860~9031599553` is `REAL_IOS_APP_ID`. Export writes it into Info.plist as `GADApplicationIdentifier`.
+3. Interstitial units are filled: Android `ca-app-pub-1397621797560860/3747483284`, iOS `ca-app-pub-1397621797560860/3293196875`. They are requested only when `USE_TEST_ADS` is `false`.
+4. Banner and rewarded real units are still empty. Create those in AdMob when you want them, then paste them into `REAL_ANDROID_BANNER_UNIT_ID`, `REAL_IOS_BANNER_UNIT_ID`, `REAL_ANDROID_REWARDED_UNIT_ID`, and `REAL_IOS_REWARDED_UNIT_ID`.
+5. Privacy & messaging: create a GDPR / EEA message so the UMP form can show in Europe. Do not also create an IDFA message there. The game already shows Apple's tracking prompt after the GDPR form, and a second message would ask twice.
+
+### app-ads.txt
+
+Not published. Do not add this file to the GitHub Pages site yet. When AdMob should crawl it, host this single line at `https://<the-domain-registered-in-AdMob>/app-ads.txt`:
+
+```
+google.com, pub-1397621797560860, DIRECT, f08c47fec0942fa0
+```
 
 ### App Store Connect
 
 1. New app. Name `Reincarnated as WHAT?!`. Bundle id `com.thongdo.reincarnatedaswhat` (register the id under Certificates, Identifiers & Profiles first, with In-App Purchase enabled).
-2. In-App Purchases → Non-Consumable. Product id exactly `remove_ads`. Price $2.99. Display name such as "Remove ads". A non-consumable stays owned across reinstalls.
+2. The non-consumable `remove_ads` is already created in App Store Connect. Price $2.99. The game already uses that product id.
 3. The app already has a Restore button on the pause menu and on the card after the first interstitial. Apple requires that.
 4. App Privacy labels: see below.
 5. Age rating: frequent cartoon violence is already in the game. Ads are interstitials between runs. Answer the ads questions as third-party advertising, unrestricted, not designed for children.

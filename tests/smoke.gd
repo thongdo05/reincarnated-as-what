@@ -4494,8 +4494,26 @@ func _restore_user_file(path: String, body: String) -> void:
 
 func _check_ad_policy() -> int:
 	var failed := 0
-	if not StoreConfig.USE_TEST_ADS or not StoreConfig.real_ids_are_empty():
-		push_error("test ads should default on, with real ids left empty")
+	if not StoreConfig.USE_TEST_ADS:
+		push_error("test ads should stay on until a store build flips the flag")
+		failed += 1
+	if StoreConfig.ios_app_id() != "ca-app-pub-1397621797560860~9031599553":
+		push_error("iOS AdMob app id should be the real one even while test units are on")
+		failed += 1
+	if StoreConfig.android_app_id() != "ca-app-pub-1397621797560860~1097269219":
+		push_error("Android AdMob app id should be the real one even while test units are on")
+		failed += 1
+	if StoreConfig.REAL_IOS_INTERSTITIAL_UNIT_ID != "ca-app-pub-1397621797560860/3293196875":
+		push_error("iOS interstitial unit id is not the store unit")
+		failed += 1
+	if StoreConfig.REAL_ANDROID_INTERSTITIAL_UNIT_ID != "ca-app-pub-1397621797560860/3747483284":
+		push_error("Android interstitial unit id is not the store unit")
+		failed += 1
+	if not StoreConfig.REAL_IOS_BANNER_UNIT_ID.is_empty() or not StoreConfig.REAL_ANDROID_BANNER_UNIT_ID.is_empty():
+		push_error("banner real units are not created yet")
+		failed += 1
+	if not StoreConfig.REAL_IOS_REWARDED_UNIT_ID.is_empty() or not StoreConfig.REAL_ANDROID_REWARDED_UNIT_ID.is_empty():
+		push_error("rewarded real units are not created yet")
 		failed += 1
 	if StoreConfig.REMOVE_ADS_PRODUCT_ID != "remove_ads":
 		push_error("remove ads product id changed")

@@ -2,21 +2,23 @@ class_name StoreConfig
 
 ## The only place real store and ad IDs go.
 ##
-## USE_TEST_ADS stays true until a store build. Test IDs below are Google's
-## published sample values (https://developers.google.com/admob/android/test-ads
-## and the iOS equivalent). They are not secrets.
+## USE_TEST_ADS stays true for dev and TestFlight. Those builds request Google's
+## sample ad units. Set it to false only for a store build that should serve
+## the real interstitial units below. The app ids are always the real ones:
+## export writes them into Info.plist and the Android manifest either way.
 ##
-## Real app IDs contain "~". Real ad unit IDs contain "/". Leave them empty.
-## The price of remove_ads is set in App Store Connect and Play Console, not here.
+## App IDs contain "~". Ad unit IDs contain "/".
+## Banner and rewarded real units are still empty.
+## The price of remove_ads is set in the stores, not in code.
 
 const USE_TEST_ADS := true
 
-const REAL_ANDROID_APP_ID := ""
-const REAL_IOS_APP_ID := ""
+const REAL_ANDROID_APP_ID := "ca-app-pub-1397621797560860~1097269219"
+const REAL_IOS_APP_ID := "ca-app-pub-1397621797560860~9031599553"
 const REAL_ANDROID_BANNER_UNIT_ID := ""
 const REAL_IOS_BANNER_UNIT_ID := ""
-const REAL_ANDROID_INTERSTITIAL_UNIT_ID := ""
-const REAL_IOS_INTERSTITIAL_UNIT_ID := ""
+const REAL_ANDROID_INTERSTITIAL_UNIT_ID := "ca-app-pub-1397621797560860/3747483284"
+const REAL_IOS_INTERSTITIAL_UNIT_ID := "ca-app-pub-1397621797560860/3293196875"
 const REAL_ANDROID_REWARDED_UNIT_ID := ""
 const REAL_IOS_REWARDED_UNIT_ID := ""
 
@@ -47,15 +49,13 @@ static func stores_available() -> bool:
 	return OS.has_feature("android") or OS.has_feature("ios")
 
 
+## Always the real app id. AdMob wants this in the binary even when the
+## requests use Google's test ad units.
 static func ios_app_id() -> String:
-	if USE_TEST_ADS:
-		return TEST_IOS_APP_ID
 	return REAL_IOS_APP_ID.strip_edges()
 
 
 static func android_app_id() -> String:
-	if USE_TEST_ADS:
-		return TEST_ANDROID_APP_ID
 	return REAL_ANDROID_APP_ID.strip_edges()
 
 

@@ -55,12 +55,12 @@ environment/defaults/default_clear_color=Color(0.0627451, 0.0470588, 0.0784314, 
 [admob]
 
 general/android/enabled=true
-general/android/app_id="ca-app-pub-3940256099942544~3347511713"
+general/android/app_id="ca-app-pub-1397621797560860~1097269219"
 general/android/enable_r8_optimization=false
 general/android/disable_initialization_optimization=false
 general/android/disable_ad_loading_optimization=false
 general/ios/enabled=true
-general/ios/app_id="ca-app-pub-3940256099942544~1458002511"
+general/ios/app_id="ca-app-pub-1397621797560860~9031599553"
 mediation/applovin=false
 mediation/bidmachine=false
 mediation/chartboost=false
