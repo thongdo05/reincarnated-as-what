@@ -301,8 +301,13 @@ func _draw() -> void:
 		draw_rect(Rect2(left, y, width, 2), Color(0, 0, 0, 0.7))
 		draw_rect(Rect2(left, y, width * float(hp) / float(max_hp), 2), Color("f4efe4"))
 
+## Gold muzzle pip and short aim line while a shot is still armed.
+## Bosses that should not show those marks override this. The windup stays.
+func draws_shot_pips() -> bool:
+	return true
+
 func _draw_telegraphs() -> void:
-	if telegraphs.is_empty():
+	if not draws_shot_pips() or telegraphs.is_empty():
 		return
 	var pulse := 0.45 + 0.45 * absf(sin(age * 28.0))
 	var ink := Color(1.0, 0.82, 0.35, pulse)
