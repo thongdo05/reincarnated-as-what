@@ -28,7 +28,7 @@ To serve real interstitials, set `USE_TEST_ADS` to `false` in `scripts/store_con
 
 Godot 4.7.2, Xcode 15 or newer, and an Apple Developer account.
 
-1. Install the matching Godot export templates (`4.7.2.stable`).
+1. Install the matching Godot export templates (`4.7.2.stable`). Godot refuses the iOS export until Project Settings → Rendering → Textures → VRAM Compression → Import ETC2 ASTC is on. The textures themselves stay lossless. The TestFlight workflow turns that setting on in the runner's copy of `project.godot` and does not commit it, so the web export is unchanged.
 2. Open this folder in Godot. Project → Export → iOS. The preset is already filled in:
    - Name: `Reincarnated as WHAT?!`
    - Bundle id: `com.thongdo.reincarnatedaswhat`
@@ -43,8 +43,54 @@ Godot 4.7.2, Xcode 15 or newer, and an Apple Developer account.
 6. Select the app target. Signing & Capabilities: team `9589T6378Y`, Automatically manage signing. Add the **In-App Purchase** capability. The product id is `remove_ads`.
 7. Pick your iPhone (the StoreKit plugin is unreliable in the Simulator) and press Run.
 8. The first launch asks for tracking, then the game. With the flag on, the ads are Google's test ads and do not earn money.
-9. For TestFlight, keep `USE_TEST_ADS` true, set Export Project Only off, keep Release export method on App Store, and archive from Xcode (Product → Archive → Distribute).
+9. For TestFlight from a Mac, keep `USE_TEST_ADS` true, set Export Project Only off, keep Release export method on App Store, and archive from Xcode (Product → Archive → Distribute). The store version on the preset is `1.0` (`application/short_version`). The build number (`application/version`) stays `1` for a local archive. Without a Mac, use the GitHub Actions workflow in the next section.
 10. For an App Store build that should serve the real interstitial, set `USE_TEST_ADS` to `false`, export again, then archive. Banner and rewarded stay on test units until their real ids are filled in the same file.
+
+## TestFlight from GitHub Actions
+
+No Mac. Actions → **iOS TestFlight** → Run workflow. The workflow is `workflow_dispatch` only. It does not run on push or on a pull request, and it does not change the web export or `.github/workflows/pages.yml`.
+
+The runner is a GitHub-hosted `macos-26` machine with Xcode 26, which is what App Store Connect currently requires for an iOS upload. It installs Godot 4.7.2 and the matching export templates, checks the vendored AdMob, StoreKit, and ATT release libraries (and downloads the AdMob ads xcframework only if that file is missing), exports the Xcode project, archives it, and uploads the IPA to the existing App Store Connect app `6831784046`.
+
+- Store version stays **1.0**. The build number is `github.run_number` for that workflow, so a second upload does not reuse build 1. The first successful run is build 1. If a build with that number was already uploaded, run the workflow again.
+- `USE_TEST_ADS` stays `true` unless you check **Use real AdMob unit ids**. That checkbox edits the runner's copy of `scripts/store_config.gd` for that build only. It is not committed. Banner and rewarded real unit ids are still empty, so those formats stay on Google's sample units even when the box is checked.
+- The upload uses `xcrun altool` with the App Manager API key. The `.p8` is written to a temp file mode `0600` and deleted at the end, including when the job fails. The log does not print it.
+
+### Signing
+
+Signing is already done, outside CI. The Apple Distribution certificate is `8S3BW29TWP`. The App Store profile is `reincarnatedaswhat App Store` (`6KJ54JLQ6U`). They were created by running `tools/ios_signing_bootstrap.py` locally with a temporary Admin API key. That key is not a repository secret.
+
+The TestFlight workflow does not create a certificate. Apple allows one Apple Distribution certificate per team, and it will not give the private key back. A new runner has an empty keychain, so Xcode's `-allowProvisioningUpdates` would ask Apple for a new certificate on every run. An App Manager key cannot create certificates or profiles anyway.
+
+Each TestFlight run installs the saved `.p12` and the saved App Store profile into a temporary keychain and signs manually (`CODE_SIGN_STYLE=Manual`, no `-allowProvisioningUpdates`). It reads exactly these six secrets:
+
+| Secret | What it is |
+| --- | --- |
+| `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID at the top of App Store Connect → Users and Access → Integrations → Team Keys. |
+| `APP_STORE_CONNECT_KEY_ID` | Key ID of the App Manager key. |
+| `APP_STORE_CONNECT_API_KEY_P8` | Raw contents of that key's `AuthKey_XXXX.p8`, including the `BEGIN PRIVATE KEY` line. Not base64. |
+| `IOS_DISTRIBUTION_P12_BASE64` | Base64 of the distribution `.p12`. |
+| `IOS_DISTRIBUTION_P12_PASSWORD` | Password for that `.p12`. One line, no leading dash. |
+| `IOS_PROVISIONING_PROFILE_BASE64` | Base64 of the App Store `.mobileprovision`. |
+
+There is no Actions workflow for the bootstrap. Do not upload the `.p12`, the profile, or the work directory as an artifact. This repository is public, so an artifact would be public.
+
+`tools/ios_signing_bootstrap.py` stays in the repo as a local tool for the day the certificate has to be replaced. Create a temporary Admin Team key, download its `.p8` once, and run it on your own machine. Revoke that Admin key when you are done. Do not store the Admin key in GitHub secrets.
+
+```bash
+python3 tools/ios_signing_bootstrap.py \
+  --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+  --key-id "$ADMIN_KEY_ID" \
+  --key-path ./AuthKey_ADMIN.p8 \
+  --export-password-file ./export-password.txt \
+  --confirm REVOKE-AND-CREATE-ONE-DISTRIBUTION-CERT \
+  --revoke-certificate-id 8S3BW29TWP \
+  --work-dir build/ios-signing-work
+```
+
+`build/` is gitignored. `--work-dir` is not deleted if Apple issues the certificate and a later step fails, so `distribution.key` is still on disk. A first certificate, when the team has none, uses `--confirm CREATE-ONE-DISTRIBUTION-CERT` and omits `--revoke-certificate-id`. Replacing only the profile uses `--refresh-profile-only` and `--confirm REFRESH-APP-STORE-PROFILE`. Then update the three signing secrets from that directory and delete it.
+
+`godot-ios-att` is still the 4.7.1 binary. If the Xcode log says it cannot link `GodotIosAtt`, rebuild that plugin for 4.7.2 and replace `ios/plugins/godot-ios-att`. The workflow does not rebuild it.
 
 ## Build the Android app
 
@@ -141,3 +187,5 @@ Use the list above when you fill the forms. The binary privacy manifest (device 
 ## What was not run here
 
 Linux CI can export the web build and run the headless smoke test. It cannot compile the Xcode project or the Android Gradle project, and it cannot show a test ad or complete a sandbox purchase. Those steps are the Mac and device passes above.
+
+The TestFlight workflow was not run from this environment, so nothing was archived with Xcode or uploaded. The distribution certificate `8S3BW29TWP` and the profile `reincarnatedaswhat App Store` (`6KJ54JLQ6U`) were created locally. `tools/test_ios_ci.py` checks the version edit, the AdMob Swift package patch, the local signing bundle, and that the TestFlight workflow uses only the six signing secrets. A headless Godot 4.7.2 export of the iOS Xcode project on Linux checks that the project, the version, and the AdMob package are written. It does not run `xcodebuild`.
