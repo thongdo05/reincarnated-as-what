@@ -1,0 +1,2 @@
+# Binaries are vendored. Ignore only the plugin downloader cache.
+downloads/

@@ -35,6 +35,8 @@ func _initialize() -> void:
 	_unit_failed += _check_lb_parse()
 	_unit_failed += _check_bosses()
 	_unit_failed += load("res://tests/dragon_phase_checks.gd").new().run()
+	_unit_failed += _check_ad_policy()
+	_unit_failed += _check_safe_insets()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -4489,6 +4491,116 @@ func _restore_user_file(path: String, body: String) -> void:
 	if file != null:
 		file.store_string(body)
 		file.close()
+
+func _check_ad_policy() -> int:
+	var failed := 0
+	if not StoreConfig.USE_TEST_ADS:
+		push_error("test ads should stay on until a store build flips the flag")
+		failed += 1
+	if StoreConfig.ios_app_id() != "ca-app-pub-1397621797560860~9031599553":
+		push_error("iOS AdMob app id should be the real one even while test units are on")
+		failed += 1
+	if StoreConfig.android_app_id() != "ca-app-pub-1397621797560860~1097269219":
+		push_error("Android AdMob app id should be the real one even while test units are on")
+		failed += 1
+	if StoreConfig.REAL_IOS_INTERSTITIAL_UNIT_ID != "ca-app-pub-1397621797560860/3293196875":
+		push_error("iOS interstitial unit id is not the store unit")
+		failed += 1
+	if StoreConfig.REAL_ANDROID_INTERSTITIAL_UNIT_ID != "ca-app-pub-1397621797560860/3747483284":
+		push_error("Android interstitial unit id is not the store unit")
+		failed += 1
+	if not StoreConfig.REAL_IOS_BANNER_UNIT_ID.is_empty() or not StoreConfig.REAL_ANDROID_BANNER_UNIT_ID.is_empty():
+		push_error("banner real units are not created yet")
+		failed += 1
+	if not StoreConfig.REAL_IOS_REWARDED_UNIT_ID.is_empty() or not StoreConfig.REAL_ANDROID_REWARDED_UNIT_ID.is_empty():
+		push_error("rewarded real units are not created yet")
+		failed += 1
+	if StoreConfig.REMOVE_ADS_PRODUCT_ID != "remove_ads":
+		push_error("remove ads product id changed")
+		failed += 1
+	if StoreConfig.TEST_ANDROID_BANNER_UNIT_ID != "ca-app-pub-3940256099942544/6300978111":
+		push_error("android test banner is not Google's sample unit")
+		failed += 1
+	if StoreConfig.TEST_IOS_BANNER_UNIT_ID != "ca-app-pub-3940256099942544/2934735716":
+		push_error("ios test banner is not Google's sample unit")
+		failed += 1
+	if StoreConfig.TEST_ANDROID_INTERSTITIAL_UNIT_ID != "ca-app-pub-3940256099942544/1033173712":
+		push_error("android test interstitial is not Google's sample unit")
+		failed += 1
+	if StoreConfig.TEST_IOS_INTERSTITIAL_UNIT_ID != "ca-app-pub-3940256099942544/4411468910":
+		push_error("ios test interstitial is not Google's sample unit")
+		failed += 1
+	if StoreConfig.TEST_ANDROID_REWARDED_UNIT_ID != "ca-app-pub-3940256099942544/5224354917":
+		push_error("android test rewarded unit is not Google's sample")
+		failed += 1
+	if StoreConfig.RUNS_BEFORE_ADS != 5 or StoreConfig.RUNS_BETWEEN_ADS != 5:
+		push_error("interstitials should be every 5 runs, after the first 5")
+		failed += 1
+	if StoreConfig.ATT_USAGE_DESCRIPTION.is_empty() or StoreConfig.att_plist().find("NSUserTrackingUsageDescription") < 0:
+		push_error("the tracking prompt text should land in the iOS plist")
+		failed += 1
+	if StoreConfig.stores_available():
+		push_error("ads and purchases should be inert in the editor, on the web, and in this check")
+		failed += 1
+	for completed in [0, 1, 2, 3, 4, 6, 7, 8, 9]:
+		if AdPolicy.interstitial_due(completed, false, false, false):
+			push_error("run %d should not be an interstitial slot" % completed)
+			failed += 1
+	for completed in [5, 10, 15]:
+		if not AdPolicy.interstitial_due(completed, false, false, false):
+			push_error("run %d should be an interstitial slot" % completed)
+			failed += 1
+		if AdPolicy.interstitial_due(completed, true, false, false):
+			push_error("remove ads should block the interstitial")
+			failed += 1
+		if AdPolicy.interstitial_due(completed, false, true, false):
+			push_error("an interstitial must not show mid-run")
+			failed += 1
+		if AdPolicy.interstitial_due(completed, false, false, true):
+			push_error("an interstitial must not show during a boss fight")
+			failed += 1
+	if not AdPolicy.banner_visible(true, false, false):
+		push_error("the banner belongs on the death screen")
+		failed += 1
+	if AdPolicy.banner_visible(false, false, false) or AdPolicy.banner_visible(true, true, false) or AdPolicy.banner_visible(true, false, true):
+		push_error("the banner must stay off during play, off the death card, and after remove ads")
+		failed += 1
+	if not AdPolicy.rewarded_opens_picker(true) or AdPolicy.rewarded_opens_picker(false):
+		push_error("the form picker opens only from the rewarded callback")
+		failed += 1
+	if AdPolicy.form_is_pickable(FormCatalog.Id.DRAGON):
+		push_error("Dragon is not a pickable form")
+		failed += 1
+	for id in FormCatalog.IDS:
+		if not AdPolicy.form_is_pickable(id):
+			push_error("regular form %s should be pickable" % FormCatalog.display_name(id))
+			failed += 1
+	var script = load("res://scripts/game.gd")
+	var safe := Rect2(80, 0, 1760, 1080)
+	var band: Rect2 = script.death_banner_rect(safe, 90.0)
+	if band.position.y + band.size.y != safe.position.y + safe.size.y or band.position.x != safe.position.x or band.size.x != safe.size.x:
+		push_error("banner should sit on the bottom of the safe area, got %s" % band)
+		failed += 1
+	if not safe.encloses(band):
+		push_error("banner left the safe area %s" % band)
+		failed += 1
+	return failed
+
+
+func _check_safe_insets() -> int:
+	var failed := 0
+	var script = load("res://scripts/game.gd")
+	var full: Vector4 = script.safe_insets_for(Vector2(480, 270), Vector2(1920, 1080), Rect2(0, 0, 1920, 1080))
+	if full != Vector4.ZERO:
+		push_error("a full-window safe rect should not move the HUD, got %s" % full)
+		failed += 1
+	# 4x integer scale, 80 device pixels of notch on each side.
+	var notch: Vector4 = script.safe_insets_for(Vector2(480, 270), Vector2(1920, 1080), Rect2(80, 0, 1760, 1080))
+	if absf(notch.x - 20.0) > 0.01 or absf(notch.z - 20.0) > 0.01 or notch.y > 0.01 or notch.w > 0.01:
+		push_error("notch insets should be 20 viewport pixels on each side, got %s" % notch)
+		failed += 1
+	return failed
+
 
 func _check_bosses() -> int:
 	var failed := 0

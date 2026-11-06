@@ -105,6 +105,17 @@ var _pause_button: Button
 var _pause_icon: TextureRect
 var _pause_overlay: Control
 var _pause_card: PauseCard
+var _remove_ads_button: Button
+var _restore_ads_button: Button
+var _remove_offer: Control
+var _offer_remove: Button
+var _offer_restore: Button
+var _offer_dismiss: Button
+var _restart_busy := false
+var _offer_waiting := false
+var _chosen_next_form := -1
+var _form_pick_button: Button
+var _form_picker: Control
 var _sound: SoundRig
 var _sound_button: Button
 var _sound_label: Label
@@ -473,6 +484,7 @@ func _build_hud() -> void:
 	_pause_card.setup(_font_outlined)
 	_pause_overlay.add_child(_pause_card)
 	_refresh_pause_card()
+	_build_store_controls()
 
 	_pause_button = Button.new()
 	_pause_button.focus_mode = Control.FOCUS_NONE
@@ -1774,6 +1786,8 @@ func _kill_player(name: String) -> void:
 		_death_fx.start(_player.position, _player.sprite_name())
 	_present_death()
 	_refresh_hud()
+	if Monetization != null:
+		Monetization.note_run_ended()
 
 func _present_death() -> void:
 	var stage := FxTimeline.death_stage(death_elapsed)
@@ -1809,6 +1823,7 @@ func _show_game_over() -> void:
 	_layout_death_card()
 	_game_over.visible = true
 	_present_online_score()
+	_sync_death_banner()
 
 func _set_default_death(form_name: String, reached_rank: String) -> void:
 	var prior := BestScores.read()
@@ -1844,7 +1859,7 @@ func _layout_death_card() -> void:
 	if _restart_button == null or _share_label == null:
 		return
 	var field := _viewport_size()
-	var margin := 10.0
+	var margin := 10.0 + _death_banner_reserve(field)
 	var share_w := 112.0
 	var gap := 8.0
 	var reinc_w := minf(252.0, field.x - 16.0 - share_w - gap)
@@ -1895,7 +1910,15 @@ func _layout_death_card() -> void:
 	var text_width := minf(448.0, field.x - 16.0)
 	var text_left := (field.x - text_width) * 0.5
 	var text_top := 6.0
-	var text_bottom := button_pos.y - challenge_gap - challenge_h - 6.0
+	var pick_h := 0.0
+	var pick_gap := 0.0
+	if _form_pick_button != null and _form_pick_button.visible:
+		pick_h = 22.0
+		pick_gap = 4.0
+	var text_bottom := button_pos.y - challenge_gap - challenge_h - pick_gap - pick_h - 6.0
+	if pick_h > 0.0:
+		var pick_w := minf(280.0, field.x - 16.0)
+		_place_death_control(_form_pick_button, Vector2((field.x - pick_w) * 0.5, text_bottom + 6.0), Vector2(pick_w, pick_h))
 	var text_height := maxf(text_bottom - text_top, 48.0)
 	var kicker_h := 14.0
 	var seed_h := 14.0
@@ -2280,11 +2303,37 @@ func _on_restart() -> void:
 		CaptureMode.note_player_retry(_public_form())
 		get_tree().reload_current_scene()
 		return
+	if _restart_busy:
+		return
 	if phase != PHASE_DEAD or not game_over_visible:
 		return
 	if _card_age < Replay.CARD_GUARD:
 		return
-	_reincarnate()
+	_restart_busy = true
+	if Monetization != null:
+		Monetization.hide_banner()
+	# Web, editor, and headless stay synchronous so a card tap still opens the
+	# next run in the same call. The store path can wait on an ad.
+	if Monetization == null or not Monetization.store_buttons_visible():
+		_reincarnate()
+		_restart_busy = false
+		return
+	_finish_restart()
+
+
+func _finish_restart() -> void:
+	# The fight is over once the run is dead, even if the boss sprite is still
+	# on the card. in_run / boss_fight stay true only while play is underway.
+	var in_run := phase == PHASE_PLAY
+	var boss_fight := in_run and _living_boss() != null
+	var offer := false
+	if Monetization != null:
+		offer = await Monetization.play_between_runs(in_run, boss_fight)
+	if offer and is_inside_tree():
+		await _prompt_remove_ads()
+	if is_inside_tree():
+		_reincarnate()
+	_restart_busy = false
 
 ## Kaito has no middle dot, so the seed line uses a hyphen.
 func _seed_line() -> String:
@@ -2375,14 +2424,15 @@ func pause_hit_px(viewport: Vector2, window: Vector2, screen_scale: float) -> fl
 	var from_points := PAUSE_MIN_PT / points_per_px
 	return maxf(ceilf(from_points), PAUSE_MIN_PT)
 
-func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float) -> void:
+func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float, insets: Vector4 = Vector4.ZERO) -> void:
 	if _pause_button == null or _pause_icon == null:
 		return
 	var hit := pause_hit_px(viewport, window, screen_scale)
 	var control_size := Vector2(hit, hit)
 	var art := Vector2(PAUSE_ART_PX, PAUSE_ART_PX)
 	# The 18px mark stays where the HUD mock puts it. The hit target grows left and down.
-	var art_pos := Vector2(viewport.x - 4.0 - PAUSE_ART_PX, 4.0)
+	# insets moves it off a notch or the home indicator. Zero keeps the desktop layout.
+	var art_pos := Vector2(viewport.x - 4.0 - insets.z - PAUSE_ART_PX, 4.0 + insets.y)
 	var button_pos := art_pos - Vector2(hit - PAUSE_ART_PX, 0.0)
 	button_pos.x = clampf(button_pos.x, 0.0, maxf(viewport.x - hit, 0.0))
 	button_pos.y = clampf(button_pos.y, 0.0, maxf(viewport.y - hit, 0.0))
@@ -2397,6 +2447,7 @@ func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float)
 	icon_pos.y = clampf(icon_pos.y, 0.0, maxf(hit - PAUSE_ART_PX, 0.0))
 	_pause_icon.position = icon_pos
 	_layout_pause_card(viewport)
+	_layout_store_row(viewport)
 	var show := phase == PHASE_PLAY or _paused
 	_pause_button.visible = show
 	if _pause_overlay != null:
@@ -2425,9 +2476,293 @@ func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float)
 			show_blocked = show_blocked and (phase == PHASE_REVEAL or phase == PHASE_PLAY or _paused)
 			_audio_blocked_button.visible = show_blocked
 
+func _build_store_controls() -> void:
+	if Monetization == null or not Monetization.store_buttons_visible():
+		return
+	_remove_ads_button = _make_store_button()
+	_restore_ads_button = _make_store_button()
+	_restore_ads_button.text = "RESTORE"
+	_remove_ads_button.pressed.connect(_on_remove_ads_pressed)
+	_restore_ads_button.pressed.connect(_on_restore_ads_pressed)
+	_pause_overlay.add_child(_remove_ads_button)
+	_pause_overlay.add_child(_restore_ads_button)
+	_remove_offer = Control.new()
+	_remove_offer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_remove_offer.visible = false
+	_remove_offer.mouse_filter = Control.MOUSE_FILTER_STOP
+	_remove_offer.z_index = 30
+	_hud.add_child(_remove_offer)
+	var shade := ColorRect.new()
+	shade.color = Color(0.04, 0.03, 0.07, 0.82)
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	_remove_offer.add_child(shade)
+	var title := _make_label(9, Color("ffe56a"))
+	title.text = "Ads play between runs."
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(16, 78)
+	title.size = Vector2(448, 16)
+	_remove_offer.add_child(title)
+	_offer_remove = _make_store_button()
+	_offer_restore = _make_store_button()
+	_offer_restore.text = "RESTORE"
+	_offer_dismiss = _make_store_button()
+	_offer_dismiss.text = "NOT NOW"
+	_offer_remove.pressed.connect(_on_offer_remove)
+	_offer_restore.pressed.connect(_on_restore_ads_pressed)
+	_offer_dismiss.pressed.connect(_on_offer_dismiss)
+	_remove_offer.add_child(_offer_remove)
+	_remove_offer.add_child(_offer_restore)
+	_remove_offer.add_child(_offer_dismiss)
+	_layout_offer()
+	_form_pick_button = _make_store_button()
+	_form_pick_button.text = "Watch ad: choose your form"
+	_form_pick_button.pressed.connect(_on_form_pick_pressed)
+	_game_over.add_child(_form_pick_button)
+	_build_form_picker()
+	if not Monetization.state_changed.is_connected(_refresh_store_buttons):
+		Monetization.state_changed.connect(_refresh_store_buttons)
+	_refresh_store_buttons()
+
+
+func _make_store_button() -> Button:
+	var button := Button.new()
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("241428")
+	style.set_border_width_all(2)
+	style.border_color = Color("f0d78c")
+	style.set_corner_radius_all(0)
+	style.content_margin_left = 4
+	style.content_margin_right = 4
+	for state in ["normal", "hover", "pressed", "focus"]:
+		button.add_theme_stylebox_override(state, style)
+	button.add_theme_font_override("font", _font_outlined)
+	button.add_theme_font_size_override("font_size", 9)
+	button.add_theme_color_override("font_color", Color("f2fbff"))
+	button.add_theme_color_override("font_hover_color", Color("f2fbff"))
+	button.add_theme_color_override("font_pressed_color", Color("f2fbff"))
+	return button
+
+
+func _layout_store_row(viewport: Vector2) -> void:
+	if _remove_ads_button == null or _pause_card == null:
+		return
+	var height := 22.0
+	var y := viewport.y - 4.0 - height
+	var width := minf(168.0, (viewport.x - 24.0) * 0.5)
+	_remove_ads_button.position = Vector2(8, y)
+	_remove_ads_button.size = Vector2(width, height)
+	_restore_ads_button.position = Vector2(12 + width, y)
+	_restore_ads_button.size = Vector2(minf(88.0, viewport.x - width - 20.0), height)
+
+
+func _layout_offer() -> void:
+	if _offer_remove == null:
+		return
+	var field := _viewport_size()
+	var y := field.y * 0.5 - 8.0
+	var width := minf(200.0, field.x - 24.0)
+	var x := (field.x - width) * 0.5
+	_offer_remove.position = Vector2(x, y)
+	_offer_remove.size = Vector2(width, 28)
+	_offer_restore.position = Vector2(x, y + 32)
+	_offer_restore.size = Vector2(width, 22)
+	_offer_dismiss.position = Vector2(x, y + 58)
+	_offer_dismiss.size = Vector2(width, 22)
+
+
+func _refresh_store_buttons() -> void:
+	if Monetization == null:
+		return
+	var label := Monetization.remove_ads_label()
+	var removed := Monetization.ads_removed
+	if _remove_ads_button != null:
+		_remove_ads_button.text = label
+		_remove_ads_button.disabled = removed
+	if _offer_remove != null:
+		_offer_remove.text = label
+		_offer_remove.disabled = removed
+	_refresh_form_pick_button()
+	if game_over_visible:
+		_layout_death_card()
+	_sync_death_banner()
+
+
+func _refresh_form_pick_button() -> void:
+	if _form_pick_button == null or Monetization == null:
+		return
+	if _chosen_next_form >= 0 and AdPolicy.form_is_pickable(_chosen_next_form):
+		_form_pick_button.text = "NEXT: " + FormCatalog.display_name(_chosen_next_form)
+		return
+	if Monetization.choose_form_is_free():
+		_form_pick_button.text = "Choose your form"
+		return
+	_form_pick_button.text = "Watch ad: choose your form"
+
+
+func _build_form_picker() -> void:
+	_form_picker = Control.new()
+	_form_picker.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_form_picker.visible = false
+	_form_picker.mouse_filter = Control.MOUSE_FILTER_STOP
+	_form_picker.z_index = 28
+	_hud.add_child(_form_picker)
+	var shade := ColorRect.new()
+	shade.color = Color(0.04, 0.03, 0.07, 0.9)
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	_form_picker.add_child(shade)
+	var title := _make_label(9, Color("ffe56a"))
+	title.text = "NEXT LIFE"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(16, 36)
+	title.size = Vector2(448, 16)
+	_form_picker.add_child(title)
+	var names := {
+		FormCatalog.Id.SLIME: "SLIME",
+		FormCatalog.Id.GOBLIN: "GOBLIN",
+		FormCatalog.Id.VENDING: "VENDING",
+		FormCatalog.Id.CAT: "CAT",
+		FormCatalog.Id.DEMON: "DEMON",
+	}
+	var y := 58.0
+	for id in FormCatalog.IDS:
+		if not AdPolicy.form_is_pickable(id):
+			continue
+		var button := _make_store_button()
+		button.text = str(names.get(id, FormCatalog.display_name(id)))
+		button.position = Vector2(140, y)
+		button.size = Vector2(200, 24)
+		button.pressed.connect(_on_form_chosen.bind(id))
+		_form_picker.add_child(button)
+		y += 28.0
+	var cancel := _make_store_button()
+	cancel.text = "KEEP RANDOM"
+	cancel.position = Vector2(140, y + 4.0)
+	cancel.size = Vector2(200, 22)
+	cancel.pressed.connect(_close_form_picker)
+	_form_picker.add_child(cancel)
+
+
+func _on_form_pick_pressed() -> void:
+	if _form_pick_button == null or Monetization == null:
+		return
+	_form_pick_button.disabled = true
+	Monetization.hide_banner()
+	if Monetization.choose_form_is_free():
+		_open_form_picker()
+		_form_pick_button.disabled = false
+		return
+	var earned := await Monetization.request_rewarded_form_pick()
+	_form_pick_button.disabled = false
+	if AdPolicy.rewarded_opens_picker(earned):
+		_open_form_picker()
+
+
+func _open_form_picker() -> void:
+	if _form_picker == null:
+		return
+	_form_picker.visible = true
+	_sync_death_banner()
+
+
+func _close_form_picker() -> void:
+	if _form_picker != null:
+		_form_picker.visible = false
+	_sync_death_banner()
+
+
+func _on_form_chosen(id: int) -> void:
+	if not AdPolicy.form_is_pickable(id):
+		_close_form_picker()
+		return
+	_chosen_next_form = id
+	_close_form_picker()
+	_refresh_form_pick_button()
+
+
+func _death_banner_reserve(field: Vector2) -> float:
+	if Monetization == null or not Monetization.banner_wanted():
+		return 0.0
+	var window := Vector2(DisplayServer.window_get_size())
+	var safe := Rect2(DisplayServer.get_display_safe_area())
+	var scale := maxf(DisplayServer.screen_get_scale(), 1.0)
+	var banner_h := minf(50.0 * scale, maxf(safe.size.y, 1.0) * 0.15)
+	return death_banner_reserve(field, window, safe, banner_h)
+
+
+func _death_banner_screen_rect() -> Rect2i:
+	var safe := Rect2(DisplayServer.get_display_safe_area())
+	var scale := maxf(DisplayServer.screen_get_scale(), 1.0)
+	var banner_h := minf(50.0 * scale, maxf(safe.size.y, 1.0) * 0.15)
+	var rect := death_banner_rect(safe, banner_h)
+	return Rect2i(int(rect.position.x), int(rect.position.y), int(rect.size.x), int(rect.size.y))
+
+
+func _sync_death_banner() -> void:
+	if Monetization == null:
+		return
+	var board_open := _board != null and _board.visible
+	var picker_open := _form_picker != null and _form_picker.visible
+	var offer_open := _remove_offer != null and _remove_offer.visible
+	var on_card := game_over_visible and phase == PHASE_DEAD and not board_open and not picker_open and not offer_open
+	if on_card and Monetization.banner_wanted():
+		Monetization.show_death_banner(_death_banner_screen_rect())
+		return
+	Monetization.hide_banner()
+
+
+func _on_remove_ads_pressed() -> void:
+	if Monetization == null or Monetization.ads_removed:
+		return
+	await Monetization.purchase_remove_ads()
+	_refresh_store_buttons()
+
+
+func _on_restore_ads_pressed() -> void:
+	if Monetization != null:
+		Monetization.restore_purchases()
+
+
+func _on_offer_remove() -> void:
+	if Monetization != null and not Monetization.ads_removed:
+		await Monetization.purchase_remove_ads()
+	_refresh_store_buttons()
+	_close_remove_offer()
+
+
+func _on_offer_dismiss() -> void:
+	_close_remove_offer()
+
+
+func _close_remove_offer() -> void:
+	if _remove_offer != null:
+		_remove_offer.visible = false
+	_offer_waiting = false
+
+
+func _prompt_remove_ads() -> void:
+	if _remove_offer == null:
+		return
+	_layout_offer()
+	_refresh_store_buttons()
+	_offer_waiting = true
+	_remove_offer.visible = true
+	var frames := 0
+	while _offer_waiting and is_inside_tree() and frames < 60 * 180:
+		await get_tree().process_frame
+		frames += 1
+	_close_remove_offer()
+
+
 func _layout_pause_card(viewport: Vector2) -> void:
 	if _pause_card == null:
 		return
+	# Leave a row for Remove ads / Restore. Web and editor have no such buttons.
+	if _remove_ads_button != null:
+		viewport = Vector2(viewport.x, maxf(viewport.y - 28.0, 120.0))
 	# The pause glyph and the SND control share a column on the right.
 	var reserved := 56.0
 	if _pause_button != null:
@@ -2450,7 +2785,66 @@ func _refresh_pause_card() -> void:
 
 func _layout_pause(viewport: Vector2) -> void:
 	var window := DisplayServer.window_get_size()
-	apply_pause_layout(viewport, Vector2(window), DisplayServer.screen_get_scale())
+	var safe := DisplayServer.get_display_safe_area()
+	var insets := safe_insets_for(viewport, Vector2(window), Rect2(safe))
+	apply_pause_layout(viewport, Vector2(window), DisplayServer.screen_get_scale(), insets)
+
+
+## Window-pixel safe rect to viewport pixels. A full-window rect returns zero,
+## so a desktop check keeps the pause mark on the mock's 4px inset.
+## Bottom strip inside the safe area. The death card keeps its buttons above this.
+static func death_banner_rect(safe: Rect2, banner_h: float) -> Rect2:
+	var height := clampf(banner_h, 0.0, maxf(safe.size.y, 0.0))
+	return Rect2(safe.position.x, safe.position.y + safe.size.y - height, safe.size.x, height)
+
+
+## Viewport pixels the death card must leave empty so the banner and the notch
+## do not cover the score or the buttons. Zero when there is no banner.
+static func death_banner_reserve(viewport: Vector2, window: Vector2, safe: Rect2, banner_h: float) -> float:
+	if banner_h <= 0.0 and safe.size.y <= 0.0:
+		return 0.0
+	var insets := safe_insets_for(viewport, window, safe)
+	var scale := _content_scale(viewport, window)
+	return insets.w + maxf(banner_h, 0.0) / scale
+
+
+static func _content_scale(viewport: Vector2, window: Vector2) -> float:
+	if viewport.x < 1.0 or viewport.y < 1.0 or window.x < 1.0 or window.y < 1.0:
+		return 1.0
+	var screen := window
+	var viewport_aspect := viewport.x / viewport.y
+	var window_aspect := window.x / window.y
+	if not is_equal_approx(viewport_aspect, window_aspect):
+		if viewport_aspect < window_aspect:
+			screen = Vector2(floorf(window.y * viewport_aspect), window.y)
+		else:
+			screen = Vector2(window.x, floorf(window.x / viewport_aspect))
+	return maxf(minf(floorf(screen.x / viewport.x), floorf(screen.y / viewport.y)), 1.0)
+
+
+static func safe_insets_for(viewport: Vector2, window: Vector2, safe: Rect2) -> Vector4:
+	if viewport.x < 1.0 or viewport.y < 1.0 or window.x < 1.0 or window.y < 1.0:
+		return Vector4.ZERO
+	if safe.size.x < 1.0 or safe.size.y < 1.0:
+		return Vector4.ZERO
+	var scale := 1.0
+	var screen := window
+	var viewport_aspect := viewport.x / viewport.y
+	var window_aspect := window.x / window.y
+	if not is_equal_approx(viewport_aspect, window_aspect):
+		if viewport_aspect < window_aspect:
+			screen = Vector2(floorf(window.y * viewport_aspect), window.y)
+		else:
+			screen = Vector2(window.x, floorf(window.x / viewport_aspect))
+	scale = minf(floorf(screen.x / viewport.x), floorf(screen.y / viewport.y))
+	scale = maxf(scale, 1.0)
+	screen = Vector2(viewport.x * scale, viewport.y * scale)
+	var offset := (window - screen) * 0.5
+	var left := maxf(0.0, safe.position.x - offset.x)
+	var top := maxf(0.0, safe.position.y - offset.y)
+	var right := maxf(0.0, offset.x + screen.x - (safe.position.x + safe.size.x))
+	var bottom := maxf(0.0, offset.y + screen.y - (safe.position.y + safe.size.y))
+	return Vector4(left / scale, top / scale, right / scale, bottom / scale)
 
 func _hits_pause(point: Vector2) -> bool:
 	if _pause_button == null or not _pause_button.visible:
@@ -2898,6 +3292,8 @@ func _finish_tutorial() -> void:
 		_finger.visible = false
 
 func _reincarnate() -> void:
+	if Monetization != null:
+		Monetization.hide_banner()
 	_silence_death()
 	_lb_gen += 1
 	_died_in_play = false
@@ -2929,6 +3325,11 @@ func _reincarnate() -> void:
 	form_id = FormCatalog.id_for_run(day_seed, run_index)
 	if form_id == died_as:
 		form_id = FormCatalog.id_for_run_avoiding(day_seed, run_index, died_as)
+	# A rewarded pick, or a free pick after remove_ads, replaces this one roll.
+	# The daily index still advances, so the run after that is random again.
+	if AdPolicy.form_is_pickable(_chosen_next_form):
+		form_id = _chosen_next_form
+	_chosen_next_form = -1
 	_roster_form = form_id
 	score = 0
 	combo = 0
@@ -3474,6 +3875,7 @@ func _open_board() -> void:
 	_apply_board_viewport()
 	_board.open()
 	_leaderboard.set_page_cover(true)
+	_sync_death_banner()
 	if _title_board_button != null:
 		_title_board_button.visible = false
 	if _rotate != null:
@@ -3524,6 +3926,7 @@ func _restore_board_viewport() -> void:
 
 func _layout_after_board() -> void:
 	_layout_death_card()
+	_sync_death_banner()
 	_layout_pause(_viewport_size())
 	_layout_title_button(_viewport_size())
 	if _title_board_button != null and (_board == null or not _board.visible):
