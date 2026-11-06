@@ -1,0 +1,88 @@
+# One-time creation of the Apple Distribution certificate and App Store profile.
+# workflow_dispatch only. Do not run this on a schedule or on every TestFlight build.
+#
+# Needs an Admin API key (APP_STORE_CONNECT_ADMIN_KEY_ID and
+# APP_STORE_CONNECT_ADMIN_KEY_P8). The App Manager key used for uploads cannot
+# create certificates or profiles. The issuer id is the same team issuer.
+#
+# Apple allows one Apple Distribution certificate per team. This workflow
+# creates one, then stops. Re-running it without the revoke confirmation does
+# not create another. The private key is only in the encrypted artifact.
+
+name: iOS signing bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "CREATE-ONE-DISTRIBUTION-CERT, REVOKE-AND-CREATE-ONE-DISTRIBUTION-CERT, or REFRESH-APP-STORE-PROFILE"
+        required: true
+        type: string
+      revoke_certificate_id:
+        description: "Certificate id to revoke. Only with REVOKE-AND-CREATE-ONE-DISTRIBUTION-CERT, and only if the private key was never saved."
+        required: false
+        type: string
+        default: ""
+      refresh_profile_only:
+        description: "Replace the App Store profile for the existing certificate. Does not create a certificate."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  bootstrap:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Create the certificate and profile
+        env:
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_ADMIN_KEY_ID: ${{ secrets.APP_STORE_CONNECT_ADMIN_KEY_ID }}
+          APP_STORE_CONNECT_ADMIN_KEY_P8: ${{ secrets.APP_STORE_CONNECT_ADMIN_KEY_P8 }}
+          IOS_SIGNING_EXPORT_PASSWORD: ${{ secrets.IOS_SIGNING_EXPORT_PASSWORD }}
+          CONFIRM: ${{ inputs.confirm }}
+          REVOKE_CERTIFICATE_ID: ${{ inputs.revoke_certificate_id }}
+          REFRESH_PROFILE_ONLY: ${{ inputs.refresh_profile_only }}
+          IOS_OPENSSL: /usr/bin/openssl
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 tools/write_secret_file.py pem APP_STORE_CONNECT_ADMIN_KEY_P8 "$RUNNER_TEMP/admin-api-key.p8"
+          python3 tools/write_secret_file.py raw IOS_SIGNING_EXPORT_PASSWORD "$RUNNER_TEMP/export-password.txt"
+          args=(
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID"
+            --key-id "$APP_STORE_CONNECT_ADMIN_KEY_ID"
+            --key-path "$RUNNER_TEMP/admin-api-key.p8"
+            --export-password-file "$RUNNER_TEMP/export-password.txt"
+            --confirm "$CONFIRM"
+            --revoke-certificate-id "$REVOKE_CERTIFICATE_ID"
+            --openssl "$IOS_OPENSSL"
+            --output build/ios-signing-bundle.tar.gz.enc
+          )
+          if [ "$REFRESH_PROFILE_ONLY" = "true" ]; then
+            args+=(--refresh-profile-only)
+          fi
+          python3 tools/ios_signing_bootstrap.py "${args[@]}"
+
+      - name: Upload encrypted signing bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-signing-bundle-encrypted
+          path: build/ios-signing-bundle.tar.gz.enc
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Delete signing files
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -f "$RUNNER_TEMP/admin-api-key.p8" "$RUNNER_TEMP/export-password.txt"
+          rm -rf build
+          bash tools/ios_cleanup_signing.sh
