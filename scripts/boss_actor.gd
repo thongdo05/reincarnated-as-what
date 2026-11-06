@@ -57,6 +57,10 @@ var _upgrade_once: Dictionary = {}
 func is_boss() -> bool:
 	return true
 
+## The Great Dragon does not paint the shared gold shot pips. Other bosses do.
+func draws_shot_pips() -> bool:
+	return boss_slug != "great_dragon"
+
 func hurt(amount: int) -> void:
 	if intro_left > 0.0 or not alive:
 		return
@@ -1045,6 +1049,10 @@ func _draw_attack_flash() -> void:
 	if _row_left <= 0.0:
 		return
 	if _attack_id != "charge" and _attack_id != "dive" and _attack_id != "fake_charge":
+		return
+	# Dive still waits out _row_left. Only the lane mark is off for the dragon.
+	# Death Knight charge and fake charge keep the band, line, and tick.
+	if boss_slug == "great_dragon":
 		return
 	var y := _charge_y - position.y
 	var x0 := 16.0 - position.x
