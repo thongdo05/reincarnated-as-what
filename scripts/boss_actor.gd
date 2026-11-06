@@ -874,6 +874,12 @@ func _draw_specials() -> void:
 		draw_rect(Rect2(-position, field_size), Color(1.0, 0.25, 0.2, enrage_flash * 0.45))
 
 func _draw_breath() -> void:
+	# Great Dragon: the lane band, aim line, muzzle sprite, full-screen red
+	# tint, and safe-gap strip are pre-fire warnings. boss_breath.png is only
+	# that muzzle mark while the shots are still armed, not a stream that
+	# stays after they leave. The fireballs are the breath. Timing is unchanged.
+	if boss_slug == "great_dragon":
+		return
 	var pulse := 0.45 + 0.55 * absf(sin(age * 18.0))
 	if _hell_gap_left > 0.0:
 		var gap := _hell_gap_y - position.y
@@ -917,15 +923,24 @@ func _draw_breath() -> void:
 	ArtLibrary.draw_loop(self, BossCatalog.BOSS_BREATH, age, Vector2(-18.0, y))
 
 func _draw_gust() -> void:
+	# Blue streaks during _gust_warn are the windup. The puff is the gust
+	# itself once gust_left starts, and those streaks stay with it.
+	if boss_slug == "great_dragon" and gust_left <= 0.0:
+		return
 	var pulse := 0.4 + 0.6 * absf(sin(age * 20.0))
 	var ink := Color(0.75, 0.9, 1.0, pulse)
 	ArtLibrary.draw_loop(self, BossCatalog.BOSS_GUST, age, Vector2(-30.0, -6.0))
+	if boss_slug == "great_dragon" and _gust_warn > 0.0:
+		return
 	for step in 4:
 		var x := -40.0 - float(step) * 28.0
 		draw_line(Vector2(x, -10.0), Vector2(x - 16.0, -10.0), ink, 2.0)
 		draw_line(Vector2(x, 8.0), Vector2(x - 16.0, 8.0), ink, 2.0)
 
 func _draw_meteor_marks() -> void:
+	# Red circles and drop lines are the meteor warning. The falling sprites stay.
+	if boss_slug == "great_dragon":
+		return
 	var pulse := 0.4 + 0.6 * absf(sin(age * 16.0))
 	for item in telegraphs:
 		if str(item.get("sprite", "")) != BossCatalog.BOSS_METEOR:
