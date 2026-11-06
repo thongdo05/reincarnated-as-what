@@ -36,12 +36,8 @@ const SNAP_MAX_SPEED := 22000.0
 const VENDING_ARRIVE := 62.0
 const VENDING_MAX_SPEED := 400.0
 ## Kills and gems, not coins or powerups. A full meter is the only WINNER! in the game.
-## Rank-1 length. Play reads the per-rank list. This is the empty-list fallback.
+## Rank 1 is 10. Play reads the per-rank list. This is the empty-list fallback.
 const VENDING_WINNER_KILLS := 10
-## Heavy hit for a WINNER! clear, read off SpawnDirector.max_hp.
-## An eye is 2. Wolf, anvil, and archer are 4. Wyvern and piano are 6.
-## 2 kills an eye and chips every tougher body. Bosses take 15% of max HP instead.
-const VENDING_WINNER_DAMAGE := 2
 
 ## Short dash when the aim jumps. Fine corrections still use the snap.
 const CAT_BLINK_DIST := 34.0
@@ -85,28 +81,35 @@ const GOBLIN := {
 
 ## Three forward cans. Spread is degrees off the forward axis, +y down.
 ## Rank 1 is slow enough that the heavy body is the tax. Later ranks hit
-## harder. WINNER! takes more kills as the rank climbs and no longer wipes
-## the screen. The body is the original large art again. Drift, damage, and
-## the WINNER! meter are unchanged.
+## harder. WINNER! fills at 10, 11, 12, 13, then 14 kills or gems. The blast deals
+## 2, 4, 6, 8, 10 to regular enemies (an eye is 2; wolf, anvil, and archer
+## are 4; wyvern and piano are 6). Bosses still take 10% of max HP.
+## A kill from the blast scores and drops loot like any other kill, and does
+## not refill the meter. There is no bonus score.
 const VENDING := {
 	"fire_interval": [0.24, 0.20, 0.16, 0.135, 0.115],
 	"shot_speed": [520.0, 580.0, 640.0, 700.0, 760.0],
 	"damage": [1, 1, 2, 2, 3],
 	"spread_deg": [16.0, 18.0, 20.0, 22.0, 24.0],
-	"winner_kills": [10, 12, 14, 16, 18],
-	"winner_bonus": [200, 300, 400, 500, 600],
+	"winner_kills": [10, 11, 12, 13, 14],
+	"winner_damage": [2, 4, 6, 8, 10],
 }
 
-## The swipe is short. Reflecting bullets is the defense, not a long stream.
-## Swipes pierce. Later ranks dash farther and swipe harder.
-## Damage stays the int list, so the +15% is fire_interval times 1/1.15.
-## Swipe life is 1.10x. Dash distance, dash guard, pierce, and reflect are unchanged.
+## Reflecting bullets is the defense. The sprite, the hit shape, and the
+## reflect reach all use scale. Damage stays the int list, so the +15% is
+## fire_interval times 1/1.15. Every rank pierces 2. Rank 5 does not expire
+## by life: it flies until it is fully past the right edge, at the rank-5
+## scale. Dash distance, dash guard, and the reflect flip itself are unchanged.
+## hit_ids still allow one hit per target.
+## Coarse distance check before a swipe tests a bullet. Scaled with the swipe.
+const CAT_REFLECT_REACH := 64.0
 const CAT := {
 	"fire_interval": [0.24 / 1.15, 0.20 / 1.15, 0.17 / 1.15, 0.145 / 1.15, 0.12 / 1.15],
 	"shot_speed": 420.0,
 	"life": [0.58 * 1.10, 0.60 * 1.10, 0.64 * 1.10, 0.70 * 1.10, 0.78 * 1.10],
-	"damage": [1, 1, 2, 2, 3],
+	"damage": [1, 2, 3, 4, 5],
 	"pierce": 2,
+	"scale": [1.0, 1.05, 1.1, 1.15, 1.25],
 	"blink_dist": [34.0, 38.0, 44.0, 52.0, 62.0],
 	"blink_guard": [0.10, 0.10, 0.11, 0.13, 0.15],
 }
@@ -117,23 +120,22 @@ const DEMON_PLAY_SCALE := 0.75
 ## 30% smaller than the source art. The hurt shape uses the same scale.
 const VENDING_PLAY_SCALE := 0.7
 ## Rank-5 combat from the first frame. There are no stages.
-## Three fireballs in an 11 degree fan. Each is 5, so a volley that all hits is 15.
-## That is 214 DPS at 0.07s, above a rank-5 Goblin's 138.
-## Direct DPS does not change with the fan. The +1 per fireball is +3 on the
-## volley, the same slope as the Goblin.
+## One fireball, straight ahead, drawn and hit at 3x. Direct damage is 10.
+## DRAGON_SPLASH is splash damage, not a radius, and stays 8. The splash
+## radius and the explosion picture are 3x so they match the bigger fireball.
+## 10 / 0.07s is about 143 DPS, still above a rank-5 Goblin's 138.
 const DRAGON_FIRE_INTERVAL := 0.07
 const DRAGON_SHOT_SPEED := 820.0
-const DRAGON_DAMAGE := 5
+const DRAGON_DAMAGE := 10
 const DRAGON_SPLASH := 8
-const DRAGON_SPLASH_RADIUS := 42.0
+const DRAGON_SPLASH_RADIUS := 126.0
+const DRAGON_SHOT_SCALE := 3.0
 ## Hurt body is about 48px wide. 810 / 48 beats Goblin 560 / 34.
 const DRAGON_MAX_SPEED := 810.0
 const DRAGON_POWER_PER_LEVEL := 1
-const DRAGON_METEOR_KILLS := 8
+const DRAGON_METEOR_KILLS := 50
 const DRAGON_SPRITE := "dragon_form/dragon_fly.png"
 const DRAGON_SHOT := "dragon_form/dragon_fireball.png"
-## Degrees off the forward axis, +y down. 11 is the middle of a 10-12 degree fan.
-const DRAGON_SPREAD_DEG := 11.0
 
 static func play_scale(id: int) -> float:
 	if id == Id.DEMON:
@@ -179,12 +181,12 @@ const FORM_CARD := {
 		"used": "",
 	},
 	Id.VENDING: {
-		"trait": "Heavy drift. Kills and gems fill a WINNER! meter. A full meter blasts the field and clears shots. Later ranks pay a bigger WINNER!.",
+		"trait": "Heavy drift. Kills and gems fill a WINNER! meter in 10, then 11, 12, 13, and 14. A full meter blasts the field and clears shots. Those kills score and drop loot. Later ranks blast harder.",
 		"ready": "",
 		"used": "",
 	},
 	Id.CAT: {
-		"trait": "A hard flick blinks a short dash. Swipes pierce and knock bullets away. Later ranks dash farther and swipe harder.",
+		"trait": "A hard flick blinks a short dash. Swipes pierce 2 and knock bullets away. Later ranks dash farther and swipe bigger. The final form crosses the screen.",
 		"ready": "",
 		"used": "",
 	},
@@ -194,7 +196,7 @@ const FORM_CARD := {
 		"used": "",
 	},
 	Id.DRAGON: {
-		"trait": "Earned by slaying the Great Dragon. Fireballs explode. Kills fill Meteor Rain, which chips a boss for 15% of its max HP.",
+		"trait": "Earned by slaying the Great Dragon. Fireballs explode. Kills fill Meteor Rain in %d kills. It chips a boss for 15%% of its max HP.",
 		"ready": "",
 		"used": "",
 	},
@@ -248,6 +250,20 @@ static func cat_life(rank_index: int) -> float:
 	var values: Array = CAT["life"]
 	return float(values[clampi(rank_index, 0, values.size() - 1)])
 
+static func cat_swipe_scale(rank_index: int) -> float:
+	return cat_rank_f("scale", rank_index)
+
+## Rank 5 (index 4) is the full-screen swipe. It does not expire by life.
+## Pierce is the same cap as ranks 1-4.
+static func cat_swipe_final(rank_index: int) -> bool:
+	return clampi(rank_index, 0, 4) >= 4
+
+static func cat_pierce(_rank_index: int) -> int:
+	return int(CAT["pierce"])
+
+static func cat_reflect_reach(scale: float) -> float:
+	return CAT_REFLECT_REACH * scale
+
 static func demon_rank_f(key: String, rank_index: int) -> float:
 	var values: Array = DEMON[key]
 	return float(values[clampi(rank_index, 0, values.size() - 1)])
@@ -271,8 +287,8 @@ static func vending_winner_kills(rank_index: int = 0) -> int:
 		return VENDING_WINNER_KILLS
 	return int(values[clampi(rank_index, 0, values.size() - 1)])
 
-static func vending_winner_bonus(rank_index: int) -> int:
-	var values: Array = VENDING["winner_bonus"]
+static func vending_winner_damage(rank_index: int) -> int:
+	var values: Array = VENDING["winner_damage"]
 	return int(values[clampi(rank_index, 0, values.size() - 1)])
 
 ## Modest, and slower for the slime stream, whose shots start at 1 damage.
@@ -644,21 +660,30 @@ static func player_shots(id: int, origin: Vector2, rank_index: int = 0) -> Array
 			can["style"] = "can"
 			shots.append(can)
 	elif id == Id.DRAGON:
-		for sign in [-1.0, 0.0, 1.0]:
-			var angle := deg_to_rad(sign * DRAGON_SPREAD_DEG)
-			var vel := Vector2(cos(angle), sin(angle)) * DRAGON_SHOT_SPEED
-			var fireball := _blob(origin + Vector2(muzzle, 0), vel, 0, shot_color, shot_sprite, DRAGON_DAMAGE)
-			fireball["style"] = "dragon"
-			fireball["splash"] = DRAGON_SPLASH
-			fireball["splash_radius"] = DRAGON_SPLASH_RADIUS
-			shots.append(fireball)
+		var vel := Vector2(DRAGON_SHOT_SPEED, 0)
+		var fireball := _blob(origin + Vector2(muzzle, 0), vel, 0, shot_color, shot_sprite, DRAGON_DAMAGE)
+		fireball["style"] = "dragon"
+		fireball["scale"] = DRAGON_SHOT_SCALE
+		fireball["radius"] = float(fireball["radius"]) * DRAGON_SHOT_SCALE
+		fireball["splash"] = DRAGON_SPLASH
+		fireball["splash_radius"] = DRAGON_SPLASH_RADIUS
+		shots.append(fireball)
 	elif id == Id.CAT:
 		var damage := int(cat_rank_f("damage", rank_index))
+		var scale := cat_swipe_scale(rank_index)
 		var swipe := _blob(origin + Vector2(muzzle, -2), Vector2(cat_f("shot_speed"), 0), 0, shot_color, shot_sprite, damage)
 		swipe["style"] = "swipe"
-		swipe["expires"] = true
-		swipe["life"] = cat_life(rank_index)
-		swipe["pierce"] = int(CAT["pierce"])
+		swipe["scale"] = scale
+		swipe["radius"] = float(swipe["radius"]) * scale
+		swipe["pierce"] = cat_pierce(rank_index)
+		if cat_swipe_final(rank_index):
+			# Life would stop a swipe that started on the left before the right edge.
+			swipe["expires"] = false
+			swipe["life"] = 0.0
+			swipe["exit_right"] = true
+		else:
+			swipe["expires"] = true
+			swipe["life"] = cat_life(rank_index)
 		shots.append(swipe)
 	else:
 		var damage := int(demon_rank_f("damage", rank_index))
@@ -734,7 +759,7 @@ static func weapon_line(id: int, rank_index: int) -> String:
 			return "%s Splits on hit." % head
 		return head
 	if id == Id.VENDING:
-		return "%d cans every %s. Spread %d. WINNER! in %d kills or gems." % [count, every, int(round(float(spec["spread_deg"]))), vending_winner_kills(rank_index)]
+		return "%d cans every %s. Spread %d. WINNER! in %d kills or gems. Blast %d." % [count, every, int(round(float(spec["spread_deg"]))), vending_winner_kills(rank_index), vending_winner_damage(rank_index)]
 	if id == Id.CAT:
 		var line := "Swipe every %s. Reflects shots." % every
 		var damage := int(first.get("damage", 1))
@@ -742,7 +767,7 @@ static func weapon_line(id: int, rank_index: int) -> String:
 			line += " Dmg %d." % damage
 		return line
 	if id == Id.DRAGON:
-		return "3 fireballs every %s. Fan %d. Dmg %d each, splash %d. Meteor Rain in %d kills." % [every, int(round(DRAGON_SPREAD_DEG)), DRAGON_DAMAGE, DRAGON_SPLASH, DRAGON_METEOR_KILLS]
+		return "1 fireball every %s. Dmg %d, splash %d. Meteor Rain in %d kills." % [every, DRAGON_DAMAGE, DRAGON_SPLASH, DRAGON_METEOR_KILLS]
 	if id == Id.DEMON:
 		var line := "Homing orb every %s." % every
 		if count > 1:
@@ -775,6 +800,8 @@ static func trait_line(id: int, split_ready: bool) -> String:
 		if flag != "":
 			return "%s %s" % [flag, body]
 		return body
+	if id == Id.DRAGON:
+		return body % DRAGON_METEOR_KILLS
 	if id == Id.GOBLIN and goblin_f("loot_magnet") > 0.0:
 		return "%s Pulls in within %dpx." % [body, int(round(goblin_f("loot_magnet")))]
 	return body

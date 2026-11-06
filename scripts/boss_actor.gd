@@ -35,6 +35,7 @@ var _beam_emit := 0.0
 var _beam_y := 0.0
 var _beam_chain := 0
 var _spiral_left := 0.0
+var _spiral_wind := 0.0
 var _spiral_age := 0.0
 var _spiral_emit := 0.0
 var _spiral_spin := 0.4
@@ -55,6 +56,10 @@ var _upgrade_once: Dictionary = {}
 
 func is_boss() -> bool:
 	return true
+
+## The Great Dragon does not paint the shared gold shot pips. Other bosses do.
+func draws_shot_pips() -> bool:
+	return boss_slug != "great_dragon"
 
 func hurt(amount: int) -> void:
 	if intro_left > 0.0 or not alive:
@@ -282,6 +287,7 @@ func _halt_attacks() -> void:
 	_beam_mode = 0
 	_beam_chain = 0
 	_spiral_left = 0.0
+	_spiral_wind = 0.0
 	_hands_left = 0.0
 	_hands_live = 0.0
 	shield_left = 0.0
@@ -323,12 +329,13 @@ func _drift(delta: float) -> void:
 func _fight(delta: float, player_pos: Vector2, player_vel: Vector2, run_time: float, fired: Array[Dictionary]) -> void:
 	if boss_slug == "lich_king":
 		_summon_cd -= delta
-		if _summon_cd <= 0.0 and telegraphs.is_empty() and _row_left <= 0.0 and _rain_left <= 0.0 and _beam_mode == 0 and _spiral_left <= 0.0 and _hands_left <= 0.0 and shield_left <= 0.0:
+		if _summon_cd <= 0.0 and telegraphs.is_empty() and _row_left <= 0.0 and _rain_left <= 0.0 and _beam_mode == 0 and _spiral_left <= 0.0 and _spiral_wind <= 0.0 and _hands_left <= 0.0 and shield_left <= 0.0:
 			_summon_eyes()
 			_summon_cd = BossCatalog.cooldown("summon", 1, run_time, generation)
 	if _rain_left > 0.0:
 		_rain_left -= delta
 		if _rain_left <= 0.0:
+			_rain_left = 0.0
 			_loose_rain()
 	_tick_beam(delta, player_pos, fired)
 	_tick_spiral(delta, fired)
@@ -475,7 +482,7 @@ func _tick_intro(delta: float) -> void:
 		_attack_cd = 0.4
 
 func _attack_busy() -> bool:
-	return not telegraphs.is_empty() or _row_left > 0.0 or _rain_left > 0.0 or _beam_mode != 0 or _spiral_left > 0.0 or _hands_left > 0.0 or _hands_live > 0.0 or shield_left > 0.0 or _gust_warn > 0.0 or gust_left > 0.0 or _hell_gap_left > 0.0
+	return not telegraphs.is_empty() or _row_left > 0.0 or _rain_left > 0.0 or _beam_mode != 0 or _spiral_left > 0.0 or _spiral_wind > 0.0 or _hands_left > 0.0 or _hands_live > 0.0 or shield_left > 0.0 or _gust_warn > 0.0 or gust_left > 0.0 or _hell_gap_left > 0.0
 
 func _tick_hell_gap(delta: float, run_time: float) -> void:
 	var speed := BossCatalog.hell_gap_speed(generation)
@@ -561,7 +568,10 @@ func _start_beam(aim_y: float, chain: int) -> void:
 	_beam_emit = 0.0
 	_beam_y = _clamp_beam_y(aim_y)
 	_beam_chain = chain
-	_attack_id = "soul_beam"
+	# double_beam and beam_rain already named themselves. Overwriting either
+	# dropped the second beam's chain read and the rain's column warning.
+	if _attack_id != "double_beam" and _attack_id != "beam_rain":
+		_attack_id = "soul_beam"
 
 func _tick_beam(delta: float, player_pos: Vector2, fired: Array[Dictionary]) -> void:
 	if _beam_mode == 0:
@@ -614,13 +624,18 @@ func _beam_hit(x: float, fired: Array[Dictionary]) -> void:
 	fired.append(bolt)
 
 func _start_spiral() -> void:
-	_spiral_left = _paced(1.25)
+	_spiral_wind = _paced(BossCatalog.SPIRAL_WIND)
+	_spiral_left = _paced(BossCatalog.SPIRAL_FIRE)
 	_spiral_age = 0.0
 	_spiral_emit = 0.0
 	_spiral_spin = phase
-	_attack_id = "skull_spiral"
+	if _attack_id != "spiral_hands":
+		_attack_id = "skull_spiral"
 
 func _tick_spiral(delta: float, fired: Array[Dictionary]) -> void:
+	if _spiral_wind > 0.0:
+		_spiral_wind = maxf(_spiral_wind - delta, 0.0)
+		return
 	if _spiral_left <= 0.0:
 		return
 	_spiral_left = maxf(_spiral_left - delta, 0.0)
@@ -628,45 +643,39 @@ func _tick_spiral(delta: float, fired: Array[Dictionary]) -> void:
 	_spiral_emit -= delta
 	if _spiral_emit > 0.0:
 		return
-	_spiral_emit = 0.18
+	_spiral_emit = BossCatalog.SPIRAL_EMIT
 	var speed := lerpf(118.0, 156.0, BossCatalog.attack_unit(_rain_time if _rain_time > 0.0 else age))
-	for arm in 2:
-		if fire_room == 0:
-			return
-		var ang := _spiral_spin + _spiral_age * 2.4 + float(arm) * PI
-		var dir := Vector2(cos(ang), sin(ang))
-		if dir.x > -0.08:
-			continue
-		fired.append(_bolt(dir * speed, BossCatalog.SKULL_MUZZLE, BossCatalog.SPIRAL_SKULL))
-		if fire_room > 0:
-			fire_room -= 1
-
-func _hand_ground_y() -> float:
-	var box := ArtLibrary.art_bbox(BossCatalog.GRAVE_HAND)
-	var point := ArtLibrary.anchor(BossCatalog.GRAVE_HAND)
-	return FieldBackground.GROUND_FEET - (box.y - point.y)
+	var wave := sin(_spiral_spin + _spiral_age * BossCatalog.SPIRAL_SPIN) * BossCatalog.SPIRAL_WAVE
+	# Two ribbons, always a lane apart. They travel straight left so they stay
+	# inside the bands the warning drew. The shared cap does not eat this pattern.
+	var signs: Array[float] = [-1.0, 1.0]
+	for sign in signs:
+		var y := sign * BossCatalog.SPIRAL_LANE + wave
+		fired.append(_bolt(Vector2(-speed, 0.0), BossCatalog.SPIRAL_ORIGIN + Vector2(0.0, y), BossCatalog.SPIRAL_SKULL))
 
 func _start_hands(player_x: float) -> void:
 	_hand_xs = BossCatalog.hand_columns(player_x)
 	_hands_left = _paced(0.8)
 	_hands_live = 0.0
-	_attack_id = "grave_hands"
+	if _attack_id != "spiral_hands":
+		_attack_id = "grave_hands"
 
 func _tick_hands(delta: float, fired: Array[Dictionary]) -> void:
 	if _hands_left > 0.0:
 		_hands_left = maxf(_hands_left - delta, 0.0)
 		if _hands_left <= 0.0:
-			var ground := _hand_ground_y()
+			var speed := BossCatalog.HAND_RISE_SPEED
+			var start_y := BossCatalog.HAND_START_Y
+			var halt := BossCatalog.HAND_HALT_Y
+			var rise := maxf((start_y - halt) / speed, 0.2)
+			var life := rise + BossCatalog.HAND_HOLD
 			for column in _hand_xs:
-				if fire_room == 0:
-					break
-				var bolt := _bolt(Vector2(0.0, -78.0), Vector2(column - position.x, ground - position.y), BossCatalog.GRAVE_HAND)
+				var bolt := _bolt(Vector2(0.0, -speed), Vector2(column - position.x, start_y - position.y), BossCatalog.GRAVE_HAND)
 				bolt["expires"] = true
-				bolt["life"] = 0.55
+				bolt["life"] = life
+				bolt["halt_y"] = halt
 				fired.append(bolt)
-				if fire_room > 0:
-					fire_room -= 1
-			_hands_live = 0.55
+			_hands_live = life
 		return
 	if _hands_live > 0.0:
 		_hands_live = maxf(_hands_live - delta, 0.0)
@@ -696,28 +705,30 @@ func _arm_sword(player_pos: Vector2, run_time: float) -> void:
 	_attack_id = "sword_waves"
 
 func _begin_rain(player_x: float, run_time: float) -> void:
-	_attack_id = "bone_rain"
+	if _attack_id != "beam_rain":
+		_attack_id = "bone_rain"
 	_rain_time = run_time
 	_rain_columns = BossCatalog.bone_columns(player_x, run_time, field_size.x)
 	_rain_left = BossCatalog.windup("bone_rain", 1, generation)
 
 func _loose_rain() -> void:
 	var speed := BossCatalog.bone_fall_speed(_rain_time)
+	var land := BossCatalog.bone_land_y()
+	var life := maxf((land - BossCatalog.BONE_SPAWN_Y) / speed, 0.2)
 	var columns: Array[float] = []
 	columns.append_array(_rain_columns)
 	_rain_columns.clear()
 	for column in columns:
 		for step in 2:
-			if fire_room == 0:
-				return
+			# The second bone follows far enough behind that the two do not stack.
 			telegraphs.append({
-				"left": 0.02 + 0.14 * float(step),
+				"left": 0.02 + 0.24 * float(step),
 				"velocity": Vector2(0.0, speed),
 				"pos": Vector2(column, BossCatalog.BONE_SPAWN_Y),
 				"sprite": BossCatalog.BONE_SHOT,
+				"expires": true,
+				"life": life,
 			})
-			if fire_room > 0:
-				fire_room -= 1
 
 func _arm_shots(attack: String, aim: Vector2, windup: float) -> void:
 	var phase_now := dragon_phase()
@@ -804,16 +815,43 @@ func _draw_dragon_intro() -> void:
 	var at := Vector2(field_size.x * 0.5, 58.0) - position - tex.get_size()
 	draw_texture_rect(tex, Rect2(at, tex.get_size() * 2.0), false)
 
+func _draw_hand_warn(pulse: float) -> void:
+	var ground := FieldBackground.GROUND_FEET - position.y
+	var top := 36.0 - position.y
+	var ink := Color(0.78, 0.45, 1.0, 0.9 * pulse)
+	var hot := Color(1.0, 0.95, 0.8, pulse)
+	for column in _hand_xs:
+		var x := column - position.x
+		draw_line(Vector2(x, top), Vector2(x, ground), Color(ink.r, ink.g, ink.b, 0.55 * pulse), 3.0)
+		draw_line(Vector2(x, top), Vector2(x, ground), hot, 1.0)
+		draw_arc(Vector2(x, ground), 8.0, 0.0, TAU, 14, ink, 2.0, true)
+		draw_line(Vector2(x - 7.0, ground), Vector2(x + 7.0, ground), hot, 2.0)
+
+func _draw_spiral_warn(pulse: float) -> void:
+	var origin := BossCatalog.SPIRAL_ORIGIN
+	var x1 := 10.0 - position.x
+	var half := BossCatalog.SPIRAL_WAVE + 12.0
+	var band := Color(0.62, 0.28, 0.98, 0.22 * pulse)
+	var ink := Color(0.75, 1.0, 0.86, 0.9 * pulse)
+	var signs: Array[float] = [-1.0, 1.0]
+	for sign in signs:
+		var y := origin.y + sign * BossCatalog.SPIRAL_LANE
+		var span := origin.x - x1
+		if span < 4.0:
+			continue
+		draw_rect(Rect2(Vector2(x1, y - half), Vector2(span, half * 2.0)), band)
+		draw_line(Vector2(x1, y), Vector2(origin.x, y), ink, 1.0)
+	draw_arc(origin, 7.0, _spiral_spin + age * 4.0, _spiral_spin + age * 4.0 + PI, 12, Color(0.85, 0.55, 1.0, pulse), 2.0, true)
+	draw_arc(origin, 3.0, 0.0, TAU, 10, Color(1.0, 0.95, 0.8, pulse), 1.0, true)
+
 func _draw_specials() -> void:
 	var pulse := 0.45 + 0.55 * absf(sin(age * 22.0))
 	if _beam_mode != 0:
 		_draw_beam(pulse)
 	if _hands_left > 0.0:
-		var ground := FieldBackground.GROUND_FEET - position.y
-		for column in _hand_xs:
-			var c := Vector2(column - position.x, ground)
-			draw_arc(c, 12.0, 0.0, TAU, 16, Color(0.55, 1.0, 0.7, pulse), 2.0, true)
-			draw_arc(c, 6.0, 0.0, TAU, 10, Color(0.65, 0.35, 1.0, pulse), 1.0, true)
+		_draw_hand_warn(pulse)
+	if _spiral_wind > 0.0:
+		_draw_spiral_warn(pulse)
 	if shield_left > 0.0:
 		ArtLibrary.draw_loop(self, BossCatalog.KNIGHT_SHIELD, age, Vector2(-22.0, -8.0))
 		draw_arc(Vector2(-22.0, -8.0), 18.0, 0.0, TAU, 18, Color(0.75, 0.85, 1.0, 0.35 + 0.25 * pulse), 1.0, true)
@@ -840,6 +878,12 @@ func _draw_specials() -> void:
 		draw_rect(Rect2(-position, field_size), Color(1.0, 0.25, 0.2, enrage_flash * 0.45))
 
 func _draw_breath() -> void:
+	# Great Dragon: the lane band, aim line, muzzle sprite, full-screen red
+	# tint, and safe-gap strip are pre-fire warnings. boss_breath.png is only
+	# that muzzle mark while the shots are still armed, not a stream that
+	# stays after they leave. The fireballs are the breath. Timing is unchanged.
+	if boss_slug == "great_dragon":
+		return
 	var pulse := 0.45 + 0.55 * absf(sin(age * 18.0))
 	if _hell_gap_left > 0.0:
 		var gap := _hell_gap_y - position.y
@@ -883,15 +927,24 @@ func _draw_breath() -> void:
 	ArtLibrary.draw_loop(self, BossCatalog.BOSS_BREATH, age, Vector2(-18.0, y))
 
 func _draw_gust() -> void:
+	# Blue streaks during _gust_warn are the windup. The puff is the gust
+	# itself once gust_left starts, and those streaks stay with it.
+	if boss_slug == "great_dragon" and gust_left <= 0.0:
+		return
 	var pulse := 0.4 + 0.6 * absf(sin(age * 20.0))
 	var ink := Color(0.75, 0.9, 1.0, pulse)
 	ArtLibrary.draw_loop(self, BossCatalog.BOSS_GUST, age, Vector2(-30.0, -6.0))
+	if boss_slug == "great_dragon" and _gust_warn > 0.0:
+		return
 	for step in 4:
 		var x := -40.0 - float(step) * 28.0
 		draw_line(Vector2(x, -10.0), Vector2(x - 16.0, -10.0), ink, 2.0)
 		draw_line(Vector2(x, 8.0), Vector2(x - 16.0, 8.0), ink, 2.0)
 
 func _draw_meteor_marks() -> void:
+	# Red circles and drop lines are the meteor warning. The falling sprites stay.
+	if boss_slug == "great_dragon":
+		return
 	var pulse := 0.4 + 0.6 * absf(sin(age * 16.0))
 	for item in telegraphs:
 		if str(item.get("sprite", "")) != BossCatalog.BOSS_METEOR:
@@ -955,7 +1008,7 @@ func _paint_beam_tile(origin: Vector2, dir: Vector2, from_d: float, to_d: float,
 
 func _draw_attack_flash() -> void:
 	var pulse := 0.4 + 0.55 * absf(sin(age * 26.0))
-	if _attack_id == "bone_rain" and not _rain_columns.is_empty():
+	if (_attack_id == "bone_rain" or _attack_id == "beam_rain") and not _rain_columns.is_empty():
 		var jade := Color(0.25, 1.0, 0.62, 1.0)
 		var royal := Color(0.62, 0.22, 0.98, 1.0)
 		var ink := Color(0.08, 0.04, 0.12, pulse)
@@ -963,17 +1016,13 @@ func _draw_attack_flash() -> void:
 		draw_line(staff, staff + Vector2(-4.0, -26.0), ink, 3.0)
 		draw_line(staff, staff + Vector2(-4.0, -26.0), jade, 1.0)
 		draw_circle(staff + Vector2(-4.0, -26.0), 3.0, royal)
-		var floor_y := 220.0
+		var flash := 0.75 + 0.25 * absf(sin(age * 7.0))
 		for column in _rain_columns:
-			var x := column - position.x
+			var mark := BossCatalog.bone_mark_at(column) - position
 			var top := BossCatalog.BONE_TOP - position.y
-			var bottom := floor_y - position.y
-			draw_line(Vector2(x, top), Vector2(x, bottom), Color(royal.r, royal.g, royal.b, 0.72 * pulse), 4.0)
-			draw_line(Vector2(x, top), Vector2(x, bottom), Color(jade.r, jade.g, jade.b, 0.95 * pulse), 2.0)
-			draw_rect(Rect2(Vector2(x - 5.0, top - 6.0), Vector2(10.0, 12.0)), Color(ink.r, ink.g, ink.b, pulse * 0.35))
-			var beat := absf(sin(age * 18.0))
-			var flash := 0.35 + 0.65 * beat
-			ArtLibrary.draw_loop(self, BossCatalog.BONE_MARK, age, Vector2(x, top), Color(1, 1, 1, flash), 0.9 + 0.25 * beat)
+			draw_line(Vector2(mark.x, top), mark, Color(royal.r, royal.g, royal.b, 0.55 * pulse), 3.0)
+			draw_line(Vector2(mark.x, top), mark, Color(jade.r, jade.g, jade.b, 0.95 * pulse), 1.0)
+			ArtLibrary.draw_loop(self, BossCatalog.BONE_MARK, age, mark, Color(1, 1, 1, flash), 1.0)
 		return
 	if _attack_id == "skull" and not telegraphs.is_empty():
 		var item: Dictionary = telegraphs[0]
@@ -1000,6 +1049,10 @@ func _draw_attack_flash() -> void:
 	if _row_left <= 0.0:
 		return
 	if _attack_id != "charge" and _attack_id != "dive" and _attack_id != "fake_charge":
+		return
+	# Dive still waits out _row_left. Only the lane mark is off for the dragon.
+	# Death Knight charge and fake charge keep the band, line, and tick.
+	if boss_slug == "great_dragon":
 		return
 	var y := _charge_y - position.y
 	var x0 := 16.0 - position.x

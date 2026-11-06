@@ -2,6 +2,8 @@ extends Node2D
 
 const REVEAL_SECONDS := 1.5
 const INVULN_SECONDS := 1.5
+## Meteor Rain's only i-frames. They start with CHARGE and do not cover the rain.
+const METEOR_INVULN_SECONDS := 0.5
 const GRAZE_PAD := 22.0
 const SPLIT_IFRAMES := 1.15
 const REGROW_IFRAMES := 0.45
@@ -145,6 +147,13 @@ var _meteor_kills := 0
 var _rain_budget := 0
 var _meteor_shake_left := 0.0
 var _meteor_shake_mag := 0.0
+## Finale slam bump. Separate from the great-dragon entrance shake above.
+var _slam_shake_left := 0.0
+var _shake_hold := Vector2.ZERO
+var _shake_hold_left := 0.0
+## Seconds left on the Meteor Rain opening guard.
+var _meteor_guard := 0.0
+var _invincible_marker: Label
 var _tutorial_active := false
 var _tut_eye := false
 var _tut_gem := false
@@ -771,9 +780,15 @@ func _process(delta: float) -> void:
 	if _paused:
 		return
 	delta = clampf(delta, 0.0, 0.033)
+	# Real time, not the meteor slow-mo, so the 0.5s guard does not cover the charge.
+	if phase == PHASE_PLAY and _meteor_guard > 0.0:
+		_meteor_guard = maxf(_meteor_guard - delta, 0.0)
 	# A few frozen frames. Elapsed does not move, so the spawn clock stays put.
 	if phase == PHASE_PLAY and _hit_stop_frames > 0:
 		_hit_stop_frames -= 1
+		if _player != null:
+			_player.invulnerable = invuln > 0.0 or _meteor_guard > 0.0
+		_sync_invincible_marker()
 		return
 	if phase == PHASE_PLAY and _dragon_show != null:
 		_dragon_show.tick(delta)
@@ -857,7 +872,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	if key != Vector2.ZERO:
 		_player.add_drag(key * FormCatalog.max_speed(form_id) * delta, bounds)
 	invuln = maxf(invuln - delta, 0.0)
-	_player.invulnerable = invuln > 0.0
+	_player.invulnerable = invuln > 0.0 or _meteor_guard > 0.0
 	_player.tick(delta, bounds)
 	if _player.regrew:
 		invuln = maxf(invuln, REGROW_IFRAMES)
@@ -930,7 +945,6 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	if dragon_phase_elapsed() >= 0.0:
 		shot_cap = DragonPhase.shot_cap(dragon_phase_elapsed())
 	var shot_room := maxi(shot_cap - _reserved_enemy_shots(), 0)
-	var dragon_boss := _great_dragon_on_screen()
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
@@ -941,7 +955,6 @@ func _play_frame(delta: float, size: Vector2) -> void:
 				phase_t = 0.0
 			dragon.bullet_density = DragonPhase.bullet_density(phase_t)
 			dragon.move_scale = DragonPhase.speed_mul(phase_t)
-			dragon.suppress_fire = dragon_boss
 			dragon.bind_allies(_enemies)
 		enemy.fire_room = shot_room
 		for spec in enemy.tick(delta, player_pos, elapsed, Difficulty.speed_scale(elapsed)):
@@ -987,6 +1000,7 @@ func _play_frame(delta: float, size: Vector2) -> void:
 	_refresh_hud()
 	_refresh_debug()
 	_sync_invuln_banner()
+	_sync_invincible_marker()
 	if _boss_banner != null:
 		_boss_banner.queue_redraw()
 
@@ -1092,6 +1106,7 @@ func _spawn_shot(data: Dictionary, from_player: bool) -> Shot:
 	return shot
 
 func _collide() -> void:
+	_block_meteor_bullets()
 	_reflect_swipes()
 	var spent: Array[Shot] = []
 	var splits: Array[Dictionary] = []
@@ -1109,8 +1124,9 @@ func _collide() -> void:
 			if shot.ignore_id == enemy.id and shot.age < 0.1:
 				continue
 			var enemy_file := enemy.sprite_file()
-			var reach_x := 128.0 if enemy.is_boss() else 96.0
-			var reach_y := 96.0 if enemy.is_boss() else 72.0
+			var reach_scale := shot.hit_scale
+			var reach_x := (128.0 if enemy.is_boss() else 96.0) * reach_scale
+			var reach_y := (96.0 if enemy.is_boss() else 72.0) * reach_scale
 			if absf(shot.position.x - enemy.position.x) > reach_x or absf(shot.position.y - enemy.position.y) > reach_y:
 				continue
 			if not enemy.can_be_hit():
@@ -1119,15 +1135,21 @@ func _collide() -> void:
 				_spawn_fx("hit_flash.png", shot.position, 0.14, 0.8, 1.3)
 				if _combat != null:
 					_combat.push("BLOCK", shot.position + Vector2(-10, -12), Color("d4dcf5"), 0.28)
+				if shot.pierce < 0:
+					shot.hit_ids.append(enemy.id)
+					continue
 				spent.append(shot)
 				break
-			if not HitLibrary.overlaps(shot.position, shot.sprite_name, "body", enemy.position, enemy_file, "body"):
+			if not HitLibrary.overlaps(shot.position, shot.sprite_name, "body", enemy.position, enemy_file, "body", shot.hit_scale):
 				continue
 			enemy.hurt(shot.damage)
 			if enemy is DragonEnemy and (enemy as DragonEnemy).consume_block():
 				_spawn_fx("hit_flash.png", shot.position, 0.14, 0.8, 1.3)
 				if _combat != null:
 					_combat.push("BLOCK", shot.position + Vector2(-10, -12), Color("d7c4ff"), 0.28)
+				if shot.pierce < 0:
+					shot.hit_ids.append(enemy.id)
+					continue
 				spent.append(shot)
 				break
 			shot.hit_ids.append(enemy.id)
@@ -1143,8 +1165,10 @@ func _collide() -> void:
 					_spawn_fx("death_puff.png", enemy.position, 0.42, 0.45, 1.55)
 			else:
 				_spawn_fx("hit_flash.png", shot.position, 0.16, 0.75, 1.35)
-			if shot.pierce > 0:
-				shot.pierce -= 1
+			# Pierce below 0 is unlimited. hit_ids already keeps one hit per target.
+			if shot.pierce < 0 or shot.pierce > 0:
+				if shot.pierce > 0:
+					shot.pierce -= 1
 				continue
 			spent.append(shot)
 			break
@@ -1172,22 +1196,17 @@ func _collide() -> void:
 	for shot in _shots:
 		if shot.from_player or not is_instance_valid(shot):
 			continue
-		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat", player_scale, 1.0, _player.anim_frame())
+		var shot_gap := HitLibrary.gap(_player.position, player_file, "hurt", shot.position, shot.sprite_name, "threat", player_scale, shot.threat_scale(), _player.anim_frame())
 		if shot_gap <= 0.0:
 			_hurt_player(shot.killer_name if shot.killer_name != "" else "shot")
 			return
 		_graze_gap(shot, shot_gap)
 
-func _award_kill(enemy: EnemyActor, drop_loot: bool = true, chain_combo: bool = true) -> void:
-	var points := 0
-	if chain_combo:
-		var result := ScoreRules.on_kill(enemy.score_value, combo, combo_left, rank_index)
-		combo = int(result["combo"])
-		combo_left = float(result["combo_left"])
-		points = int(result["points"])
-	else:
-		# WINNER clear. Half the listed value. The combo does not step or refresh.
-		points = int(enemy.score_value / 2)
+func _award_kill(enemy: EnemyActor, drop_loot: bool = true) -> void:
+	var result := ScoreRules.on_kill(enemy.score_value, combo, combo_left, rank_index)
+	combo = int(result["combo"])
+	combo_left = float(result["combo_left"])
+	var points := int(result["points"])
 	score += points
 	if points >= Difficulty.POPUP_MIN:
 		_combat.push("+%s" % ScoreRules.format_score(points), enemy.position + Vector2(-6, -12), Color("241428"), Difficulty.POPUP_LIFE)
@@ -1499,13 +1518,14 @@ func _charge_winner() -> void:
 ## The only WINNER! in the game. Kills and gems fill it. Coins and powerups do not.
 ## Flying enemy shots and pending pattern shots (the rake windup included)
 ## are cleared. A survivor can still loose a telegraph it already started.
+## Kills score and drop loot like any other kill. _winner_busy keeps them
+## from refilling this meter. There is no bonus score.
 func _winner_clear() -> void:
 	if _winner_busy:
 		return
 	_winner_busy = true
 	winner_pops += 1
 	_clear_enemy_shots()
-	score += FormCatalog.vending_winner_bonus(rank_index)
 	_overdrive_flash = 0.28
 	_clear_banner_fx()
 	_combat.push_callout("WINNER!", _player.position + Vector2(-28, -28), Color("ffe56a"), 0.5)
@@ -1513,6 +1533,7 @@ func _winner_clear() -> void:
 	_spawn_fx("winner_burst.png", field * 0.5, 0.55, 1.2, 2.4)
 	_request_hit_stop(4)
 	_bump_shake()
+	var blast := FormCatalog.vending_winner_damage(rank_index)
 	for enemy in _enemies:
 		if not enemy.alive:
 			continue
@@ -1528,14 +1549,13 @@ func _winner_clear() -> void:
 				if _combat != null:
 					_combat.push_callout("-%d" % dealt, enemy.position + Vector2(-18, -40), Color("ffe56a"), 0.7, 2)
 			if not enemy.alive:
-				_award_kill(enemy, false, false)
+				_award_kill(enemy, true)
 				if not enemy is DragonEnemy:
 					_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 			continue
-		enemy.hurt(FormCatalog.VENDING_WINNER_DAMAGE)
+		enemy.hurt(blast)
 		if not enemy.alive:
-			# Half points, no combo step, no drop. Same no-drop path as OVERDRIVE.
-			_award_kill(enemy, false, false)
+			_award_kill(enemy, true)
 			if not enemy is DragonEnemy:
 				_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 	_winner_busy = false
@@ -1572,9 +1592,10 @@ func _reflect_swipes() -> void:
 		for bullet in _shots:
 			if bullet == swipe or not is_instance_valid(bullet) or bullet.from_player:
 				continue
-			if swipe.position.distance_squared_to(bullet.position) > 64.0 * 64.0:
+			var reach := FormCatalog.cat_reflect_reach(swipe.hit_scale)
+			if swipe.position.distance_squared_to(bullet.position) > reach * reach:
 				continue
-			if not HitLibrary.overlaps(swipe.position, swipe.sprite_name, "body", bullet.position, bullet.sprite_name, "threat"):
+			if not HitLibrary.overlaps(swipe.position, swipe.sprite_name, "body", bullet.position, bullet.sprite_name, "threat", swipe.hit_scale, bullet.threat_scale()):
 				continue
 			_reflect_bullet(bullet)
 
@@ -1730,8 +1751,17 @@ func _try_rank() -> void:
 func _kill_player(name: String) -> void:
 	if phase != PHASE_PLAY:
 		return
+	# One life, including the Dragon form. Enemy deaths stay in
+	# _present_dragon_death. This is the player's death.
+	if _dragon_show != null:
+		_dragon_show.cancel()
+	_meteor_guard = 0.0
+	invuln = 0.0
+	if _player != null:
+		_player.invulnerable = false
 	killer_name = name
 	phase = PHASE_DEAD
+	_sync_invincible_marker()
 	_paused = false
 	_death_audio_stage = ""
 	if _world_flash != null:
@@ -1985,12 +2015,26 @@ func _sweep(size: Vector2) -> void:
 	var shot_write := 0
 	var wide := field.grow(20)
 	for shot in _shots:
-		if not is_instance_valid(shot) or not wide.has_point(shot.position) or (shot.expires and shot.life <= 0.0):
+		if not is_instance_valid(shot) or _shot_left_play(shot, size, wide):
 			_release_shot(shot)
 			continue
 		_shots[shot_write] = shot
 		shot_write += 1
 	_shots.resize(shot_write)
+
+func _shot_left_play(shot: Shot, size: Vector2, wide: Rect2) -> bool:
+	if shot.exit_right and _swipe_clear_of_right(shot, size.x):
+		return true
+	if not wide.has_point(shot.position):
+		return true
+	return shot.expires and shot.life <= 0.0
+
+## True when the drawn sprite and the hit shape are both past the right edge.
+func _swipe_clear_of_right(shot: Shot, width: float) -> bool:
+	var scale := shot.hit_scale
+	var art_left := -ArtLibrary.anchor(shot.sprite_name).x * scale
+	var hit_left := HitLibrary.horizontal_span(shot.sprite_name, "body").x * scale
+	return shot.position.x + minf(art_left, hit_left) >= width
 
 func _drop_shot(shot: Shot) -> void:
 	_shots.erase(shot)
@@ -2030,6 +2074,54 @@ func _sync_invuln_banner() -> void:
 	_invuln_banner.visible = CaptureMode.invuln_notice_visible()
 	_invuln_banner.position = _invuln_banner_origin()
 
+func _meteor_show_began() -> void:
+	_meteor_guard = METEOR_INVULN_SECONDS
+	if _player != null:
+		_player.invulnerable = true
+	_sync_invincible_marker()
+
+func _meteor_show_ended() -> void:
+	_slam_shake_left = 0.0
+	# Cancel, death, and a finished show drop the opening guard.
+	_meteor_guard = 0.0
+	if _player != null and invuln <= 0.0:
+		_player.invulnerable = false
+	_sync_invincible_marker()
+
+func _sync_invincible_marker() -> void:
+	var show := phase == PHASE_PLAY and _meteor_guard > 0.0
+	if not show:
+		if _invincible_marker != null:
+			_invincible_marker.visible = false
+		return
+	if _hud == null:
+		return
+	if _invincible_marker == null:
+		_invincible_marker = _make_label(9, INVULN_BANNER_COLOR)
+		_invincible_marker.name = "InvincibleMarker"
+		_invincible_marker.modulate = Color(1, 1, 1, 0.82)
+		_invincible_marker.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		_invincible_marker.autowrap_mode = TextServer.AUTOWRAP_OFF
+		_invincible_marker.clip_text = false
+		_invincible_marker.size = Vector2(220, 14)
+		_invincible_marker.custom_minimum_size = Vector2(220, 14)
+		_hud.add_child(_invincible_marker)
+	_invincible_marker.text = "INVINCIBLE"
+	_invincible_marker.visible = true
+	_invincible_marker.position = _invuln_banner_origin()
+
+func _block_meteor_bullets() -> void:
+	if _dragon_show == null or _dragon_show.phase == DragonShow.IDLE:
+		return
+	var doomed: Array[Shot] = []
+	for shot in _shots:
+		if not is_instance_valid(shot) or shot.from_player:
+			continue
+		if _dragon_show.blocks_bullet(shot.position, shot.radius):
+			doomed.append(shot)
+	for shot in doomed:
+		_drop_shot(shot)
+
 ## Top-left, just under the rank line, and lower when a power row is showing.
 func _invuln_banner_origin() -> Vector2:
 	var y := 68.0
@@ -2059,29 +2151,79 @@ func _refresh_debug() -> void:
 	]
 
 func _apply_shake(delta: float) -> void:
+	var show_on := _dragon_show != null and _dragon_show.phase != DragonShow.IDLE
 	var mag := 0.0
 	if _shake_left > 0.0:
 		_shake_left = maxf(_shake_left - delta, 0.0)
-		mag = maxf(mag, Difficulty.FINAL_SHAKE_PX * clampf(_shake_left / Difficulty.FINAL_SHAKE_SECONDS, 0.0, 1.0))
+		if not show_on:
+			mag = maxf(mag, Difficulty.FINAL_SHAKE_PX * clampf(_shake_left / Difficulty.FINAL_SHAKE_SECONDS, 0.0, 1.0))
 	if _juice_shake > 0.0:
 		_juice_shake = maxf(_juice_shake - delta, 0.0)
-		mag = maxf(mag, Replay.JUICE_SHAKE_PX * clampf(_juice_shake / Replay.JUICE_SHAKE_SECONDS, 0.0, 1.0))
+		if not show_on:
+			mag = maxf(mag, Replay.JUICE_SHAKE_PX * clampf(_juice_shake / Replay.JUICE_SHAKE_SECONDS, 0.0, 1.0))
 	var cap := Replay.shake_cap()
 	if _meteor_shake_left > 0.0:
 		_meteor_shake_left = maxf(_meteor_shake_left - delta, 0.0)
-		mag = maxf(mag, _meteor_shake_mag)
-		cap = maxf(cap, _meteor_shake_mag)
+		if not show_on:
+			mag = maxf(mag, _meteor_shake_mag)
+			cap = maxf(cap, _meteor_shake_mag)
+	# Charge, barrage, and impacts stay still. Other shakes keep counting
+	# down so they do not resume when the finale ends. The slam bump is the
+	# only offset while the show is running.
+	if show_on:
+		_apply_slam_bump(delta)
+		return
 	# The everyday cap stays at 2px so a bullet cannot leave the eye.
-	# Meteor Rain may shake a little harder, and only while it is running.
+	# The great dragon's entrance may shake a little harder.
 	mag = minf(mag, cap)
 	if mag <= 0.05:
+		_shake_hold_left = 0.0
 		if position != Vector2.ZERO:
 			position = Vector2.ZERO
 		return
+	# Hold one sample for a show frame so a lair entrance does not re-roll
+	# the offset on every rendered frame.
+	if _meteor_shake_left > 0.0:
+		_shake_hold_left -= delta
+		if _shake_hold_left <= 0.0:
+			_shake_hold = Vector2(
+				round(_shake_rng.randf_range(-mag, mag)),
+				round(_shake_rng.randf_range(-mag, mag))
+			)
+			_shake_hold_left = DragonShow.FRAME
+		position = _shake_hold
+		return
+	_shake_hold_left = 0.0
 	position = Vector2(
 		round(_shake_rng.randf_range(-mag, mag)),
 		round(_shake_rng.randf_range(-mag, mag))
 	)
+
+## One decaying nudge. The offset is the show frame's sample, so several
+## render frames in that 15 fps step share it and cannot jitter.
+func _apply_slam_bump(delta: float) -> void:
+	if _slam_shake_left <= 0.0:
+		_clear_slam_bump()
+		return
+	var elapsed := DragonShow.SLAM_SHAKE_SECONDS - _slam_shake_left
+	var frame_i := int(floor(maxf(elapsed, 0.0) / DragonShow.FRAME))
+	var remain := DragonShow.SLAM_SHAKE_SECONDS - float(frame_i) * DragonShow.FRAME
+	var mag := DragonShow.SLAM_SHAKE_PX * clampf(remain / DragonShow.SLAM_SHAKE_SECONDS, 0.0, 1.0)
+	var stepped := Vector2(round(mag), 0.0)
+	_slam_shake_left = maxf(_slam_shake_left - delta, 0.0)
+	if mag <= 0.05 or stepped == Vector2.ZERO:
+		_clear_slam_bump()
+		return
+	_shake_hold = stepped
+	_shake_hold_left = DragonShow.FRAME
+	position = stepped
+
+func _clear_slam_bump() -> void:
+	_slam_shake_left = 0.0
+	_shake_hold_left = 0.0
+	_shake_hold = Vector2.ZERO
+	if position != Vector2.ZERO:
+		position = Vector2.ZERO
 
 func _refresh_hud() -> void:
 	if _hud_view == null:
@@ -2155,8 +2297,10 @@ func _on_restart() -> void:
 	_dismiss_name_prompt()
 	if CaptureMode.is_active():
 		# A challenged form sticks for that one run; the retry rolls, and
-		# does not repeat the form you died as.
-		CaptureMode.note_player_retry(form_id)
+		# does not repeat the form you died as. Dragon counts as the form
+		# the run started as, so the next roll is never Dragon and does not
+		# repeat that roster form.
+		CaptureMode.note_player_retry(_public_form())
 		get_tree().reload_current_scene()
 		return
 	if _restart_busy:
@@ -2758,6 +2902,10 @@ func _player_scale() -> float:
 		return _player.drawn_scale()
 	return FormCatalog.play_scale(form_id)
 
+## Form used by the daily chain, the share card, and the leaderboard.
+## Dragon is earned mid-run and is not in the roll. Dying in it still counts
+## as the form the run started as, so the next roll will not repeat that form
+## and will not offer Dragon. The death card names Dragon itself.
 func _public_form() -> int:
 	if form_id == FormCatalog.Id.DRAGON:
 		return _roster_form
@@ -2776,7 +2924,6 @@ func _charge_meteor() -> void:
 	if _meteor_kills < FormCatalog.DRAGON_METEOR_KILLS:
 		return
 	_meteor_kills = 0
-	# The player stays hittable. Meteor pictures sit under the ship and under bullets.
 	if _dragon_show != null:
 		_dragon_show.rng_seed = day_seed + dragon_kills * 17 + int(elapsed * 10.0)
 		_dragon_show.start_rain()
@@ -2787,6 +2934,11 @@ func _dragon_slow(seconds: float) -> void:
 func _dragon_shake(amount: float, seconds: float) -> void:
 	_meteor_shake_mag = amount
 	_meteor_shake_left = maxf(_meteor_shake_left, seconds)
+
+func _dragon_slam_shake() -> void:
+	_slam_shake_left = DragonShow.SLAM_SHAKE_SECONDS
+	_shake_hold_left = 0.0
+	_shake_hold = Vector2.ZERO
 
 func _dragon_clear_shots() -> void:
 	_clear_enemy_shots()
@@ -2802,7 +2954,8 @@ func _dragon_open_budget() -> int:
 	if boss == null:
 		_rain_budget = 0
 		return 0
-	_rain_budget = BossCatalog.winner_damage(boss.max_hp)
+	# Meteor Rain keeps a 15% chip. WINNER is a separate, smaller hit.
+	_rain_budget = BossCatalog.meteor_rain_damage(boss.max_hp)
 	return _rain_budget
 
 func _dragon_chip(amount: int) -> void:
@@ -2816,7 +2969,7 @@ func _dragon_chip(amount: int) -> void:
 		var dealt := before - boss.hp
 		_rain_budget = maxi(_rain_budget - maxi(dealt, pay), 0)
 		if not boss.alive:
-			_award_kill(boss, true, true)
+			_award_kill(boss, true)
 	else:
 		_rain_budget = maxi(_rain_budget - pay, 0)
 
@@ -2872,15 +3025,12 @@ func _begin_dragon_phase() -> void:
 	_dragon_spawns = DragonSpawnDirector.new(day_seed)
 	_dragon_spawns.begin(elapsed)
 
-func _great_dragon_on_screen() -> bool:
-	var living := _living_boss()
-	return living != null and living.boss_slug == "great_dragon"
-
 func _spawn_dragon_minions(living: EnemyActor, size: Vector2) -> void:
 	_note_dragon_tier()
 	if _dragon_spawns == null:
 		return
-	var paused := (living != null and living.boss_slug == "great_dragon") or _lair_blocks_spawns()
+	# The lair wipe drops beats. A living Great Dragon keeps the normal clock and caps.
+	var paused := _lair_blocks_spawns()
 	var room := DragonPhase.MAX_ENEMIES - _alive_minion_count()
 	for event in _dragon_spawns.pop_due(elapsed, paused):
 		if room <= 0:
@@ -3017,7 +3167,7 @@ func _splash_shot(shot: Shot, direct: EnemyActor) -> void:
 		return
 	if _sound != null:
 		_sound.play_event("dragon_form_fireball_explode")
-	_spawn_fx("dragon_form/dragon_explosion.png", shot.position, 7.0 / 15.0, 0.5, 1.2)
+	_spawn_fx("dragon_form/dragon_explosion.png", shot.position, 7.0 / 15.0, 0.5 * FormCatalog.DRAGON_SHOT_SCALE, 1.2 * FormCatalog.DRAGON_SHOT_SCALE)
 	var reach := shot.splash_radius * shot.splash_radius
 	for enemy in _enemies:
 		if enemy == direct or not enemy.alive or enemy.is_boss() or not enemy.can_be_hit():
@@ -3028,7 +3178,7 @@ func _splash_shot(shot: Shot, direct: EnemyActor) -> void:
 		if enemy is DragonEnemy and (enemy as DragonEnemy).consume_block():
 			continue
 		if not enemy.alive:
-			_award_kill(enemy, true, true)
+			_award_kill(enemy, true)
 
 func _spawn_fx(file_name: String, at: Vector2, duration: float, from_scale: float, to_scale: float) -> void:
 	if _effects.size() >= Difficulty.MAX_FX:
@@ -3154,6 +3304,9 @@ func _reincarnate() -> void:
 	var died_as := _public_form()
 	dragon_kills = 0
 	_meteor_kills = 0
+	_meteor_guard = 0.0
+	if _dragon_show != null:
+		_dragon_show.cancel()
 	_dragon_phase_on = false
 	_dragon_phase_at = 0.0
 	_dragon_spawns = null
@@ -3164,6 +3317,7 @@ func _reincarnate() -> void:
 		_sound.end_dragon_bed()
 	_rain_budget = 0
 	_meteor_shake_left = 0.0
+	_slam_shake_left = 0.0
 	if _player != null:
 		_player.fit_scale = 1.0
 		_player.rear = 0.0
@@ -3294,6 +3448,9 @@ func _silence_death() -> void:
 	_sound.stop_event("reborn_tease")
 
 func _request_hit_stop(frames: int) -> void:
+	# A kill-freeze skips the show's tick, so the 15 fps rain hitch-steps.
+	if _dragon_show != null and _dragon_show.phase != DragonShow.IDLE:
+		return
 	if _hit_stop_cooldown > 0.0:
 		return
 	_hit_stop_frames = clampi(frames, 2, 4)

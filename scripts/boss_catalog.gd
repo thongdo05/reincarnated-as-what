@@ -22,7 +22,10 @@ const BONE_LEFT := 28.0
 const BONE_RIGHT := 376.0
 const BONE_TOP := 12.0
 const BONE_SPAWN_Y := -8.0
-const WINNER_BOSS_DMG_PCT := 0.15
+## Vending WINNER chip. Meteor Rain uses METEOR_RAIN_BOSS_DMG_PCT.
+const WINNER_BOSS_DMG_PCT := 0.10
+## One Meteor Rain's boss budget. Stays at 15% when the jackpot changes.
+const METEOR_RAIN_BOSS_DMG_PCT := 0.15
 const LICH_INTRO := 1.7
 ## Longer than the lich entrance: shadow, roar, crash, title.
 const DRAGON_INTRO := 2.6
@@ -48,6 +51,24 @@ const BEAM_THICK := 22.0
 ## Threat radius. Diameter stays a few pixels inside the glow.
 const BEAM_HIT_R := 8.5
 const HAND_GAP := 140.0
+## Skulls spawn just left of the lich, outside the body, and travel left.
+## Two bands stay SPIRAL_LANE apart. The sine wave stays inside the warning,
+## so the gap between the bands never closes.
+const SPIRAL_ORIGIN := Vector2(-60.0, -2.0)
+const SPIRAL_WIND := 0.55
+const SPIRAL_FIRE := 1.25
+const SPIRAL_EMIT := 0.2
+const SPIRAL_LANE := 56.0
+const SPIRAL_WAVE := 14.0
+const SPIRAL_SPIN := 2.4
+## Grave hands are 10px tall. Drawn at 2x they read, and the hit scales with them.
+const HAND_DRAW_SCALE := 2.0
+const HAND_RISE_SPEED := 148.0
+const HAND_START_Y := 246.0
+const HAND_HALT_Y := 78.0
+const HAND_HOLD := 0.45
+const BONE_DRAW_SCALE := 2.0
+const SKULL_DRAW_SCALE := 2.0
 const SWORD_GAP := 132.0
 const SHIELD_TIME := 2.0
 const SOUL_BEAM := "lich_soul_beam.png"
@@ -165,6 +186,8 @@ static func windup(pattern: String, phase: int, generation: int) -> float:
 		return BEAM_TRACK + BEAM_LOCK
 	if pattern == "grave_hands" or pattern == "spiral_hands":
 		return 0.8
+	if pattern == "skull_spiral":
+		return SPIRAL_WIND
 	if pattern == "fake_charge":
 		return 0.55
 	if pattern == "sword_waves":
@@ -282,13 +305,50 @@ static func bone_columns(player_x: float, elapsed: float, field_w: float) -> Arr
 	cols.sort()
 	return cols
 
-## 15% of max HP, rounded. A full boss always survives one WINNER.
+## 10% of max HP, rounded. A full boss always survives one WINNER.
 static func winner_damage(max_hp: int) -> int:
-	var pct := int(round(WINNER_BOSS_DMG_PCT * 100.0))
+	return _rounded_hp_chip(max_hp, WINNER_BOSS_DMG_PCT)
+
+## 15% of max HP, rounded. Meteor Rain's boss budget.
+## A full boss always survives one rain.
+static func meteor_rain_damage(max_hp: int) -> int:
+	return _rounded_hp_chip(max_hp, METEOR_RAIN_BOSS_DMG_PCT)
+
+## Percent of max HP, rounded. One chip never finishes a full-HP boss.
+static func _rounded_hp_chip(max_hp: int, fraction: float) -> int:
+	var pct := int(round(fraction * 100.0))
 	var chip := int((maxi(max_hp, 1) * pct + 50) / 100)
 	if chip >= max_hp:
 		chip = maxi(max_hp - 1, 1)
 	return chip
+
+## Draw scale for a projectile. The spiral skull's threat circle is already
+## authored for the doubled picture, so its hit scale stays 1.
+static func shot_draw_scale(sprite: String) -> float:
+	if sprite == SPIRAL_SKULL:
+		return SKULL_DRAW_SCALE
+	if sprite == GRAVE_HAND:
+		return HAND_DRAW_SCALE
+	if sprite == BONE_SHOT:
+		return BONE_DRAW_SCALE
+	return 1.0
+
+static func shot_hit_scale(sprite: String) -> float:
+	if sprite == GRAVE_HAND:
+		return HAND_DRAW_SCALE
+	if sprite == BONE_SHOT:
+		return BONE_DRAW_SCALE
+	return 1.0
+
+## Anchor y where a falling bone's bottom meets the ground line.
+static func bone_land_y() -> float:
+	var scale := shot_draw_scale(BONE_SHOT)
+	var below := (ArtLibrary.art_bbox(BONE_SHOT).y - ArtLibrary.anchor(BONE_SHOT).y) * scale
+	return FieldBackground.GROUND_FEET - below
+
+## Warning mark for one bone column. x is the column the bone falls on.
+static func bone_mark_at(column: float) -> Vector2:
+	return Vector2(column, bone_land_y())
 
 static func hand_columns(player_x: float) -> Array[float]:
 	var anchor := clampf(player_x, 48.0, 340.0)

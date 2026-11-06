@@ -241,7 +241,13 @@ func _release_telegraphs(fired: Array[Dictionary], delta: float) -> void:
 		var left := float(item["left"]) - delta
 		if left <= 0.0:
 			var world: Vector2 = item["pos"]
-			fired.append(_bolt(item["velocity"], world - position, str(item["sprite"])))
+			var bolt := _bolt(item["velocity"], world - position, str(item["sprite"]))
+			if item.has("expires"):
+				bolt["expires"] = bool(item["expires"])
+				bolt["life"] = float(item.get("life", 0.0))
+			if item.has("halt_y"):
+				bolt["halt_y"] = float(item["halt_y"])
+			fired.append(bolt)
 		else:
 			item["left"] = left
 			still.append(item)
@@ -295,8 +301,13 @@ func _draw() -> void:
 		draw_rect(Rect2(left, y, width, 2), Color(0, 0, 0, 0.7))
 		draw_rect(Rect2(left, y, width * float(hp) / float(max_hp), 2), Color("f4efe4"))
 
+## Gold muzzle pip and short aim line while a shot is still armed.
+## Bosses that should not show those marks override this. The windup stays.
+func draws_shot_pips() -> bool:
+	return true
+
 func _draw_telegraphs() -> void:
-	if telegraphs.is_empty():
+	if not draws_shot_pips() or telegraphs.is_empty():
 		return
 	var pulse := 0.45 + 0.45 * absf(sin(age * 28.0))
 	var ink := Color(1.0, 0.82, 0.35, pulse)

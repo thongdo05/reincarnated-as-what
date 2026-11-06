@@ -2,8 +2,8 @@ extends RefCounted
 class_name DragonSpawnDirector
 
 ## Spawns for the post-dragon phase. The clock is seconds since the transform.
-## A paused poll (the Great Dragon is on screen) drops the beats it would have
-## emitted instead of saving them up for the moment the fight ends.
+## A paused poll drops the beats it would have emitted instead of saving them
+## up. The lair wipe uses that. The Great Dragon does not pause this clock.
 ## Kind caps use travel time, same as the daily director, so clearing a body
 ## early does not change the rest of the timeline.
 

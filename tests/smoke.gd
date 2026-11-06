@@ -49,7 +49,7 @@ func _process(_delta: float) -> bool:
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
 	var live_failed: int = load("res://tests/dragon_phase_checks.gd").new().run_live(self)
-	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular()
+	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_meteor_shake() + _check_dragon_death()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
@@ -199,23 +199,79 @@ func _check_forms() -> int:
 	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("cans") < 0 or FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("WINNER!") < 0:
 		push_error("vending weapon line should name the cans and no burst")
 		failed += 1
-	if FormCatalog.VENDING_WINNER_KILLS != 10 or FormCatalog.VENDING_WINNER_DAMAGE != 2:
-		push_error("vending winner fallback should be 10 kills and a 2-damage blast")
+	if FormCatalog.VENDING_WINNER_KILLS != 10:
+		push_error("vending winner fallback should be 10 kills")
 		failed += 1
-	if FormCatalog.vending_winner_kills(0) != 10 or FormCatalog.vending_winner_kills(1) != 12 or FormCatalog.vending_winner_kills(2) != 14 or FormCatalog.vending_winner_kills(3) != 16 or FormCatalog.vending_winner_kills(4) != 18:
-		push_error("vending winner meter should be 10, 12, 14, 16, 18 kills")
+	var winner_kills := [10, 11, 12, 13, 14]
+	var winner_damage := [2, 4, 6, 8, 10]
+	for rank_i in 5:
+		if FormCatalog.vending_winner_kills(rank_i) != winner_kills[rank_i]:
+			push_error("vending winner meter should be 10, 11, 12, 13, 14, rank %d is %d" % [rank_i + 1, FormCatalog.vending_winner_kills(rank_i)])
+			failed += 1
+		if FormCatalog.vending_winner_damage(rank_i) != winner_damage[rank_i]:
+			push_error("vending winner blast should be 2, 4, 6, 8, 10, rank %d is %d" % [rank_i + 1, FormCatalog.vending_winner_damage(rank_i)])
+			failed += 1
+		var winner_line := "WINNER! in %d" % winner_kills[rank_i]
+		if FormCatalog.weapon_line(FormCatalog.Id.VENDING, rank_i).find(winner_line) < 0:
+			push_error("rank %d weapon line should quote %s, got %s" % [rank_i + 1, winner_line, FormCatalog.weapon_line(FormCatalog.Id.VENDING, rank_i)])
+			failed += 1
+	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0).find("Blast 2") < 0:
+		push_error("rank 1 weapon line should quote a 2 blast, got %s" % FormCatalog.weapon_line(FormCatalog.Id.VENDING, 0))
 		failed += 1
-	if FormCatalog.vending_winner_bonus(0) != 200 or FormCatalog.vending_winner_bonus(1) != 300 or FormCatalog.vending_winner_bonus(2) != 400 or FormCatalog.vending_winner_bonus(3) != 500 or FormCatalog.vending_winner_bonus(4) != 600:
-		push_error("vending winner bonus should be 200, 300, 400, 500, 600")
+	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4).find("Blast 10") < 0:
+		push_error("rank 5 weapon line should quote a 10 blast, got %s" % FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4))
 		failed += 1
-	if FormCatalog.weapon_line(FormCatalog.Id.VENDING, 4).find("18") < 0:
-		push_error("rank 5 weapon line should quote the 18-kill meter")
+	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("10, then 11, 12, 13, and 14") < 0:
+		push_error("vending card should list the meter at 10 through 14, got %s" % FormCatalog.trait_line(FormCatalog.Id.VENDING, true))
+		failed += 1
+	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("drop loot") < 0 or FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("blast harder") < 0:
+		push_error("vending trait should say the blast scores loot and later ranks hit harder")
 		failed += 1
 	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("WINNER!") < 0:
 		push_error("vending trait should name the WINNER meter")
 		failed += 1
-	if FormCatalog.trait_line(FormCatalog.Id.CAT, true) != "A hard flick blinks a short dash. Swipes pierce and knock bullets away. Later ranks dash farther and swipe harder." or FormCatalog.weapon_line(FormCatalog.Id.CAT, 0).find("Reflects") < 0:
+	if FormCatalog.trait_line(FormCatalog.Id.CAT, true) != "A hard flick blinks a short dash. Swipes pierce 2 and knock bullets away. Later ranks dash farther and swipe bigger. The final form crosses the screen." or FormCatalog.weapon_line(FormCatalog.Id.CAT, 0).find("Reflects") < 0:
 		push_error("cat card should describe the blink dash, the piercing swipe, and the reflect")
+		failed += 1
+	var swipe_scale := [1.0, 1.05, 1.1, 1.15, 1.25]
+	var swipe_damage := [1, 2, 3, 4, 5]
+	var swipe_radius := HitLibrary.bounds_radius("cat_swipe.png", "body")
+	var rank_lives := [0.58 * 1.10, 0.60 * 1.10, 0.64 * 1.10, 0.70 * 1.10]
+	for rank_i in 5:
+		var spec: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2.ZERO, rank_i)[0]
+		if absf(float(spec["scale"]) - swipe_scale[rank_i]) > 0.001 or absf(FormCatalog.cat_swipe_scale(rank_i) - swipe_scale[rank_i]) > 0.001:
+			push_error("cat swipe scale rank %d should be %s, got %s" % [rank_i + 1, swipe_scale[rank_i], spec["scale"]])
+			failed += 1
+		if absf(FormCatalog.cat_reflect_reach(swipe_scale[rank_i]) - 64.0 * swipe_scale[rank_i]) > 0.001:
+			push_error("cat reflect reach should scale with the swipe")
+			failed += 1
+		if absf(float(spec["radius"]) - swipe_radius * swipe_scale[rank_i]) > 0.001:
+			push_error("cat swipe hit radius rank %d should match scale %s, got %s" % [rank_i + 1, swipe_scale[rank_i], spec["radius"]])
+			failed += 1
+		if int(spec["damage"]) != swipe_damage[rank_i] or int(FormCatalog.cat_pierce(rank_i)) != 2:
+			push_error("cat swipe rank %d should deal %d and pierce 2, damage %s pierce %s" % [rank_i + 1, swipe_damage[rank_i], spec["damage"], spec["pierce"]])
+			failed += 1
+		var weapon := FormCatalog.weapon_line(FormCatalog.Id.CAT, rank_i)
+		if swipe_damage[rank_i] == 1:
+			if weapon.find("Dmg") >= 0:
+				push_error("rank 1 cat card should not quote a damage number, got %s" % weapon)
+				failed += 1
+		elif weapon.find("Dmg %d." % swipe_damage[rank_i]) < 0:
+			push_error("cat card rank %d should quote dmg %d, got %s" % [rank_i + 1, swipe_damage[rank_i], weapon])
+			failed += 1
+		if rank_i < 4:
+			if absf(FormCatalog.cat_life(rank_i) - rank_lives[rank_i]) > 0.001 or absf(float(spec["life"]) - rank_lives[rank_i]) > 0.001 or not bool(spec["expires"]) or int(spec["pierce"]) != 2:
+				push_error("ranks 1-4 should keep their life and pierce 2, rank %d life %s expires %s pierce %s" % [rank_i + 1, spec["life"], spec["expires"], spec["pierce"]])
+				failed += 1
+		elif bool(spec["expires"]) or int(spec["pierce"]) != 2 or not bool(spec.get("exit_right", false)) or absf(float(spec["scale"]) - 1.25) > 0.001:
+			push_error("rank 5 swipe should pierce 2, stay full-screen at 1.25 scale, and not expire by life, pierce %s expires %s scale %s exit %s" % [spec["pierce"], spec["expires"], spec["scale"], spec.get("exit_right", false)])
+			failed += 1
+	var bolt_at := Vector2(0, -18)
+	if HitLibrary.overlaps(Vector2.ZERO, "cat_swipe.png", "body", bolt_at, "floating_eye_bolt.png", "threat", 1.0):
+		push_error("a rank 1 swipe should miss a bolt just outside the claw")
+		failed += 1
+	if not HitLibrary.overlaps(Vector2.ZERO, "cat_swipe.png", "body", bolt_at, "floating_eye_bolt.png", "threat", 1.1):
+		push_error("a larger swipe should hit a bolt the rank 1 claw misses")
 		failed += 1
 	if FormCatalog.trait_line(FormCatalog.Id.DEMON, true).find("enemies") < 0:
 		push_error("demon trait should scale with enemies on screen")
@@ -454,8 +510,8 @@ func _pull(seed_value: int, step: float, until: float) -> Array[Dictionary]:
 
 func _check_art() -> int:
 	var failed := 0
-	if ArtLibrary.file_count() != 202:
-		push_error("art manifest should have 202 entries, found %d" % ArtLibrary.file_count())
+	if ArtLibrary.file_count() != 203:
+		push_error("art manifest should have 203 entries, found %d" % ArtLibrary.file_count())
 		failed += 1
 	var text := FileAccess.get_file_as_string("res://art/manifest.json")
 	var parsed: Variant = JSON.parse_string(text)
@@ -1899,8 +1955,8 @@ func _check_lb_parse() -> int:
 	if clear_180 > cap_180:
 		push_error("a 3:00 vending clear should still fit the server cap (%d vs %d)" % [clear_180, cap_180])
 		failed += 1
-	if clear_300 <= cap_300:
-		push_error("a 5:00 full vending clear should be able to pass the server cap (%d vs %d)" % [clear_300, cap_300])
+	if clear_300 > cap_300:
+		push_error("a 5:00 full vending clear should fit the server cap without the WINNER bonus (%d vs %d)" % [clear_300, cap_300])
 		failed += 1
 	return failed
 
@@ -2374,7 +2430,7 @@ func _check_pause_card(game) -> int:
 			push_error("vending pause card should describe the cans and the WINNER meter")
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.CAT:
-		if card.trait_text().find("Swipes pierce and knock bullets away.") < 0 or card.weapon_text().find("Reflects") < 0:
+		if card.trait_text().find("Swipes pierce 2 and knock bullets away.") < 0 or card.weapon_text().find("Reflects") < 0:
 			push_error("cat pause card should describe the piercing swipe and the reflect")
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.DEMON:
@@ -3772,6 +3828,120 @@ func _check_power_level_cue(game) -> int:
 		failed += 1
 	return failed
 
+func _check_cat_swipe() -> int:
+	var failed := 0
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game.phase = game.PHASE_PLAY
+	game.form_id = FormCatalog.Id.CAT
+	game._player.form_id = FormCatalog.Id.CAT
+	game._player.position = Vector2(40, 140)
+	game._player.aim = game._player.position
+	game._clear_field()
+	var short: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2(40, 140), 0)[0]
+	var short_shot = game._spawn_shot(short, true)
+	short_shot.life = 0.0
+	short_shot.position = Vector2(40, 140)
+	game._sweep(Vector2(480, 270))
+	if game._shots.has(short_shot):
+		push_error("a rank 1 swipe should still expire when its life runs out")
+		failed += 1
+	var final_spec: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2(20, 140), 4)[0]
+	var final_shot = game._spawn_shot(final_spec, true)
+	if absf(float(final_shot.hit_scale) - 1.25) > 0.001 or not final_shot.exit_right or final_shot.expires or int(final_shot.pierce) != 2 or int(final_shot.damage) != 5:
+		push_error("rank 5 swipe should cross the screen at 1.25 scale, pierce 2, and deal 5, scale %s exit %s expires %s pierce %s damage %s" % [final_shot.hit_scale, final_shot.exit_right, final_shot.expires, final_shot.pierce, final_shot.damage])
+		failed += 1
+	final_shot.position = Vector2(20, 140)
+	final_shot.life = -5.0
+	game._sweep(Vector2(480, 270))
+	if not game._shots.has(final_shot):
+		push_error("a rank 5 swipe on the left should not expire by life")
+		failed += 1
+	else:
+		var scale := float(final_shot.hit_scale)
+		var art_left := -ArtLibrary.anchor("cat_swipe.png").x * scale
+		var hit_left := HitLibrary.horizontal_span("cat_swipe.png", "body").x * scale
+		var extent := minf(art_left, hit_left)
+		final_shot.position.x = 480.0 - extent - 1.0
+		game._sweep(Vector2(480, 270))
+		if not game._shots.has(final_shot):
+			push_error("a rank 5 swipe still touching the right edge should stay")
+			failed += 1
+		final_shot.position.x = 480.0 - extent
+		game._sweep(Vector2(480, 270))
+		if game._shots.has(final_shot):
+			push_error("a rank 5 swipe should despawn once it is fully past the right edge")
+			failed += 1
+	game._clear_field()
+	var early: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2(120, 140), 0)[0]
+	var early_shot = game._spawn_shot(early, true)
+	var early_hits := 0
+	for i in 4:
+		var foe := EnemyActor.new()
+		foe.id = 10 + i
+		foe.kind = SpawnDirector.EYE
+		foe.hp = 5
+		foe.max_hp = 5
+		foe.alive = true
+		foe.position = early_shot.position
+		foe.score_value = 100
+		game.add_child(foe)
+		game._enemies.append(foe)
+	game._collide()
+	for foe in game._enemies:
+		if foe.hp < 5:
+			early_hits += 1
+	if early_hits != 3 or game._shots.has(early_shot):
+		push_error("ranks 1-4 should pierce 2 (three hits) and then stop, hits %d shot %s" % [early_hits, game._shots.has(early_shot)])
+		failed += 1
+	game._clear_field()
+	var late: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2(120, 140), 4)[0]
+	var late_shot = game._spawn_shot(late, true)
+	var row: Array[EnemyActor] = []
+	for i in 4:
+		var foe := EnemyActor.new()
+		foe.id = 20 + i
+		foe.kind = SpawnDirector.EYE
+		foe.hp = 8
+		foe.max_hp = 8
+		foe.alive = true
+		foe.position = late_shot.position
+		foe.score_value = 100
+		game.add_child(foe)
+		game._enemies.append(foe)
+		row.append(foe)
+	game._collide()
+	var late_hits := 0
+	for foe in row:
+		if foe.hp == 8 - int(late["damage"]):
+			late_hits += 1
+	if late_hits != 3 or game._shots.has(late_shot):
+		push_error("rank 5 should pierce 2 (three hits) and then stop, hits %d shot %s" % [late_hits, game._shots.has(late_shot)])
+		failed += 1
+	game._clear_field()
+	var once: Dictionary = FormCatalog.player_shots(FormCatalog.Id.CAT, Vector2(120, 140), 4)[0]
+	var once_shot = game._spawn_shot(once, true)
+	var target := EnemyActor.new()
+	target.id = 30
+	target.kind = SpawnDirector.EYE
+	target.hp = 8
+	target.max_hp = 8
+	target.alive = true
+	target.position = once_shot.position
+	target.score_value = 100
+	game.add_child(target)
+	game._enemies.append(target)
+	game._collide()
+	game._collide()
+	if target.hp != 8 - int(once["damage"]) or not game._shots.has(once_shot):
+		push_error("a rank 5 swipe should hit one target once and keep the rest of its pierce, hp %s shot %s" % [target.hp, game._shots.has(once_shot)])
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
 func _check_vending_gem_meter() -> int:
 	var failed := 0
 	var vending_trait := FormCatalog.trait_line(FormCatalog.Id.VENDING, true)
@@ -3967,26 +4137,47 @@ func _check_roster_play() -> int:
 			"sprite": "floating_eye_bolt.png",
 			"killer": "Floating Eye",
 		})
+		game.rank_index = 0
+		game._drop_seeded = false
+		game.day_seed = 20261101
+		var drop_probe := RandomNumberGenerator.new()
+		drop_probe.seed = int(game.day_seed) * 17 + 3
+		var expect_gem := drop_probe.randf() < Difficulty.GEM_CHANCE
+		var over_blocked := float(game.elapsed) < float(game._overdrive_lock) or bool(game._overdrive_live())
+		var expect_over := false
+		if not over_blocked:
+			expect_over = drop_probe.randf() < Difficulty.overdrive_drop_chance(game.elapsed)
+		var expect_power := false
+		if not expect_over:
+			expect_power = drop_probe.randf() < Difficulty.POWER_CHANCE
+		var kill_pay: Dictionary = ScoreRules.on_kill(eye.score_value, game.combo, game.combo_left, game.rank_index)
+		var blast := FormCatalog.vending_winner_damage(0)
 		game._winner_clear()
-		var bonus := FormCatalog.vending_winner_bonus(game.rank_index)
-		var half := int(eye.score_value / 2)
-		if eye.alive or not wyvern.alive or wyvern.hp != wyvern.max_hp - FormCatalog.VENDING_WINNER_DAMAGE:
-			push_error("winner blast should kill an eye and leave a wyvern at %d, hp %d alive %s" % [wyvern.max_hp - FormCatalog.VENDING_WINNER_DAMAGE, wyvern.hp, wyvern.alive])
+		if eye.alive or not wyvern.alive or wyvern.hp != wyvern.max_hp - blast:
+			push_error("winner blast should kill an eye and leave a wyvern at %d, hp %d alive %s" % [wyvern.max_hp - blast, wyvern.hp, wyvern.alive])
 			failed += 1
-		if not piano.alive or piano.hp != piano.max_hp - FormCatalog.VENDING_WINNER_DAMAGE or piano.hp <= 0:
+		if not piano.alive or piano.hp != piano.max_hp - blast or piano.hp <= 0:
 			push_error("winner blast should chip a piano, not delete it, hp %d" % piano.hp)
 			failed += 1
-		if game.combo != 4 or absf(game.combo_left - 0.8) > 0.001:
-			push_error("winner kills should not step or refresh the combo, got %s / %s" % [game.combo, game.combo_left])
+		if game.combo != int(kill_pay["combo"]) or absf(game.combo_left - float(kill_pay["combo_left"])) > 0.001:
+			push_error("winner kill should step the combo like a normal kill, got %s / %s" % [game.combo, game.combo_left])
 			failed += 1
 		if game.winner != 3:
 			push_error("winner kills should not refill the meter, got %s" % game.winner)
 			failed += 1
-		if game.score != score_before + bonus + half:
-			push_error("winner kill should pay the bonus plus half points, got %s want %s" % [game.score, score_before + bonus + half])
+		if game.score != score_before + int(kill_pay["points"]):
+			push_error("winner kill should pay a normal kill and no bonus, got %s want %s" % [game.score, score_before + int(kill_pay["points"])])
 			failed += 1
-		if game._loot.size() != loot_before or game._powers.size() != powers_before:
-			push_error("winner kills should not roll drops")
+		var gems_gained := int(game._loot.size()) - loot_before
+		var powers_gained := int(game._powers.size()) - powers_before
+		if gems_gained != (1 if expect_gem else 0) or powers_gained != (1 if expect_over or expect_power else 0):
+			push_error("winner kill should drop loot like a normal kill, gems %d powers %d" % [gems_gained, powers_gained])
+			failed += 1
+		game.rank_index = 4
+		var held_winner := int(game.winner)
+		game._winner_clear()
+		if wyvern.alive or piano.alive or game.winner != held_winner:
+			push_error("rank 5 blast should finish the survivors without refilling the meter, wyvern %s piano %s winner %s" % [wyvern.alive, piano.alive, game.winner])
 			failed += 1
 		var hostile_left := false
 		var friendly_kept := false
@@ -4483,11 +4674,17 @@ func _check_bosses() -> int:
 		if absf(float(pool / 2) / float(pool) - 0.5) > 0.0001:
 			push_error("%s half-health bar should sit at half" % slug)
 			failed += 1
-	if BossCatalog.winner_damage(500) != 75 or BossCatalog.winner_damage(2500) != 375 or BossCatalog.winner_damage(10000) != 1500 or BossCatalog.winner_damage(20000) != 3000 or BossCatalog.winner_damage(30000) != 4500:
-		push_error("WINNER should stay 15 percent of the new boss pools")
+	if BossCatalog.winner_damage(500) != 50 or BossCatalog.winner_damage(2500) != 250 or BossCatalog.winner_damage(10000) != 1000 or BossCatalog.winner_damage(20000) != 2000 or BossCatalog.winner_damage(30000) != 3000:
+		push_error("WINNER should stay 10 percent of the new boss pools")
 		failed += 1
 	if BossCatalog.winner_damage(2500) >= 2500 or BossCatalog.winner_damage(10000) >= 10000:
 		push_error("one WINNER must not finish a full boss")
+		failed += 1
+	if BossCatalog.meteor_rain_damage(500) != 75 or BossCatalog.meteor_rain_damage(2500) != 375 or BossCatalog.meteor_rain_damage(10000) != 1500 or BossCatalog.meteor_rain_damage(20000) != 3000 or BossCatalog.meteor_rain_damage(30000) != 4500:
+		push_error("Meteor Rain should stay 15 percent of the boss pools")
+		failed += 1
+	if BossCatalog.meteor_rain_damage(2500) >= 2500 or BossCatalog.meteor_rain_damage(10000) >= 10000:
+		push_error("one Meteor Rain must not finish a full boss")
 		failed += 1
 	if BossCatalog.attack_rate(180.0, 1, 2) <= BossCatalog.attack_rate(180.0, 0, 2):
 		push_error("a returning dragon should attack faster")
@@ -4496,6 +4693,7 @@ func _check_bosses() -> int:
 		push_error("the death knight warning should stay about 0.8 s")
 		failed += 1
 	failed += _check_bone_rain()
+	failed += _check_lich_patterns()
 	failed += _check_boss_rework()
 	failed += _check_boss_gaps()
 	failed += _check_boss_flee()
@@ -4562,14 +4760,23 @@ func _check_bosses() -> int:
 
 func _check_boss_rework() -> int:
 	var failed := 0
-	if BossCatalog.WINNER_BOSS_DMG_PCT != 0.15:
-		push_error("WINNER boss damage should be 15 percent")
+	if BossCatalog.WINNER_BOSS_DMG_PCT != 0.10:
+		push_error("WINNER boss damage should be 10 percent")
 		failed += 1
-	if BossCatalog.winner_damage(200) != 30 or BossCatalog.winner_damage(350) != 53 or BossCatalog.winner_damage(500) != 75:
-		push_error("WINNER chips should be 30, 53, and 75, got %d %d %d" % [BossCatalog.winner_damage(200), BossCatalog.winner_damage(350), BossCatalog.winner_damage(500)])
+	if BossCatalog.winner_damage(200) != 20 or BossCatalog.winner_damage(350) != 35 or BossCatalog.winner_damage(500) != 50:
+		push_error("WINNER chips should be 20, 35, and 50, got %d %d %d" % [BossCatalog.winner_damage(200), BossCatalog.winner_damage(350), BossCatalog.winner_damage(500)])
 		failed += 1
 	if BossCatalog.winner_damage(500) >= 500:
 		push_error("one WINNER must not be an instant kill")
+		failed += 1
+	if BossCatalog.METEOR_RAIN_BOSS_DMG_PCT != 0.15:
+		push_error("Meteor Rain boss damage should stay 15 percent")
+		failed += 1
+	if BossCatalog.meteor_rain_damage(200) != 30 or BossCatalog.meteor_rain_damage(350) != 53 or BossCatalog.meteor_rain_damage(500) != 75:
+		push_error("Meteor Rain chips should stay 30, 53, and 75, got %d %d %d" % [BossCatalog.meteor_rain_damage(200), BossCatalog.meteor_rain_damage(350), BossCatalog.meteor_rain_damage(500)])
+		failed += 1
+	if BossCatalog.meteor_rain_damage(500) >= 500:
+		push_error("one Meteor Rain must not be an instant kill")
 		failed += 1
 	var furious := BossCatalog.attack_cycle("lich_king", 2)
 	if furious.find("beam_rain") < 0 or furious.find("spiral_hands") < 0:
@@ -4849,6 +5056,265 @@ func _check_bone_rain() -> int:
 	boss.free()
 	return failed
 
+## Skull spiral, grave hands, bone rain, and the two enraged mixes.
+## The across-map beam is only checked to still chain and keep its row.
+func _check_lich_patterns() -> int:
+	var failed := 0
+	for sprite in [BossCatalog.SPIRAL_SKULL, BossCatalog.GRAVE_HAND, BossCatalog.BONE_SHOT]:
+		if not _shot_hit_fits_sprite(sprite):
+			var draw_s := BossCatalog.shot_draw_scale(sprite)
+			var hit_s := BossCatalog.shot_hit_scale(sprite)
+			push_error("%s hitbox is outside the drawn sprite (draw %.1f hit %.1f)" % [sprite, draw_s, hit_s])
+			failed += 1
+	if absf(BossCatalog.shot_hit_scale(BossCatalog.SPIRAL_SKULL) - 1.0) > 0.001:
+		push_error("the spiral skull threat is authored for the doubled picture and should not scale again")
+		failed += 1
+	if absf(BossCatalog.shot_draw_scale(BossCatalog.SOUL_BEAM) - 1.0) > 0.001 or absf(BossCatalog.shot_hit_scale(BossCatalog.SOUL_BEAM) - 1.0) > 0.001:
+		push_error("the soul beam art scale drifted")
+		failed += 1
+	var tall := 0.0
+	for id in FormCatalog.IDS:
+		for rank in 5:
+			var file := str(FormCatalog.rank_spec(id, rank)["sprite"])
+			tall = maxf(tall, HitLibrary.vertical_extent(file, "hurt"))
+	var skull_h := HitLibrary.vertical_extent(BossCatalog.SPIRAL_SKULL, "threat") * BossCatalog.shot_hit_scale(BossCatalog.SPIRAL_SKULL)
+	var lane_gap := BossCatalog.SPIRAL_LANE * 2.0 - BossCatalog.SPIRAL_WAVE * 2.0 - skull_h
+	if lane_gap <= tall:
+		push_error("spiral bands leave no lane (gap %.1f body %.1f)" % [lane_gap, tall])
+		failed += 1
+	var spiral := _fresh_lich()
+	spiral.fire_room = 0
+	spiral._attack_cd = 0.0
+	spiral._attack_i = BossCatalog.attack_cycle("lich_king", 1).find("skull_spiral")
+	var spiral_shots: Array[Dictionary] = []
+	var t := 0.0
+	while t < 2.4:
+		var fired := spiral.tick(0.05, Vector2(150, 120), 40.0, 1.0)
+		t += 0.05
+		for spec in fired:
+			if str(spec.get("sprite", "")) != BossCatalog.SPIRAL_SKULL:
+				continue
+			if t < BossCatalog.SPIRAL_WIND:
+				push_error("a spiral skull fired before the warning finished")
+				failed += 1
+			spiral_shots.append(spec)
+	if spiral_shots.size() < 6:
+		push_error("the skull spiral should keep firing with an empty shot cap, got %d" % spiral_shots.size())
+		failed += 1
+	else:
+		var low := false
+		var high := false
+		var body_left := spiral.position.x - ArtLibrary.anchor(spiral.sprite_file()).x
+		for spec in spiral_shots:
+			var at: Vector2 = spec["position"]
+			var vel: Vector2 = spec["velocity"]
+			if vel.x > -80.0 or absf(vel.y) > 1.0:
+				push_error("spiral skulls should travel straight left, got %s" % vel)
+				failed += 1
+				break
+			if at.x >= body_left - 4.0:
+				push_error("a spiral skull spawned inside the lich at %s (body left %.1f)" % [at, body_left])
+				failed += 1
+				break
+			var rel := at.y - (spiral.position.y + BossCatalog.SPIRAL_ORIGIN.y)
+			if absf(absf(rel) - BossCatalog.SPIRAL_LANE) > BossCatalog.SPIRAL_WAVE + 1.5:
+				push_error("a spiral skull left its warning band, y offset %s" % rel)
+				failed += 1
+				break
+			if rel > 0.0:
+				high = true
+			else:
+				low = true
+		if not low or not high:
+			push_error("the spiral should use both bands")
+			failed += 1
+	spiral.free()
+	var hands := _fresh_lich()
+	hands.fire_room = 0
+	hands._attack_cd = 0.0
+	hands._attack_i = BossCatalog.attack_cycle("lich_king", 1).find("grave_hands")
+	var hand_shots: Array[Dictionary] = []
+	var warned_hands: Array[float] = []
+	t = 0.0
+	while t < 1.6 and hand_shots.is_empty():
+		var fired_hands := hands.tick(0.05, Vector2(180, 140), 30.0, 1.0)
+		t += 0.05
+		if hands._hands_left > 0.2 and warned_hands.is_empty():
+			warned_hands.append_array(hands._hand_xs)
+		for spec in fired_hands:
+			if str(spec.get("sprite", "")) == BossCatalog.GRAVE_HAND:
+				hand_shots.append(spec)
+	if warned_hands.size() < 2 or hand_shots.size() != warned_hands.size():
+		push_error("grave hands should warn then rise on those columns, warn %s shots %d" % [warned_hands, hand_shots.size()])
+		failed += 1
+	else:
+		for spec in hand_shots:
+			var at: Vector2 = spec["position"]
+			var matched := false
+			for column in warned_hands:
+				if absf(at.x - column) <= 0.5:
+					matched = true
+			if not matched or absf(at.y - BossCatalog.HAND_START_Y) > 0.5:
+				push_error("a grave hand did not start on its marked column, at %s marks %s" % [at, warned_hands])
+				failed += 1
+				break
+			if absf(float(spec.get("halt_y", -1.0)) - BossCatalog.HAND_HALT_Y) > 0.1:
+				push_error("a grave hand has no hold height")
+				failed += 1
+				break
+			var risen := Shot.new()
+			risen.setup(spec, false)
+			var guard := 0
+			while risen.velocity.y < -1.0 and risen.life > 0.0 and guard < 80:
+				risen.tick(0.05)
+				guard += 1
+			if absf(risen.position.y - BossCatalog.HAND_HALT_Y) > 1.0 or risen.velocity.length() > 0.1:
+				push_error("a grave hand should rise and hold, y %s vel %s" % [risen.position.y, risen.velocity])
+				failed += 1
+			var held := risen.position.y
+			risen.tick(0.05)
+			if absf(risen.position.y - held) > 0.01:
+				push_error("a grave hand drifted after it held")
+				failed += 1
+			risen.free()
+	hands.free()
+	var rain := _fresh_lich()
+	rain.fire_room = 0
+	rain._attack_cd = 0.0
+	rain._attack_i = BossCatalog.attack_cycle("lich_king", 1).find("bone_rain")
+	var marks: Array[float] = []
+	var bone_specs: Array[Dictionary] = []
+	t = 0.0
+	while t < 2.0 and bone_specs.size() < 2:
+		var fired_bones := rain.tick(0.05, Vector2(160, 120), 40.0, 1.0)
+		t += 0.05
+		if rain._rain_left > 0.3 and marks.is_empty():
+			marks.append_array(rain._rain_columns)
+		for spec in fired_bones:
+			if str(spec.get("sprite", "")) == BossCatalog.BONE_SHOT:
+				bone_specs.append(spec)
+	if marks.size() < 3 or bone_specs.is_empty():
+		push_error("bone rain should mark columns and then drop bones")
+		failed += 1
+	else:
+		for column in marks:
+			if absf(BossCatalog.bone_mark_at(column).x - column) > 0.01:
+				push_error("the bone warning mark left its column")
+				failed += 1
+				break
+		var land := BossCatalog.bone_land_y()
+		for spec in bone_specs:
+			var at: Vector2 = spec["position"]
+			var on_mark := false
+			for column in marks:
+				if absf(at.x - column) <= 0.5 and absf(BossCatalog.bone_mark_at(column).y - land) <= 0.01:
+					on_mark = true
+			if not on_mark:
+				push_error("a bone did not spawn on a marked column at %s" % at)
+				failed += 1
+				break
+			var bone := Shot.new()
+			bone.setup(spec, false)
+			var speed := float((spec["velocity"] as Vector2).y)
+			var steps := 0
+			while bone.life > 0.0 and steps < 200:
+				bone.tick(0.05)
+				steps += 1
+			if bone.life > 0.0 or bone.position.y > land + speed * 0.05 + 1.5:
+				push_error("a bone should vanish at the ground mark, y %s land %s life %s" % [bone.position.y, land, bone.life])
+				failed += 1
+			bone.free()
+	rain.free()
+	var mix := _fresh_lich()
+	mix.hp = int(mix.max_hp / 2)
+	mix.enraged = true
+	mix.fire_room = 0
+	mix._attack_cd = 0.0
+	mix._attack_i = BossCatalog.attack_cycle("lich_king", 2).find("beam_rain")
+	mix.tick(0.05, Vector2(150, 110), 40.0, 1.0)
+	if mix._attack_id != "beam_rain" or mix._beam_mode != 1 or mix._rain_columns.size() < 3:
+		push_error("beam rain should keep both the beam and the columns, id %s mode %s cols %s" % [mix._attack_id, mix._beam_mode, mix._rain_columns])
+		failed += 1
+	var mix_bones := 0
+	var mix_beam := 0
+	t = 0.0
+	while t < 2.4 and (mix_bones < 2 or mix_beam < 4):
+		mix.fire_room = 0
+		for spec in mix.tick(0.05, Vector2(150, 110), 40.0, 1.0):
+			var picture := str(spec.get("sprite", ""))
+			if picture == BossCatalog.BONE_SHOT:
+				mix_bones += 1
+			elif picture == BossCatalog.SOUL_BEAM:
+				mix_beam += 1
+		t += 0.05
+	if mix_bones < 2 or mix_beam < 4:
+		push_error("beam rain should fire bones and the beam, bones %d beam %d" % [mix_bones, mix_beam])
+		failed += 1
+	mix.free()
+	var chained := _fresh_lich()
+	chained.hp = int(chained.max_hp / 2)
+	chained.enraged = true
+	chained._attack_cd = 0.0
+	chained._attack_i = BossCatalog.attack_cycle("lich_king", 2).find("double_beam")
+	chained._summon_cd = 80.0
+	chained.tick(0.05, Vector2(120, 100), 40.0, 1.0)
+	if chained._attack_id != "double_beam" or chained._beam_chain != 1 or chained._beam_mode != 1:
+		push_error("double beam should still arm a second pass, id %s chain %s mode %s" % [chained._attack_id, chained._beam_chain, chained._beam_mode])
+		failed += 1
+	var second := false
+	t = 0.05
+	while t < 3.4:
+		chained.fire_room = -1
+		chained.tick(0.05, Vector2(120, 160), 40.0, 1.0)
+		t += 0.05
+		if chained._beam_chain == 0 and chained._beam_mode == 1 and t > 1.2:
+			second = true
+			break
+	if not second:
+		push_error("double beam should start a second track after the first row")
+		failed += 1
+	chained.free()
+	var both := _fresh_lich()
+	both.hp = int(both.max_hp / 2)
+	both.enraged = true
+	both.fire_room = 0
+	both._attack_cd = 0.0
+	both._attack_i = BossCatalog.attack_cycle("lich_king", 2).find("spiral_hands")
+	both.tick(0.05, Vector2(170, 140), 40.0, 1.0)
+	if both._attack_id != "spiral_hands" or both._spiral_wind <= 0.0 or both._hand_xs.size() < 2:
+		push_error("spiral hands should warn with both patterns, id %s wind %s cols %s" % [both._attack_id, both._spiral_wind, both._hand_xs])
+		failed += 1
+	both.free()
+	return failed
+
+func _fresh_lich() -> BossActor:
+	var boss := BossActor.new()
+	boss.setup(11, {"slug": "lich_king", "hold_x": 428.0, "origin_y": 128.0, "phase": 0.2, "wave_amp": 0.0, "generation": 0}, Vector2(480, 270), null)
+	boss.state = BossActor.HOLD
+	boss.intro_left = 0.0
+	boss.fight_left = 40.0
+	boss.position = Vector2(428, 128)
+	boss._summon_cd = 80.0
+	return boss
+
+func _shot_hit_fits_sprite(sprite: String) -> bool:
+	if not HitLibrary.contains_local(sprite, "threat", Vector2.ZERO):
+		return false
+	var draw_s := BossCatalog.shot_draw_scale(sprite)
+	var hit_s := BossCatalog.shot_hit_scale(sprite)
+	var anchor := ArtLibrary.anchor(sprite) * draw_s
+	var size := ArtLibrary.art_bbox(sprite) * draw_s
+	var across := HitLibrary.horizontal_span(sprite, "threat") * hit_s
+	var down := HitLibrary.vertical_span(sprite, "threat") * hit_s
+	var slop := 2.0
+	if across.x < -anchor.x - slop or across.y > size.x - anchor.x + slop:
+		return false
+	if down.x < -anchor.y - slop or down.y > size.y - anchor.y + slop:
+		return false
+	if absf((across.x + across.y) * 0.5) > 3.0 or absf((down.x + down.y) * 0.5) > 3.0:
+		return false
+	return true
+
 func _check_boss_gaps() -> int:
 	var failed := 0
 	var top := 28.0
@@ -5107,20 +5573,42 @@ func _check_dragon_form() -> int:
 		best = maxf(best, float(total) / interval)
 		move = maxf(move, FormCatalog.max_speed(id))
 	var dragon_shots := FormCatalog.player_shots(FormCatalog.Id.DRAGON, Vector2.ZERO, 0)
-	if dragon_shots.size() != 3:
-		push_error("the dragon attack should fire 3 fireballs")
+	if dragon_shots.size() != 1:
+		push_error("the dragon attack should fire 1 fireball")
 		failed += 1
 	var dragon_dmg := 0
-	var fan := 0.0
+	var base_radius := HitLibrary.bounds_radius(FormCatalog.DRAGON_SHOT, "body")
 	for spec in dragon_shots:
 		dragon_dmg += int(spec["damage"])
 		var vel: Vector2 = spec["velocity"]
 		if absf(vel.length() - FormCatalog.DRAGON_SHOT_SPEED) > 0.6:
 			push_error("dragon fireballs should keep speed %.1f, got %.1f" % [FormCatalog.DRAGON_SHOT_SPEED, vel.length()])
 			failed += 1
-		fan = maxf(fan, absf(rad_to_deg(vel.angle())))
-	if fan < 10.0 or fan > 12.0:
-		push_error("dragon fireball fan should be about 10 to 12 degrees, got %.2f" % fan)
+		if absf(vel.y) > 0.01 or vel.x <= 0.0:
+			push_error("the dragon fireball should fly straight ahead, vel %s" % vel)
+			failed += 1
+		if int(spec["damage"]) != 10:
+			push_error("the dragon fireball should deal 10, got %s" % spec["damage"])
+			failed += 1
+		if absf(float(spec.get("scale", 1.0)) - FormCatalog.DRAGON_SHOT_SCALE) > 0.001:
+			push_error("the dragon fireball should draw at 3x, scale %s" % spec.get("scale", 1.0))
+			failed += 1
+		if absf(float(spec["radius"]) - base_radius * FormCatalog.DRAGON_SHOT_SCALE) > 0.01:
+			push_error("the dragon fireball hit radius should be 3x, got %s base %s" % [spec["radius"], base_radius])
+			failed += 1
+	var weapon := FormCatalog.weapon_line(FormCatalog.Id.DRAGON, 0)
+	if weapon.find("1 fireball") < 0 or weapon.find("Fan") >= 0 or weapon.find("Meteor Rain in 50") < 0 or weapon.find("Dmg 10") < 0 or weapon.find("splash 8") < 0:
+		push_error("dragon card should describe one fireball, dmg 10, splash 8, and 50 kills, got %s" % weapon)
+		failed += 1
+	if FormCatalog.DRAGON_METEOR_KILLS != 50:
+		push_error("meteor rain should charge in 50 kills, got %s" % FormCatalog.DRAGON_METEOR_KILLS)
+		failed += 1
+	var dragon_trait := FormCatalog.trait_line(FormCatalog.Id.DRAGON, true)
+	if dragon_trait.find("Meteor Rain in 50 kills") < 0 or dragon_trait.find("15%") < 0:
+		push_error("dragon trait should name Meteor Rain at 50 kills, got %s" % dragon_trait)
+		failed += 1
+	if FormCatalog.DRAGON_SPLASH != 8 or absf(FormCatalog.DRAGON_SPLASH_RADIUS - 126.0) > 0.01:
+		push_error("splash damage stays 8 and the radius is 3x (126), got %s / %s" % [FormCatalog.DRAGON_SPLASH, FormCatalog.DRAGON_SPLASH_RADIUS])
 		failed += 1
 	var dragon_dps := float(dragon_dmg) / FormCatalog.DRAGON_FIRE_INTERVAL
 	if dragon_dps + 0.01 < best:
@@ -5135,8 +5623,8 @@ func _check_dragon_form() -> int:
 	if FormCatalog.DRAGON_MAX_SPEED + 0.1 < move:
 		push_error("dragon move speed should be at least the fastest rank-5 form")
 		failed += 1
-	if int(dragon_shots[0]["splash"]) != FormCatalog.DRAGON_SPLASH:
-		push_error("dragon fireballs should splash")
+	if dragon_shots.is_empty() or int(dragon_shots[0]["splash"]) != FormCatalog.DRAGON_SPLASH or absf(float(dragon_shots[0]["splash_radius"]) - FormCatalog.DRAGON_SPLASH_RADIUS) > 0.01:
+		push_error("dragon fireballs should splash for 8 inside a 126px radius")
 		failed += 1
 	var body_img := ArtLibrary.texture("dragon_form/dragon_fly_body.png").get_image()
 	var fx_img := ArtLibrary.texture("dragon_form/dragon_fly_fx.png").get_image()
@@ -5216,10 +5704,473 @@ func _check_dragon_form() -> int:
 	screen.free()
 	return failed
 
+func _boot_play_game() -> Node:
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game.phase = game.PHASE_PLAY
+	game._reveal.visible = false
+	if game._hint_label != null:
+		game._hint_label.visible = false
+	if game._world_flash != null:
+		game._world_flash.visible = false
+	game._world_flash_left = 0.0
+	game.invuln = 0.0
+	game._player.invulnerable = false
+	game._player.alive = true
+	game._clear_field()
+	return game
+
+func _finish_show(show: DragonShow) -> void:
+	var guard := 0
+	while show.phase != DragonShow.IDLE and guard < 400:
+		show.tick(DragonShow.FRAME)
+		guard += 1
+	for _extra in 45:
+		show.tick(DragonShow.FRAME)
+
+func _check_meteor_shake() -> int:
+	var failed := 0
+	if absf(DragonShow.SLAM_SHAKE_PX - 2.0) > 0.001 or absf(DragonShow.SLAM_SHAKE_SECONDS - 0.2) > 0.001:
+		push_error("the giant slam bump should be 2px for 0.2s")
+		failed += 1
+	var game = _boot_play_game()
+	game.form_id = FormCatalog.Id.DRAGON
+	game._player.adopt_dragon(1.0)
+	game._dragon_show.rng_seed = 11
+	game.position = Vector2.ZERO
+	# Shakes that are not the slam must stay quiet for the whole show.
+	game._juice_shake = Replay.JUICE_SHAKE_SECONDS
+	game._shake_left = Difficulty.FINAL_SHAKE_SECONDS
+	game._dragon_shake(4.0, 0.45)
+	game._dragon_show.start_rain()
+	var dt := 1.0 / 60.0
+	var charge_rain_moved := false
+	var fall_moved := false
+	var poked := false
+	var saw_slam := false
+	var after_show := false
+	var bump: Array[Vector2] = []
+	var guard := 0
+	while guard < 800:
+		guard += 1
+		game._dragon_show.tick(DragonShow.FRAME)
+		var phase := int(game._dragon_show.phase)
+		if phase == DragonShow.RAIN and not poked:
+			poked = true
+			game._bump_shake()
+			game._dragon_shake(4.0, 0.45)
+		if phase == DragonShow.SLAM:
+			saw_slam = true
+		for _render in 4:
+			game._apply_shake(dt)
+			var off: Vector2 = game.position
+			if phase == DragonShow.CHARGE or phase == DragonShow.RAIN:
+				if off != Vector2.ZERO:
+					charge_rain_moved = true
+			elif phase == DragonShow.FALL:
+				if off != Vector2.ZERO:
+					fall_moved = true
+			elif saw_slam:
+				bump.append(off)
+		if phase == DragonShow.IDLE and saw_slam:
+			after_show = true
+			if game.position != Vector2.ZERO:
+				push_error("shake should be back to zero after meteor rain, offset %s" % game.position)
+				failed += 1
+			var stayed := true
+			for _extra in 8:
+				game._apply_shake(dt)
+				if game.position != Vector2.ZERO:
+					stayed = false
+			if not stayed:
+				push_error("shake should stay zero after the finale, offset %s" % game.position)
+				failed += 1
+			break
+	if not poked:
+		push_error("meteor shake check never reached the rain")
+		failed += 1
+	if charge_rain_moved:
+		push_error("shake offset should be zero throughout the meteor charge and rain")
+		failed += 1
+	if fall_moved:
+		push_error("the giant meteor's fall should not shake the screen")
+		failed += 1
+	if not saw_slam or not after_show:
+		push_error("meteor shake check did not finish the slam")
+		failed += 1
+	var runs: Array[Vector2] = []
+	var run_len: Array[int] = []
+	var spans := 0
+	var in_bump := false
+	for sample in bump:
+		if sample != Vector2.ZERO:
+			if not in_bump:
+				spans += 1
+				in_bump = true
+			if runs.is_empty() or sample != runs[runs.size() - 1]:
+				runs.append(sample)
+				run_len.append(1)
+			else:
+				run_len[run_len.size() - 1] += 1
+		else:
+			in_bump = false
+	if spans != 1 or runs.size() != 2 or runs[0] != Vector2(2, 0) or runs[1] != Vector2(1, 0):
+		push_error("the finale should be one bump, 2px then 1px, got %s" % str(runs))
+		failed += 1
+	elif run_len[0] < 4 or run_len[1] < 4:
+		push_error("slam bump should hold each offset for a show frame, held %s" % str(run_len))
+		failed += 1
+	# A shake that is not part of the show still moves the screen afterward.
+	game._bump_shake()
+	var juice := false
+	for _i in 8:
+		game._apply_shake(dt)
+		if game.position != Vector2.ZERO and game.position.length() <= Replay.JUICE_SHAKE_PX + 0.01:
+			juice = true
+	if not juice:
+		push_error("a hit shake after meteor rain should still move the screen")
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
+func _check_meteor_rain() -> int:
+	var failed := 0
+	var show := DragonShow.new()
+	show.rng_seed = 3
+	show.start_rain()
+	var saw_flying := false
+	var saw_impact := false
+	for _i in DragonShow.CHARGE_FRAMES + DragonShow.RAIN_FRAMES:
+		show.tick(DragonShow.FRAME)
+		if not saw_flying:
+			for item in show._meteors:
+				if item.get("on", false) and int(item.get("boom", -1)) < 0:
+					var at: Vector2 = item["pos"]
+					saw_flying = true
+					if not show.blocks_bullet(at, 4.0) or not show.blocks_bullet(at, 0.0):
+						push_error("a bullet overlapping a falling meteor should be blocked")
+						failed += 1
+					if show.blocks_bullet(at + Vector2(DragonShow.METEOR_HIT_RADIUS + 2.0, 0), 0.0):
+						push_error("meteor block radius should match the 78px body")
+						failed += 1
+					if show.blocks_bullet(Vector2(-800, -800), 4.0):
+						push_error("a bullet far from every meteor should survive")
+						failed += 1
+					break
+		if not saw_impact and not show._impacts.is_empty():
+			var blast: Vector2 = show._impacts[0]["pos"]
+			saw_impact = true
+			if not show.blocks_bullet(blast, 4.0):
+				push_error("a bullet inside an impact should be blocked")
+				failed += 1
+		if saw_flying and saw_impact:
+			break
+	if not saw_flying or not saw_impact:
+		push_error("the rain should have a falling meteor and an impact to test bullets")
+		failed += 1
+	_finish_show(show)
+	show.free()
+	var game = _boot_play_game()
+	game.form_id = FormCatalog.Id.DRAGON
+	game._player.adopt_dragon(1.0)
+	game._player.position = Vector2(80, 140)
+	game._begin_lair_transition()
+	if game._lair == null or not game._lair.running:
+		push_error("the lair transition should be running when the rain starts")
+		failed += 1
+	game._dragon_show.rng_seed = 9
+	game._dragon_show.start_rain()
+	var near: Shot = game._spawn_shot({
+		"position": Vector2.ZERO,
+		"velocity": Vector2(-10, 0),
+		"sprite": "floating_eye_bolt.png",
+		"radius": 4.0,
+		"damage": 1,
+		"killer_name": "bolt",
+	}, false)
+	var inside: Shot = game._spawn_shot({
+		"position": Vector2(1, 1),
+		"velocity": Vector2(-10, 0),
+		"sprite": "floating_eye_bolt.png",
+		"radius": 4.0,
+		"damage": 1,
+		"killer_name": "boss",
+	}, false)
+	var far: Shot = game._spawn_shot({
+		"position": Vector2(8, 8),
+		"velocity": Vector2(-10, 0),
+		"sprite": "floating_eye_bolt.png",
+		"radius": 4.0,
+		"damage": 1,
+		"killer_name": "bolt",
+	}, false)
+	var placed_near := false
+	var placed_impact := false
+	for _i in DragonShow.CHARGE_FRAMES + DragonShow.RAIN_FRAMES:
+		game._dragon_show.tick(DragonShow.FRAME)
+		if not placed_near:
+			for item in game._dragon_show._meteors:
+				if item.get("on", false) and int(item.get("boom", -1)) < 0:
+					near.position = item["pos"]
+					placed_near = true
+					break
+		if not placed_impact and not game._dragon_show._impacts.is_empty():
+			inside.position = game._dragon_show._impacts[0]["pos"]
+			placed_impact = true
+		if placed_near and placed_impact:
+			for item in game._dragon_show._meteors:
+				if item.get("on", false) and int(item.get("boom", -1)) < 0:
+					near.position = item["pos"]
+					break
+			inside.position = game._dragon_show._impacts[0]["pos"]
+			break
+	far.position = Vector2(24, 250)
+	if game._dragon_show.blocks_bullet(far.position, far.radius):
+		push_error("the control bullet should sit clear of every meteor")
+		failed += 1
+	if not placed_near or not placed_impact:
+		push_error("could not place bullets on a meteor and an impact")
+		failed += 1
+	else:
+		game._block_meteor_bullets()
+		if game._shots.has(near) or game._shots.has(inside) or not game._shots.has(far):
+			push_error("meteor overlap and impact bullets should be removed, and a far bullet should stay")
+			failed += 1
+	if absf(game._meteor_guard - game.METEOR_INVULN_SECONDS) > 0.02 or not game._player.invulnerable:
+		push_error("meteor rain should open with %.2fs of invuln, guard %s" % [game.METEOR_INVULN_SECONDS, game._meteor_guard])
+		failed += 1
+	var open_marker: Label = game._hud.get_node_or_null("InvincibleMarker")
+	if open_marker == null or not open_marker.visible or str(open_marker.text) != "INVINCIBLE":
+		push_error("meteor rain should show INVINCIBLE during the opening invuln")
+		failed += 1
+	game._spawn_shot({
+		"position": game._player.position,
+		"velocity": Vector2.ZERO,
+		"sprite": "floating_eye_bolt.png",
+		"radius": 8.0,
+		"damage": 1,
+		"killer_name": "bolt",
+	}, false)
+	game._collide()
+	if not game._player.alive or game.phase != game.PHASE_PLAY:
+		push_error("the player should be safe for the opening 0.5s of meteor rain")
+		failed += 1
+	game._clear_enemy_shots()
+	# The show was stepped on its own clock, so spend the guard the way play does.
+	game._director._next_time = 100000.0
+	game._boss_director.dragon_at = 100000.0
+	game._tutorial_active = false
+	var step := 1.0 / 60.0
+	for _i in 34:
+		game._process(step)
+	if game._dragon_show.phase == DragonShow.IDLE or game._meteor_guard > 0.0 or game._player.invulnerable or game.invuln > 0.0:
+		push_error("after 0.5s the rain should still be going with no invuln, phase %s guard %s invuln %s" % [game._dragon_show.phase, game._meteor_guard, game.invuln])
+		failed += 1
+	var late_marker: Label = game._hud.get_node_or_null("InvincibleMarker")
+	if late_marker != null and late_marker.visible:
+		push_error("INVINCIBLE should hide once the meteor opening ends")
+		failed += 1
+	var saw_rain: bool = game._dragon_show.phase == DragonShow.RAIN
+	var saw_slam: bool = game._dragon_show.phase == DragonShow.SLAM
+	var guard_frames := 0
+	while game._dragon_show.phase != DragonShow.IDLE and game._player.alive and guard_frames < 700:
+		if game._dragon_show.phase == DragonShow.RAIN:
+			saw_rain = true
+		elif game._dragon_show.phase == DragonShow.SLAM:
+			saw_slam = true
+		if game._player.invulnerable or game._meteor_guard > 0.0:
+			push_error("the rest of meteor rain should not grant invuln, phase %s" % game._dragon_show.phase)
+			failed += 1
+			break
+		game._process(step)
+		guard_frames += 1
+	if not saw_rain or not saw_slam:
+		push_error("the show should still reach the rain and the slam, rain %s slam %s phase %s" % [saw_rain, saw_slam, game._dragon_show.phase])
+		failed += 1
+	if game.phase != game.PHASE_PLAY or not game._player.alive:
+		push_error("a clear field should not kill the player during the unguarded rain")
+		failed += 1
+	game._spawn_shot({
+		"position": game._player.position,
+		"velocity": Vector2.ZERO,
+		"sprite": "floating_eye_bolt.png",
+		"radius": 8.0,
+		"damage": 1,
+		"killer_name": "bolt",
+	}, false)
+	game._collide()
+	if game._player.alive or game.phase != game.PHASE_DEAD:
+		push_error("the player should be hittable for the rest of meteor rain")
+		failed += 1
+	if game._meteor_guard > 0.0:
+		push_error("dying should clear the meteor guard")
+		failed += 1
+	var dead_marker: Label = game._hud.get_node_or_null("InvincibleMarker")
+	if dead_marker != null and dead_marker.visible:
+		push_error("dying should hide the INVINCIBLE marker")
+		failed += 1
+	_finish_show(game._dragon_show)
+	if game._dragon_show.phase != DragonShow.IDLE or game._dragon_show.active_meteors() != 0 or game._dragon_show._giant.get("on", false) or game._dragon_show._impacts.size() != 0 or game._dragon_show.visible_meteor_fx() != 0 or game._dragon_show.lingering_meteor_fx() != 0:
+		push_error("a rain started as the lair opens should clear every meteor after it ends")
+		failed += 1
+	game.invuln = 0.0
+	game._player.invulnerable = false
+	game._player.position = Vector2(80, 140)
+	game._spawn_shot({
+		"position": game._player.position,
+		"velocity": Vector2.ZERO,
+		"sprite": "floating_eye_bolt.png",
+		"radius": 8.0,
+		"damage": 1,
+		"killer_name": "after",
+	}, false)
+	game._collide()
+	if game._player.alive or game.phase != game.PHASE_DEAD:
+		push_error("the player should be hittable again after meteor rain")
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
+func _check_dragon_death() -> int:
+	var failed := 0
+	CaptureMode.reset_for_test(PackedStringArray())
+	var game = _boot_play_game()
+	game.form_id = FormCatalog.Id.GOBLIN
+	game._player.form_id = FormCatalog.Id.GOBLIN
+	game._roster_form = FormCatalog.Id.GOBLIN
+	game.rank_index = 2
+	game._player.rank_index = 2
+	game._player.small = false
+	game.evo_points = 40
+	game._player.power_level = 0
+	game.score = 4321
+	game.elapsed = 66.0
+	game.combo = 3
+	game.dragon_kills = 1
+	game.day_seed = 20261101
+	game._background.apply_world(WorldCatalog.DRAGON_LAIR, false)
+	game._adopt_dragon_form()
+	if game.form_id != FormCatalog.Id.DRAGON or game._player.form_id != FormCatalog.Id.DRAGON or game._roster_form != FormCatalog.Id.GOBLIN:
+		push_error("adopting the dragon should keep the goblin as the run's roster form")
+		failed += 1
+	if game.rank_index != 2 or game.evo_points != 40:
+		push_error("adopting the dragon should keep the rank and evolution points already earned")
+		failed += 1
+	if not game._dragon_phase_on or game._background.world_id != WorldCatalog.DRAGON_LAIR:
+		push_error("the dragon phase and the lair should be up before the hit")
+		failed += 1
+	game._dragon_show.rng_seed = 4
+	game._dragon_show.start_rain()
+	game._meteor_kills = 7
+	# The opening guard is a separate 0.5s. This hit is after that window.
+	game._meteor_guard = 0.0
+	game.invuln = 0.0
+	game._player.invulnerable = false
+	game._player.position = Vector2(140, 120)
+	game._kill_player("Ember Bat")
+	if game.phase != game.PHASE_DEAD or game._player.alive or game.form_id != FormCatalog.Id.DRAGON or game._player.form_id != FormCatalog.Id.DRAGON:
+		push_error("dying as the dragon should end the run as the dragon, phase %s form %s alive %s" % [game.phase, game.form_id, game._player.alive])
+		failed += 1
+	if game.killer_name != "Ember Bat":
+		push_error("the death card should keep the killer, got %s" % game.killer_name)
+		failed += 1
+	if game.invuln > 0.0 or game._player.invulnerable or game._meteor_guard > 0.0:
+		push_error("a dragon death should not grant i-frames, invuln %s guard %s" % [game.invuln, game._meteor_guard])
+		failed += 1
+	if game._dragon_show.phase != DragonShow.IDLE:
+		push_error("dying should cancel meteor rain, phase %s" % game._dragon_show.phase)
+		failed += 1
+	if game.score != 4321 or absf(game.elapsed - 66.0) > 0.001 or game.combo != 3:
+		push_error("the ended run should keep its score, time, and combo")
+		failed += 1
+	if game._combat != null:
+		for item in game._combat.items:
+			if str(item.get("text", "")) == "REVERTED!":
+				push_error("a dragon death should not show REVERTED!")
+				failed += 1
+				break
+	var life_marker: Label = game._hud.get_node_or_null("InvincibleMarker")
+	if life_marker != null and life_marker.visible:
+		push_error("dying should hide the INVINCIBLE marker")
+		failed += 1
+	game._skip_death_to_card()
+	if not game.game_over_visible or game.phase != game.PHASE_DEAD:
+		push_error("a dragon death should open the death card, visible %s phase %s" % [game.game_over_visible, game.phase])
+		failed += 1
+	if game._share_label == null or game._share_label.text != "Reached DRAGON":
+		push_error("the death card should name the dragon, got %s" % (game._share_label.text if game._share_label != null else "missing"))
+		failed += 1
+	if game._best_label == null or not str(game._best_label.text).begins_with("DRAGON BEST"):
+		push_error("the death card should score the dragon form, got %s" % (game._best_label.text if game._best_label != null else "missing"))
+		failed += 1
+	if game._score_label == null or game._score_label.text != ScoreRules.format_score(4321):
+		push_error("the death card should show the run score, got %s" % (game._score_label.text if game._score_label != null else "missing"))
+		failed += 1
+	var run: Dictionary = game.share_run()
+	if str(run.get("form", "")) != "goblin" or int(run.get("rank_reached", 0)) != 3 or int(run.get("score", 0)) != 4321:
+		push_error("run stats should keep the roster form and the score, got %s" % run)
+		failed += 1
+	var resolved := ShareCard.resolve(run)
+	if str(resolved.get("form", "")) != "goblin":
+		push_error("the share card should resolve the roster form, got %s" % resolved.get("form", ""))
+		failed += 1
+	# A lair killer is not on the share table. Resolving it must not crash.
+	var lair_run: Dictionary = run.duplicate()
+	lair_run["killer"] = ShareCard.killer_id("Ember Bat")
+	var lair_card := ShareCard.resolve(lair_run)
+	if str(lair_card.get("form", "")) != "goblin" or str(lair_card.get("killer", "")) == "":
+		push_error("a dragon-lair killer should still resolve a share card, got %s" % lair_card)
+		failed += 1
+	if game._public_form() != FormCatalog.Id.GOBLIN:
+		push_error("a dragon death should count as the roster form for the next roll")
+		failed += 1
+	var repeat_at := -1
+	for step in 12:
+		if FormCatalog.id_for_run(game.day_seed, step) == FormCatalog.Id.GOBLIN:
+			repeat_at = step
+			break
+	if repeat_at < 0:
+		push_error("expected a goblin roll to prove the no-repeat rule")
+		failed += 1
+	else:
+		var avoided := FormCatalog.id_for_run_avoiding(game.day_seed, repeat_at, FormCatalog.Id.GOBLIN)
+		if avoided == FormCatalog.Id.GOBLIN or avoided == FormCatalog.Id.DRAGON:
+			push_error("avoiding the roster form should not roll goblin or dragon, got %s" % FormCatalog.display_name(avoided))
+			failed += 1
+		var daily_path := DailyRun.SAVE_PATH
+		var daily_body := FileAccess.get_file_as_string(daily_path) if FileAccess.file_exists(daily_path) else ""
+		_restore_user_file(daily_path, JSON.stringify({
+			"date": str(DailyRun.date_seed()),
+			"next_run": repeat_at,
+			"epoch": BestScores.SCORE_EPOCH,
+		}))
+		game._card_age = Replay.CARD_GUARD
+		game._reincarnate()
+		_restore_user_file(daily_path, daily_body)
+	if game.form_id == FormCatalog.Id.DRAGON or FormCatalog.IDS.find(game.form_id) < 0:
+		push_error("reincarnation must not roll the dragon, got %s" % FormCatalog.display_name(game.form_id))
+		failed += 1
+	if game.form_id == FormCatalog.Id.GOBLIN:
+		push_error("reincarnation after a dragon death should not repeat the roster form")
+		failed += 1
+	if game.phase != game.PHASE_REVEAL or not game._player.alive or not game._short_reveal:
+		push_error("reincarnation should open the next run's reveal, phase %s" % game.phase)
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
 func _check_meteor_clock() -> int:
 	var failed := 0
-	if DragonShow.METEOR_COUNT < 22 or DragonShow.METEOR_COUNT > 25 or DragonShow.RAIN_FRAMES != 45 or DragonShow.SPAWN_EVERY != 2 or DragonShow.CHARGE_FRAMES != 15:
-		push_error("meteor rain should be 1.0s of charge and 3.0s with about 22-25 meteors every 2 frames")
+	if DragonShow.METEOR_COUNT != 15 or DragonShow.RAIN_FRAMES != 45 or DragonShow.SPAWN_EVERY != 3 or DragonShow.CHARGE_FRAMES != 15:
+		push_error("meteor rain should be 1.0s of charge and 3.0s with exactly 15 meteors every 3 frames")
+		failed += 1
+	if absf(DragonShow.METEOR_HIT_RADIUS - 39.0) > 0.01 or absf(DragonShow.IMPACT_HIT_RADIUS - 87.0) > 0.01 or absf(DragonShow.GIANT_HIT_RADIUS - 84.0) > 0.01 or absf(DragonShow.GIANT_IMPACT_HIT_RADIUS - 135.0) > 0.01:
+		push_error("meteor hit radii should be half the drawn cells (39, 87, 84, 135)")
 		failed += 1
 	if absf(DragonShow.DRAW_SCALE - 1.0) > 0.001 or absf(DragonShow.METEOR_CELL * DragonShow.DRAW_SCALE - 78.0) > 0.1 or absf(DragonShow.IMPACT_CELL * DragonShow.DRAW_SCALE - 174.0) > 0.1:
 		push_error("barrage meteors should draw at 1x, 78 and 174")
@@ -5233,8 +6184,8 @@ func _check_meteor_clock() -> int:
 	if absf(ArtLibrary.art_bbox("dragon_form/dragon_meteor_giant.png").x - DragonShow.GIANT_METEOR) > 0.1 or absf(ArtLibrary.art_bbox("dragon_form/dragon_meteor_giant_impact.png").x - DragonShow.GIANT_IMPACT) > 0.1:
 		push_error("the giant meteor and impact should be native 168 and 270")
 		failed += 1
-	if DragonShow.GIANT_IMPACT_FRAMES != 10 or DragonShow.IMPACT_HOLD != 2:
-		push_error("the giant impact should hold each of its 10 frames for 2 ticks")
+	if DragonShow.GIANT_IMPACT_FRAMES != 13 or DragonShow.IMPACT_HOLD != 2:
+		push_error("the giant impact should hold each of its 13 frames for 2 ticks")
 		failed += 1
 	if absf(DragonShow.GIANT_METEOR - 168.0) > 0.1 or absf(DragonShow.GIANT_IMPACT - 270.0) > 0.1:
 		push_error("the final meteor should be 168px with a 270px impact")
@@ -5250,14 +6201,143 @@ func _check_meteor_clock() -> int:
 	for _i in steps:
 		show.tick(DragonShow.FRAME)
 		peak = maxi(peak, show.active_meteors())
-	if show._spawned != DragonShow.METEOR_COUNT:
-		push_error("the rain should spawn %d meteors, got %d" % [DragonShow.METEOR_COUNT, show._spawned])
+	if show._spawned != 15:
+		push_error("the rain should spawn exactly 15 barrage meteors, got %d" % show._spawned)
 		failed += 1
 	if peak > DragonShow.POOL:
 		push_error("too many meteors on screen at once (%d, cap %d)" % [peak, DragonShow.POOL])
 		failed += 1
 	if show.phase != DragonShow.FALL and show.phase != DragonShow.SLAM:
 		push_error("the giant meteor should start when the rain ends, phase %s" % show.phase)
+		failed += 1
+	var guard := 0
+	while show.phase != DragonShow.IDLE and guard < 400:
+		show.tick(DragonShow.FRAME)
+		guard += 1
+	for _extra in 45:
+		show.tick(DragonShow.FRAME)
+	if show.phase != DragonShow.IDLE or show.active_meteors() != 0 or show._giant.get("on", false) or show._impacts.size() != 0 or show.visible_meteor_fx() != 0 or show.lingering_meteor_fx() != 0 or show.flash_frames != 0:
+		push_error("a finished rain should leave no meteor, giant, or impact, phase %s flying %s giant %s impacts %s visible %s" % [show.phase, show.active_meteors(), show._giant.get("on", false), show._impacts.size(), show.visible_meteor_fx()])
+		failed += 1
+	show.free()
+	failed += _check_meteor_sheets()
+	return failed
+
+func _png_size(path: String) -> Vector2i:
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.size() < 24 or bytes[0] != 137:
+		return Vector2i(-1, -1)
+	var w := (int(bytes[16]) << 24) | (int(bytes[17]) << 16) | (int(bytes[18]) << 8) | int(bytes[19])
+	var h := (int(bytes[20]) << 24) | (int(bytes[21]) << 16) | (int(bytes[22]) << 8) | int(bytes[23])
+	return Vector2i(w, h)
+
+## v2 sheets, the 13-frame giant slam, ground scorch, and no landing marker.
+func _check_meteor_sheets() -> int:
+	var failed := 0
+	var sheets: Array[Dictionary] = [
+		{"file": "dragon_form/dragon_meteor.png", "w": 312, "h": 78, "fw": 78, "fh": 78, "frames": 4, "fps": 15, "ax": 39, "ay": 39, "loop": true},
+		{"file": "dragon_form/dragon_meteor_impact.png", "w": 1392, "h": 174, "fw": 174, "fh": 174, "frames": 8, "fps": 15, "ax": 87, "ay": 87, "loop": false},
+		{"file": "dragon_form/dragon_meteor_giant.png", "w": 672, "h": 168, "fw": 168, "fh": 168, "frames": 4, "fps": 15, "ax": 84, "ay": 84, "loop": true},
+		{"file": "dragon_form/dragon_meteor_giant_impact.png", "w": 3510, "h": 270, "fw": 270, "fh": 270, "frames": 13, "fps": 15, "ax": 135, "ay": 135, "loop": false},
+		{"file": "dragon_form/dragon_meteor_warning.png", "w": 288, "h": 72, "fw": 72, "fh": 72, "frames": 4, "fps": 8, "ax": 36, "ay": 36, "loop": true},
+		{"file": "dragon_form/dragon_meteor_scorch.png", "w": 104, "h": 32, "fw": 104, "fh": 32, "frames": 1, "fps": 0, "ax": 52, "ay": 16, "loop": false},
+	]
+	for spec in sheets:
+		var file_name := str(spec["file"])
+		var data := ArtLibrary.entry(file_name)
+		var png := _png_size("res://art/" + file_name)
+		var tex := ArtLibrary.texture(file_name)
+		var box := ArtLibrary.art_bbox(file_name)
+		var anchor := ArtLibrary.anchor(file_name)
+		if data.is_empty() or png.x != int(spec["w"]) or png.y != int(spec["h"]):
+			push_error("%s sheet size should be %sx%s, png %s" % [file_name, spec["w"], spec["h"], png])
+			failed += 1
+		if tex == null or tex.get_width() != int(spec["w"]) or tex.get_height() != int(spec["h"]):
+			push_error("%s did not load at its sheet size" % file_name)
+			failed += 1
+		if int(data.get("frames", 0)) != int(spec["frames"]) or absf(float(data.get("fps", -1)) - float(spec["fps"])) > 0.01 or bool(data.get("loop", true)) != bool(spec["loop"]):
+			push_error("%s frames/fps/loop drifted from the v2 sheet" % file_name)
+			failed += 1
+		if absf(box.x - float(spec["fw"])) > 0.1 or absf(box.y - float(spec["fh"])) > 0.1 or anchor != Vector2(float(spec["ax"]), float(spec["ay"])):
+			push_error("%s cell or anchor drifted, box %s anchor %s" % [file_name, box, anchor])
+			failed += 1
+	var giant_impact := "dragon_form/dragon_meteor_giant_impact.png"
+	if ArtLibrary.frame_index(giant_impact, 0.0) != 0 or ArtLibrary.frame_index(giant_impact, 12.0 / 15.0) != 12 or ArtLibrary.frame_index(giant_impact, 20.0 / 15.0) != 12:
+		push_error("the giant impact should play 13 frames once and hold the last")
+		failed += 1
+	if ArtLibrary.frame_index("dragon_form/dragon_meteor.png", 4.0 / 15.0) != 0:
+		push_error("the barrage meteor should loop after 4 frames")
+		failed += 1
+	var src := FileAccess.get_file_as_string("res://scripts/dragon_show.gd")
+	if src.contains("dragon_meteor_warning") or src.contains("_draw_reticle") or src.contains("_show_reticle") or src.contains("WARN_LEAD") or src.contains("_paint_mark") or src.contains("draw_circle"):
+		push_error("meteor rain must not draw a landing warning, reticle, or painted mark")
+		failed += 1
+	if src.count("draw_arc(") != 1:
+		push_error("the slam shock ring should be the only code-drawn arc")
+		failed += 1
+	var show := DragonShow.new()
+	if show.phase != DragonShow.IDLE or not show._sprite_commands().is_empty() or show.visible_meteor_fx() != 0:
+		push_error("nothing should be drawn while meteor rain is idle")
+		failed += 1
+	show.rng_seed = 5
+	show.start_rain()
+	var saw_scorch := false
+	var scorch_bad := 0
+	var warning_hits := 0
+	var preview_shock := false
+	var giant_frames := {}
+	var saw_barrage := false
+	var saw_impact := false
+	var saw_giant := false
+	var guard := 0
+	while show.phase != DragonShow.IDLE and guard < 400:
+		for cmd in show._sprite_commands():
+			var file_name := str(cmd["file"])
+			if file_name.contains("warning"):
+				warning_hits += 1
+			if file_name == DragonShow.METEOR:
+				saw_barrage = true
+			elif file_name == DragonShow.IMPACT:
+				saw_impact = true
+			elif file_name == DragonShow.GIANT_METEOR_ART:
+				saw_giant = true
+			elif file_name == DragonShow.GIANT_IMPACT_ART:
+				giant_frames[ArtLibrary.frame_index(file_name, float(cmd["time"]))] = true
+			elif file_name == DragonShow.SCORCH:
+				saw_scorch = true
+				var at: Vector2 = cmd["at"]
+				var tint: Color = cmd["tint"]
+				if absf(at.y - 230.0) > 0.01 or tint.a < 0.149 or tint.a > 0.701:
+					scorch_bad += 1
+		for item in show._decals:
+			if item.has("boom"):
+				continue
+			if absf(float(item["pos"].y) - 226.0) > 0.01:
+				scorch_bad += 1
+		if show.phase == DragonShow.CHARGE or show.phase == DragonShow.RAIN or show.phase == DragonShow.FALL:
+			if show.shock > 0.02:
+				preview_shock = true
+		show.tick(DragonShow.FRAME)
+		guard += 1
+	if not saw_scorch or scorch_bad > 0:
+		push_error("ground landings should draw the scorch at impact + (0, 4) with the existing fade")
+		failed += 1
+	if warning_hits > 0 or preview_shock:
+		push_error("no warning or reticle should be drawn for the giant or the barrage")
+		failed += 1
+	if not saw_barrage or not saw_impact or not saw_giant:
+		push_error("barrage meteors, impacts, and the falling giant should still draw")
+		failed += 1
+	if giant_frames.size() != 13:
+		push_error("the giant impact should play all 13 frames, saw %d" % giant_frames.size())
+		failed += 1
+	for index in 13:
+		if not giant_frames.has(index):
+			push_error("the giant impact skipped frame %d" % index)
+			failed += 1
+			break
+	if show.phase != DragonShow.IDLE or not show._sprite_commands().is_empty() or show._decals.size() != 0 or show.visible_meteor_fx() != 0 or show.lingering_meteor_fx() != 0:
+		push_error("scorch and every other meteor sprite should clear when the show ends")
 		failed += 1
 	show.free()
 	return failed
@@ -5342,7 +6422,7 @@ func _check_boss_play() -> int:
 			failed += 1
 		while boss.alive:
 			boss.hurt(8)
-		game._award_kill(boss, true, true)
+		game._award_kill(boss, true)
 	if game.score < before + BossCatalog.DRAGON_SCORE:
 		push_error("killing the dragon should pay at least 100,000, score %s" % game.score)
 		failed += 1
@@ -5361,10 +6441,58 @@ func _check_boss_play() -> int:
 		failed += 1
 	game.invuln = 0.0
 	game._player.invulnerable = false
+	game.form_id = FormCatalog.Id.DRAGON
 	game._player.adopt_dragon(1.0)
-	game._dragon_show.start_rain()
-	if game.invuln > 0.0 or game._player.invulnerable:
-		push_error("meteor rain should not make the player invulnerable")
+	game.form_id = FormCatalog.Id.DRAGON
+	game._meteor_kills = 25
+	game._refresh_hud()
+	if game._hud_view == null or game._hud_view.meteor_px != 9:
+		push_error("25 of 50 kills should fill half the meteor meter, got %s" % (game._hud_view.meteor_px if game._hud_view != null else -1))
+		failed += 1
+	game._meteor_kills = 49
+	game._refresh_hud()
+	if game._hud_view.meteor_ready:
+		push_error("49 kills should not mark meteor rain ready")
+		failed += 1
+	game._charge_meteor()
+	if game._dragon_show.phase != DragonShow.CHARGE or game._meteor_kills != 0:
+		push_error("the 50th kill should start meteor rain, phase %s kills %s" % [game._dragon_show.phase, game._meteor_kills])
+		failed += 1
+	if not game._player.invulnerable or absf(game._meteor_guard - game.METEOR_INVULN_SECONDS) > 0.02:
+		push_error("meteor rain should make the player invulnerable for 0.5s from the charge")
+		failed += 1
+	var marker: Label = game._hud.get_node_or_null("InvincibleMarker")
+	if marker == null or not marker.visible or str(marker.text) != "INVINCIBLE":
+		push_error("meteor rain should show the INVINCIBLE marker at the start of the charge")
+		failed += 1
+	game._director._next_time = 100000.0
+	game._boss_director.dragon_at = 100000.0
+	game._tutorial_active = false
+	game._clear_field()
+	for _i in 34:
+		game._process(1.0 / 60.0)
+	if game._dragon_show.phase != DragonShow.CHARGE or game._player.invulnerable or game._meteor_guard > 0.0:
+		push_error("the rest of the charge should be vulnerable, phase %s guard %s" % [game._dragon_show.phase, game._meteor_guard])
+		failed += 1
+	marker = game._hud.get_node_or_null("InvincibleMarker")
+	if marker != null and marker.visible:
+		push_error("the INVINCIBLE marker should leave before the charge ends")
+		failed += 1
+	var daily_path := "user://daily_run.json"
+	var daily_body := FileAccess.get_file_as_string(daily_path) if FileAccess.file_exists(daily_path) else ""
+	game._dragon_show.cancel()
+	game.phase = game.PHASE_PLAY
+	game._player.alive = true
+	game._meteor_guard = 0.4
+	game.invuln = 0.4
+	game._reincarnate()
+	_restore_user_file(daily_path, daily_body)
+	if game._meteor_guard > 0.0 or game.invuln > 0.0:
+		push_error("a new run should clear the meteor guard, guard %s invuln %s" % [game._meteor_guard, game.invuln])
+		failed += 1
+	marker = game._hud.get_node_or_null("InvincibleMarker")
+	if marker != null and marker.visible:
+		push_error("a new run should hide the INVINCIBLE marker")
 		failed += 1
 	if game._dragon_show.z_index >= game._player.z_index or game._dragon_show.z_index >= Replay.bullet_z():
 		push_error("meteor FX should draw under the ship and under enemy bullets")
@@ -5390,6 +6518,11 @@ func _check_boss_play() -> int:
 		game._winner_clear()
 		if not boss.alive or boss.hp != hp - chip:
 			push_error("WINNER should chip a full boss by %d, hp %s alive %s" % [chip, boss.hp, boss.alive])
+			failed += 1
+		var rain := int(game._dragon_open_budget())
+		var rain_chip := BossCatalog.meteor_rain_damage(boss.max_hp)
+		if rain != rain_chip or rain != 3000 or rain <= chip or boss.hp != hp - chip:
+			push_error("Meteor Rain budget should stay 15 percent (%d) without hitting, got %d hp %s" % [rain_chip, rain, boss.hp])
 			failed += 1
 		var eye_alive := false
 		for enemy in game._enemies:

@@ -35,7 +35,10 @@ var _phase_frame := -1
 var _ring_left := 0.0
 var _breath_left := 0.0
 var _breath_aim := 0.0
-var _breathing := false
+var _exhaling := false
+var _exhale_wave := 0
+var _exhale_wait := 0.0
+var _locked_aim := Vector2.ZERO
 var _move_snd := 0.35
 
 func sprite_file() -> String:
@@ -185,6 +188,8 @@ func tick(delta: float, player_pos: Vector2, _run_time: float = 0.0, _scale: flo
 		telegraphs.clear()
 		_ring_left = 0.0
 		_breath_left = 0.0
+		_exhaling = false
+		_exhale_wave = 0
 	_tick_anim(delta)
 	var pace := move_scale * (DragonPhase.BOSS_EXIT_SPEED if suppress_fire else 1.0)
 	match dragon_id:
@@ -417,19 +422,23 @@ func _tick_wraith(delta: float, pace: float, fired: Array[Dictionary]) -> void:
 				_set_mode(0)
 
 func _tick_elder(delta: float, pace: float, player_pos: Vector2, fired: Array[Dictionary]) -> void:
-	if _breath_left <= 0.0 and not _breathing:
+	if _breath_left <= 0.0 and not _exhaling:
 		_tick_walker(delta, pace)
 	if suppress_fire:
 		_breath_left = 0.0
-		_breathing = false
+		_exhaling = false
+		_exhale_wave = 0
 		return
 	if _breath_left > 0.0:
 		_breath_left = maxf(_breath_left - delta, 0.0)
 		_breath_aim = player_pos.y
 		if _breath_left <= 0.0:
-			_exhale(fired)
+			_begin_exhale(player_pos, fired)
 		return
-	if _breathing:
+	if _exhaling:
+		_exhale_wait = maxf(_exhale_wait - delta, 0.0)
+		if _exhale_wait <= 0.0:
+			_emit_wave(fired)
 		return
 	_attack_wait -= delta
 	if _attack_wait > 0.0:
@@ -439,21 +448,44 @@ func _tick_elder(delta: float, pace: float, player_pos: Vector2, fired: Array[Di
 	_breath_aim = player_pos.y
 	_hook("dragon_enemy_elder_drake_breath_telegraph")
 
-func _exhale(fired: Array[Dictionary]) -> void:
-	_breathing = true
+## Lock onto the player when the telegraph ends. Later waves do not track.
+func _begin_exhale(player_pos: Vector2, fired: Array[Dictionary]) -> void:
+	_exhaling = true
+	_exhale_wave = 0
+	_exhale_wait = 0.0
+	_locked_aim = player_pos
 	_play_anim(DragonPhase.attack_file(dragon_id))
 	_hook(DragonPhase.HOOK_ELDER_ATTACK)
+	_emit_wave(fired)
+
+func _emit_wave(fired: Array[Dictionary]) -> void:
+	var origin := position + Vector2(-36.0, -2.0)
+	var aim := _locked_aim - origin
+	if aim.length() < 12.0:
+		aim = Vector2.LEFT * 160.0
+	var base := aim.angle()
+	var waves := maxi(DragonPhase.ELDER_WAVES, 1)
+	var offset := 0.0
+	if waves > 1:
+		var u := float(_exhale_wave) / float(waves - 1)
+		offset = lerpf(-DragonPhase.ELDER_SWEEP * 0.5, DragonPhase.ELDER_SWEEP * 0.5, u)
 	var count := DragonPhase.ELDER_CONE
 	var span := DragonPhase.ELDER_CONE_SPAN
 	for i in count:
-		if fire_room == 0:
-			break
-		var u := 0.5 if count <= 1 else float(i) / float(count - 1)
-		var angle := lerpf(-span * 0.5, span * 0.5, u)
-		var dir := Vector2(-cos(angle), sin(angle))
-		fired.append(_shot(dir * DragonPhase.ELDER_PUFF_SPEED, Vector2(-36.0, -2.0), DragonPhase.BREATH_PUFF, 0.0, DragonPhase.ELDER_PUFF_LIFE))
-		_spend(1)
-	_breathing = false
+		var v := 0.5 if count <= 1 else float(i) / float(count - 1)
+		var angle := base + offset + lerpf(-span * 0.5, span * 0.5, v)
+		var dir := Vector2.from_angle(angle)
+		var spec := _shot(dir * DragonPhase.ELDER_PUFF_SPEED, Vector2(-36.0, -2.0), DragonPhase.BREATH_PUFF, 0.0, DragonPhase.ELDER_PUFF_LIFE)
+		var scale := DragonPhase.ELDER_PUFF_SCALE
+		spec["scale"] = scale
+		spec["radius"] = float(spec["radius"]) * scale
+		fired.append(spec)
+	_exhale_wave += 1
+	if _exhale_wave >= waves:
+		_exhaling = false
+		_exhale_wait = 0.0
+	else:
+		_exhale_wait = DragonPhase.elder_wave_gap(bullet_density)
 
 func _fire_ring(fired: Array[Dictionary]) -> void:
 	var count := DragonPhase.RING_BULLETS

@@ -115,10 +115,19 @@ const RING_SPEED := 86.0
 const ELDER_INTERVAL := 2.45
 const ELDER_WARN := 0.8
 const ELDER_OPEN := 0.45
-const ELDER_PUFF_SPEED := 148.0
-const ELDER_PUFF_LIFE := 0.46
-const ELDER_CONE := 5
-const ELDER_CONE_SPAN := 0.84
+## Reach is speed * life. Was 148 px/s * 0.46 s = 68 px (14% of the 480 px field).
+## Now 180 * 2.2 = 396 px, 82% of the field. Three waves over 0.60 s at density 1.
+const ELDER_PUFF_SPEED := 180.0
+const ELDER_PUFF_LIFE := 2.2
+const ELDER_CONE := 7
+## Narrower than the old 0.84 rad fan so the long breath still leaves a gap.
+const ELDER_CONE_SPAN := 0.42
+const ELDER_WAVES := 3
+## Gap between waves at density 1. Two gaps span 0.60 s. Density tightens it.
+const ELDER_WAVE_GAP := 0.30
+const ELDER_WAVE_GAP_FLOOR := 0.12
+const ELDER_SWEEP := 0.20
+const ELDER_PUFF_SCALE := 1.6
 const ELDER_PARK_X := 0.70
 const ELDER_GEM_BONUS := 560
 const ELDER_GEM_LIFE := 5.4
@@ -190,16 +199,16 @@ const HOOKS: PackedStringArray = [
 ## base hp is the pre-multiplier pool. The phase opens at HP_MULT_START times this.
 ## damage is the shot and the touch. One touch still ends the run.
 const STATS: Array[Dictionary] = [
-	{"name": "Ember Bat", "hp": 2, "speed": 124.0, "damage": 1, "score": 110, "tier": 1, "weight": 1.15},
-	{"name": "Kobold Torchbearer", "hp": 4, "speed": 48.0, "damage": 1, "score": 180, "tier": 1, "weight": 0.85},
-	{"name": "Dragon Egg", "hp": 6, "speed": 0.0, "damage": 1, "score": 160, "tier": 1, "weight": 0.55},
-	{"name": "Whelp", "hp": 3, "speed": 90.0, "damage": 1, "score": 140, "tier": 1, "weight": 0.9},
-	{"name": "Ember Wyvern", "hp": 8, "speed": 230.0, "damage": 1, "score": 260, "tier": 2, "weight": 0.7},
-	{"name": "Magma Slime", "hp": 7, "speed": 40.0, "damage": 1, "score": 220, "tier": 2, "weight": 0.72},
-	{"name": "Drake Rider", "hp": 9, "speed": 52.0, "damage": 1, "score": 300, "tier": 2, "weight": 0.74},
-	{"name": "Dragon Cultist", "hp": 8, "speed": 34.0, "damage": 1, "score": 280, "tier": 3, "weight": 0.58},
-	{"name": "Ash Wraith", "hp": 8, "speed": 44.0, "damage": 1, "score": 340, "tier": 3, "weight": 0.58},
-	{"name": "Elder Drake", "hp": 160, "speed": 30.0, "damage": 1, "score": 800, "tier": 4, "weight": 0.36},
+	{"name": "Ember Bat", "hp": 4, "speed": 124.0, "damage": 1, "score": 110, "tier": 1, "weight": 1.15},
+	{"name": "Kobold Torchbearer", "hp": 8, "speed": 48.0, "damage": 1, "score": 180, "tier": 1, "weight": 0.85},
+	{"name": "Dragon Egg", "hp": 12, "speed": 0.0, "damage": 1, "score": 160, "tier": 1, "weight": 0.55},
+	{"name": "Whelp", "hp": 6, "speed": 90.0, "damage": 1, "score": 140, "tier": 1, "weight": 0.9},
+	{"name": "Ember Wyvern", "hp": 16, "speed": 230.0, "damage": 1, "score": 260, "tier": 2, "weight": 0.7},
+	{"name": "Magma Slime", "hp": 14, "speed": 40.0, "damage": 1, "score": 220, "tier": 2, "weight": 0.72},
+	{"name": "Drake Rider", "hp": 18, "speed": 52.0, "damage": 1, "score": 300, "tier": 2, "weight": 0.74},
+	{"name": "Dragon Cultist", "hp": 16, "speed": 34.0, "damage": 1, "score": 280, "tier": 3, "weight": 0.58},
+	{"name": "Ash Wraith", "hp": 16, "speed": 44.0, "damage": 1, "score": 340, "tier": 3, "weight": 0.58},
+	{"name": "Elder Drake", "hp": 320, "speed": 30.0, "damage": 1, "score": 800, "tier": 4, "weight": 0.36},
 ]
 
 const MOVE_FILE: PackedStringArray = [
@@ -338,6 +347,14 @@ static func burst_chance(dragon_time: float) -> float:
 
 static func attack_gap(base: float, density: float) -> float:
 	return maxf(base / maxf(density, 0.2), MIN_ATTACK_GAP)
+
+## Time between Elder breath waves. The attack wait still uses attack_gap.
+## Density pulls the sweep tighter and never under the floor, so a gap remains.
+static func elder_wave_gap(density: float) -> float:
+	return maxf(ELDER_WAVE_GAP / maxf(density, 0.2), ELDER_WAVE_GAP_FLOOR)
+
+static func elder_reach() -> float:
+	return ELDER_PUFF_SPEED * ELDER_PUFF_LIFE
 
 static func tier_for(dragon_time: float) -> int:
 	if dragon_time >= TIER4_AT:
