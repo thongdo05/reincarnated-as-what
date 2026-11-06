@@ -58,45 +58,37 @@ The runner is a GitHub-hosted `macos-26` machine with Xcode 26, which is what Ap
 
 ### Signing
 
-The TestFlight workflow does not create a certificate. Apple allows one Apple Distribution certificate per team, and it will not give the private key back. A new runner has an empty keychain, so Xcode's `-allowProvisioningUpdates` would ask Apple for a new certificate on every run and then hit that cap. An App Manager key cannot create certificates or profiles anyway. That call needs the Admin role.
+Signing is already done, outside CI. The Apple Distribution certificate is `8S3BW29TWP`. The App Store profile is `reincarnatedaswhat App Store` (`6KJ54JLQ6U`). They were created by running `tools/ios_signing_bootstrap.py` locally with a temporary Admin API key. That key is not a repository secret.
 
-Each TestFlight run installs the same `.p12` and the same App Store `.mobileprovision` into a temporary keychain and signs manually (`CODE_SIGN_STYLE=Manual`, no `-allowProvisioningUpdates`).
+The TestFlight workflow does not create a certificate. Apple allows one Apple Distribution certificate per team, and it will not give the private key back. A new runner has an empty keychain, so Xcode's `-allowProvisioningUpdates` would ask Apple for a new certificate on every run. An App Manager key cannot create certificates or profiles anyway.
 
-Create those two files once, with Actions → **iOS signing bootstrap**. That workflow is also manual only. It needs a second API key, an Admin key, because creating a certificate and a profile is not allowed for App Manager. Do not replace the App Manager key. Add these secrets:
+Each TestFlight run installs the saved `.p12` and the saved App Store profile into a temporary keychain and signs manually (`CODE_SIGN_STYLE=Manual`, no `-allowProvisioningUpdates`). It reads exactly these six secrets:
 
-| Secret | Where it is used | What it is |
-| --- | --- | --- |
-| `APP_STORE_CONNECT_ISSUER_ID` | both workflows | Issuer ID at the top of App Store Connect → Users and Access → Integrations → Team Keys. Already required for uploads. |
-| `APP_STORE_CONNECT_KEY_ID` | TestFlight | Key ID of the App Manager key. |
-| `APP_STORE_CONNECT_API_KEY_P8` | TestFlight | Raw contents of that key's `AuthKey_XXXX.p8`, including the `BEGIN PRIVATE KEY` line. Not base64. |
-| `APP_STORE_CONNECT_ADMIN_KEY_ID` | bootstrap only | Key ID of a Team key whose role is Admin. |
-| `APP_STORE_CONNECT_ADMIN_KEY_P8` | bootstrap only | Raw contents of the Admin `AuthKey_XXXX.p8`. |
-| `IOS_SIGNING_EXPORT_PASSWORD` | bootstrap only | A random password you invent, at least 16 characters. You need it again to decrypt the artifact. The artifact is public because the repository is public. |
-| `IOS_DISTRIBUTION_P12_BASE64` | TestFlight | Base64 of the `.p12` from the bootstrap artifact. Set this after the one-time run. |
-| `IOS_DISTRIBUTION_P12_PASSWORD` | TestFlight | The one-line password in `p12-password.txt` from that artifact. |
-| `IOS_PROVISIONING_PROFILE_BASE64` | TestFlight | Base64 of `appstore.mobileprovision` from that artifact. |
+| Secret | What it is |
+| --- | --- |
+| `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID at the top of App Store Connect → Users and Access → Integrations → Team Keys. |
+| `APP_STORE_CONNECT_KEY_ID` | Key ID of the App Manager key. |
+| `APP_STORE_CONNECT_API_KEY_P8` | Raw contents of that key's `AuthKey_XXXX.p8`, including the `BEGIN PRIVATE KEY` line. Not base64. |
+| `IOS_DISTRIBUTION_P12_BASE64` | Base64 of the distribution `.p12`. |
+| `IOS_DISTRIBUTION_P12_PASSWORD` | Password for that `.p12`. One line, no leading dash. |
+| `IOS_PROVISIONING_PROFILE_BASE64` | Base64 of the App Store `.mobileprovision`. |
 
-One-time steps:
+There is no Actions workflow for the bootstrap. Do not upload the `.p12`, the profile, or the work directory as an artifact. This repository is public, so an artifact would be public.
 
-1. Create an Admin Team key in App Store Connect. Download the `.p8` once. Store the two Admin secrets and `IOS_SIGNING_EXPORT_PASSWORD`. Leave the App Manager secrets in place.
-2. Run **iOS signing bootstrap**. In the confirm box type `CREATE-ONE-DISTRIBUTION-CERT`. Leave the other inputs empty.
-3. If the log says an Apple Distribution certificate already exists, do not create another. If you still have its `.p12`, skip this workflow and store that file plus an App Store profile as the three TestFlight signing secrets. If the certificate was created without a saved private key, run the bootstrap again with confirm `REVOKE-AND-CREATE-ONE-DISTRIBUTION-CERT` and `revoke_certificate_id` set to the id printed in the log. Revoking is permanent for that certificate.
-4. Download the artifact `ios-signing-bundle-encrypted` (it expires after one day). Decrypt it on any machine with openssl. The password is `IOS_SIGNING_EXPORT_PASSWORD`:
+`tools/ios_signing_bootstrap.py` stays in the repo as a local tool for the day the certificate has to be replaced. Create a temporary Admin Team key, download its `.p8` once, and run it on your own machine. Revoke that Admin key when you are done. Do not store the Admin key in GitHub secrets.
 
 ```bash
-openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -salt \
-  -in ios-signing-bundle.tar.gz.enc \
-  -out ios-signing-bundle.tar.gz \
-  -pass env:IOS_SIGNING_EXPORT_PASSWORD
-tar -xzf ios-signing-bundle.tar.gz
+python3 tools/ios_signing_bootstrap.py \
+  --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+  --key-id "$ADMIN_KEY_ID" \
+  --key-path ./AuthKey_ADMIN.p8 \
+  --export-password-file ./export-password.txt \
+  --confirm REVOKE-AND-CREATE-ONE-DISTRIBUTION-CERT \
+  --revoke-certificate-id 8S3BW29TWP \
+  --work-dir build/ios-signing-work
 ```
 
-5. From the unpacked directory, store the three TestFlight signing secrets. `README.txt` in the archive has the `gh secret set` commands. Then delete the local files, delete the Actions artifact, delete the Admin key in App Store Connect, and delete `APP_STORE_CONNECT_ADMIN_KEY_ID`, `APP_STORE_CONNECT_ADMIN_KEY_P8`, and `IOS_SIGNING_EXPORT_PASSWORD`.
-6. Run **iOS TestFlight**. The App Manager key uploads. The saved `.p12` signs. Neither run creates a certificate.
-
-The bootstrap also turns on the In-App Purchase capability for `com.thongdo.reincarnatedaswhat` if it is missing, and it names the profile `reincarnatedaswhat App Store`. To replace that profile later without touching the certificate, run the bootstrap with **Replace the App Store profile** checked and confirm `REFRESH-APP-STORE-PROFILE`, then update only `IOS_PROVISIONING_PROFILE_BASE64`.
-
-If the artifact upload fails after the log has already printed `Created Apple Distribution certificate`, the private key was not saved. Revoke that id and run the bootstrap again. Apple cannot resend the key.
+`build/` is gitignored. `--work-dir` is not deleted if Apple issues the certificate and a later step fails, so `distribution.key` is still on disk. A first certificate, when the team has none, uses `--confirm CREATE-ONE-DISTRIBUTION-CERT` and omits `--revoke-certificate-id`. Replacing only the profile uses `--refresh-profile-only` and `--confirm REFRESH-APP-STORE-PROFILE`. Then update the three signing secrets from that directory and delete it.
 
 `godot-ios-att` is still the 4.7.1 binary. If the Xcode log says it cannot link `GodotIosAtt`, rebuild that plugin for 4.7.2 and replace `ios/plugins/godot-ios-att`. The workflow does not rebuild it.
 
@@ -196,4 +188,4 @@ Use the list above when you fill the forms. The binary privacy manifest (device 
 
 Linux CI can export the web build and run the headless smoke test. It cannot compile the Xcode project or the Android Gradle project, and it cannot show a test ad or complete a sandbox purchase. Those steps are the Mac and device passes above.
 
-The TestFlight workflow was not run. The App Store Connect secrets are not in this environment, so nothing was signed or uploaded. `tools/test_ios_ci.py` checks the version edit, the AdMob Swift package patch, the encrypted signing bundle, and the workflow files. A headless Godot 4.7.2 export of the iOS Xcode project on Linux checks that the project, the version, and the AdMob package are written. It does not run `xcodebuild`.
+The TestFlight workflow was not run from this environment, so nothing was archived with Xcode or uploaded. The distribution certificate `8S3BW29TWP` and the profile `reincarnatedaswhat App Store` (`6KJ54JLQ6U`) were created locally. `tools/test_ios_ci.py` checks the version edit, the AdMob Swift package patch, the local signing bundle, and that the TestFlight workflow uses only the six signing secrets. A headless Godot 4.7.2 export of the iOS Xcode project on Linux checks that the project, the version, and the AdMob package are written. It does not run `xcodebuild`.

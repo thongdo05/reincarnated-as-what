@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Create one Apple Distribution certificate and an App Store profile.
 
-Run from the iOS signing bootstrap workflow, once. Apple allows one Apple
-Distribution certificate per team and will not return the private key later.
-This script refuses to create a second certificate unless the run explicitly
-revokes the existing one by id.
+Local only. Do not run this from GitHub Actions and do not upload the .p12,
+the profile, or --work-dir. The repository is public, so an Actions artifact
+would be public. Apple allows one Apple Distribution certificate per team and
+will not return the private key later.
 
-The .p12 and profile are packed into an encrypted tar because the repository
-is public and workflow artifacts are public. The encryption password is
-IOS_SIGNING_EXPORT_PASSWORD. Nothing secret is printed.
+Pass a temporary Admin API key on the command line. The TestFlight workflow
+uses the App Manager key and the saved .p12. It does not call this script.
+
+--work-dir is kept if a later step fails after Apple has issued the
+certificate, so the private key is not deleted with a temp directory.
+Nothing secret is printed.
 """
 
 from __future__ import annotations
@@ -237,7 +240,7 @@ def find_bundle(request, token: str) -> str:
 def ensure_iap(request, token: str, bundle_resource_id: str) -> None:
     status, payload = request(
         "GET",
-        f"/v1/bundleIds/{bundle_resource_id}/bundleIdCapabilities?limit=50",
+        f"/v1/bundleIds/{bundle_resource_id}/bundleIdCapabilities",
         None,
         token,
     )
@@ -427,13 +430,17 @@ def profile_summary(path: Path) -> str:
 
 
 def readme(action: str) -> str:
-    common = f"""Decrypt with the password stored as IOS_SIGNING_EXPORT_PASSWORD:
+    common = f"""This archive was written on the machine that ran tools/ios_signing_bootstrap.py.
+Do not upload it, or the work directory, to GitHub Actions. The repository is
+public, so an artifact would be public.
+
+Decrypt with the password in the export password file:
 
 {DECRYPT_COMMAND}
 
 Do this on any machine with openssl. A Mac is not required.
-Delete the Actions artifact after the secrets are stored. The repository is
-public, so the encrypted file is public until it expires or you delete it.
+Delete the work directory and this archive after the secrets are stored, and
+revoke the temporary Admin API key.
 """
     if action == "refresh":
         return (
@@ -500,22 +507,12 @@ def encrypt_files(files: list[Path], dest: Path, password: str, openssl: str) ->
     os.chmod(dest, 0o600)
 
 
-def append_summary(text: str) -> None:
-    summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    if not summary:
-        return
-    with open(summary, "a", encoding="utf-8") as handle:
-        handle.write(text)
-        if not text.endswith("\n"):
-            handle.write("\n")
-
-
 def run(args: argparse.Namespace, request=default_request) -> None:
     password = Path(args.export_password_file).read_text().strip("\n")
     if len(password) < 16:
         raise SystemExit(
-            "IOS_SIGNING_EXPORT_PASSWORD must be at least 16 characters. "
-            "The artifact is publicly downloadable, so the password is what protects it."
+            "The export password file must contain at least 16 characters. "
+            "It only encrypts the local bundle. Do not upload that bundle."
         )
     openssl = args.openssl
     token = make_jwt(Path(args.key_path), args.key_id, args.issuer_id, openssl)
@@ -533,8 +530,10 @@ def run(args: argparse.Namespace, request=default_request) -> None:
     print(f"Bundle id {BUNDLE_ID} resource id={bundle_resource_id}")
     ensure_iap(request, token, bundle_resource_id)
 
-    with tempfile.TemporaryDirectory() as tmp:
-        work = Path(tmp)
+    work = Path(args.work_dir)
+    work.mkdir(parents=True, exist_ok=True)
+    os.chmod(work, 0o700)
+    try:
         profile_path = work / "appstore.mobileprovision"
         files: list[Path]
         if action == "refresh":
@@ -560,27 +559,15 @@ def run(args: argparse.Namespace, request=default_request) -> None:
             files = [p12, password_path, profile_path, readme_path]
         print(profile_summary(profile_path))
         encrypt_files(files, Path(args.output), password, openssl)
+    except SystemExit:
+        if (work / "distribution.key").is_file() and (work / "cert.der").is_file():
+            print(f"Apple already issued the certificate. The private key is still in {work}.")
+            print("That directory was not deleted. Apple cannot return the key.")
+        raise
 
     print(f"Encrypted signing bundle: {args.output}")
-    print("Download that artifact, decrypt it, store the secrets, then delete the artifact.")
-    print("Apple cannot return the private key. Losing the file means revoking and creating again.")
-    append_summary(
-        "\n".join(
-            [
-                "### Encrypted signing bundle",
-                "",
-                "The artifact is encrypted because this repository is public.",
-                "Decrypt with `IOS_SIGNING_EXPORT_PASSWORD`:",
-                "",
-                "```sh",
-                DECRYPT_COMMAND,
-                "```",
-                "",
-                "Then follow `README.txt` inside the archive. Delete the artifact when the secrets are stored.",
-                "",
-            ]
-        )
-    )
+    print(f"Private key and p12 are in {work}. Delete that directory after the secrets are stored.")
+    print("Do not upload the bundle or the work directory. This repository is public.")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -593,6 +580,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--revoke-certificate-id", default="")
     parser.add_argument("--refresh-profile-only", action="store_true")
     parser.add_argument("--output", default="build/ios-signing-bundle.tar.gz.enc")
+    parser.add_argument(
+        "--work-dir",
+        default="build/ios-signing-work",
+        help="Kept on disk if Apple issues a certificate and a later step fails. build/ is gitignored.",
+    )
     parser.add_argument("--openssl", default=os.environ.get("IOS_OPENSSL", "openssl"))
     return parser
 

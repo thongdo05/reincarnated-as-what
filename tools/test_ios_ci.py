@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 import os
 import plistlib
+import re
 import shutil
 import subprocess
 import tarfile
@@ -267,8 +268,10 @@ class BootstrapTests(unittest.TestCase):
             (work / "export-password.txt").write_text(password)
 
             class Fake:
-                def __init__(self) -> None:
+                def __init__(self, scratch: Path, fail_profile: bool = False) -> None:
                     self.paths: list[str] = []
+                    self.scratch = scratch
+                    self.fail_profile = fail_profile
 
                 def __call__(self, method: str, path: str, body: dict | None, token: str):
                     self.paths.append(method + " " + path)
@@ -288,12 +291,12 @@ class BootstrapTests(unittest.TestCase):
                     if "bundleIdCapabilities" in path and method == "GET":
                         return 200, {"data": [{"attributes": {"capabilityType": "IN_APP_PURCHASE"}}]}
                     if method == "POST" and path == "/v1/certificates":
-                        csr = work / "request.csr"
-                        cert = work / "issued.pem"
+                        csr = self.scratch / "request.csr"
+                        cert = self.scratch / "issued.pem"
                         csr.write_text(body["data"]["attributes"]["csrContent"])
                         # Sign the CSR with a throwaway CA. The public key stays the CSR's key.
-                        ca_key = work / "ca.key"
-                        ca_cert = work / "ca.pem"
+                        ca_key = self.scratch / "ca.key"
+                        ca_cert = self.scratch / "ca.pem"
                         subprocess.run(["openssl", "genrsa", "-out", str(ca_key), "2048"], check=True, capture_output=True)
                         subprocess.run(
                             [
@@ -349,6 +352,8 @@ class BootstrapTests(unittest.TestCase):
                     if path.startswith("/v1/profiles?"):
                         return 200, {"data": []}
                     if method == "POST" and path == "/v1/profiles":
+                        if self.fail_profile:
+                            return 400, {"errors": [{"title": "failed", "detail": "profile"}]}
                         return 201, {
                             "data": {
                                 "id": "PROF1",
@@ -374,13 +379,18 @@ class BootstrapTests(unittest.TestCase):
                     bootstrap.CONFIRM_CREATE,
                     "--output",
                     str(output),
+                    "--work-dir",
+                    str(work / "signing-work"),
                     "--openssl",
                     "openssl",
                 ]
             )
-            fake = Fake()
+            fake = Fake(work)
             bootstrap.run(args, request=fake)
             self.assertTrue(any(item.startswith("POST /v1/certificates") for item in fake.paths))
+            capability_gets = [item for item in fake.paths if item.startswith("GET ") and "bundleIdCapabilities" in item]
+            self.assertEqual(capability_gets, ["GET /v1/bundleIds/BUNDLE123/bundleIdCapabilities"])
+            self.assertTrue((work / "signing-work" / "distribution.key").is_file())
             unpacked = work / "unpacked"
             unpacked.mkdir()
             plain = work / "plain.tar.gz"
@@ -425,6 +435,78 @@ class BootstrapTests(unittest.TestCase):
             self.assertIn(b"BEGIN CERTIFICATE", info.stdout)
             self.assertIn("IOS_DISTRIBUTION_P12_BASE64", (unpacked / "README.txt").read_text())
 
+    def test_work_dir_survives_after_the_certificate_is_issued(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            signing = work / "kept"
+            (work / "export-password.txt").write_text("0123456789abcdef")
+            args = bootstrap.build_parser().parse_args(
+                [
+                    "--issuer-id",
+                    "issuer",
+                    "--key-id",
+                    "KEYID12345",
+                    "--key-path",
+                    str(self._signing_key(work)),
+                    "--export-password-file",
+                    str(work / "export-password.txt"),
+                    "--confirm",
+                    bootstrap.CONFIRM_CREATE,
+                    "--output",
+                    str(work / "bundle.tar.gz.enc"),
+                    "--work-dir",
+                    str(signing),
+                    "--openssl",
+                    "openssl",
+                ]
+            )
+
+            def request(method: str, path: str, body: dict | None, token: str):
+                if "IOS_DISTRIBUTION" in path or path.startswith("/v1/certificates?"):
+                    return 200, {"data": []}
+                if path.startswith("/v1/bundleIds?"):
+                    return 200, {
+                        "data": [{"id": "BUNDLE123", "attributes": {"identifier": bootstrap.BUNDLE_ID}}]
+                    }
+                if method == "GET" and path.endswith("/bundleIdCapabilities"):
+                    return 200, {"data": [{"attributes": {"capabilityType": "IN_APP_PURCHASE"}}]}
+                if path.startswith("/v1/profiles?"):
+                    return 200, {"data": []}
+                if method == "POST" and path == "/v1/certificates":
+                    issued = _issue_from_csr(work, body["data"]["attributes"]["csrContent"])
+                    return 201, {
+                        "data": {
+                            "id": "CERTNEW",
+                            "attributes": {
+                                "certificateContent": base64.b64encode(issued).decode(),
+                                "displayName": "Apple Distribution: Test",
+                                "expirationDate": "2027-01-01",
+                                "certificateType": "DISTRIBUTION",
+                                "serialNumber": "01",
+                            },
+                        }
+                    }
+                if method == "POST" and path == "/v1/profiles":
+                    return 400, {"errors": [{"title": "failed", "detail": "profile"}]}
+                raise AssertionError(method + " " + path)
+
+            with self.assertRaises(SystemExit):
+                bootstrap.run(args, request=request)
+            self.assertTrue((signing / "distribution.key").is_file())
+            self.assertTrue((signing / "cert.der").is_file())
+            self.assertEqual((signing / "distribution.key").stat().st_mode & 0o777, 0o600)
+            self.assertFalse((work / "bundle.tar.gz.enc").exists())
+
+    def test_capabilities_list_omits_limit(self) -> None:
+        seen: list[str] = []
+
+        def request(method: str, path: str, body: dict | None, token: str):
+            seen.append(method + " " + path)
+            return 200, {"data": [{"attributes": {"capabilityType": "IN_APP_PURCHASE"}}]}
+
+        bootstrap.ensure_iap(request, "token", "BUNDLE123")
+        self.assertEqual(seen, ["GET /v1/bundleIds/BUNDLE123/bundleIdCapabilities"])
+
     def _signing_key(self, work: Path) -> Path:
         key = work / "api.p8"
         subprocess.run(
@@ -435,19 +517,50 @@ class BootstrapTests(unittest.TestCase):
         return key
 
 
+TESTFLIGHT_SECRETS = {
+    "APP_STORE_CONNECT_ISSUER_ID",
+    "APP_STORE_CONNECT_KEY_ID",
+    "APP_STORE_CONNECT_API_KEY_P8",
+    "IOS_DISTRIBUTION_P12_BASE64",
+    "IOS_DISTRIBUTION_P12_PASSWORD",
+    "IOS_PROVISIONING_PROFILE_BASE64",
+}
+
+
+def _issue_from_csr(scratch: Path, csr_pem: str) -> bytes:
+    csr = scratch / "request.csr"
+    cert = scratch / "issued.pem"
+    ca_key = scratch / "ca.key"
+    ca_cert = scratch / "ca.pem"
+    csr.write_text(csr_pem)
+    subprocess.run(["openssl", "genrsa", "-out", str(ca_key), "2048"], check=True, capture_output=True)
+    subprocess.run(
+        ["openssl", "req", "-new", "-x509", "-key", str(ca_key), "-out", str(ca_cert), "-days", "1", "-subj", "/CN=Test CA"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["openssl", "x509", "-req", "-in", str(csr), "-CA", str(ca_cert), "-CAkey", str(ca_key), "-CAcreateserial", "-out", str(cert), "-days", "1"],
+        check=True,
+        capture_output=True,
+    )
+    return subprocess.check_output(["openssl", "x509", "-in", str(cert), "-outform", "DER"])
+
+
 class WorkflowTests(unittest.TestCase):
     def test_workflows_are_manual_and_do_not_mint_a_cert_per_build(self) -> None:
         testflight = (ROOT / ".github/workflows/ios-testflight.yml").read_text()
-        bootstrap_yaml = (ROOT / ".github/workflows/ios-signing-bootstrap.yml").read_text()
         pages = (ROOT / ".github/workflows/pages.yml").read_text()
-        for text in (testflight, bootstrap_yaml):
-            self.assertIn("workflow_dispatch:", text)
-            self.assertNotIn("\n  push:", text)
-            self.assertNotIn("\n  pull_request:", text)
+        self.assertFalse((ROOT / ".github/workflows/ios-signing-bootstrap.yml").exists())
+        self.assertIn("workflow_dispatch:", testflight)
+        self.assertNotIn("\n  push:", testflight)
+        self.assertNotIn("\n  pull_request:", testflight)
         self.assertIn('runs-on: macos-26', testflight)
-        self.assertIn("ASC_APP_APPLE_ID: \"6831784046\"", testflight)
+        self.assertIn('ASC_APP_APPLE_ID: "6831784046"', testflight)
         self.assertIn("use_real_ads:", testflight)
         self.assertNotIn("use_real_ads:", pages)
+        secret_names = set(re.findall(r"secrets\.([A-Z0-9_]+)", testflight))
+        self.assertEqual(secret_names, TESTFLIGHT_SECRETS)
         script = (ROOT / "tools/ios_archive_and_upload.sh").read_text()
         for line in script.splitlines():
             if line.strip().startswith("#"):

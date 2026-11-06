@@ -1,10 +1,9 @@
 # Manual TestFlight upload. Does not run on push or pull request.
 #
-# Signing reuses one Apple Distribution certificate and one App Store profile
-# from secrets. It does not pass -allowProvisioningUpdates and does not create
-# a certificate. Apple allows one Apple Distribution certificate per team, and
-# the App Manager API key cannot create one. Create the .p12 once with
-# ios-signing-bootstrap.yml, which needs an Admin key. See docs/MOBILE_STORES.md.
+# Signing reuses the Apple Distribution certificate and App Store profile
+# already stored in secrets. It does not pass -allowProvisioningUpdates and
+# does not create a certificate. The .p12 was created locally. See
+# docs/MOBILE_STORES.md.
 
 name: iOS TestFlight
 
