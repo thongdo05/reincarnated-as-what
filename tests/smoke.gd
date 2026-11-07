@@ -2396,19 +2396,21 @@ func _check_pause() -> int:
 
 func _check_pause_card(game) -> int:
 	var failed := 0
+	failed += _check_pause_guide_copy()
 	var card = game._pause_card
 	if card == null or not game._pause_overlay.visible or not card.visible:
 		push_error("pause should show the form card")
-		return 1
-	if card.heading_text() != FormCatalog.card_heading(int(game.form_id), int(game.rank_index)):
+		return failed + 1
+	if card.heading_text() != FormCatalog.display_name(int(game.form_id)):
 		push_error("pause card heading mismatch: %s" % card.heading_text())
 		failed += 1
 	var interval := "%.2fs" % float(FormCatalog.rank_spec(int(game.form_id), int(game.rank_index))["fire_interval"])
-	if card.weapon_text().find(interval) < 0 or card.weapon_text().find("WEAPON") < 0:
+	if card.weapon_text() != FormCatalog.guide_weapon(int(game.form_id), int(game.rank_index)) or card.weapon_text().find(interval) < 0:
 		push_error("pause weapon line should come from the rank data, got %s" % card.weapon_text())
 		failed += 1
-	if card.trait_text().find("TRAIT") < 0:
-		push_error("pause card should label the trait")
+	var trait_lines := FormCatalog.guide_trait_lines(int(game.form_id), int(game.rank_index), true)
+	if card.trait_text() != " ".join(trait_lines):
+		push_error("pause trait should be the short lines, got %s" % card.trait_text())
 		failed += 1
 	if int(game.form_id) == FormCatalog.Id.SLIME:
 		if card.trait_text().find("Split ready.") < 0:
@@ -2423,7 +2425,7 @@ func _check_pause_card(game) -> int:
 		game._player._apply_radius()
 		game._refresh_pause_card()
 	elif int(game.form_id) == FormCatalog.Id.GOBLIN:
-		if card.trait_text().find("Gems nearby get pulled in.") < 0:
+		if card.trait_text().find("Pulls in nearby gems.") < 0:
 			push_error("goblin pause card should describe the gem magnet")
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.VENDING:
@@ -2431,24 +2433,112 @@ func _check_pause_card(game) -> int:
 			push_error("vending pause card should describe the cans and the WINNER meter")
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.CAT:
-		if card.trait_text().find("Swipes pierce 2 and knock bullets away.") < 0 or card.weapon_text().find("Reflects") < 0:
-			push_error("cat pause card should describe the piercing swipe and the reflect")
+		if card.trait_text().find("Swipes pierce 2.") < 0 or card.weapon_text().find("Swipe") < 0:
+			push_error("cat pause card should describe the dash and the piercing swipe")
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.DEMON:
-		if card.trait_text().find("enemies") < 0 or card.weapon_text().find("Homing") < 0:
-			push_error("demon pause card should describe homing orbs and the crowd")
+		if card.trait_text().find("Homing orbs.") < 0 or card.weapon_text().find("Homing") < 0:
+			push_error("demon pause card should describe homing orbs")
 			failed += 1
-	if card.next_text().find("FINAL FORM") >= 0:
-		push_error("rank 1 should show the next-rank bar, not FINAL FORM")
+	if card.next_text().find("Next form:") < 0 or card.next_text().find("FINAL FORM") >= 0:
+		push_error("rank 1 should show Next form, got %s" % card.next_text())
+		failed += 1
+	if card.tab_controls().size() != 3:
+		push_error("pause guide should have three tabs")
+		failed += 1
+	for tab in card.tab_controls():
+		if tab.size.y + 0.01 < 44.0 or tab.size.x + 0.01 < 44.0:
+			push_error("pause tab should be at least 44px, got %s" % tab.size)
+			failed += 1
+	var resume: Button = card.resume_control()
+	if resume == null or resume.size.y + 0.01 < 44.0 or resume.size.x + 0.01 < 100.0:
+		push_error("resume should be a large bar button, got %s" % (resume.size if resume != null else Vector2.ZERO))
+		failed += 1
+	var before := int(card.tab_index())
+	var right := InputEventKey.new()
+	right.pressed = true
+	right.keycode = KEY_RIGHT
+	game._unhandled_input(right)
+	if int(card.tab_index()) == before:
+		push_error("right should switch pause tabs")
+		failed += 1
+	var left := InputEventKey.new()
+	left.pressed = true
+	left.keycode = KEY_LEFT
+	game._unhandled_input(left)
+	if int(card.tab_index()) != before:
+		push_error("left should return to the previous pause tab")
+		failed += 1
+	if PauseGuide.mentions_secret(card.pickup_text()) or PauseGuide.mentions_secret(card.controls_text()):
+		push_error("pickups and controls must not name a secret")
 		failed += 1
 	var card_rect := Rect2(card.position, card.size)
 	var pause_rect := Rect2(game._pause_button.position, game._pause_button.size)
 	var sound_rect := Rect2(game._sound_button.position, game._sound_button.size)
-	if card.size.y < 40.0 or card_rect.intersects(pause_rect) or card_rect.intersects(sound_rect):
-		push_error("pause card should stay clear of resume and sound (card %s pause %s sound %s)" % [card_rect, pause_rect, sound_rect])
+	var resume_rect := Rect2(card.position + resume.position, resume.size)
+	if card_rect.intersects(pause_rect):
+		push_error("pause card should stay clear of the corner pause button (card %s pause %s)" % [card_rect, pause_rect])
 		failed += 1
-	if card.mouse_filter != Control.MOUSE_FILTER_IGNORE:
-		push_error("the pause card should not eat the resume or sound touch")
+	if not card_rect.encloses(sound_rect):
+		push_error("sound toggle should sit in the pause bar (card %s sound %s)" % [card_rect, sound_rect])
+		failed += 1
+	if sound_rect.size.y + 0.01 < 44.0 or sound_rect.intersects(resume_rect):
+		push_error("sound toggle should be 44px and clear of resume (sound %s resume %s)" % [sound_rect, resume_rect])
+		failed += 1
+	if card.mouse_filter == Control.MOUSE_FILTER_IGNORE:
+		push_error("the pause card should take taps for its tabs")
+		failed += 1
+	return failed
+
+func _check_pause_guide_copy() -> int:
+	var failed := 0
+	if PauseGuide.tab_for_runs(1) != PauseGuide.TAB_PICKUPS or PauseGuide.tab_for_runs(3) != PauseGuide.TAB_PICKUPS:
+		push_error("the first three runs should open on pickups")
+		failed += 1
+	if PauseGuide.tab_for_runs(4) != PauseGuide.TAB_YOU:
+		push_error("later runs should open on you")
+		failed += 1
+	var blob := ""
+	for item in PauseGuide.pickups():
+		var line := str(item["line"])
+		blob += line + "\n"
+		if PauseGuide.word_count(line) > 6:
+			push_error("pickup line should stay short, got %s" % line)
+			failed += 1
+	blob += PauseGuide.pickup_footer()
+	if blob.find(str(Difficulty.GEM_SCORE)) < 0 or blob.find(str(Difficulty.BOMB_SCORE)) < 0 or blob.find(str(Difficulty.OVERDRIVE_SCORE)) < 0:
+		push_error("pickup lines should quote gem, bomb, and overdrive scores")
+		failed += 1
+	if blob.find("%ds." % int(Difficulty.POWER_DURATION)) < 0:
+		push_error("rapid and magnet should quote the power duration")
+		failed += 1
+	if PauseGuide.word_count(PauseGuide.pickup_footer()) > 6:
+		push_error("pickup footer should stay short")
+		failed += 1
+	for line in PauseGuide.controls():
+		blob += line + "\n"
+		if PauseGuide.word_count(line) > 6:
+			push_error("control line should stay short, got %s" % line)
+			failed += 1
+	if blob.find("WASD") < 0 or blob.find("Esc") < 0:
+		push_error("controls should name the desktop keys")
+		failed += 1
+	if PauseGuide.mentions_secret(blob):
+		push_error("the public guide names a secret: %s" % blob)
+		failed += 1
+	for id in FormCatalog.IDS:
+		for rank_i in 5:
+			var weapon := FormCatalog.guide_weapon(id, rank_i)
+			if PauseGuide.word_count(weapon) > 6:
+				push_error("weapon guide line should stay short, got %s" % weapon)
+				failed += 1
+			for line in FormCatalog.guide_trait_lines(id, rank_i, true):
+				if PauseGuide.word_count(line) > 6:
+					push_error("trait guide line should stay short, got %s" % line)
+					failed += 1
+	var dragon := " ".join(FormCatalog.guide_trait_lines(FormCatalog.Id.DRAGON, 0, true))
+	if dragon.find("Meteor Rain") < 0 or dragon.find(str(FormCatalog.DRAGON_METEOR_KILLS)) < 0:
+		push_error("dragon you-tab should name Meteor Rain from the kill count, got %s" % dragon)
 		failed += 1
 	return failed
 
