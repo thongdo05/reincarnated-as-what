@@ -18,11 +18,12 @@ The reborn tease ships as `sting_reborn_tease.ogg` (about 15 KB). The same sting
 | `sfx_pickup_gem.wav` | A gem pickup. Up to 4 voices, at most about every 0.05 s. Each gem in a quick chain is one semitone higher, up to +7, and the chain resets after about 0.6 s with no pickup. |
 | `sfx_pickup_power.wav` | OVERDRIVE and the other rare power drops (bomb, shield, rapid, magnet). One voice. |
 | `sfx_power_level_up.wav` | Power level-up after the final form. Once per increase, even if several levels land in one step. Pitch rises one semitone per level above 1, capped at +12. Gem pickups duck 5 dB for 0.25 s while it plays. |
-| `sfx_enemy_pop.wav` | Enemy killed. Pitch is random by 1–2 semitones, up or down. Also the fallback for `new_best` until that file exists. |
+| `sfx_enemy_pop.wav` | Enemy killed. Pitch is random by 1–2 semitones, up or down. |
 | `sfx_death.wav` | Fallback for every `player_death_<form>` hook. Starts at the hit. The file is still the 0.92 s recording. |
 | `sting_reborn_tease.ogg` | Fallback for `sting_reincarnation_signature`. The file is 1.0 s. It starts at 0.20 s so it finishes as the 1.2 s card opens, instead of being cut off. |
 | `sfx_evolve.wav` | Evolve frame 0. The fanfare hit is at 0.42 s, on the `EVOLVED!` pop (frame 5). |
 | `sting_reveal_vending_machine.wav` | Fallback for `reveal_vending_machine`. The file is 1.6 s. It fades out (about 0.08 s) when play begins, including a tap that skips the card, so it does not keep playing into the run. |
+| `new_best.wav` | NEW BEST on the death card. The approved 0.70 s stereo file. It replaces the enemy pop at that moment and plays as mastered. |
 | `sfx_boss_lich_king_enter.wav` | Lich King enters. Same bus level as the other stings. No pitch shift. |
 | `sfx_boss_lich_king_death.wav` | Lich King dies. Same level, no pitch shift. Being cleared for the dragon, without dying, stays silent. |
 | `sfx_boss_death_knight_enter.wav` | Death Knight enters. Same level, no pitch shift. |
@@ -35,7 +36,7 @@ The reborn tease ships as `sting_reborn_tease.ogg` (about 15 KB). The same sting
 
 Untapped death, with no tap, reaches the game-over card in 1.2 s. The stages keep their old proportions: hit 0–0.1043 s, pop to 0.2609 s, puff to 0.4696 s, hold to 0.5739 s, then `REBORN AS...?` until 1.2000 s. A tap still skips straight to the card. The 0.25 s card guard, the 0.48 s retry reveal, and the 1.5 s invulnerability are unchanged.
 
-Drop-in hooks load `res://audio/<event>.ogg` if that file exists, otherwise `res://audio/<event>.wav`. Until one of those files is in the project, the hook plays today's sound (or stays silent). Death and `new_best` stop on skip and on retry, and they do not delay the tap. `reveal_<form>` fades out when play begins.
+Drop-in hooks load `res://audio/<event>.ogg` if that file exists, otherwise `res://audio/<event>.wav`. `new_best` is the one shipped file. The other hooks still play today's sound (or stay silent) until a file is added. Death and `new_best` stop on skip and on retry, and they do not delay the tap. `reveal_<form>` fades out when play begins.
 
 | Hook | Fallback today | Drop-in file |
 | --- | --- | --- |
@@ -46,7 +47,7 @@ Drop-in hooks load `res://audio/<event>.ogg` if that file exists, otherwise `res
 | `player_death_demon_lord` | `sfx_death.wav` | `audio/player_death_demon_lord.ogg` or `.wav` |
 | `player_death_dragon` | `sfx_death.wav` | `audio/player_death_dragon.ogg` or `.wav` |
 | `sting_reincarnation_signature` | `sting_reborn_tease.ogg` | `audio/sting_reincarnation_signature.ogg` or `.wav` |
-| `new_best` | `sfx_enemy_pop.wav` | `audio/new_best.ogg` or `.wav` |
+| `new_best` | shipped: `audio/new_best.wav` | `audio/new_best.ogg` would replace the wav |
 | `reveal_slime` | silent | `audio/reveal_slime.ogg` or `.wav` |
 | `reveal_vending_machine` | `sting_reveal_vending_machine.wav` | `audio/reveal_vending_machine.ogg` or `.wav` |
 | `reveal_goblin` | silent | `audio/reveal_goblin.ogg` or `.wav` |

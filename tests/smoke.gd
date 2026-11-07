@@ -3495,8 +3495,14 @@ func _expect_audio_fallbacks() -> int:
 		push_error("sting_reincarnation_signature should fall back to sting_reborn_tease.ogg")
 		failed += 1
 	var best := AudioCues.spec(AudioCues.NEW_BEST_EVENT)
-	if str(best.get("file", "")) != "res://audio/sfx_enemy_pop.wav" or not bool(best.get("using_fallback", false)):
-		push_error("new_best should fall back to sfx_enemy_pop.wav")
+	if str(best.get("file", "")) != "res://audio/new_best.wav" or bool(best.get("using_fallback", true)):
+		push_error("new_best should play audio/new_best.wav, got %s" % str(best.get("file", "")))
+		failed += 1
+	if absf(float(best.get("lufs", 0.0)) + 17.7) > 0.05 or absf(float(best.get("pitch_semitones", 1.0))) > 0.001 or int(best.get("polyphony", 0)) != 1:
+		push_error("new_best should play the approved file as mastered")
+		failed += 1
+	if FileAccess.get_sha256("res://audio/new_best.wav") != "ff03b3842f40fe0ad6e89e3b6f3d34ec558dc9a414905e97570f1ef2a2bc6ed5":
+		push_error("new_best.wav is not the approved file")
 		failed += 1
 	var vending := AudioCues.spec("reveal_vending_machine")
 	if str(vending.get("file", "")) != "res://audio/sting_reveal_vending_machine.wav" or not bool(vending.get("using_fallback", false)):
@@ -3529,8 +3535,11 @@ func _check_death_audio_runtime(packed: PackedScene) -> int:
 	if death_player == null or death_player.stream == null or not str(death_player.stream.resource_path).ends_with("sfx_death.wav"):
 		push_error("slime death should load sfx_death.wav until a file is added")
 		failed += 1
-	if best_player == null or best_player.stream == null or not str(best_player.stream.resource_path).ends_with("sfx_enemy_pop.wav"):
-		push_error("NEW BEST should load sfx_enemy_pop.wav until a file is added")
+	if best_player == null or best_player.stream == null or not str(best_player.stream.resource_path).ends_with("new_best.wav"):
+		push_error("NEW BEST should load audio/new_best.wav")
+		failed += 1
+	elif absf(best_player.stream.get_length() - 0.7) > 0.02:
+		push_error("NEW BEST should be the 0.70 s file, got %.3f" % best_player.stream.get_length())
 		failed += 1
 	if signature == null or signature.stream == null or not str(signature.stream.resource_path).ends_with("sting_reborn_tease.ogg"):
 		push_error("the signature should load sting_reborn_tease.ogg until a file is added")

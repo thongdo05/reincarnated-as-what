@@ -30,6 +30,16 @@
     "notes": "Bright bubble pop, decays in ~0.25 s. Fairly high-frequency (spectral centroid ~8 kHz); consider pitch randomisation +/-1-2 semitones in engine. Max momentary -16.0 LUFS. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
   },
   {
+    "file": "new_best.wav",
+    "type": "sting",
+    "duration": 0.7,
+    "loop": false,
+    "event": "NEW BEST on the death card",
+    "lufs": -17.7,
+    "true_peak": -7.0,
+    "notes": "Approved NEW BEST sting (Thong, 7 Nov 2026). Plays in place of the enemy pop at that moment, as mastered, one voice, no pitch shift. 48000 Hz, 16-bit stereo, 0.70 s. lufs = integrated (gated) loudness; true_peak in dBTP."
+  },
+  {
     "file": "sfx_death.wav",
     "type": "sfx",
     "duration": 0.92,

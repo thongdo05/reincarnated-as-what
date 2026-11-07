@@ -265,7 +265,12 @@ static func _drop_in_spec(event: String) -> Dictionary:
 		var shell := _drop_in_base(event)
 		if shell.is_empty():
 			shell = _plain_sting()
-		return _use_custom_file(shell, custom)
+		var data := _use_custom_file(shell, custom)
+		if event == NEW_BEST_EVENT:
+			# Approved file, Thong, 7 Nov 2026. Played as mastered.
+			data["lufs"] = -17.7
+			data["duration"] = 0.7
+		return data
 	var base := _drop_in_base(event)
 	if base.is_empty():
 		return {}
