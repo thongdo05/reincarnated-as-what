@@ -1,0 +1,78 @@
+name: CrazyGames
+
+# Manual zip for the CrazyGames portal. Does not run on push or pull request,
+# and does not deploy GitHub Pages or touch the iOS/Android workflows.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crazygames-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          base="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${base}.zip" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          sudo mv "/tmp/godot/${base}" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz" -o /tmp/templates.tpz
+          unzip -q /tmp/templates.tpz -d /tmp/templates
+          tdir="${HOME}/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$tdir"
+          mv /tmp/templates/templates/* "$tdir/"
+          godot --version
+          test -f "$tdir/web_nothreads_release.zip"
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Prepare CrazyGames export
+        run: |
+          set -euo pipefail
+          python3 tools/prepare_crazygames_export.py --self-test
+          python3 tools/prepare_crazygames_export.py
+
+      - name: Export
+        run: |
+          set -euo pipefail
+          godot --headless --path . --import --quit
+          mkdir -p build/crazygames
+          godot --headless --path . --export-release "CrazyGames" build/crazygames/index.html
+          test -f build/crazygames/index.html
+          test -f build/crazygames/index.wasm
+          test -f build/crazygames/index.pck
+          if grep -q "GODOT_THREADS_ENABLED = true" build/crazygames/index.html; then
+            echo "Threaded web export cannot load on iOS Safari."
+            exit 1
+          fi
+          cp app_icon/app_icon_64.png build/crazygames/favicon.png
+          cp app_icon/app_icon_180.png build/crazygames/apple-touch-icon.png
+          cp app_icon/app_icon_180.png build/crazygames/icon-180.png
+          cp app_icon/app_icon_512.png build/crazygames/icon-512.png
+
+      - name: Pack zip
+        run: |
+          set -euo pipefail
+          python3 tools/pack_crazygames_zip.py build/crazygames build/reincarnated-crazygames.zip
+
+      - name: Upload zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: reincarnated-crazygames
+          path: build/reincarnated-crazygames.zip
+          if-no-files-found: error

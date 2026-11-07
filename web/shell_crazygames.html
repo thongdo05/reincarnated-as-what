@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+		<meta http-equiv="Pragma" content="no-cache">
+		<meta http-equiv="Expires" content="0">
+		<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+		<meta name="apple-mobile-web-app-capable" content="yes">
+		<meta name="mobile-web-app-capable" content="yes">
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+		<meta name="theme-color" content="#100c14">
+		<title>$GODOT_PROJECT_NAME</title>
+		<link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+		<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+html, body {
+	position: fixed;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	height: 100dvh;
+	overflow: hidden;
+	overscroll-behavior: none;
+	background-color: #100c14;
+	touch-action: none;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+}
+
+body {
+	color: white;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+}
+
+/* Measures env(safe-area-inset-*) in canvas pixels. Gameplay stays full-bleed;
+   the game reads this and insets HUD only. */
+#safe-probe {
+	position: fixed;
+	left: 0;
+	top: 0;
+	visibility: hidden;
+	pointer-events: none;
+	padding-top: env(safe-area-inset-top);
+	padding-right: env(safe-area-inset-right);
+	padding-bottom: env(safe-area-inset-bottom);
+	padding-left: env(safe-area-inset-left);
+}
+
+#canvas {
+	display: block;
+	position: fixed !important;
+	inset: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
+	touch-action: none;
+	image-rendering: pixelated;
+	image-rendering: crisp-edges;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+#rotate-gate {
+	display: none;
+	position: fixed;
+	inset: 0;
+	z-index: 50;
+	margin: 0;
+	background: #100c14;
+	color: #f4efe4;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	font-family: "Noto Sans", "Droid Sans", Arial, sans-serif;
+}
+
+#rotate-gate strong {
+	font-size: 1.6rem;
+	font-weight: 700;
+}
+
+#rotate-gate span {
+	margin-top: 0.6rem;
+	color: #c8bdd4;
+	font-size: 1rem;
+}
+
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background-color: $GODOT_SPLASH_COLOR;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-splash.show-image--false {
+	display: none;
+}
+
+#status-splash.fullsize--true {
+	height: 100%;
+	width: 100%;
+	object-fit: contain;
+}
+
+#status-splash.use-filter--false {
+	image-rendering: pixelated;
+}
+
+#status-progress, #status-notice {
+	display: none;
+}
+
+#status-progress {
+	bottom: 10%;
+	width: 50%;
+	margin: 0 auto;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden;
+	padding: 1rem;
+	text-align: center;
+	z-index: 1;
+}
+		</style>
+		$GODOT_HEAD_INCLUDE
+	</head>
+	<body>
+		<canvas id="canvas" tabindex="0">
+			Your browser does not support the canvas tag.
+		</canvas>
+		<div id="safe-probe" aria-hidden="true"></div>
+		<div id="rotate-gate">
+			<strong>Rotate your phone</strong>
+			<span>This run flies sideways.</span>
+		</div>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<img id="status-splash" class="$GODOT_SPLASH_CLASSES" src="$GODOT_SPLASH" alt="">
+			<progress id="status-progress"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		<script>
+			(function () {
+				var gate = document.getElementById("rotate-gate");
+				function syncRotateGate() {
+					if (window.__lbHoldGate) {
+						gate.style.display = "none";
+						return;
+					}
+					var portrait = window.innerHeight > window.innerWidth;
+					gate.style.display = portrait ? "flex" : "none";
+				}
+				window.syncRotateGate = syncRotateGate;
+				window.lbSetCover = function (on) {
+					window.__lbHoldGate = !!on;
+					syncRotateGate();
+				};
+				// Godot's web HTTP client reads the body with response.body.getReader().
+				// On iPhone Safari that read can stay pending, so request_completed
+				// never fires and the board sits on "...". response.text() finishes,
+				// and aborting at the timeout still calls back.
+				window.lbPost = function (url, headerList, body, timeoutMs, id) {
+					var headers = {};
+					if (headerList) {
+						for (var i = 0; i < headerList.length; i++) {
+							headers[headerList[i][0]] = headerList[i][1];
+						}
+					}
+					var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+					var timer = setTimeout(function () {
+						if (ctrl) {
+							ctrl.abort();
+						}
+					}, timeoutMs);
+					function finish(status, text) {
+						clearTimeout(timer);
+						if (window.__lbHttp) {
+							window.__lbHttp(id, status, text == null ? "" : String(text));
+						}
+					}
+					var opts = { method: "POST", headers: headers, body: body };
+					if (ctrl) {
+						opts.signal = ctrl.signal;
+					}
+					fetch(url, opts).then(function (res) {
+						return res.text().then(function (text) {
+							finish(res.status, text);
+						}, function () {
+							finish(0, "");
+						});
+					}).catch(function () {
+						finish(0, "");
+					});
+				};
+				// Godot's web IME is a contentEditable node that refocuses itself
+				// on a timer while a LineEdit is editing. On iPhone Safari that
+				// timer keeps the keyboard's focus after it closes, and the next
+				// taps never reach the canvas. Name entry uses window.prompt, so
+				// this node must not take focus. A leftover <input> would do the
+				// same: it sits over the buttons and swallows the tap.
+				window.lbReleaseInput = function () {
+					if (window.__lbReleasing) {
+						return;
+					}
+					window.__lbReleasing = true;
+					try {
+						var canvas = document.getElementById("canvas");
+						var fields = document.querySelectorAll("input, textarea, .ime");
+						for (var i = 0; i < fields.length; i++) {
+							var el = fields[i];
+							el.style.pointerEvents = "none";
+							el.style.display = "none";
+							if (el.classList && el.classList.contains("ime")) {
+								el.contentEditable = "false";
+								el.setAttribute("inputmode", "none");
+								if (!el.__lbFocusBlocked) {
+									el.__lbFocusBlocked = true;
+									el.focus = function () {};
+								}
+							}
+							try { el.blur(); } catch (err) {}
+						}
+						var active = document.activeElement;
+						if (active && active !== document.body && active !== document.documentElement && active !== canvas) {
+							try { active.blur(); } catch (err) {}
+						}
+						if (canvas && canvas.focus) {
+							try { canvas.focus({ preventScroll: true }); } catch (err) {
+								try { canvas.focus(); } catch (err2) {}
+							}
+						}
+					} finally {
+						window.__lbReleasing = false;
+					}
+				};
+				document.addEventListener("focusin", function (event) {
+					var el = event.target;
+					if (!el || !el.tagName) {
+						return;
+					}
+					var tag = el.tagName;
+					if (tag === "INPUT" || tag === "TEXTAREA" || (el.classList && el.classList.contains("ime"))) {
+						window.setTimeout(window.lbReleaseInput, 0);
+					}
+				}, true);
+				if (window.MutationObserver) {
+					var observer = new MutationObserver(function () {
+						var ime = document.querySelector(".ime");
+						if (ime && !ime.__lbFocusBlocked) {
+							window.lbReleaseInput();
+						}
+					});
+					observer.observe(document.documentElement, { childList: true, subtree: true });
+				}
+				window.addEventListener("resize", syncRotateGate);
+				window.addEventListener("orientationchange", syncRotateGate);
+				syncRotateGate();
+			}());
+			document.addEventListener("touchmove", function (event) {
+				event.preventDefault();
+			}, { passive: false });
+			document.addEventListener("gesturestart", function (event) {
+				event.preventDefault();
+			});
+		</script>
+		<script>
+			window.shareRunCard = function (b64, filename, text) {
+				var binary = atob(b64);
+				var bytes = new Uint8Array(binary.length);
+				for (var i = 0; i < binary.length; i++) {
+					bytes[i] = binary.charCodeAt(i);
+				}
+				var file = new File([bytes], filename, { type: "image/png" });
+				function download() {
+					var url = URL.createObjectURL(file);
+					var link = document.createElement("a");
+					link.href = url;
+					link.download = filename;
+					document.body.appendChild(link);
+					link.click();
+					link.remove();
+					setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+				}
+				var payload = { files: [file], title: "Reincarnated as WHAT?!", text: text };
+				if (navigator.canShare && navigator.canShare(payload)) {
+					navigator.share(payload).catch(function () { download(); });
+				} else {
+					download();
+				}
+			};
+			window.shareRunText = function (text) {
+				function fallback() {
+					var area = document.createElement("textarea");
+					area.value = text;
+					area.setAttribute("readonly", "");
+					area.style.position = "fixed";
+					area.style.left = "-9999px";
+					document.body.appendChild(area);
+					area.select();
+					try { document.execCommand("copy"); } catch (err) {}
+					area.remove();
+				}
+				function copy() {
+					if (navigator.clipboard && navigator.clipboard.writeText) {
+						navigator.clipboard.writeText(text).catch(function () { fallback(); });
+						return;
+					}
+					fallback();
+				}
+				var payload = { title: "Reincarnated as WHAT?!", text: text };
+				if (navigator.share) {
+					navigator.share(payload).catch(function () { copy(); });
+				} else {
+					copy();
+				}
+			};
+		</script>
+		<script>
+			// Godot 4.7 keeps GodotAudio inside the engine closure, so a page
+			// script cannot see GodotAudio.ctx. iOS Safari then stays suspended
+			// and the music player never starts, while WAV shots still play.
+			// Catch the AudioContext the engine constructs, and count long
+			// buffer sources so a loop that never actually started can be shown.
+			(function () {
+				window.__godotMusicSources = 0;
+				var NativeAudioContext = window.AudioContext || window.webkitAudioContext;
+				if (NativeAudioContext) {
+					function TrackingAudioContext(options) {
+						var ctx = new NativeAudioContext(options);
+						window.__godotAudioCtx = ctx;
+						window.__godotAudioState = ctx.state || "suspended";
+						ctx.addEventListener("statechange", function () {
+							window.__godotAudioState = ctx.state;
+							if (ctx.state === "running") {
+								window.__godotAudioPrimed = true;
+							}
+						});
+						return ctx;
+					}
+					TrackingAudioContext.prototype = NativeAudioContext.prototype;
+					if (window.AudioContext) {
+						window.AudioContext = TrackingAudioContext;
+					}
+					if (window.webkitAudioContext) {
+						window.webkitAudioContext = TrackingAudioContext;
+					}
+				}
+				if (window.AudioBufferSourceNode) {
+					var origStart = AudioBufferSourceNode.prototype.start;
+					AudioBufferSourceNode.prototype.start = function () {
+						try {
+							var node = this;
+							var buf = node.buffer;
+							if (buf && buf.duration >= 2 && !node.__godotMusicCounted) {
+								node.__godotMusicCounted = true;
+								window.__godotMusicSources = (window.__godotMusicSources || 0) + 1;
+								node.addEventListener("ended", function () {
+									if (!node.__godotMusicCounted) {
+										return;
+									}
+									node.__godotMusicCounted = false;
+									window.__godotMusicSources = Math.max(0, (window.__godotMusicSources || 1) - 1);
+								});
+							}
+						} catch (err) {}
+						return origStart.apply(this, arguments);
+					};
+				}
+				function audioCtx() {
+					if (window.__godotAudioCtx) {
+						return window.__godotAudioCtx;
+					}
+					if (typeof GodotAudio !== "undefined" && GodotAudio.ctx) {
+						return GodotAudio.ctx;
+					}
+					return null;
+				}
+				function unlockGodotAudio() {
+					// Remember the tap even if the engine has not built the
+					// context yet. The music rig polls this flag.
+					// iOS Safari suspends (and sometimes marks "interrupted")
+					// the AudioContext when the app is backgrounded. resume()
+					// only sticks from a user gesture, so this runs on
+					// touchend and click, not only on visibilitychange.
+					window.__godotAudioGesture = true;
+					try {
+						var ctx = audioCtx();
+						if (!ctx) {
+							return;
+						}
+						window.__godotAudioCtx = ctx;
+						if (ctx.state !== "running" && typeof ctx.resume === "function") {
+							var pending = ctx.resume();
+							if (pending && typeof pending.then === "function") {
+								pending.then(function () {
+									window.__godotAudioState = ctx.state;
+									if (ctx.state === "running") {
+										window.__godotAudioPrimed = true;
+										window.__godotAudioGesture = true;
+									}
+								}, function () {});
+							}
+						}
+						window.__godotAudioState = ctx.state;
+						if (ctx.state === "running") {
+							window.__godotAudioPrimed = true;
+						}
+						if (!window.__godotAudioPrimed) {
+							var rate = ctx.sampleRate || 48000;
+							var buffer = ctx.createBuffer(1, 1, rate);
+							var source = ctx.createBufferSource();
+							source.buffer = buffer;
+							source.connect(ctx.destination);
+							try {
+								source.start(0);
+							} catch (err) {}
+							window.__godotAudioPrimed = true;
+						}
+					} catch (err) {}
+				}
+				window.rawSafeInsets = function () {
+					var el = document.getElementById("safe-probe");
+					if (!el) {
+						return "0,0,0,0";
+					}
+					var style = window.getComputedStyle(el);
+					function px(value) {
+						var n = parseFloat(value);
+						return isNaN(n) ? 0 : n;
+					}
+					var canvas = document.getElementById("canvas");
+					var cssW = window.innerWidth || 1;
+					var bufW = canvas && canvas.width ? canvas.width : cssW;
+					var scale = bufW / cssW;
+					if (!isFinite(scale) || scale <= 0) {
+						scale = 1;
+					}
+					return [
+						px(style.paddingLeft) * scale,
+						px(style.paddingTop) * scale,
+						px(style.paddingRight) * scale,
+						px(style.paddingBottom) * scale
+					].join(",");
+				};
+				window.unlockGodotAudio = unlockGodotAudio;
+				var names = ["touchstart", "touchend", "pointerdown", "pointerup", "mousedown", "click", "keydown"];
+				for (var i = 0; i < names.length; i++) {
+					document.addEventListener(names[i], unlockGodotAudio, true);
+				}
+				document.addEventListener("visibilitychange", function () {
+					if (document.visibilityState !== "visible") {
+						return;
+					}
+					unlockGodotAudio();
+					window.__godotAudioRestartMusic = true;
+				});
+			}());
+		</script>
+		<script src="$GODOT_URL"></script>
+		<script>
+const GODOT_CONFIG = $GODOT_CONFIG;
+const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+function __rawStartEngine() {
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice = document.getElementById('status-notice');
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			statusOverlay.remove();
+			initializing = false;
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('An unknown error occurred.');
+		}
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let serviceWorkerRegistrationPromise;
+			try {
+				serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			Promise.race([
+				serviceWorkerRegistrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				new Promise((resolve) => {
+					setTimeout(() => resolve(), 2000);
+				}),
+			]).then(() => {
+				window.location.reload();
+			}).catch((err) => {
+				console.error('Error while registering service worker:', err);
+			});
+		} else {
+			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+			displayFailureNotice(missingMsg + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					statusProgress.value = current;
+					statusProgress.max = total;
+				} else {
+					statusProgress.removeAttribute('value');
+					statusProgress.removeAttribute('max');
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+}());
+}
+if (!window.__rawDeferEngine) {
+	__rawStartEngine();
+}
+		</script>
+	</body>
+</html>

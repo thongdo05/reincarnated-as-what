@@ -37,6 +37,7 @@ func _initialize() -> void:
 	_unit_failed += load("res://tests/dragon_phase_checks.gd").new().run()
 	_unit_failed += _check_ad_policy()
 	_unit_failed += _check_safe_insets()
+	_unit_failed += _check_crazygames()
 	if _unit_failed > 0:
 		push_error("%d smoke checks failed" % _unit_failed)
 		quit(1)
@@ -4542,6 +4543,18 @@ func _check_ad_policy() -> int:
 	if StoreConfig.stores_available():
 		push_error("ads and purchases should be inert in the editor, on the web, and in this check")
 		failed += 1
+	if StoreConfig.stores_allowed(true, false, false, true, true):
+		push_error("a CrazyGames export must not sell remove-ads or show AdMob")
+		failed += 1
+	if not StoreConfig.stores_allowed(false, false, false, true, false):
+		push_error("the Android build should still reach the store")
+		failed += 1
+	if not StoreConfig.stores_allowed(false, false, false, false, true):
+		push_error("the iOS build should still reach the store")
+		failed += 1
+	if StoreConfig.stores_allowed(false, false, true, false, false):
+		push_error("the Pages web build stays store-free")
+		failed += 1
 	for completed in [0, 1, 2, 3, 4, 6, 7, 8, 9]:
 		if AdPolicy.interstitial_due(completed, false, false, false):
 			push_error("run %d should not be an interstitial slot" % completed)
@@ -4598,6 +4611,93 @@ func _check_safe_insets() -> int:
 	var notch: Vector4 = script.safe_insets_for(Vector2(480, 270), Vector2(1920, 1080), Rect2(80, 0, 1760, 1080))
 	if absf(notch.x - 20.0) > 0.01 or absf(notch.z - 20.0) > 0.01 or notch.y > 0.01 or notch.w > 0.01:
 		push_error("notch insets should be 20 viewport pixels on each side, got %s" % notch)
+		failed += 1
+	return failed
+
+
+func _check_crazygames() -> int:
+	var failed := 0
+	var view := Vector2(480, 270)
+	var phone := Vector2(800, 450)
+	var desk := Vector2(1920, 1080)
+	if absf(phone.x / phone.y - 16.0 / 9.0) > 0.001 or absf(desk.x / desk.y - 16.0 / 9.0) > 0.001:
+		push_error("the checked frames should be 16:9")
+		failed += 1
+	var phone_int := CrazyGamesHost.presented_scale(phone, view, true)
+	var phone_fit := CrazyGamesHost.presented_scale(phone, view, false)
+	var desk_fit := CrazyGamesHost.presented_scale(desk, view, false)
+	var desk_int := CrazyGamesHost.presented_scale(desk, view, true)
+	if absf(phone_int - 1.0) > 0.001:
+		push_error("integer scale at 800x450 letterboxes at 1x, got %s" % phone_int)
+		failed += 1
+	if absf(phone_fit - (800.0 / 480.0)) > 0.001:
+		push_error("CrazyGames should fill 800x450, got %s" % phone_fit)
+		failed += 1
+	if absf(desk_fit - 4.0) > 0.001 or absf(desk_int - 4.0) > 0.001:
+		push_error("1920x1080 should stay 4x either way, got %s and %s" % [desk_fit, desk_int])
+		failed += 1
+	var glyph := CrazyGamesHost.glyph_css_px(5.0, phone, view, false)
+	if glyph < 8.0:
+		push_error("a 5px glyph at 800x450 should be at least 8 css px, got %s" % glyph)
+		failed += 1
+	var glyph_hd := CrazyGamesHost.glyph_css_px(5.0, desk, view, false)
+	if glyph_hd < 16.0:
+		push_error("a 5px glyph at 1920x1080 should be at least 16 css px, got %s" % glyph_hd)
+		failed += 1
+	var script = load("res://scripts/game.gd")
+	if absf(float(script.hit_stop_seconds(4)) - 4.0 / 60.0) > 0.0001:
+		push_error("hit-stop should last 4/60 s")
+		failed += 1
+	if absf(float(script.hit_stop_seconds(1)) - 2.0 / 60.0) > 0.0001:
+		push_error("hit-stop should clamp to at least 2 frames")
+		failed += 1
+	for hz in [60.0, 144.0, 165.0]:
+		var rate := float(hz)
+		var left := float(script.hit_stop_seconds(4))
+		var step := 1.0 / rate
+		var ticks := 0
+		while left > 0.0000001 and ticks < 1000:
+			left -= minf(step, left)
+			ticks += 1
+		var seconds := float(ticks) / rate
+		if absf(seconds - 4.0 / 60.0) > step + 0.0001:
+			push_error("hit-stop at %s Hz lasted %s s" % [hz, seconds])
+			failed += 1
+	if not CrazyGamesHost.call_allowed("local") or not CrazyGamesHost.call_allowed("crazygames"):
+		push_error("SDK calls are allowed on local and crazygames")
+		failed += 1
+	if CrazyGamesHost.call_allowed("disabled") or CrazyGamesHost.call_allowed(""):
+		push_error("SDK calls must stop when the environment is disabled")
+		failed += 1
+	var merged: Rect2 = CrazyGamesHost.merge_safe_rect(desk, Rect2(0, 0, 1920, 1080), Vector4(80, 10, 40, 20))
+	if absf(merged.position.x - 80.0) > 0.01 or absf(merged.position.y - 10.0) > 0.01:
+		push_error("css insets should shrink the safe rect, got %s" % merged)
+		failed += 1
+	if absf(merged.size.x - (1920.0 - 120.0)) > 0.01 or absf(merged.size.y - (1080.0 - 30.0)) > 0.01:
+		push_error("css insets should keep the far edges, got %s" % merged)
+		failed += 1
+	var same: Rect2 = CrazyGamesHost.merge_safe_rect(desk, Rect2(80, 0, 1760, 1080), Vector4.ZERO)
+	if same != Rect2(80, 0, 1760, 1080):
+		push_error("a zero css inset should leave the engine safe rect")
+		failed += 1
+	var shell := FileAccess.get_file_as_string("res://web/shell_crazygames.html")
+	for needle in ["user-select: none", "-moz-user-select: none", "-ms-user-select: none", "rawSafeInsets", "safe-area-inset-top", "unlockGodotAudio", "touchend"]:
+		if shell.find(needle) < 0:
+			push_error("crazygames shell is missing %s" % needle)
+			failed += 1
+	if shell.find("requestFullscreen") >= 0:
+		push_error("the crazygames shell must not add a fullscreen button")
+		failed += 1
+	var pages := FileAccess.get_file_as_string("res://web/shell.html")
+	if pages.find("rawSafeInsets") >= 0:
+		push_error("the Pages shell should stay free of the CrazyGames probe")
+		failed += 1
+	var presets := FileAccess.get_file_as_string("res://export_presets.cfg")
+	if presets.find("name=\"CrazyGames\"") < 0 or presets.find("custom_features=\"crazygames\"") < 0:
+		push_error("the CrazyGames export preset is missing")
+		failed += 1
+	if presets.find("res://web/shell.html") < 0 or presets.find("res://web/shell_crazygames.html") < 0:
+		push_error("Pages and CrazyGames should keep their own html shells")
 		failed += 1
 	return failed
 
