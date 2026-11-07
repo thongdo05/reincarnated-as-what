@@ -66,8 +66,11 @@ func _show_card() -> void:
 	if game._beat_button == null or game._beat_button.text != "CHALLENGE A FRIEND":
 		push_error("expected the challenge button")
 		quit(1)
-	if str(game._seed_label.text).find("·") >= 0:
-		push_error("seed line still has a missing glyph")
+	if game._footer_label == null or game._footer_label.text != "BEAT MY RUN":
+		push_error("the death card should end with BEAT MY RUN")
+		quit(1)
+	if str(game._footer_label.text).find("·") >= 0:
+		push_error("footer line still has a missing glyph")
 		quit(1)
 
 func _write(file_name: String) -> void:

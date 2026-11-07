@@ -1,5 +1,6 @@
 .godot/
 build/
+ios/plugins/share_sheet/*.xcframework
 *.translation
 .DS_Store
 export_credentials.cfg

@@ -24,6 +24,14 @@ static func rewarded_opens_picker(reward_earned: bool) -> bool:
 	return reward_earned
 
 
+## The rewarded-form row is only on store builds, and only when a rewarded unit
+## exists or remove_ads made the picker free. Otherwise the death card closes up.
+static func form_pick_offered(stores: bool, choose_free: bool, rewarded_ready: bool) -> bool:
+	if not stores:
+		return false
+	return choose_free or rewarded_ready
+
+
 ## Slime, Goblin, Vending Machine, Cat, Demon Lord. Dragon is earned in a run.
 static func form_is_pickable(id: int) -> bool:
 	return id != FormCatalog.Id.DRAGON and FormCatalog.IDS.has(id)

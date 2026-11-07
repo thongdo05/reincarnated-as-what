@@ -29,6 +29,14 @@ const REAL_IOS_REWARDED_UNIT_ID := ""
 
 const REMOVE_ADS_PRODUCT_ID := "remove_ads"
 
+## Challenge and share links. One constant per platform. All three point at the
+## browser game until the app is on the App Store: a friend can play that link
+## right away. TODO: Once the App Store listing exists, mobile should use a
+## link that sends phone users to the App Store and everyone else to the web game.
+const WEB_GAME_URL := "https://thongdo05.github.io/reincarnated-as-what/"
+const IOS_GAME_URL := "https://thongdo05.github.io/reincarnated-as-what/"
+const ANDROID_GAME_URL := "https://thongdo05.github.io/reincarnated-as-what/"
+
 const TEST_ANDROID_APP_ID := "ca-app-pub-3940256099942544~3347511713"
 const TEST_IOS_APP_ID := "ca-app-pub-3940256099942544~1458002511"
 const TEST_ANDROID_BANNER_UNIT_ID := "ca-app-pub-3940256099942544/6300978111"
@@ -108,6 +116,18 @@ static func rewarded_unit_id() -> String:
 		return TEST_IOS_REWARDED_UNIT_ID if ios else TEST_ANDROID_REWARDED_UNIT_ID
 	var real := REAL_IOS_REWARDED_UNIT_ID if ios else REAL_ANDROID_REWARDED_UNIT_ID
 	return real.strip_edges()
+
+
+static func game_url() -> String:
+	return game_url_for(OS.has_feature("ios"), OS.has_feature("android"))
+
+
+static func game_url_for(ios: bool, android: bool) -> String:
+	if ios:
+		return IOS_GAME_URL
+	if android:
+		return ANDROID_GAME_URL
+	return WEB_GAME_URL
 
 
 static func real_ids_are_empty() -> bool:

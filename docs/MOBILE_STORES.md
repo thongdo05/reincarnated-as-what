@@ -10,6 +10,7 @@ Landscape only. The project setting `display/window/handheld/orientation` is sen
 - **Android purchases:** [Godot Google Play Billing](https://github.com/godot-sdk-integrations/godot-google-play-billing) 3.3.0, from the Godot Foundation. Play Billing library 9.1. It loads on Godot 4.7.2.
 - **iOS purchases:** [godot_ios_plugin_iap](https://github.com/hrk4649/godot_ios_plugin_iap) 0.4.0 (StoreKit, built for Godot 4.7). The official `godot-storekit2` release stops at Godot 4.6.
 - **App Tracking Transparency:** [godot-ios-att](https://github.com/Seneku/godot-ios-att) v0.1.0. The published binary is built for Godot 4.7.1. This project exports with 4.7.2. If Xcode fails to link `GodotIosAtt`, rebuild that plugin against 4.7.2 and replace `ios/plugins/godot-ios-att`.
+- **Share sheet:** `ios/plugins/share_sheet/`. A small Objective-C++ plugin (`share_sheet.mm`) presents `UIActivityViewController` with the share text, the challenge link, and the PNG. It does not link Godot headers. `tools/build_ios_share_plugin.sh` compiles the xcframework with the iOS SDK. The TestFlight workflow runs that script before export. No extra secrets. On a Mac, run the script once before exporting iOS. The plugin is on in the iOS preset as `ShareSheet`. Android uses the engine's `AndroidRuntime` share intent instead of a plugin. Web still uses `shareRunCard` in the page shell.
 
 The prompt text is `StoreConfig.ATT_USAGE_DESCRIPTION`. The export plugin writes it to Info.plist as `NSUserTrackingUsageDescription`. Godot's `privacy/tracking_enabled` flag is a different key (the privacy manifest) and does not show the prompt by itself.
 
@@ -34,7 +35,7 @@ Godot 4.7.2, Xcode 15 or newer, and an Apple Developer account.
    - Bundle id: `com.thongdo.reincarnatedaswhat`
    - iPhone only, landscape, minimum iOS 15
    - Icon: `res://app_icon/app_icon_1024.png` (Godot downsizes it). Home screen also uses `app_icon_180.png`.
-   - Plugins `IOSInAppPurchase` and `godot-ios-att` are on.
+   - Plugins `IOSInAppPurchase`, `godot-ios-att`, and `ShareSheet` are on. Build the share plugin first: `bash tools/build_ios_share_plugin.sh`.
    - Team ID `9589T6378Y` is already in the preset (`application/app_store_team_id`). Leave the provisioning fields empty if Xcode will sign automatically.
    - Export Project Only is on, so Godot writes an Xcode project and does not try to sign an IPA.
 3. Leave `USE_TEST_ADS` as `true` in `scripts/store_config.gd` for this build. The export still writes the real iOS AdMob app id `ca-app-pub-1397621797560860~9031599553` into Info.plist as `GADApplicationIdentifier`. Requests use Google's test ad units.
@@ -50,7 +51,7 @@ Godot 4.7.2, Xcode 15 or newer, and an Apple Developer account.
 
 No Mac. Actions → **iOS TestFlight** → Run workflow. The workflow is `workflow_dispatch` only. It does not run on push or on a pull request, and it does not change the web export or `.github/workflows/pages.yml`.
 
-The runner is a GitHub-hosted `macos-26` machine with Xcode 26, which is what App Store Connect currently requires for an iOS upload. It installs Godot 4.7.2 and the matching export templates, checks the vendored AdMob, StoreKit, and ATT release libraries (and downloads the AdMob ads xcframework only if that file is missing), exports the Xcode project, archives it, and uploads the IPA to the existing App Store Connect app `6831784046`.
+The runner is a GitHub-hosted `macos-26` machine with Xcode 26, which is what App Store Connect currently requires for an iOS upload. It installs Godot 4.7.2 and the matching export templates, checks the vendored AdMob, StoreKit, and ATT release libraries (and downloads the AdMob ads xcframework only if that file is missing), compiles the share-sheet plugin with `tools/build_ios_share_plugin.sh`, exports the Xcode project, archives it, and uploads the IPA to the existing App Store Connect app `6831784046`.
 
 - Store version stays **1.0**. The build number is `github.run_number` for that workflow, so a second upload does not reuse build 1. The first successful run is build 1. If a build with that number was already uploaded, run the workflow again.
 - `USE_TEST_ADS` stays `true` unless you check **Use real AdMob unit ids**. That checkbox edits the runner's copy of `scripts/store_config.gd` for that build only. It is not committed. Banner and rewarded real unit ids are still empty, so those formats stay on Google's sample units even when the box is checked.
