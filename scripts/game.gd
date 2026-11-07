@@ -14,6 +14,18 @@ const CHALLENGE_LABEL := "CHALLENGE A FRIEND"
 const CHALLENGE_COPIED := "LINK COPIED!"
 const SHARE_COPIED := "COPIED!"
 const DEATH_FOOTER := "BEAT MY RUN"
+## The old score was 27. 81 is 3x, on the 9px pixel grid.
+const DEATH_SCORE_PX := 81
+const DEATH_TAG_PX := 18
+const DEATH_BODY_PX := 9
+## One size for every death-card button, including the long challenge label.
+const DEATH_BUTTON_PX := 9
+## About 40% shorter than the old 56 and 44. 22 is the phone's 44pt target.
+const DEATH_REINC_H := 34.0
+const DEATH_ROW_H := 26.0
+const DEATH_AD_H := 22.0
+const DEATH_TAP_MIN := 22.0
+const DEATH_BUTTON_GAP := 6.0
 const COPY_FEEDBACK := 1.4
 ## The world name stays up with the form card, then for this long once play starts.
 const WORLD_NAME_HOLD := 0.9
@@ -382,7 +394,7 @@ func _build_hud() -> void:
 	_death_kicker.text = "RUN OVER"
 	_death_kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_game_over.add_child(_death_kicker)
-	_score_label = _make_label(27, Color("f2fbff"))
+	_score_label = _make_label(DEATH_SCORE_PX, Color("ffe56a"))
 	_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_score_label.visible = false
 	_game_over.add_child(_score_label)
@@ -422,8 +434,8 @@ func _build_hud() -> void:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("f0d78c")
 	style.set_corner_radius_all(4)
-	style.content_margin_top = 8
-	style.content_margin_bottom = 8
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
 	_restart_button.add_theme_stylebox_override("normal", style)
 	_restart_button.add_theme_stylebox_override("hover", style)
 	_restart_button.add_theme_stylebox_override("pressed", style)
@@ -432,7 +444,7 @@ func _build_hud() -> void:
 	_restart_button.add_theme_color_override("font_color", Color("f2fbff"))
 	_restart_button.add_theme_color_override("font_hover_color", Color("f2fbff"))
 	_restart_button.add_theme_color_override("font_pressed_color", Color("f2fbff"))
-	_restart_button.add_theme_font_size_override("font_size", 18)
+	_restart_button.add_theme_font_size_override("font_size", DEATH_BUTTON_PX)
 	_restart_button.pressed.connect(_on_restart)
 	_game_over.add_child(_restart_button)
 	_share_button = Button.new()
@@ -452,11 +464,10 @@ func _build_hud() -> void:
 	_share_button.add_theme_color_override("font_color", Color("f2fbff"))
 	_share_button.add_theme_color_override("font_hover_color", Color("f2fbff"))
 	_share_button.add_theme_color_override("font_pressed_color", Color("f2fbff"))
-	_share_button.add_theme_font_size_override("font_size", 18)
+	_share_button.add_theme_font_size_override("font_size", DEATH_BUTTON_PX)
 	_share_button.pressed.connect(_on_share)
 	_game_over.add_child(_share_button)
 	_beat_button = _make_death_button(CHALLENGE_LABEL, Color("14324f"))
-	_beat_button.add_theme_font_size_override("font_size", 18)
 	_beat_button.pressed.connect(_on_beat_link)
 	_game_over.add_child(_beat_button)
 	_board_button = _make_death_button("LEADERBOARD", Color("2a2140"))
@@ -1213,7 +1224,7 @@ func _collide() -> void:
 	for spec in splits:
 		var child := _spawn_shot(spec, true)
 		child.ignore_id = int(spec["ignore_id"])
-	if not _player.alive or _player.invulnerable or _player.blink_guard > 0.0:
+	if not _player.alive or _player.invulnerable:
 		return
 	var player_file := _player.sprite_name()
 	var player_scale := _player_scale()
@@ -1915,12 +1926,14 @@ func _set_default_death(form_name: String, reached_rank: String) -> void:
 		_new_best_label.text = "NEW BEST!" if beaten else ""
 		_new_best_label.visible = beaten
 		_new_best_label.scale = Vector2(0.72, 0.72) if beaten else Vector2.ONE
-	_best_label.text = "%s BEST %s\nDAILY BEST %s" % [
-		form_name,
+	_share_label.text = "Reached %s  |  BEST %s  |  DAILY %s" % [
+		reached_rank.to_upper(),
 		ScoreRules.format_score(int(saved["form"])),
 		ScoreRules.format_score(int(saved["overall"])),
 	]
-	_share_label.text = "Reached %s" % reached_rank.to_upper()
+	if _best_label != null:
+		_best_label.text = ""
+		_best_label.visible = false
 	if _footer_label != null:
 		_footer_label.text = DEATH_FOOTER
 	if _beat_button != null:
@@ -1931,189 +1944,253 @@ func _set_default_death(form_name: String, reached_rank: String) -> void:
 	if beaten and _sound != null:
 		_sound.play_event(AudioCues.NEW_BEST_EVENT)
 
-## Buttons stay on the bottom of the safe area. The info stack is a list
-## (see _death_info_entries) packed just above the next button, so a later
-## form-chain line can be appended without reflowing the buttons by hand.
+## Score is the hero, near the top. Reincarnate is the full-width button.
+## Share, Challenge, and Leaderboard share one shorter row under it.
+## The ad line sits just above Reincarnate, and only when that build offers it.
 func _layout_death_card() -> void:
 	if _restart_button == null or _share_label == null:
 		return
 	var field := _viewport_size()
 	var edge := _death_card_insets(field)
-	var share_w := 112.0
-	var gap := 8.0
 	var usable_w := field.x - edge.x - edge.z
-	var text_width := minf(448.0, usable_w - 16.0)
+	var text_width := minf(448.0, maxf(usable_w - 16.0, 32.0))
 	var show_pick := _form_pick_button != null and _form_pick_button.visible
-	var challenge := _beat_button != null and _beat_button.visible
-	var button_h := 56.0
-	var challenge_gap := 6.0 if challenge or (_board_button != null and _board_button.visible) else 0.0
-	var pick_gap := 4.0 if show_pick else 0.0
-	var stack_gap := 4.0
-	var margin := _death_bottom_margin(field, edge, 8.0)
-	var floor_h := _death_stack_floor(text_width)
-	var chrome := margin + button_h + stack_gap + 4.0 + edge.y
-	if challenge or (_board_button != null and _board_button.visible):
-		chrome += challenge_gap + 44.0
-	if show_pick:
-		chrome += pick_gap + 44.0
-	# Touch targets stay at least 44, and Reincarnate stays at least 48.
-	# Only the padding shrinks when every line is on screen.
-	if floor_h + chrome > field.y:
-		button_h = 48.0
-		if challenge_gap > 0.0:
-			challenge_gap = 3.0
-		pick_gap = 2.0 if show_pick else 0.0
-		stack_gap = 2.0
-		margin = _death_bottom_margin(field, edge, 2.0)
-	var reinc_w := minf(252.0, usable_w - 16.0 - share_w - gap)
-	reinc_w = maxf(reinc_w, minf(220.0, usable_w - 16.0))
-	var row_w := share_w + gap + reinc_w
-	if row_w > usable_w - 8.0:
-		share_w = 96.0
-		reinc_w = minf(220.0, usable_w - 16.0 - share_w - gap)
-		row_w = share_w + gap + reinc_w
-	var row_x := edge.x + (usable_w - row_w) * 0.5
-	var button_pos := Vector2(row_x + share_w + gap, field.y - margin - button_h)
-	_place_death_control(_restart_button, button_pos, Vector2(reinc_w, button_h))
-	if _share_button != null:
-		_place_death_control(_share_button, Vector2(row_x, button_pos.y), Vector2(share_w, button_h))
-	var challenge_h := 44.0 if challenge else 0.0
-	var next_y := button_pos.y
-	var action_w := row_w
-	if challenge:
-		var challenge_w := minf(240.0, reinc_w - 8.0)
-		if challenge_w < 160.0:
-			challenge_w = minf(240.0, usable_w - 16.0)
-		var show_board := _board_button != null and _board_button.visible
-		var board_w := 120.0 if show_board else 0.0
-		var pair_gap := 8.0 if show_board else 0.0
-		var pair := board_w + pair_gap + challenge_w
-		if show_board and pair > usable_w - 12.0:
-			board_w = maxf(96.0, usable_w - 12.0 - pair_gap - challenge_w)
-			pair = board_w + pair_gap + challenge_w
-		var pair_x := edge.x + (usable_w - pair) * 0.5
-		var challenge_y := button_pos.y - challenge_gap - challenge_h
-		if show_board:
-			_place_death_control(_board_button, Vector2(pair_x, challenge_y), Vector2(board_w, challenge_h))
-			_place_death_control(_beat_button, Vector2(pair_x + board_w + pair_gap, challenge_y), Vector2(challenge_w, challenge_h))
-		else:
-			_place_death_control(_beat_button, Vector2(pair_x, challenge_y), Vector2(challenge_w, challenge_h))
-		var label_px := 18 if challenge_w >= 224.0 else 9
-		_beat_button.add_theme_font_size_override("font_size", label_px)
-		next_y = challenge_y
-		action_w = pair
-	elif _board_button != null and _board_button.visible:
-		var lone_w := minf(200.0, usable_w - 16.0)
-		var lone_y := button_pos.y - challenge_gap - 44.0
-		action_w = lone_w
-		var lone_x := edge.x + (usable_w - lone_w) * 0.5
-		_place_death_control(_board_button, Vector2(lone_x, lone_y), Vector2(lone_w, 44.0))
-		next_y = lone_y
-	var text_left := edge.x + (usable_w - text_width) * 0.5
-	if show_pick:
-		var pick_h := 44.0
-		var pick_w := minf(text_width, maxf(action_w, 220.0))
-		pick_w = minf(pick_w, usable_w - 8.0)
-		var pick_x := edge.x + (usable_w - pick_w) * 0.5
-		var pick_y := next_y - pick_gap - pick_h
-		_place_death_control(_form_pick_button, Vector2(pick_x, pick_y), Vector2(pick_w, pick_h))
-		next_y = pick_y
-	elif _form_pick_button != null:
-		_place_death_control(_form_pick_button, Vector2.ZERO, Vector2.ZERO)
-	var text_top := 4.0 + edge.y
-	var text_bottom := next_y - stack_gap
-	var entries := _death_info_entries()
-	var line_gap := 2.0
-	var room := maxf(text_bottom - text_top, 0.0)
-	var used := _measure_death_stack(entries, text_width, line_gap)
-	while used > room + 0.5:
-		if _shrink_death_stack(entries):
-			used = _measure_death_stack(entries, text_width, line_gap)
+	var row := _death_row_buttons()
+	var score_px := DEATH_SCORE_PX
+	var tag_px := DEATH_TAG_PX
+	var body_px := DEATH_BODY_PX
+	var reinc_h := DEATH_REINC_H
+	var row_h := DEATH_ROW_H if not row.is_empty() else 0.0
+	var ad_h := DEATH_AD_H if show_pick else 0.0
+	var gap := 4.0
+	var pad := 6.0
+	for _step in 14:
+		var room := _death_text_room(field, edge, pad, gap, reinc_h, row_h, ad_h, show_pick)
+		var used := _death_info_height(text_width, score_px, tag_px, body_px)
+		if used <= room + 0.5:
+			break
+		if row_h > DEATH_TAP_MIN:
+			row_h = DEATH_TAP_MIN
 			continue
-		if line_gap > 0.0:
-			line_gap = 0.0
-			used = _measure_death_stack(entries, text_width, line_gap)
+		if reinc_h > row_h + 4.0:
+			reinc_h = maxf(row_h, reinc_h - 4.0)
+			continue
+		if gap > 2.0:
+			gap = 2.0
+			continue
+		if pad > 2.0:
+			pad = 2.0
+			continue
+		if tag_px > DEATH_BODY_PX:
+			tag_px = DEATH_BODY_PX
+			continue
+		if score_px > DEATH_BODY_PX * 3:
+			score_px = maxi(DEATH_BODY_PX * 3, score_px - 9)
 			continue
 		break
-	var y := text_bottom - used
-	if y < text_top:
-		y = text_top
-	for i in entries.size():
-		var entry: Dictionary = entries[i]
-		var label: Label = entry["label"]
-		var height := float(entry["height"])
-		_place_death_control(label, Vector2(text_left, y), Vector2(text_width, height))
-		if label == _new_best_label:
-			label.pivot_offset = Vector2(text_width * 0.5, height * 0.5)
-		y += height
-		if i < entries.size() - 1:
-			y += line_gap
+	_apply_death_button_font()
+	_place_death_buttons(field, edge, usable_w, reinc_h, row_h, ad_h, gap, pad, show_pick, row)
+	_place_death_info(field, edge, text_width, score_px, tag_px, body_px, pad, gap, reinc_h, row_h, ad_h, show_pick)
+
+
+func _death_text_room(field: Vector2, edge: Vector4, pad: float, gap: float, reinc_h: float, row_h: float, ad_h: float, show_pick: bool) -> float:
+	var margin := _death_bottom_margin(field, edge, pad)
+	var text_top := edge.y + 2.0
+	var block := margin + reinc_h + gap
+	if row_h > 0.0:
+		block += row_h + gap
+	if show_pick:
+		block += ad_h + gap
+	return field.y - block - text_top
+
+
+func _death_row_buttons() -> Array[Button]:
+	var row: Array[Button] = []
+	if _share_button != null and _share_button.visible:
+		row.append(_share_button)
+	if _beat_button != null and _beat_button.visible:
+		row.append(_beat_button)
+	if _board_button != null and _board_button.visible:
+		row.append(_board_button)
+	return row
+
+
+func _apply_death_button_font() -> void:
+	for button in [_restart_button, _share_button, _beat_button, _board_button, _form_pick_button]:
+		if button == null:
+			continue
+		button.add_theme_font_size_override("font_size", DEATH_BUTTON_PX)
+		button.clip_text = true
+
+
+func _place_death_buttons(field: Vector2, edge: Vector4, usable_w: float, reinc_h: float, row_h: float, ad_h: float, gap: float, pad: float, show_pick: bool, row: Array[Button]) -> void:
+	var margin := _death_bottom_margin(field, edge, pad)
+	var side := 8.0
+	var row_w := maxf(usable_w - side * 2.0, 32.0)
+	var left := edge.x + (usable_w - row_w) * 0.5
+	var y := field.y - margin
+	for button in [_share_button, _beat_button, _board_button]:
+		if button != null and row.find(button) < 0:
+			_place_death_control(button, Vector2.ZERO, Vector2.ZERO)
+	if row_h > 0.0 and not row.is_empty():
+		y -= row_h
+		var gaps := DEATH_BUTTON_GAP * float(maxi(row.size() - 1, 0))
+		var each := (row_w - gaps) / float(row.size())
+		var x := left
+		for button in row:
+			_place_death_control(button, Vector2(x, y), Vector2(each, row_h))
+			x += each + DEATH_BUTTON_GAP
+		y -= gap
+	y -= reinc_h
+	_place_death_control(_restart_button, Vector2(left, y), Vector2(row_w, reinc_h))
+	if show_pick:
+		y -= gap + ad_h
+		_place_death_control(_form_pick_button, Vector2(left, y), Vector2(row_w, ad_h))
+	elif _form_pick_button != null:
+		_place_death_control(_form_pick_button, Vector2.ZERO, Vector2.ZERO)
+
+
+func _place_death_info(field: Vector2, edge: Vector4, text_width: float, score_px: int, tag_px: int, body_px: int, pad: float, gap_buttons: float, reinc_h: float, row_h: float, ad_h: float, show_pick: bool) -> void:
+	var usable_w := field.x - edge.x - edge.z
+	var text_left := edge.x + (usable_w - text_width) * 0.5
+	var y := edge.y + 2.0
+	var gap := 2.0
+	if _label_on_card(_death_kicker):
+		y = _place_death_line(_death_kicker, text_left, y, text_width, body_px) + gap
+	if _label_on_card(_score_label):
+		y = _place_death_score_row(text_left, y, text_width, score_px, tag_px) + gap
+	elif _label_on_card(_new_best_label):
+		y = _place_death_line(_new_best_label, text_left, y, text_width, tag_px) + gap
+		_new_best_label.pivot_offset = Vector2(text_width * 0.5, _new_best_label.size.y * 0.5)
+	else:
+		_park_death_label(_score_label)
+		_park_death_label(_new_best_label)
+	for label in [_share_label, _best_label, _rank_label, _footer_label]:
+		if not _label_on_card(label):
+			_park_death_label(label)
+			continue
+		y = _place_death_line(label, text_left, y, text_width, body_px) + gap
 	if _copy_toast != null and _copy_toast.visible:
-		_place_death_control(_copy_toast, Vector2(text_left, text_top), Vector2(text_width, 22.0))
+		var button_top := _death_button_top(field, edge, pad, gap_buttons, reinc_h, row_h, ad_h, show_pick)
+		var toast_y := maxf(button_top - 24.0, edge.y + 2.0)
+		_place_death_control(_copy_toast, Vector2(text_left, toast_y), Vector2(text_width, 22.0))
 	elif _copy_toast != null:
-		_place_death_control(_copy_toast, Vector2.ZERO, Vector2.ZERO)
+		_park_death_label(_copy_toast)
 
 
-## The card's info lines, top to bottom. Skip a line by hiding it or clearing
-## its text. A later share card can append the form chain to this list.
-func _death_info_entries() -> Array:
-	var entries: Array = []
-	_push_death_entry(entries, _death_kicker, 9, 9)
-	_push_death_entry(entries, _score_label, 27, 9)
-	_push_death_entry(entries, _new_best_label, 18, 9)
-	_push_death_entry(entries, _share_label, 18, 9)
-	_push_death_entry(entries, _best_label, 18, 9)
-	_push_death_entry(entries, _rank_label, 9, 9)
-	_push_death_entry(entries, _footer_label, 9, 9)
-	return entries
+func _death_button_top(field: Vector2, edge: Vector4, pad: float, gap: float, reinc_h: float, row_h: float, ad_h: float, show_pick: bool) -> float:
+	var margin := _death_bottom_margin(field, edge, pad)
+	var y := field.y - margin
+	if row_h > 0.0:
+		y -= row_h + gap
+	y -= reinc_h
+	if show_pick:
+		y -= gap + ad_h
+	return y
 
 
-func _push_death_entry(entries: Array, label: Label, start_size: int, min_size: int) -> void:
+func _place_death_score_row(text_left: float, y: float, width: float, score_px: int, tag_px: int) -> float:
+	var score_h := _wrapped_height(_score_label.text, width, score_px)
+	var score_w := minf(_death_text_width(_score_label.text, score_px) + 4.0, width)
+	_score_label.add_theme_font_size_override("font_size", score_px)
+	if not _label_on_card(_new_best_label):
+		_park_death_label(_new_best_label)
+		var alone_x := text_left + (width - score_w) * 0.5
+		_place_death_control(_score_label, Vector2(alone_x, y), Vector2(score_w, score_h))
+		return y + score_h
+	var tag_h := _wrapped_height(_new_best_label.text, width, tag_px)
+	var tag_w := minf(_death_text_width(_new_best_label.text, tag_px) + 4.0, width)
+	_new_best_label.add_theme_font_size_override("font_size", tag_px)
+	if _death_tag_beside(width, score_px, tag_px):
+		var row_h := maxf(score_h, tag_h)
+		var group := score_w + 8.0 + tag_w
+		var x := text_left + (width - group) * 0.5
+		_place_death_control(_score_label, Vector2(x, y + (row_h - score_h) * 0.5), Vector2(score_w, score_h))
+		var tag_x := x + score_w + 8.0
+		var tag_y := y + (row_h - tag_h) * 0.5
+		_place_death_control(_new_best_label, Vector2(tag_x, tag_y), Vector2(tag_w, tag_h))
+		_new_best_label.pivot_offset = Vector2(tag_w * 0.5, tag_h * 0.5)
+		return y + row_h
+	var score_x := text_left + (width - score_w) * 0.5
+	_place_death_control(_score_label, Vector2(score_x, y), Vector2(score_w, score_h))
+	var under_x := text_left + (width - tag_w) * 0.5
+	var under_y := y + score_h + 2.0
+	_place_death_control(_new_best_label, Vector2(under_x, under_y), Vector2(tag_w, tag_h))
+	_new_best_label.pivot_offset = Vector2(tag_w * 0.5, tag_h * 0.5)
+	return under_y + tag_h
+
+
+func _place_death_line(label: Label, text_left: float, y: float, width: float, font_size: int) -> float:
+	label.add_theme_font_size_override("font_size", font_size)
+	# Width first. A parked label has no width, and autowrap then treats the
+	# line as one glyph tall per character.
+	label.custom_minimum_size = Vector2(width, 0)
+	label.size = Vector2(width, 1)
+	var height := maxf(label.get_minimum_size().y, _wrapped_height(label.text, width, font_size))
+	_place_death_control(label, Vector2(text_left, y), Vector2(width, height))
+	return y + height
+
+
+func _park_death_label(label: Label) -> void:
 	if label == null:
 		return
-	if not label.visible or label.text.is_empty():
-		_place_death_control(label, Vector2.ZERO, Vector2.ZERO)
-		return
-	entries.append({"label": label, "size": start_size, "min": min_size, "height": 0.0})
+	_place_death_control(label, Vector2.ZERO, Vector2.ZERO)
 
 
-func _shrink_death_stack(entries: Array) -> bool:
-	var prefer: Array[Label] = []
-	for label in [_best_label, _share_label, _new_best_label, _score_label]:
-		if label != null:
-			prefer.append(label)
-	for label in prefer:
-		for i in entries.size():
-			var entry: Dictionary = entries[i]
-			if entry["label"] != label:
-				continue
-			var size := int(entry["size"])
-			var min_size := int(entry["min"])
-			if size <= min_size:
-				break
-			entry["size"] = maxi(min_size, size - 9)
-			entries[i] = entry
-			return true
-	return false
+func _label_on_card(label: Label) -> bool:
+	return label != null and label.visible and not label.text.is_empty()
 
 
-func _measure_death_stack(entries: Array, width: float, gap: float) -> float:
+func _death_tag_beside(width: float, score_px: int, tag_px: int) -> bool:
+	if not _label_on_card(_score_label) or not _label_on_card(_new_best_label):
+		return false
+	var score_w := _death_text_width(_score_label.text, score_px) + 4.0
+	var tag_w := _death_text_width(_new_best_label.text, tag_px) + 4.0
+	return score_w + 8.0 + tag_w <= width
+
+
+func _death_score_row_height(width: float, score_px: int, tag_px: int) -> float:
+	var score_h := _wrapped_height(_score_label.text, width, score_px)
+	if not _label_on_card(_new_best_label):
+		return score_h
+	var tag_h := _wrapped_height(_new_best_label.text, width, tag_px)
+	if _death_tag_beside(width, score_px, tag_px):
+		return maxf(score_h, tag_h)
+	return score_h + 2.0 + tag_h
+
+
+func _death_info_height(width: float, score_px: int, tag_px: int, body_px: int) -> float:
+	var gap := 2.0
 	var used := 0.0
-	for i in entries.size():
-		var entry: Dictionary = entries[i]
-		var label: Label = entry["label"]
-		var size := int(entry["size"])
-		label.add_theme_font_size_override("font_size", size)
-		# Width first, so the label's own wrap height matches the rect we stack.
-		label.custom_minimum_size = Vector2(width, 0)
-		label.size = Vector2(width, 1)
-		var height := maxf(label.get_minimum_size().y, _wrapped_height(label.text, width, size))
-		entry["height"] = height
-		entries[i] = entry
-		used += height
-		if i > 0:
+	var any := false
+	if _label_on_card(_death_kicker):
+		used += _wrapped_height(_death_kicker.text, width, body_px)
+		any = true
+	if _label_on_card(_score_label):
+		if any:
 			used += gap
+		used += _death_score_row_height(width, score_px, tag_px)
+		any = true
+	elif _label_on_card(_new_best_label):
+		if any:
+			used += gap
+		used += _wrapped_height(_new_best_label.text, width, tag_px)
+		any = true
+	for label in [_share_label, _best_label, _rank_label, _footer_label]:
+		if not _label_on_card(label):
+			continue
+		if any:
+			used += gap
+		used += _wrapped_height(label.text, width, body_px)
+		any = true
 	return used
+
+
+func _death_text_width(text: String, font_size: int) -> float:
+	if text.is_empty():
+		return 0.0
+	var font := _font_outlined if _font_outlined != null else ThemeDB.fallback_font
+	return font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 
 
 func _force_death_insets_for_test(insets: Vector4, enabled: bool = true) -> void:
@@ -2137,23 +2214,13 @@ func _death_bottom_margin(field: Vector2, edge: Vector4, pad: float = 8.0) -> fl
 	return pad + bottom
 
 
-## Height of the info stack at the smallest font and no extra leading.
-func _death_stack_floor(width: float) -> float:
-	var entries := _death_info_entries()
-	for i in entries.size():
-		var entry: Dictionary = entries[i]
-		entry["size"] = int(entry["min"])
-		entries[i] = entry
-	return _measure_death_stack(entries, width, 0.0)
-
-
-
 func _place_death_control(control: Control, pos: Vector2, control_size: Vector2) -> void:
 	control.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	# A previous minimum keeps the control from shrinking into a safe inset.
-	control.custom_minimum_size = Vector2.ZERO
-	control.size = control_size
+	# Width first so an autowrap label does not keep a zero-width minimum.
+	control.custom_minimum_size = Vector2(control_size.x, 0)
+	control.size = Vector2(control_size.x, maxf(control_size.y, 1.0))
 	control.custom_minimum_size = control_size
+	control.size = control_size
 	control.position = pos
 
 func _death_font_size(label: Label) -> int:
