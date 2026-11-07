@@ -21,6 +21,8 @@ static func apply(data: Dictionary, form_name: String, score: int) -> Dictionary
 	return next
 
 static func read() -> Dictionary:
+	if CrazyGamesHost.cloud_handles():
+		return _saved_scores(CrazyGamesHost.cloud_get(CrazyGamesHost.CLOUD_BEST))
 	if not FileAccess.file_exists(SAVE_PATH):
 		return {"overall": 0}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
@@ -57,7 +59,23 @@ static func _without_epoch(data: Dictionary) -> Dictionary:
 		scores["overall"] = 0
 	return scores
 
+static func _saved_scores(text: String) -> Dictionary:
+	if text.strip_edges() == "":
+		return {"overall": 0}
+	var parsed: Variant = JSON.parse_string(text)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {"overall": 0}
+	var data: Dictionary = parsed
+	if int(data.get("epoch", 0)) < SCORE_EPOCH:
+		_write({"overall": 0, "epoch": SCORE_EPOCH})
+		return {"overall": 0}
+	return _without_epoch(data)
+
+
 static func _write(data: Dictionary) -> void:
+	if CrazyGamesHost.cloud_handles():
+		CrazyGamesHost.cloud_set(CrazyGamesHost.CLOUD_BEST, JSON.stringify(data))
+		return
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
 		return

@@ -91,6 +91,8 @@ jobs:
                   raise SystemExit("missing %s" % needle)
           print("version.json", Path("build/web/version.json").read_text())
           PY
+          cp web/privacy.html build/web/privacy.html
+          test -f build/web/privacy.html
 
       - name: Configure Pages
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

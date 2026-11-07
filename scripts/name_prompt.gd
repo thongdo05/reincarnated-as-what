@@ -16,9 +16,16 @@ var _font: Font
 var _edit: LineEdit
 var _error: Label
 var _asking := false
+var _picker := false
+var _picker_value := ""
+var _picker_name: Label
 
 func setup(font: Font) -> void:
 	_font = font
+	if CrazyGamesHost.wanted():
+		_picker = true
+		_setup_picker()
+		return
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	visible = false
@@ -104,6 +111,14 @@ func setup(font: Font) -> void:
 func open(current: String, from: String, ask := true) -> void:
 	source = from
 	_error.text = ""
+	if _picker:
+		var shown := Leaderboard.clean_name(current)
+		if shown == "" and CrazyGamesHost.suggested_name() != "":
+			shown = CrazyGamesHost.suggested_name()
+		_picker_value = shown
+		_refresh_picker_name()
+		visible = true
+		return
 	_edit.text = Leaderboard.clean_name(current)
 	if _browser_prompt():
 		# Pass ask=false when the caller is about to show_error. The prompt
@@ -131,11 +146,20 @@ func show_error(message: String) -> void:
 		_release_stuck_input()
 
 func current_text() -> String:
+	if _picker:
+		return _picker_value
 	if _edit == null:
 		return ""
 	return _edit.text
 
 func place_for(viewport: Vector2) -> void:
+	if _picker:
+		var panel_w := minf(468.0, maxf(viewport.x - 8.0, 220.0))
+		var panel_h := minf(266.0, maxf(viewport.y - 4.0, 180.0))
+		position = Vector2(maxf((viewport.x - panel_w) * 0.5, 2.0), maxf((viewport.y - panel_h) * 0.5, 2.0))
+		size = Vector2(panel_w, panel_h)
+		custom_minimum_size = size
+		return
 	var width := minf(440.0, maxf(viewport.x - 16.0, 160.0))
 	var height := 146.0
 	position = Vector2(maxf((viewport.x - width) * 0.5, 8.0), 4.0)
@@ -158,8 +182,12 @@ static func prompt_js(current: String) -> String:
 		JSON.stringify(Leaderboard.clean_name(current)),
 	]
 
+static func uses_window_prompt(web: bool, crazygames: bool) -> bool:
+	return web and not crazygames
+
+
 func _browser_prompt() -> bool:
-	return OS.has_feature("web")
+	return uses_window_prompt(OS.has_feature("web"), CrazyGamesHost.wanted())
 
 func _ask_browser() -> void:
 	if _asking or not _browser_prompt():
@@ -182,7 +210,11 @@ func _confirm() -> void:
 		_ask_browser()
 		return
 	var clean := Leaderboard.clean_name(current_text())
-	_edit.text = clean
+	if _picker:
+		_picker_value = clean
+		_refresh_picker_name()
+	elif _edit != null:
+		_edit.text = clean
 	decided.emit(clean, source)
 
 func _cancel() -> void:
@@ -270,6 +302,181 @@ func _button(caption: String, bg: Color, ink: Color) -> Button:
 	for state in ["normal", "hover", "pressed", "focus"]:
 		button.add_theme_stylebox_override(state, style)
 	return button
+
+func _setup_picker() -> void:
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	visible = false
+	z_index = 60
+	set_process_input(true)
+	var panel := Panel.new()
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("100c14")
+	style.set_border_width_all(2)
+	style.border_color = Color("f0d78c")
+	style.set_corner_radius_all(0)
+	style.content_margin_left = 6
+	style.content_margin_right = 6
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
+	panel.add_theme_stylebox_override("panel", style)
+	add_child(panel)
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box.offset_left = 6
+	box.offset_top = 4
+	box.offset_right = -6
+	box.offset_bottom = -4
+	box.add_theme_constant_override("separation", 2)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(box)
+	var title := _label("YOUR NAME", 18, Color("f0d78c"))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+	var hint := _label(Leaderboard.FORMAT_HINT, 9, Color("a49fcf"))
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(hint)
+	_picker_name = _label("", 18, Color("f2fbff"))
+	_picker_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_picker_name.custom_minimum_size = Vector2(0, 20)
+	box.add_child(_picker_name)
+	_error = _label("", 9, Color("ffd84a"))
+	_error.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_error.custom_minimum_size = Vector2(0, 12)
+	box.add_child(_error)
+	var grid := GridContainer.new()
+	grid.columns = 10
+	grid.add_theme_constant_override("h_separation", 2)
+	grid.add_theme_constant_override("v_separation", 2)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(grid)
+	var keys: Array[String] = []
+	for code in range(65, 91):
+		keys.append(char(code))
+	for code in range(48, 58):
+		keys.append(char(code))
+	keys.append("-")
+	keys.append("_")
+	keys.append("SPC")
+	keys.append("DEL")
+	for key in keys:
+		var button := _picker_key(key)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(button)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(row)
+	var ok := _button("OK", Color("f0d78c"), Color("241428"))
+	ok.custom_minimum_size = Vector2(108, 24)
+	ok.pressed.connect(_confirm)
+	var skip := _button("SKIP", Color("241428"), Color("f2fbff"))
+	skip.custom_minimum_size = Vector2(108, 24)
+	skip.pressed.connect(_cancel)
+	row.add_child(ok)
+	row.add_child(skip)
+	_refresh_picker_name()
+
+
+func _picker_key(caption: String) -> Button:
+	var button := Button.new()
+	button.text = caption
+	button.focus_mode = Control.FOCUS_NONE
+	button.custom_minimum_size = Vector2(0, 20)
+	button.add_theme_font_override("font", _font)
+	button.add_theme_font_size_override("font_size", 12)
+	button.add_theme_color_override("font_color", Color("f2fbff"))
+	button.add_theme_color_override("font_hover_color", Color("f2fbff"))
+	button.add_theme_color_override("font_pressed_color", Color("241428"))
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color("241428")
+	normal.set_border_width_all(2)
+	normal.border_color = Color("f2fbff")
+	normal.set_corner_radius_all(0)
+	var pressed := normal.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color("f0d78c")
+	for state in ["normal", "hover", "focus"]:
+		button.add_theme_stylebox_override(state, normal)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.pressed.connect(func() -> void:
+		_picker_press(caption)
+	)
+	return button
+
+
+func _picker_press(caption: String) -> void:
+	if caption == "DEL":
+		_picker_backspace()
+		return
+	if caption == "SPC":
+		_picker_type(" ")
+		return
+	_picker_type(caption)
+
+
+func _picker_type(ch: String) -> void:
+	if not _picker_char_ok(ch) or _picker_value.length() >= 12:
+		return
+	_picker_value += ch
+	_refresh_picker_name()
+
+
+func _picker_backspace() -> void:
+	if _picker_value.length() == 0:
+		return
+	_picker_value = _picker_value.substr(0, _picker_value.length() - 1)
+	_refresh_picker_name()
+
+
+func _picker_char_ok(ch: String) -> bool:
+	if ch == " " or ch == "-" or ch == "_":
+		return true
+	if ch.length() != 1:
+		return false
+	var code := ch.unicode_at(0)
+	return (code >= 48 and code <= 57) or (code >= 65 and code <= 90) or (code >= 97 and code <= 122)
+
+
+func _refresh_picker_name() -> void:
+	if _picker_name == null:
+		return
+	_picker_name.text = _picker_value if _picker_value != "" else "_"
+
+
+func _input(event: InputEvent) -> void:
+	if not _picker or not visible or not (event is InputEventKey):
+		return
+	var key := event as InputEventKey
+	if not key.pressed:
+		return
+	var viewport := get_viewport()
+	if key.keycode == KEY_ESCAPE:
+		if viewport != null:
+			viewport.set_input_as_handled()
+		_cancel()
+		return
+	if key.keycode == KEY_ENTER or key.keycode == KEY_KP_ENTER:
+		if viewport != null:
+			viewport.set_input_as_handled()
+		_confirm()
+		return
+	if key.keycode == KEY_BACKSPACE:
+		if viewport != null:
+			viewport.set_input_as_handled()
+		_picker_backspace()
+		return
+	if key.echo:
+		return
+	var ch := char(key.unicode)
+	if not _picker_char_ok(ch):
+		return
+	if viewport != null:
+		viewport.set_input_as_handled()
+	_picker_type(ch)
+
 
 func _exit_tree() -> void:
 	if _browser_prompt():

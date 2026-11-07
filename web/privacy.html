@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Privacy — Reincarnated as WHAT?!</title>
+	<style>
+		body { margin: 0; background: #100c14; color: #f2fbff; font: 16px/1.5 Georgia, "Times New Roman", serif; }
+		main { max-width: 40rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+		h1 { font-size: 1.6rem; line-height: 1.2; color: #f0d78c; }
+		h2 { font-size: 1.15rem; margin-top: 1.6rem; color: #f0d78c; }
+		a { color: #8ecbff; }
+		code { font-family: ui-monospace, monospace; font-size: 0.9em; }
+	</style>
+</head>
+<body>
+	<main>
+		<h1>Privacy</h1>
+		<p>Reincarnated as WHAT?! does not create an account. There is no login, and there is no account to delete.</p>
+
+		<h2>Leaderboard</h2>
+		<p>If you post a score, the game sends these fields to a Supabase database (<code>scripts/leaderboard.gd</code>):</p>
+		<ul>
+			<li>the leaderboard name you type</li>
+			<li>a random id the game creates and stores on the device, so that device keeps its row. It is not the advertising identifier</li>
+			<li>the score, how long the run lasted, which form it was, and whether that run defeated the dragon</li>
+		</ul>
+		<p>The game does not send your email, phone number, contacts, photos, precise location, or health data. It does not sell this data.</p>
+
+		<h2>Saved on the device</h2>
+		<p>Best scores, the daily-run index, the leaderboard name and device id, and the sound on/off setting are stored on the device. The iOS, Android, and GitHub Pages builds keep those in the game's local save files.</p>
+		<p>The CrazyGames build stores those same items through the CrazyGames SDK Data module after the SDK starts, including a one-time copy from an older local save on that browser if one is already there. CrazyGames syncs that module for logged-in players. The game also loads the CrazyGames SDK, which reports gameplay events to CrazyGames. This page does not describe what CrazyGames itself collects.</p>
+
+		<h2>Ads on the phone builds</h2>
+		<p>The iOS and Android builds use Google AdMob: a banner on the death card, an interstitial between some runs, and an optional rewarded ad to choose the next form. Google receives the advertising identifier and related device data. On iOS the game shows Apple's tracking prompt. If you choose Ask App Not to Track, iOS does not give AdMob the advertising identifier. The web build and the CrazyGames build do not load AdMob.</p>
+		<p>Buying Remove Ads is handled by Apple or Google Play. The game keeps a local flag that ads are removed. It does not send the receipt or the payment to our server.</p>
+
+		<h2>Contact</h2>
+		<p>TODO: no support email is listed in <code>docs/MOBILE_STORES.md</code> or <code>scripts/store_config.gd</code>. Replace this line with the real address before you rely on it.</p>
+	</main>
+</body>
+</html>

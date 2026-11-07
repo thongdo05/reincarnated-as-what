@@ -39,6 +39,30 @@ static func copy_channel(web: bool, headless: bool) -> String:
 	return "clipboard"
 
 
+## iOS and Android append the challenge link. The CrazyGames build never does.
+static func share_appends_link(crazygames: bool, web: bool, mobile: bool) -> bool:
+	if crazygames or web or not mobile:
+		return false
+	return true
+
+
+static func strip_urls(text: String) -> String:
+	var out := ""
+	var i := 0
+	while i < text.length():
+		var rest := text.substr(i).to_lower()
+		if rest.begins_with("https://") or rest.begins_with("http://"):
+			while i < text.length():
+				var ch := text.substr(i, 1)
+				if ch == " " or ch == "\n" or ch == "\t":
+					break
+				i += 1
+			continue
+		out += text.substr(i, 1)
+		i += 1
+	return out.strip_edges()
+
+
 static func current_channel() -> String:
 	return channel_for(
 		OS.has_feature("web"),

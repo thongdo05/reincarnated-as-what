@@ -164,6 +164,8 @@ var _death_shade: ColorRect
 var _hit_stop_left := 0.0
 var _hit_stop_cooldown := 0.0
 var _cg: CrazyGamesHost
+var _privacy: Control
+var _invite_url := ""
 var _juice_shake := 0.0
 var _dragon_show: DragonShow
 var _lair: LairTransition
@@ -214,6 +216,12 @@ func _ready() -> void:
 		_cg = CrazyGamesHost.new()
 		_cg.name = "CrazyGamesHost"
 		add_child(_cg)
+		await _cg.ready_for_launch()
+		if not is_inside_tree():
+			return
+		var query := _cg.launch_query()
+		if query != "":
+			CaptureMode.note_launch_query(query)
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	# Touch drags stay raw. Accumulated motion would smooth the finger and
 	# add a frame before the body can follow.
@@ -611,6 +619,7 @@ func _build_hud() -> void:
 	_name_prompt.decided.connect(_on_name_decided)
 	_name_prompt.cancelled.connect(_on_name_cancelled)
 	_hud.add_child(_name_prompt)
+	_build_privacy_notice()
 	_refresh_hud()
 	_sync_invuln_banner()
 
@@ -799,6 +808,8 @@ func _process(delta: float) -> void:
 	var size := _viewport_size()
 	if _name_prompt != null and _name_prompt.visible:
 		_name_prompt.place_for(size)
+	if _privacy != null and _privacy.visible:
+		_layout_privacy(size)
 	if _board != null and _board.visible:
 		if _rotate != null:
 			_rotate.visible = false
@@ -1948,9 +1959,9 @@ func _set_default_death(form_name: String, reached_rank: String) -> void:
 		_footer_label.text = ""
 		_footer_label.visible = false
 	if _beat_button != null:
-		_beat_button.visible = true
 		_beat_button.text = CHALLENGE_LABEL
 		_style_challenge(false)
+		_refresh_challenge_offer()
 	# NEW BEST never waits out its sample. The 0.25 s card guard is the only delay.
 	if beaten and _sound != null:
 		_sound.play_event(AudioCues.NEW_BEST_EVENT)
@@ -2581,13 +2592,19 @@ func _on_share() -> void:
 		score
 	)
 	if OS.has_feature("web"):
+		var shared := text
+		if CrazyGamesHost.wanted():
+			shared = ShareBridge.strip_urls(text)
 		var encoded := Marshalls.raw_to_base64(image.save_png_to_buffer())
 		var call := "shareRunCard(%s,%s,%s)" % [
 			JSON.stringify(encoded),
 			JSON.stringify("reincarnated.png"),
-			JSON.stringify(text),
+			JSON.stringify(shared),
 		]
 		JavaScriptBridge.eval(call, true)
+		return
+	if CrazyGamesHost.wanted():
+		_share_mobile(ShareBridge.strip_urls(text), image)
 		return
 	if OS.has_feature("ios") or OS.has_feature("android"):
 		var link := Replay.beat_url_for(day_seed, _public_form())
@@ -2663,8 +2680,33 @@ func _finish_restart() -> void:
 func _seed_line() -> String:
 	return "UTC seed %d - run %d" % [day_seed, run_index + 1]
 
+func challenge_link() -> String:
+	if CrazyGamesHost.wanted():
+		return _invite_url
+	return Replay.beat_url_for(day_seed, _public_form())
+
+
+func _refresh_challenge_offer() -> void:
+	if _beat_button == null:
+		return
+	if not CrazyGamesHost.wanted():
+		_invite_url = ""
+		_beat_button.visible = true
+		return
+	_invite_url = ""
+	if _cg != null:
+		_invite_url = _cg.current_invite_url(day_seed, Replay.form_key(_public_form()))
+	_beat_button.visible = CrazyGamesHost.challenge_visible(true, _invite_url)
+
+
 func _on_beat_link() -> void:
-	_copy_text(Replay.beat_url_for(day_seed, _public_form()))
+	var link := challenge_link()
+	if CrazyGamesHost.wanted() and not CrazyGamesHost.invite_link_usable(link):
+		if _beat_button != null:
+			_beat_button.visible = false
+		_layout_death_card()
+		return
+	_copy_text(link)
 	_flash_copy()
 
 func _copy_text(text: String) -> void:
@@ -3146,6 +3188,98 @@ func _refresh_pause_card() -> void:
 		return
 	var split_ready := form_id != FormCatalog.Id.SLIME or not _player.small
 	_pause_card.show_form(form_id, rank_index, evo_points, split_ready)
+
+func _build_privacy_notice() -> void:
+	var seen := true
+	if _cg != null:
+		seen = _cg.privacy_seen()
+	if not CrazyGamesHost.shows_privacy_notice(CrazyGamesHost.wanted(), seen):
+		return
+	_privacy = Control.new()
+	_privacy.name = "PrivacyNotice"
+	_privacy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_privacy.z_index = 40
+	_hud.add_child(_privacy)
+	var panel := Panel.new()
+	panel.name = "Strip"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("100c14")
+	style.set_border_width_all(2)
+	style.border_color = Color("f0d78c")
+	style.set_corner_radius_all(0)
+	style.content_margin_left = 6
+	style.content_margin_right = 4
+	style.content_margin_top = 3
+	style.content_margin_bottom = 3
+	panel.add_theme_stylebox_override("panel", style)
+	_privacy.add_child(panel)
+	var label := _make_label(9, Color("f2fbff"))
+	label.name = "Copy"
+	label.text = "Scores and your leaderboard name are saved online."
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	panel.add_child(label)
+	var privacy_btn := _make_death_button("Privacy", Color("241428"))
+	privacy_btn.name = "Privacy"
+	privacy_btn.pressed.connect(_open_privacy_page)
+	panel.add_child(privacy_btn)
+	var ok := _make_death_button("OK", Color("f0d78c"))
+	ok.name = "Dismiss"
+	ok.add_theme_color_override("font_color", Color("241428"))
+	ok.add_theme_color_override("font_hover_color", Color("241428"))
+	ok.add_theme_color_override("font_pressed_color", Color("241428"))
+	ok.pressed.connect(_dismiss_privacy)
+	panel.add_child(ok)
+	_layout_privacy(_viewport_size())
+
+
+func _layout_privacy(viewport: Vector2) -> void:
+	if _privacy == null or not _privacy.visible:
+		return
+	var height := 36.0
+	var edge := _crazygames_insets(viewport)
+	var width := maxf(viewport.x - edge.x - edge.z - 8.0, 120.0)
+	_privacy.position = Vector2(edge.x + 4.0, viewport.y - edge.w - height - 4.0)
+	_privacy.size = Vector2(width, height)
+	var panel := _privacy.get_node_or_null("Strip") as Control
+	if panel == null:
+		return
+	panel.position = Vector2.ZERO
+	panel.size = _privacy.size
+	var copy := panel.get_node_or_null("Copy") as Control
+	var link := panel.get_node_or_null("Privacy") as Control
+	var dismiss := panel.get_node_or_null("Dismiss") as Control
+	var ok_w := 36.0
+	var link_w := 78.0
+	var gap := 4.0
+	if dismiss != null:
+		dismiss.position = Vector2(width - ok_w - 4.0, 4.0)
+		dismiss.size = Vector2(ok_w, height - 8.0)
+	if link != null:
+		link.position = Vector2(width - ok_w - link_w - gap - 4.0, 4.0)
+		link.size = Vector2(link_w, height - 8.0)
+	if copy != null:
+		copy.position = Vector2(6.0, 2.0)
+		copy.size = Vector2(maxf(width - ok_w - link_w - gap - 18.0, 40.0), height - 4.0)
+
+
+func _open_privacy_page() -> void:
+	if not CrazyGamesHost.wanted():
+		return
+	var url := CrazyGamesHost.PRIVACY_URL
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("window.open(%s, '_blank', 'noopener')" % JSON.stringify(url), true)
+		return
+	OS.shell_open(url)
+
+
+func _dismiss_privacy() -> void:
+	if _cg != null:
+		_cg.mark_privacy_seen()
+	if _privacy != null:
+		_privacy.visible = false
+
 
 func _apply_crazygames_scale() -> void:
 	if not CrazyGamesHost.wanted() or not is_inside_tree():

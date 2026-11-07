@@ -536,12 +536,17 @@ static func apply_bus_levels() -> void:
 	AudioServer.set_bus_send(sfx, "Master")
 
 static func read_enabled(path: String = SETTINGS_PATH) -> bool:
+	if path == SETTINGS_PATH and CrazyGamesHost.cloud_handles():
+		return CrazyGamesHost.cloud_flag(CrazyGamesHost.CLOUD_AUDIO, true)
 	var cfg := ConfigFile.new()
 	if cfg.load(path) != OK:
 		return true
 	return bool(cfg.get_value("audio", "enabled", true))
 
 static func write_enabled(on: bool, path: String = SETTINGS_PATH) -> void:
+	if path == SETTINGS_PATH and CrazyGamesHost.cloud_handles():
+		CrazyGamesHost.cloud_set(CrazyGamesHost.CLOUD_AUDIO, "1" if on else "0")
+		return
 	var cfg := ConfigFile.new()
 	cfg.load(path)
 	cfg.set_value("audio", "enabled", on)

@@ -44,6 +44,8 @@ static var _holding := false
 static var _use_test := false
 static var _test_web := ""
 static var _test_argv: PackedStringArray = PackedStringArray()
+## Set only by the CrazyGames host after the SDK reports invite params.
+static var _extra_query := ""
 
 static func is_active() -> bool:
 	_ensure_parsed()
@@ -86,7 +88,13 @@ static func summary() -> String:
 	return "Capture mode: %s" % " ".join(parts)
 
 ## Test hook. The exported game never calls this.
+static func note_launch_query(query: String) -> void:
+	_extra_query = query.strip_edges()
+	_parsed = false
+
+
 static func reset_for_test(argv: PackedStringArray, web: String = "") -> void:
+	_extra_query = ""
 	_reset_run_state()
 	_parsed = false
 	_active = false
@@ -264,11 +272,30 @@ static func _ensure_parsed() -> void:
 	if _parsed:
 		return
 	_parsed = true
-	var web := _test_web if _use_test else _web_search()
+	var web := _test_web if _use_test else _browser_search()
 	var argv := _test_argv if _use_test else OS.get_cmdline_user_args()
-	_apply_tokens(web, argv)
+	_apply_tokens(_with_extra(web), argv)
 
 static func _web_search() -> String:
+	return _with_extra(_browser_search())
+
+
+static func _with_extra(value: String) -> String:
+	if _extra_query == "":
+		return value
+	var extra := _extra_query
+	if extra.begins_with("?"):
+		extra = extra.substr(1)
+	if extra == "":
+		return value
+	if value == "":
+		return "?" + extra
+	if value.ends_with("?") or value.ends_with("&"):
+		return value + extra
+	return value + "&" + extra
+
+
+static func _browser_search() -> String:
 	if not OS.has_feature("web"):
 		return ""
 	var value: Variant = JavaScriptBridge.eval("window.location.search", true)
