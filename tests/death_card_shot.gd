@@ -107,7 +107,7 @@ func _show_new_best() -> void:
 	_quiet_hud()
 	game.form_id = FormCatalog.Id.SLIME
 	game.rank_index = 1
-	game.score = 12400
+	game.score = 1234567
 	game.elapsed = 47.0
 	game.killer_name = "Dire Wolf"
 	game.day_seed = 20261101
@@ -119,8 +119,11 @@ func _show_new_best() -> void:
 	if game._new_best_label == null or game._new_best_label.text != "NEW BEST!":
 		push_error("expected NEW BEST on the death card")
 		quit(1)
-	if game._beat_button == null or game._beat_button.text != "CHALLENGE A FRIEND":
+	if game._beat_button == null or game._beat_button.text != "CHALLENGE":
 		push_error("expected the challenge button")
+		quit(1)
+	if game._score_label == null or game._score_label.text != "1,234,567":
+		push_error("expected a 7-digit score, got %s" % (game._score_label.text if game._score_label != null else "missing"))
 		quit(1)
 	if game._footer_label == null or game._footer_label.text != "BEAT MY RUN":
 		push_error("the death card should end with BEAT MY RUN")
@@ -128,14 +131,16 @@ func _show_new_best() -> void:
 	if str(game._footer_label.text).find("·") >= 0:
 		push_error("footer line still has a missing glyph")
 		quit(1)
-	var fonts := [
-		int(game._restart_button.get_theme_font_size("font_size")),
+	var row_fonts := [
 		int(game._share_button.get_theme_font_size("font_size")),
 		int(game._beat_button.get_theme_font_size("font_size")),
 		int(game._board_button.get_theme_font_size("font_size")),
 	]
-	if fonts[0] != fonts[1] or fonts[0] != fonts[2] or fonts[0] != fonts[3]:
-		push_error("death buttons should share one font size, got %s" % fonts)
+	if row_fonts[0] != row_fonts[1] or row_fonts[0] != row_fonts[2]:
+		push_error("the row should share one font size, got %s" % row_fonts)
+		quit(1)
+	if int(game._restart_button.get_theme_font_size("font_size")) <= row_fonts[0]:
+		push_error("Reincarnate should be larger than the row")
 		quit(1)
 
 func _show_ios() -> void:
@@ -145,7 +150,7 @@ func _show_ios() -> void:
 	if game._copy_toast != null:
 		game._copy_toast.visible = false
 	if game._beat_button != null:
-		game._beat_button.text = "CHALLENGE A FRIEND"
+		game._beat_button.text = "CHALLENGE"
 		game._style_challenge(false)
 	_ensure_ad()
 	_quiet_hud()

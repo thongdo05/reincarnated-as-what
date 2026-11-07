@@ -1832,13 +1832,13 @@ func _check_death_card() -> int:
 				push_error("the death card should not have a Text button")
 				failed += 1
 		if game._beat_button == null or not game._beat_button.visible:
-			push_error("the death card should offer CHALLENGE A FRIEND")
+			push_error("the death card should offer CHALLENGE")
 			failed += 1
 		else:
 			var challenge: Button = game._beat_button
 			var crect := Rect2(challenge.position, challenge.size)
-			if challenge.text != "CHALLENGE A FRIEND":
-				push_error("challenge button should say CHALLENGE A FRIEND, got %s" % challenge.text)
+			if challenge.text != "CHALLENGE":
+				push_error("challenge button should say CHALLENGE, got %s" % challenge.text)
 				failed += 1
 			if crect.size.y + 0.01 < 22.0 or crect.size.y + 0.5 >= rect.size.y:
 				push_error("challenge button should be tappable and shorter than Reincarnate (%s vs %s)" % [crect.size, rect.size])
@@ -1852,8 +1852,12 @@ func _check_death_card() -> int:
 			if crect.intersects(rect):
 				push_error("challenge button overlaps Reincarnate")
 				failed += 1
-			if int(challenge.get_theme_font_size("font_size")) != int(button.get_theme_font_size("font_size")):
-				push_error("death buttons should share one font size, challenge %s reincarnate %s" % [challenge.get_theme_font_size("font_size"), button.get_theme_font_size("font_size")])
+			if int(button.get_theme_font_size("font_size")) < 18:
+				push_error("Reincarnate should use the large label, font %s" % button.get_theme_font_size("font_size"))
+				failed += 1
+			var ink: Color = button.get_theme_color("font_color")
+			if ink.r > 0.25 or ink.g > 0.25 or ink.b > 0.3:
+				push_error("Reincarnate should be dark on gold, got %s" % ink)
 				failed += 1
 		if game._board_button == null or not game._board_button.visible or game._board_button.text != "LEADERBOARD":
 			push_error("the death card should offer LEADERBOARD")
@@ -1890,8 +1894,17 @@ func _check_death_card() -> int:
 			if share_rect.intersects(rect) or share_rect.intersects(challenge_row):
 				push_error("Share overlaps Reincarnate or Challenge")
 				failed += 1
-			if int(game._share_button.get_theme_font_size("font_size")) != int(button.get_theme_font_size("font_size")):
-				push_error("Share font should match the other death buttons")
+			if game._share_button.text != "SHARE" or game._board_button.text != "LEADERBOARD":
+				push_error("the row should read SHARE and LEADERBOARD, got %s / %s" % [game._share_button.text, game._board_button.text])
+				failed += 1
+			if int(game._share_button.get_theme_font_size("font_size")) != int(game._beat_button.get_theme_font_size("font_size")):
+				push_error("the row should share one font size")
+				failed += 1
+			if rect.position.x + 0.5 < 12.0 or field.x - rect.end.x + 0.5 < 12.0:
+				push_error("Reincarnate should keep a side margin, rect %s" % rect)
+				failed += 1
+			if field.y - challenge_row.end.y + 0.5 < 8.0:
+				push_error("the button row should keep a bottom margin, rect %s" % challenge_row)
 				failed += 1
 		for label in [game._share_label, game._best_label, game._footer_label, game._death_kicker, game._rank_label]:
 			var label_rect := Rect2(label.position, label.size)
@@ -1970,11 +1983,18 @@ func _check_death_card_fit(game) -> int:
 			push_error("challenge should stay shorter than Reincarnate")
 			failed += 1
 		var score_px := int(game._score_label.get_theme_font_size("font_size"))
-		if score_px < 54:
-			push_error("score should stay much larger than the old 27px, got %s insets %s" % [score_px, insets])
+		if score_px < 63 or score_px > 72:
+			push_error("score should stay about 2.5x the old 27px, got %s insets %s" % [score_px, insets])
 			failed += 1
-		if game._score_label.position.y > 48.0:
-			push_error("score should sit near the top, y %s insets %s" % [game._score_label.position.y, insets])
+		if game._score_label.position.y + 0.5 < game._death_kicker.position.y + game._death_kicker.size.y + 8.0:
+			push_error("RUN OVER should sit clear of the score, kicker %s score %s" % [game._death_kicker.position, game._score_label.position])
+			failed += 1
+		var score_mid := float(game._score_label.position.x) + float(game._score_label.size.x) * 0.5
+		if absf(score_mid - field.x * 0.5) > 8.0:
+			push_error("the score should stay centered, mid %s" % score_mid)
+			failed += 1
+		if game._new_best_label.position.y + 0.5 < game._score_label.position.y + game._score_label.size.y:
+			push_error("NEW BEST should sit under the score")
 			failed += 1
 		var labels: Array[Label] = [
 			game._death_kicker, game._score_label, game._new_best_label,
@@ -4973,7 +4993,7 @@ func _check_replay() -> int:
 	if seed_line.find("·") >= 0 or seed_line.find(" - ") < 0 or seed_line.find(str(game.day_seed)) < 0:
 		push_error("the seed string should stay available for links, got %s" % seed_line)
 		failed += 1
-	if game._beat_button == null or game._beat_button.text != "CHALLENGE A FRIEND":
+	if game._beat_button == null or game._beat_button.text != "CHALLENGE":
 		push_error("death card should challenge a friend, got %s" % (game._beat_button.text if game._beat_button != null else "missing"))
 		failed += 1
 	game._on_beat_link()

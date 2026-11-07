@@ -10,22 +10,30 @@ const REGROW_IFRAMES := 0.45
 ## The pause glyph stays 18 viewport pixels. The control around it is the touch target.
 const PAUSE_ART_PX := 18.0
 const PAUSE_MIN_PT := 44.0
-const CHALLENGE_LABEL := "CHALLENGE A FRIEND"
+const CHALLENGE_LABEL := "CHALLENGE"
 const CHALLENGE_COPIED := "LINK COPIED!"
 const SHARE_COPIED := "COPIED!"
 const DEATH_FOOTER := "BEAT MY RUN"
-## The old score was 27. 81 is 3x, on the 9px pixel grid.
-const DEATH_SCORE_PX := 81
+## The old score was 27. 72 is about 2.5x, on the 9px pixel grid.
+const DEATH_SCORE_PX := 72
 const DEATH_TAG_PX := 18
 const DEATH_BODY_PX := 9
-## One size for every death-card button, including the long challenge label.
+## The row shares one size. Reincarnate is the large dark label on gold.
 const DEATH_BUTTON_PX := 9
+const DEATH_REINC_PX := 18
+const DEATH_INK := Color("14121f")
 ## About 40% shorter than the old 56 and 44. 22 is the phone's 44pt target.
 const DEATH_REINC_H := 34.0
 const DEATH_ROW_H := 26.0
 const DEATH_AD_H := 22.0
 const DEATH_TAP_MIN := 22.0
 const DEATH_BUTTON_GAP := 6.0
+## Extra inset inside the safe area so the buttons are not flush with the screen.
+const DEATH_SIDE := 16.0
+const DEATH_BOTTOM_PAD := 8.0
+## Clear air between RUN OVER and the score. The outlined face draws into a 2px gap.
+const DEATH_KICKER_GAP := 12.0
+const DEATH_TAG_GAP := 4.0
 const COPY_FEEDBACK := 1.4
 ## The world name stays up with the form card, then for this long once play starts.
 const WORLD_NAME_HOLD := 0.9
@@ -385,7 +393,7 @@ func _build_hud() -> void:
 	_game_over.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud.add_child(_game_over)
 	_death_shade = ColorRect.new()
-	_death_shade.color = Color(0.04, 0.03, 0.07, 0.86)
+	_death_shade.color = Color(0.04, 0.03, 0.07, 0.94)
 	_death_shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_death_shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	_death_shade.gui_input.connect(_on_death_pointer)
@@ -441,14 +449,14 @@ func _build_hud() -> void:
 	_restart_button.add_theme_stylebox_override("pressed", style)
 	_restart_button.add_theme_stylebox_override("focus", style)
 	_restart_button.add_theme_font_override("font", _font_outlined)
-	_restart_button.add_theme_color_override("font_color", Color("f2fbff"))
-	_restart_button.add_theme_color_override("font_hover_color", Color("f2fbff"))
-	_restart_button.add_theme_color_override("font_pressed_color", Color("f2fbff"))
-	_restart_button.add_theme_font_size_override("font_size", DEATH_BUTTON_PX)
+	_restart_button.add_theme_color_override("font_color", DEATH_INK)
+	_restart_button.add_theme_color_override("font_hover_color", DEATH_INK)
+	_restart_button.add_theme_color_override("font_pressed_color", DEATH_INK)
+	_restart_button.add_theme_font_size_override("font_size", DEATH_REINC_PX)
 	_restart_button.pressed.connect(_on_restart)
 	_game_over.add_child(_restart_button)
 	_share_button = Button.new()
-	_share_button.text = "Share"
+	_share_button.text = "SHARE"
 	_share_button.focus_mode = Control.FOCUS_NONE
 	_share_button.mouse_filter = Control.MOUSE_FILTER_STOP
 	var share_style := StyleBoxFlat.new()
@@ -1909,6 +1917,8 @@ func _show_game_over() -> void:
 	_set_default_death(form_name, reached_rank)
 	_layout_death_card()
 	_game_over.visible = true
+	if _hud_view != null:
+		_hud_view.visible = false
 	_present_online_score()
 	_sync_death_banner()
 
@@ -1963,7 +1973,7 @@ func _layout_death_card() -> void:
 	var row_h := DEATH_ROW_H if not row.is_empty() else 0.0
 	var ad_h := DEATH_AD_H if show_pick else 0.0
 	var gap := 4.0
-	var pad := 6.0
+	var pad := DEATH_BOTTOM_PAD
 	for _step in 14:
 		var room := _death_text_room(field, edge, pad, gap, reinc_h, row_h, ad_h, show_pick)
 		var used := _death_info_height(text_width, score_px, tag_px, body_px)
@@ -1978,14 +1988,11 @@ func _layout_death_card() -> void:
 		if gap > 2.0:
 			gap = 2.0
 			continue
-		if pad > 2.0:
-			pad = 2.0
-			continue
 		if tag_px > DEATH_BODY_PX:
 			tag_px = DEATH_BODY_PX
 			continue
-		if score_px > DEATH_BODY_PX * 3:
-			score_px = maxi(DEATH_BODY_PX * 3, score_px - 9)
+		if score_px > 63:
+			score_px = maxi(63, score_px - 9)
 			continue
 		break
 	_apply_death_button_font()
@@ -1995,7 +2002,7 @@ func _layout_death_card() -> void:
 
 func _death_text_room(field: Vector2, edge: Vector4, pad: float, gap: float, reinc_h: float, row_h: float, ad_h: float, show_pick: bool) -> float:
 	var margin := _death_bottom_margin(field, edge, pad)
-	var text_top := edge.y + 2.0
+	var text_top := edge.y + 4.0
 	var block := margin + reinc_h + gap
 	if row_h > 0.0:
 		block += row_h + gap
@@ -2016,16 +2023,23 @@ func _death_row_buttons() -> Array[Button]:
 
 
 func _apply_death_button_font() -> void:
-	for button in [_restart_button, _share_button, _beat_button, _board_button, _form_pick_button]:
+	for button in [_share_button, _beat_button, _board_button, _form_pick_button]:
 		if button == null:
 			continue
 		button.add_theme_font_size_override("font_size", DEATH_BUTTON_PX)
 		button.clip_text = true
+	if _restart_button == null:
+		return
+	_restart_button.add_theme_font_size_override("font_size", DEATH_REINC_PX)
+	_restart_button.add_theme_color_override("font_color", DEATH_INK)
+	_restart_button.add_theme_color_override("font_hover_color", DEATH_INK)
+	_restart_button.add_theme_color_override("font_pressed_color", DEATH_INK)
+	_restart_button.clip_text = true
 
 
 func _place_death_buttons(field: Vector2, edge: Vector4, usable_w: float, reinc_h: float, row_h: float, ad_h: float, gap: float, pad: float, show_pick: bool, row: Array[Button]) -> void:
 	var margin := _death_bottom_margin(field, edge, pad)
-	var side := 8.0
+	var side := DEATH_SIDE
 	var row_w := maxf(usable_w - side * 2.0, 32.0)
 	var left := edge.x + (usable_w - row_w) * 0.5
 	var y := field.y - margin
@@ -2053,10 +2067,10 @@ func _place_death_buttons(field: Vector2, edge: Vector4, usable_w: float, reinc_
 func _place_death_info(field: Vector2, edge: Vector4, text_width: float, score_px: int, tag_px: int, body_px: int, pad: float, gap_buttons: float, reinc_h: float, row_h: float, ad_h: float, show_pick: bool) -> void:
 	var usable_w := field.x - edge.x - edge.z
 	var text_left := edge.x + (usable_w - text_width) * 0.5
-	var y := edge.y + 2.0
+	var y := edge.y + 4.0
 	var gap := 2.0
 	if _label_on_card(_death_kicker):
-		y = _place_death_line(_death_kicker, text_left, y, text_width, body_px) + gap
+		y = _place_death_line(_death_kicker, text_left, y, text_width, body_px) + DEATH_KICKER_GAP
 	if _label_on_card(_score_label):
 		y = _place_death_score_row(text_left, y, text_width, score_px, tag_px) + gap
 	elif _label_on_card(_new_best_label):
@@ -2093,31 +2107,19 @@ func _place_death_score_row(text_left: float, y: float, width: float, score_px: 
 	var score_h := _wrapped_height(_score_label.text, width, score_px)
 	var score_w := minf(_death_text_width(_score_label.text, score_px) + 4.0, width)
 	_score_label.add_theme_font_size_override("font_size", score_px)
+	var score_x := text_left + (width - score_w) * 0.5
+	_place_death_control(_score_label, Vector2(score_x, y), Vector2(score_w, score_h))
 	if not _label_on_card(_new_best_label):
 		_park_death_label(_new_best_label)
-		var alone_x := text_left + (width - score_w) * 0.5
-		_place_death_control(_score_label, Vector2(alone_x, y), Vector2(score_w, score_h))
 		return y + score_h
 	var tag_h := _wrapped_height(_new_best_label.text, width, tag_px)
 	var tag_w := minf(_death_text_width(_new_best_label.text, tag_px) + 4.0, width)
 	_new_best_label.add_theme_font_size_override("font_size", tag_px)
-	if _death_tag_beside(width, score_px, tag_px):
-		var row_h := maxf(score_h, tag_h)
-		var group := score_w + 8.0 + tag_w
-		var x := text_left + (width - group) * 0.5
-		_place_death_control(_score_label, Vector2(x, y + (row_h - score_h) * 0.5), Vector2(score_w, score_h))
-		var tag_x := x + score_w + 8.0
-		var tag_y := y + (row_h - tag_h) * 0.5
-		_place_death_control(_new_best_label, Vector2(tag_x, tag_y), Vector2(tag_w, tag_h))
-		_new_best_label.pivot_offset = Vector2(tag_w * 0.5, tag_h * 0.5)
-		return y + row_h
-	var score_x := text_left + (width - score_w) * 0.5
-	_place_death_control(_score_label, Vector2(score_x, y), Vector2(score_w, score_h))
-	var under_x := text_left + (width - tag_w) * 0.5
-	var under_y := y + score_h + 2.0
-	_place_death_control(_new_best_label, Vector2(under_x, under_y), Vector2(tag_w, tag_h))
+	var tag_x := text_left + (width - tag_w) * 0.5
+	var tag_y := y + score_h + DEATH_TAG_GAP
+	_place_death_control(_new_best_label, Vector2(tag_x, tag_y), Vector2(tag_w, tag_h))
 	_new_best_label.pivot_offset = Vector2(tag_w * 0.5, tag_h * 0.5)
-	return under_y + tag_h
+	return tag_y + tag_h
 
 
 func _place_death_line(label: Label, text_left: float, y: float, width: float, font_size: int) -> float:
@@ -2141,22 +2143,12 @@ func _label_on_card(label: Label) -> bool:
 	return label != null and label.visible and not label.text.is_empty()
 
 
-func _death_tag_beside(width: float, score_px: int, tag_px: int) -> bool:
-	if not _label_on_card(_score_label) or not _label_on_card(_new_best_label):
-		return false
-	var score_w := _death_text_width(_score_label.text, score_px) + 4.0
-	var tag_w := _death_text_width(_new_best_label.text, tag_px) + 4.0
-	return score_w + 8.0 + tag_w <= width
-
-
 func _death_score_row_height(width: float, score_px: int, tag_px: int) -> float:
 	var score_h := _wrapped_height(_score_label.text, width, score_px)
 	if not _label_on_card(_new_best_label):
 		return score_h
 	var tag_h := _wrapped_height(_new_best_label.text, width, tag_px)
-	if _death_tag_beside(width, score_px, tag_px):
-		return maxf(score_h, tag_h)
-	return score_h + 2.0 + tag_h
+	return score_h + DEATH_TAG_GAP + tag_h
 
 
 func _death_info_height(width: float, score_px: int, tag_px: int, body_px: int) -> float:
@@ -2168,7 +2160,7 @@ func _death_info_height(width: float, score_px: int, tag_px: int, body_px: int) 
 		any = true
 	if _label_on_card(_score_label):
 		if any:
-			used += gap
+			used += DEATH_KICKER_GAP
 		used += _death_score_row_height(width, score_px, tag_px)
 		any = true
 	elif _label_on_card(_new_best_label):
@@ -3780,6 +3772,8 @@ func _reincarnate() -> void:
 	_primary_touch = -1
 	_mouse_down = false
 	position = Vector2.ZERO
+	if _hud_view != null:
+		_hud_view.visible = true
 	if _game_over != null:
 		_game_over.visible = false
 	if _tease != null:
