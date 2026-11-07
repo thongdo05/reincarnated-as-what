@@ -194,7 +194,12 @@ func _check_lines(card) -> String:
 				if label.text.is_empty():
 					continue
 				var px := label.get_theme_font_size("font_size")
-				if px < 18:
+				var min_px := 18
+				if card._pickup_effects.has(label):
+					min_px = PauseCard.EFFECT_PX
+					if label.text.find("\n") >= 0:
+						return "pickup effect wrapped '%s'" % label.text
+				if px < min_px:
 					return "body text shrunk '%s'" % label.text
 				if label.autowrap_mode == TextServer.AUTOWRAP_OFF:
 					var parts: PackedStringArray = label.text.split("\n", false)
@@ -210,6 +215,45 @@ func _check_lines(card) -> String:
 				var rect := label.get_global_rect()
 				if rect.position.y < -0.5 or rect.end.y > 270.5 or rect.end.x > 480.5:
 					return "label outside '%s' %s" % [label.text, rect]
+				var page_rect := page.get_global_rect()
+				if not page_rect.encloses(rect):
+					return "label leaves the padded page '%s' %s" % [label.text, rect]
 				if not card.get_global_rect().encloses(rect):
 					return "label leaves the card '%s'" % label.text
+	if page_pad_err(card) != "":
+		return page_pad_err(card)
+	return _check_bar(card)
+
+
+func page_pad_err(card) -> String:
+	var card_rect: Rect2 = card.get_global_rect()
+	for page in [card._you, card._pickups, card._controls]:
+		var rect: Rect2 = page.get_global_rect()
+		if rect.position.x < card_rect.position.x + 6.0:
+			return "content missing left pad %s" % rect
+		if rect.end.x > card_rect.end.x - 6.0:
+			return "content missing right pad %s" % rect
+		var bar_top := float(card._resume.get_global_rect().position.y)
+		if rect.end.y > bar_top - 6.0:
+			return "content crowds the bottom bar %s" % rect
+	return ""
+
+
+func _check_bar(card) -> String:
+	var buttons: Array[Button] = [card._resume]
+	if card._remove_ph.visible:
+		buttons.append(card._remove_ph)
+		buttons.append(card._restore_ph)
+	for button in buttons:
+		var px := int(button.get_theme_font_size("font_size"))
+		if px > PauseCard.BAR_PX:
+			return "bar font too big '%s'" % button.text
+		var width := float(card._text_width(button.text, px))
+		if width + 8.0 > button.size.x + 0.5:
+			return "bar label needs 4px padding '%s' %s in %s" % [button.text, width, button.size.x]
+	var sound: Button = _game._sound_button
+	var sound_px := int(_game._sound_label.get_theme_font_size("font_size"))
+	var sound_w := float(card._text_width(_game._sound_label.text, sound_px))
+	if sound_w + 8.0 > sound.size.x + 0.5:
+		return "sound label needs 4px padding %s in %s" % [sound_w, sound.size.x]
 	return ""

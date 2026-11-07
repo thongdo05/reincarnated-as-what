@@ -35,7 +35,7 @@ static func pickups() -> Array[Dictionary]:
 			"id": "bomb",
 			"icon": "ui/icons/icon_bomb.png",
 			"name": "BOMB",
-			"effect": "Clears bullets, +%d" % Difficulty.BOMB_SCORE,
+			"effect": "Clears shots, +%d" % Difficulty.BOMB_SCORE,
 			"icon_px": 28,
 		},
 		{
@@ -64,8 +64,7 @@ static func pickups() -> Array[Dictionary]:
 			"id": "overdrive",
 			"icon": "ui/icons/icon_overdrive.png",
 			"name": "OVERDRIVE",
-			# One column is too narrow for this at 18px, so the score stays on its own line.
-			"effect": "Rare! Clears screen,\n+%d" % Difficulty.OVERDRIVE_SCORE,
+			"effect": "Rare! Clears all, +%d" % Difficulty.OVERDRIVE_SCORE,
 			"icon_px": 28,
 		},
 	]

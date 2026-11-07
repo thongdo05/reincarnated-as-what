@@ -125,11 +125,11 @@ func _show_new_best() -> void:
 	if game._score_label == null or game._score_label.text != "1,234,567":
 		push_error("expected a 7-digit score, got %s" % (game._score_label.text if game._score_label != null else "missing"))
 		quit(1)
-	if game._footer_label == null or game._footer_label.text != "BEAT MY RUN":
-		push_error("the death card should end with BEAT MY RUN")
+	if game._footer_label != null and game._footer_label.visible and not str(game._footer_label.text).is_empty():
+		push_error("the death card should not show BEAT MY RUN")
 		quit(1)
-	if str(game._footer_label.text).find("·") >= 0:
-		push_error("footer line still has a missing glyph")
+	if game._rank_label != null and game._rank_label.visible and game._rank_label.text == "...":
+		push_error("the loading dots should not be on the card")
 		quit(1)
 	var row_fonts := [
 		int(game._share_button.get_theme_font_size("font_size")),
