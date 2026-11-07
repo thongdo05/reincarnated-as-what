@@ -9,7 +9,7 @@ class_name FormCatalog
 ## Slime pays for a reliable forward stream with a big body.
 ## Goblin pays for stones that lob forward and only fully connect up close.
 ## Vending Machine trails the finger (heavier, still a flick, not a slog).
-## Cat blinks a short dash on a hard flick. Demon Lord is the large body.
+## Cat uses the same flick as the other snap forms. Demon Lord is the large body.
 ## Slime, Goblin, Cat, and Demon Lord snap to the aim. Squash, bob, and lean
 ## are cosmetic.
 ## Goblin's rocks hit harder than the slime stream because most of the arc misses.
@@ -38,13 +38,6 @@ const VENDING_MAX_SPEED := 400.0
 ## Kills and gems, not coins or powerups. A full meter is the only WINNER! in the game.
 ## Rank 1 is 10. Play reads the per-rank list. This is the empty-list fallback.
 const VENDING_WINNER_KILLS := 10
-
-## Short dash when the aim jumps. Fine corrections still use the snap.
-const CAT_BLINK_DIST := 34.0
-const CAT_BLINK_MIN := 26.0
-const CAT_BLINK_CD := 0.14
-## A few frames where the dash body cannot be hit.
-const CAT_BLINK_GUARD := 0.10
 
 ## Every Goblin balance number. Rank arrays are rank 1 through rank 5.
 ## Movement and stones read this table. The gem magnet radius and speed are
@@ -99,7 +92,7 @@ const VENDING := {
 ## reflect reach all use scale. Damage stays the int list, so the +15% is
 ## fire_interval times 1/1.15. Every rank pierces 2. Rank 5 does not expire
 ## by life: it flies until it is fully past the right edge, at the rank-5
-## scale. Dash distance, dash guard, and the reflect flip itself are unchanged.
+## scale. The reflect flip itself is unchanged.
 ## hit_ids still allow one hit per target.
 ## Coarse distance check before a swipe tests a bullet. Scaled with the swipe.
 const CAT_REFLECT_REACH := 64.0
@@ -110,8 +103,6 @@ const CAT := {
 	"damage": [1, 2, 3, 4, 5],
 	"pierce": 2,
 	"scale": [1.0, 1.05, 1.1, 1.15, 1.25],
-	"blink_dist": [34.0, 38.0, 44.0, 52.0, 62.0],
-	"blink_guard": [0.10, 0.10, 0.11, 0.13, 0.15],
 }
 
 ## Drawn and hurt at this fraction of the source art. The hurt circles are the
@@ -192,8 +183,8 @@ const FORM_CARD := {
 		"used": "",
 	},
 	Id.CAT: {
-		"trait": "A hard flick blinks a short dash. Swipes pierce 2 and knock bullets away. Later ranks dash farther and swipe bigger. The final form crosses the screen.",
-		"short": "Flick to dash.\nSwipes pierce %d.",
+		"trait": "Swipes pierce 2 and knock bullets away. Later ranks swipe bigger. The final form crosses the screen.",
+		"short": "Swipes pierce %d.",
 		"ready": "",
 		"used": "",
 	},
@@ -246,15 +237,6 @@ static func cat_rank_f(key: String, rank_index: int) -> float:
 
 static func cat_f(key: String) -> float:
 	return float(CAT[key])
-
-static func cat_blink_dist(rank_index: int, power_level: int = 0) -> float:
-	var values: Array = CAT["blink_dist"]
-	return float(values[clampi(rank_index, 0, values.size() - 1)]) + float(maxi(power_level, 0)) * 2.0
-
-static func cat_blink_guard(rank_index: int, power_level: int = 0) -> float:
-	var values: Array = CAT["blink_guard"]
-	var guard := float(values[clampi(rank_index, 0, values.size() - 1)]) + float(maxi(power_level, 0)) * 0.008
-	return minf(guard, 0.2)
 
 static func cat_life(rank_index: int) -> float:
 	var values: Array = CAT["life"]

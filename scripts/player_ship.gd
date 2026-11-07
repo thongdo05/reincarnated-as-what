@@ -4,9 +4,9 @@ class_name PlayerShip
 ## Relative drag: the finger moves an aim point, and the body follows it.
 ## The ship never jumps to the finger, so the thumb can stay out of the way.
 ## Snap forms arrive in about 1-3 frames, with no slide. Vending trails the
-## aim for a few frames and still finishes a flick quickly. Cat blinks a short
-## dash when the aim jumps, then snaps the rest. Squash, bob, rock, and recoil
-## are drawn only. They do not move the hurt circle.
+## aim for a few frames and still finishes a flick quickly. Cat uses that same
+## snap. Squash, bob, rock, and recoil are drawn only. They do not move the
+## hurt circle.
 
 var form_id := FormCatalog.Id.SLIME
 ## Extra fit on top of FormCatalog.play_scale. 1 for every form except a
@@ -21,9 +21,6 @@ var invulnerable := true
 var stride := 0.0
 var sprinting := true
 var _cooldown := 0.0
-var _blink_cd := 0.0
-## Seconds left where a Cat dash cannot be hit.
-var blink_guard := 0.0
 var _wobble := 0.0
 var _trail_timer := 0.0
 var _trail: Array[Vector2] = []
@@ -32,9 +29,6 @@ var _recoil := 0.0
 var _recoil_lock := 0.0
 var _clunk := 0.0
 var _was_stepping := false
-var _dash_flick := 0.0
-var _dash_lean := 0.0
-var _dash_offset := Vector2.ZERO
 var small := false
 var regrow_left := 0.0
 var regrew := false
@@ -88,9 +82,6 @@ const CAT_IDLE_PX := 1.0
 const CAT_IDLE_RATE := 2.1
 const CAT_IDLE_TILT := 0.07
 const CAT_IDLE_TILT_RATE := 1.7
-const CAT_DASH_PX := 1.0
-const CAT_DASH_TILT := 0.14
-const CAT_FLICK_RETURN := 10.0
 const DEMON_IDLE_PX := 1.0
 const DEMON_MOVE_PX := 2.0
 const DEMON_FLOAT_RATE := 1.7
@@ -174,8 +165,6 @@ func tick(delta: float, bounds: Rect2) -> void:
 		_apply_evolve_visual()
 	if _cooldown > 0.0:
 		_cooldown -= delta
-	if blink_guard > 0.0:
-		blink_guard = maxf(blink_guard - delta, 0.0)
 	if form_id == FormCatalog.Id.GOBLIN:
 		stride = fmod(stride + delta, FormCatalog.goblin_f("stride"))
 		sprinting = stride < FormCatalog.goblin_f("stride") * FormCatalog.goblin_f("sprint_fraction")
@@ -195,12 +184,8 @@ func tick(delta: float, bounds: Rect2) -> void:
 		_recoil_lock = maxf(_recoil_lock - delta, 0.0)
 	if _recoil > 0.0:
 		_recoil = maxf(_recoil - delta * RECOIL_RETURN, 0.0)
-	if _dash_flick > 0.0:
-		_dash_flick = maxf(_dash_flick - delta * CAT_FLICK_RETURN, 0.0)
 	if form_id == FormCatalog.Id.SLIME:
 		_record_trail(delta)
-	elif form_id == FormCatalog.Id.CAT:
-		_fade_blink_trail(delta)
 	_clamp(bounds)
 	if invulnerable:
 		modulate.a = 0.35 if fmod(_wobble, 0.16) < 0.08 else 1.0
@@ -212,8 +197,6 @@ func tick(delta: float, bounds: Rect2) -> void:
 			_aura_layer.queue_redraw()
 
 func _pursue(delta: float) -> void:
-	if form_id == FormCatalog.Id.CAT:
-		_try_blink(delta)
 	var to_aim := aim - position
 	var dist := to_aim.length()
 	if dist <= 0.35:
@@ -230,36 +213,6 @@ func _pursue(delta: float) -> void:
 	else:
 		position += step
 	velocity = Vector2.ZERO
-
-## One short dash toward a hard flick. Small aim corrections stay on the snap.
-func _try_blink(delta: float) -> void:
-	if _blink_cd > 0.0:
-		_blink_cd = maxf(_blink_cd - delta, 0.0)
-		return
-	var to_aim := aim - position
-	var dist := to_aim.length()
-	if dist < FormCatalog.CAT_BLINK_MIN:
-		return
-	var hop := to_aim / dist * minf(dist, FormCatalog.cat_blink_dist(rank_index, power_level))
-	var dash_dir := hop / hop.length()
-	_dash_lean = clampf(dash_dir.y, -1.0, 1.0) * CAT_DASH_TILT
-	_dash_offset = dash_dir * CAT_DASH_PX
-	_dash_flick = 1.0
-	_trail.push_front(position)
-	_trim_trail()
-	position += hop
-	_blink_cd = FormCatalog.CAT_BLINK_CD
-	blink_guard = FormCatalog.cat_blink_guard(rank_index, power_level)
-	_trail_timer = 0.04
-
-func _fade_blink_trail(delta: float) -> void:
-	if _trail.is_empty():
-		return
-	_trail_timer -= delta
-	if _trail_timer > 0.0:
-		return
-	_trail.pop_back()
-	_trail_timer = 0.04
 
 func _clamp_aim(bounds: Rect2) -> void:
 	var pad := radius
@@ -322,17 +275,12 @@ func respawn(id: int, start: Vector2) -> void:
 	fx_show_rim = false
 	shield_hits = 0
 	_cooldown = 0.12
-	_blink_cd = 0.0
-	blink_guard = 0.0
 	_wobble = 0.0
 	_pose = 0.0
 	_recoil = 0.0
 	_recoil_lock = 0.0
 	_clunk = 0.0
 	_was_stepping = false
-	_dash_flick = 0.0
-	_dash_lean = 0.0
-	_dash_offset = Vector2.ZERO
 	_trail.clear()
 	_trail_timer = 0.0
 	modulate = Color.WHITE
@@ -448,8 +396,6 @@ func cosmetic_pose() -> Dictionary:
 		FormCatalog.Id.CAT:
 			offset.y = sin(_wobble * CAT_IDLE_RATE) * CAT_IDLE_PX
 			rotation = sin(_wobble * CAT_IDLE_TILT_RATE) * CAT_IDLE_TILT
-			rotation += _dash_lean * _dash_flick
-			offset += _dash_offset * _dash_flick
 		FormCatalog.Id.DEMON:
 			var amp := lerpf(DEMON_IDLE_PX, DEMON_MOVE_PX, moving)
 			offset.y = sin(_wobble * DEMON_FLOAT_RATE) * amp
@@ -491,7 +437,7 @@ func _trim_trail() -> void:
 		_trail.pop_back()
 
 func _draw_body(file: String) -> void:
-	if form_id == FormCatalog.Id.SLIME or (form_id == FormCatalog.Id.CAT and not _trail.is_empty()):
+	if form_id == FormCatalog.Id.SLIME:
 		_trim_trail()
 		var i := _trail.size()
 		for point in _trail:

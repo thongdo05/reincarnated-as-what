@@ -232,8 +232,15 @@ func _check_forms() -> int:
 	if FormCatalog.trait_line(FormCatalog.Id.VENDING, true).find("WINNER!") < 0:
 		push_error("vending trait should name the WINNER meter")
 		failed += 1
-	if FormCatalog.trait_line(FormCatalog.Id.CAT, true) != "A hard flick blinks a short dash. Swipes pierce 2 and knock bullets away. Later ranks dash farther and swipe bigger. The final form crosses the screen." or FormCatalog.weapon_line(FormCatalog.Id.CAT, 0).find("Reflects") < 0:
-		push_error("cat card should describe the blink dash, the piercing swipe, and the reflect")
+	if FormCatalog.trait_line(FormCatalog.Id.CAT, true) != "Swipes pierce 2 and knock bullets away. Later ranks swipe bigger. The final form crosses the screen." or FormCatalog.weapon_line(FormCatalog.Id.CAT, 0).find("Reflects") < 0:
+		push_error("cat card should describe the piercing swipe and the reflect")
+		failed += 1
+	if FormCatalog.trait_line(FormCatalog.Id.CAT, true).to_lower().find("dash") >= 0 or FormCatalog.trait_line(FormCatalog.Id.CAT, true).to_lower().find("flick") >= 0:
+		push_error("cat card should not list a separate flick dash")
+		failed += 1
+	var cat_short := " ".join(FormCatalog.guide_trait_lines(FormCatalog.Id.CAT, 0, true))
+	if cat_short.find("Swipes pierce 2.") < 0 or cat_short.to_lower().find("dash") >= 0 or cat_short.to_lower().find("flick") >= 0:
+		push_error("cat pause lines should keep the swipe and drop the flick dash, got %s" % cat_short)
 		failed += 1
 	var swipe_scale := [1.0, 1.05, 1.1, 1.15, 1.25]
 	var swipe_damage := [1, 2, 3, 4, 5]
@@ -1641,8 +1648,9 @@ func _check_drag() -> int:
 	var failed := 0
 	var start := Vector2(120, 500)
 	var aim := start + drag
-	if slime_fast.distance_to(aim) > 2.0 or goblin_fast.distance_to(aim) > 2.0:
-		push_error("both forms should reach the aim within 3 frames (slime %s goblin %s aim %s)" % [slime_fast, goblin_fast, aim])
+	var cat_fast := _sample(FormCatalog.Id.CAT, drag, bounds, 3)
+	if slime_fast.distance_to(aim) > 2.0 or goblin_fast.distance_to(aim) > 2.0 or cat_fast.distance_to(aim) > 2.0:
+		push_error("snap forms should reach the aim within 3 frames (slime %s goblin %s cat %s aim %s)" % [slime_fast, goblin_fast, cat_fast, aim])
 		failed += 1
 	if slime_end.distance_to(aim) > 0.5 or goblin_end.distance_to(aim) > 0.5:
 		push_error("the body should stay on the aim with no slide (slime %s goblin %s)" % [slime_end, goblin_end])
@@ -1809,8 +1817,8 @@ func _check_death_card() -> int:
 		if button.mouse_filter != Control.MOUSE_FILTER_STOP:
 			push_error("Reincarnate should receive taps")
 			failed += 1
-		if rect.size.y < 48.0 or rect.size.x < 200.0:
-			push_error("Reincarnate is too small to tap (%s)" % rect)
+		if rect.size.y + 0.01 < 22.0 or rect.size.y > 40.0 or rect.size.x < 300.0:
+			push_error("Reincarnate should be a full-width button about 40%% shorter (%s)" % rect)
 			failed += 1
 		if rect.position.x < -0.5 or rect.position.y < -0.5 or rect.end.x > field.x + 0.5 or rect.end.y > field.y + 0.5:
 			push_error("Reincarnate left the field for '%s' rect %s field %s" % [lines[i], rect, field])
@@ -1824,25 +1832,38 @@ func _check_death_card() -> int:
 				push_error("the death card should not have a Text button")
 				failed += 1
 		if game._beat_button == null or not game._beat_button.visible:
-			push_error("the death card should offer CHALLENGE A FRIEND")
+			push_error("the death card should offer CHALLENGE")
 			failed += 1
 		else:
 			var challenge: Button = game._beat_button
 			var crect := Rect2(challenge.position, challenge.size)
-			if challenge.text != "CHALLENGE A FRIEND":
-				push_error("challenge button should say CHALLENGE A FRIEND, got %s" % challenge.text)
+			if challenge.text != "CHALLENGE":
+				push_error("challenge button should say CHALLENGE, got %s" % challenge.text)
 				failed += 1
-			if crect.size.y < 44.0 or crect.size.y + 0.5 >= rect.size.y:
+			if crect.size.y + 0.01 < 22.0 or crect.size.y + 0.5 >= rect.size.y:
 				push_error("challenge button should be tappable and shorter than Reincarnate (%s vs %s)" % [crect.size, rect.size])
 				failed += 1
 			if crect.size.x + 0.5 >= rect.size.x:
 				push_error("challenge button should stay narrower than Reincarnate (%s vs %s)" % [crect.size, rect.size])
 				failed += 1
+			if crect.position.y + 0.5 < rect.end.y:
+				push_error("challenge row should sit under Reincarnate")
+				failed += 1
 			if crect.intersects(rect):
 				push_error("challenge button overlaps Reincarnate")
 				failed += 1
-			if int(challenge.get_theme_font_size("font_size")) < 18:
-				push_error("challenge label should be readable, font %s" % challenge.get_theme_font_size("font_size"))
+			if button.text != "REINCARNATE":
+				push_error("Reincarnate should read REINCARNATE, got %s" % button.text)
+				failed += 1
+			if int(button.get_theme_constant("outline_size")) != 0:
+				push_error("Reincarnate should have no outline")
+				failed += 1
+			var mark := button.get_node_or_null("ReincarnateMark") as TextureRect
+			if mark == null or mark.texture == null or mark.texture_filter != CanvasItem.TEXTURE_FILTER_NEAREST:
+				push_error("Reincarnate should be a nearest-filtered plain word")
+				failed += 1
+			elif int(mark.texture.get_height()) % 11 != 0 or mark.texture.get_height() < 20:
+				push_error("Reincarnate art should be an integer scale bigger than the row, got %s" % mark.texture.get_height())
 				failed += 1
 		if game._board_button == null or not game._board_button.visible or game._board_button.text != "LEADERBOARD":
 			push_error("the death card should offer LEADERBOARD")
@@ -1850,13 +1871,16 @@ func _check_death_card() -> int:
 		else:
 			var board: Button = game._board_button
 			var brect := Rect2(board.position, board.size)
-			if brect.size.y < 44.0:
+			if brect.size.y + 0.01 < 22.0:
 				push_error("leaderboard button should be tappable (%s)" % brect)
 				failed += 1
 			if brect.size.x + 0.5 >= rect.size.x:
 				push_error("leaderboard button should be narrower than Reincarnate")
 				failed += 1
 			var challenge_rect := Rect2(game._beat_button.position, game._beat_button.size)
+			if absf(brect.size.x - challenge_rect.size.x) > 1.0 or absf(brect.size.y - challenge_rect.size.y) > 1.0 or absf(brect.position.y - challenge_rect.position.y) > 1.0:
+				push_error("leaderboard and challenge should share one equal row (%s vs %s)" % [brect, challenge_rect])
+				failed += 1
 			if brect.intersects(rect) or (game._beat_button.visible and brect.intersects(challenge_rect)):
 				push_error("leaderboard button overlaps retry or challenge")
 				failed += 1
@@ -1867,10 +1891,33 @@ func _check_death_card() -> int:
 			game._rank_label.visible = true
 			game._rank_label.text = "#12 today - #40 all-time"
 			game._layout_death_card()
+		if game._share_button != null and game._share_button.visible:
+			var share_rect := Rect2(game._share_button.position, game._share_button.size)
+			var challenge_row := Rect2(game._beat_button.position, game._beat_button.size)
+			if absf(share_rect.size.x - challenge_row.size.x) > 1.0 or absf(share_rect.position.y - challenge_row.position.y) > 1.0:
+				push_error("Share should match the challenge row (%s vs %s)" % [share_rect, challenge_row])
+				failed += 1
+			if share_rect.intersects(rect) or share_rect.intersects(challenge_row):
+				push_error("Share overlaps Reincarnate or Challenge")
+				failed += 1
+			if game._share_button.text != "SHARE" or game._board_button.text != "LEADERBOARD":
+				push_error("the row should read SHARE and LEADERBOARD, got %s / %s" % [game._share_button.text, game._board_button.text])
+				failed += 1
+			if int(game._share_button.get_theme_font_size("font_size")) != int(game._beat_button.get_theme_font_size("font_size")):
+				push_error("the row should share one font size")
+				failed += 1
+			if rect.position.x + 0.5 < 12.0 or field.x - rect.end.x + 0.5 < 12.0:
+				push_error("Reincarnate should keep a side margin, rect %s" % rect)
+				failed += 1
+			if field.y - challenge_row.end.y + 0.5 < 8.0:
+				push_error("the button row should keep a bottom margin, rect %s" % challenge_row)
+				failed += 1
 		for label in [game._share_label, game._best_label, game._footer_label, game._death_kicker, game._rank_label]:
 			var label_rect := Rect2(label.position, label.size)
+			if label_rect.size.y < 1.0:
+				continue
 			if label_rect.end.y > rect.position.y + 0.5:
-				push_error("death copy overlaps Reincarnate for '%s'" % lines[i])
+				push_error("death copy overlaps Reincarnate for '%s' label '%s' %s button %s" % [lines[i], label.text, label_rect, rect])
 				failed += 1
 				break
 			if game._beat_button != null and game._beat_button.visible:
@@ -1895,9 +1942,9 @@ func _check_death_card() -> int:
 	return failed
 
 
-## Worst case at 480x270: every optional line, a long rank, and the ad button,
-## including a notch-sized safe inset. The ad row must not cover the info stack,
-## and hiding it must not leave that row's gap.
+## Worst case at 480x270: hero score, the one summary line, a rank error, and
+## the ad button, including a notch-sized safe inset. The ad row must not cover
+## the info stack, and hiding it must not leave a hole above Reincarnate.
 func _check_death_card_fit(game) -> int:
 	var failed := 0
 	game._death_kicker.text = "RUN OVER"
@@ -1905,8 +1952,9 @@ func _check_death_card_fit(game) -> int:
 	game._score_label.visible = true
 	game._new_best_label.text = "NEW BEST!"
 	game._new_best_label.visible = true
-	game._share_label.text = "Reached VENDING FORTRESS"
-	game._best_label.text = "VENDING MACHINE BEST 999,999\nDAILY BEST 999,999"
+	game._share_label.text = "Reached VENDING FORTRESS  |  BEST 999,999  |  DAILY 999,999"
+	game._best_label.text = ""
+	game._best_label.visible = false
 	game._rank_label.text = "Can't reach leaderboard - tap to retry"
 	game._rank_label.visible = true
 	game._footer_label.text = "BEAT MY RUN"
@@ -1920,23 +1968,43 @@ func _check_death_card_fit(game) -> int:
 		push_error("death card fit check expected the 480x270 viewport, got %s" % field)
 		failed += 1
 	var cases: Array[Vector4] = [Vector4.ZERO, Vector4(16, 4, 16, 12)]
+	var reinc_with_ad := Vector2.ZERO
 	for insets in cases:
 		game._force_death_insets_for_test(insets)
 		game._layout_death_card()
 		var ad: Button = game._form_pick_button
 		var ad_rect := Rect2(ad.position, ad.size)
-		if not ad.visible or ad_rect.size.y < 44.0 or ad_rect.size.x < 160.0:
-			push_error("ad button should be its own touch-sized row, got %s visible %s insets %s" % [ad_rect, ad.visible, insets])
+		var reinc_rect := Rect2(game._restart_button.position, game._restart_button.size)
+		if not ad.visible or ad_rect.size.y + 0.01 < 22.0 or ad_rect.size.y > 28.0 or ad_rect.size.x + 1.0 < reinc_rect.size.x:
+			push_error("ad line should be a slim full-width row, got %s visible %s insets %s" % [ad_rect, ad.visible, insets])
 			failed += 1
-		if game._restart_button.size.y < 48.0 or game._beat_button.size.y < 44.0:
+		var ad_gap := reinc_rect.position.y - ad_rect.end.y
+		if ad_gap > 8.0 or ad_gap < -0.5:
+			push_error("ad line should sit just above Reincarnate, gap %s insets %s" % [ad_gap, insets])
+			failed += 1
+		if game._restart_button.size.y + 0.01 < 22.0 or game._beat_button.size.y + 0.01 < 22.0:
 			push_error("retry %s and challenge %s should stay touch-sized" % [game._restart_button.size, game._beat_button.size])
 			failed += 1
 		if game._beat_button.size.y + 0.5 >= game._restart_button.size.y:
 			push_error("challenge should stay shorter than Reincarnate")
 			failed += 1
+		var score_px := int(game._score_label.get_theme_font_size("font_size"))
+		if score_px < 63 or score_px > 72:
+			push_error("score should stay about 2.5x the old 27px, got %s insets %s" % [score_px, insets])
+			failed += 1
+		if game._score_label.position.y + 0.5 < game._death_kicker.position.y + game._death_kicker.size.y + 8.0:
+			push_error("RUN OVER should sit clear of the score, kicker %s score %s" % [game._death_kicker.position, game._score_label.position])
+			failed += 1
+		var score_mid := float(game._score_label.position.x) + float(game._score_label.size.x) * 0.5
+		if absf(score_mid - field.x * 0.5) > 8.0:
+			push_error("the score should stay centered, mid %s" % score_mid)
+			failed += 1
+		if game._new_best_label.position.y + 0.5 < game._score_label.position.y + game._score_label.size.y:
+			push_error("NEW BEST should sit under the score")
+			failed += 1
 		var labels: Array[Label] = [
 			game._death_kicker, game._score_label, game._new_best_label,
-			game._share_label, game._best_label, game._rank_label, game._footer_label,
+			game._share_label, game._rank_label, game._footer_label,
 		]
 		var safe := Rect2(insets.x, insets.y, field.x - insets.x - insets.z, field.y - insets.y - insets.w)
 		for label in labels:
@@ -1964,30 +2032,29 @@ func _check_death_card_fit(game) -> int:
 				push_error("%s left the safe area %s rect %s" % [button.text, safe, button_rect])
 				failed += 1
 		if insets == Vector4.ZERO:
-			print("DEATH_CARD_RECTS ad=%s footer=%s best=%s score=%s rank=%s challenge=%s retry=%s" % [
+			reinc_with_ad = game._restart_button.position
+			print("DEATH_CARD_RECTS ad=%s footer=%s score=%s rank=%s challenge=%s retry=%s font=%s" % [
 				ad_rect,
 				Rect2(game._footer_label.position, game._footer_label.size),
-				Rect2(game._best_label.position, game._best_label.size),
 				Rect2(game._score_label.position, game._score_label.size),
 				Rect2(game._rank_label.position, game._rank_label.size),
 				Rect2(game._beat_button.position, game._beat_button.size),
 				Rect2(game._restart_button.position, game._restart_button.size),
+				game._score_label.get_theme_font_size("font_size"),
 			])
 	game._force_death_insets_for_test(Vector4.ZERO)
 	game._form_pick_button.visible = false
 	game._layout_death_card()
-	var footer := Rect2(game._footer_label.position, game._footer_label.size)
-	var challenge := Rect2(game._beat_button.position, game._beat_button.size)
-	var closed := challenge.position.y - footer.end.y
-	if closed > 10.0 or closed < 0.0:
-		push_error("hiding the ad button should close the stack onto the challenge row, gap %s" % closed)
+	var reincarnate := Rect2(game._restart_button.position, game._restart_button.size)
+	if game._restart_button.position.y > reinc_with_ad.y + 1.0:
+		push_error("hiding the ad button should not leave a hole above Reincarnate (%s -> %s)" % [reinc_with_ad, game._restart_button.position])
 		failed += 1
 	if game._form_pick_button.visible:
 		push_error("the ad button should hide when it is not offered")
 		failed += 1
 	var hidden := Rect2(game._form_pick_button.position, game._form_pick_button.size)
-	if hidden.size.y > 1.0 and hidden.intersects(challenge):
-		push_error("a hidden ad button still covers the challenge row %s" % hidden)
+	if hidden.size.y > 1.0 and hidden.intersects(reincarnate):
+		push_error("a hidden ad button still covers Reincarnate %s" % hidden)
 		failed += 1
 	game._force_death_insets_for_test(Vector4.ZERO, false)
 	return failed
@@ -2602,7 +2669,10 @@ func _check_pause_card(game) -> int:
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.CAT:
 		if card.trait_text().find("Swipes pierce 2.") < 0 or card.weapon_text().find("Swipe") < 0:
-			push_error("cat pause card should describe the dash and the piercing swipe")
+			push_error("cat pause card should describe the piercing swipe, got %s" % card.trait_text())
+			failed += 1
+		if card.trait_text().to_lower().find("dash") >= 0 or card.trait_text().to_lower().find("flick") >= 0:
+			push_error("cat pause card should not list a flick dash, got %s" % card.trait_text())
 			failed += 1
 	elif int(game.form_id) == FormCatalog.Id.DEMON:
 		if card.trait_text().find("Homing orbs.") < 0 or card.weapon_text().find("Homing") < 0:
@@ -3296,7 +3366,6 @@ func _check_motion() -> int:
 		ship._recoil = 0.0
 		ship._recoil_lock = 0.0
 		ship._clunk = 0.0
-		ship._dash_flick = 0.0
 		ship._pose = 0.0
 		ship._wobble = 0.2
 		var early: Dictionary = ship.cosmetic_pose()
@@ -3369,22 +3438,33 @@ func _check_motion() -> int:
 		failed += 1
 	ship.form_id = FormCatalog.Id.CAT
 	ship.position = Vector2(100, 100)
-	ship.aim = Vector2(150, 60)
-	ship._blink_cd = 0.0
-	ship._dash_flick = 0.0
+	ship.aim = Vector2(100, 100)
 	ship._recoil = 0.0
 	ship._pose = 0.0
-	ship._wobble = 0.0
+	ship._wobble = PI / (2.0 * PlayerShip.CAT_IDLE_RATE)
 	ship._clunk = 0.0
-	var cat_radius := ship.radius
-	ship._try_blink(0.016)
-	var cat_pose: Dictionary = ship.cosmetic_pose()
-	var cat_offset: Vector2 = cat_pose["offset"]
-	if ship._dash_flick < 0.99 or absf(float(cat_pose["rotation"])) < 0.05 or cat_offset.length() > 2.2 or absf(ship.radius - cat_radius) > 0.01:
-		push_error("cat should flick into a dash without resizing the hurt circle")
+	var cat_idle: Vector2 = ship.cosmetic_pose()["offset"]
+	if absf(absf(cat_idle.y) - PlayerShip.CAT_IDLE_PX) > 0.05:
+		push_error("cat should keep its idle bob, got %s" % cat_idle)
 		failed += 1
+	var flick_bounds := Rect2(0, 0, 480, 270)
+	var flick := Vector2(70, -40)
+	var cat_ship := PlayerShip.new()
+	cat_ship.setup(FormCatalog.Id.CAT, Vector2(120, 140))
+	var slime_ship := PlayerShip.new()
+	slime_ship.setup(FormCatalog.Id.SLIME, Vector2(120, 140))
+	var cat_radius := cat_ship.radius
+	cat_ship.nudge(flick, flick_bounds)
+	slime_ship.nudge(flick, flick_bounds)
+	if cat_ship.position.distance_to(slime_ship.position) > 1.5:
+		push_error("cat flick should match the shared snap, got cat %s slime %s" % [cat_ship.position, slime_ship.position])
+		failed += 1
+	if cat_ship.position.distance_to(Vector2(120, 140)) < 20.0 or absf(cat_ship.radius - cat_radius) > 0.01:
+		push_error("cat should still answer a flick without resizing, at %s" % cat_ship.position)
+		failed += 1
+	cat_ship.free()
+	slime_ship.free()
 	ship.form_id = FormCatalog.Id.DEMON
-	ship._dash_flick = 0.0
 	ship._recoil = 0.0
 	ship._wobble = PI / (2.0 * PlayerShip.DEMON_FLOAT_RATE)
 	ship._pose = 0.0
@@ -4919,7 +4999,7 @@ func _check_replay() -> int:
 	if seed_line.find("·") >= 0 or seed_line.find(" - ") < 0 or seed_line.find(str(game.day_seed)) < 0:
 		push_error("the seed string should stay available for links, got %s" % seed_line)
 		failed += 1
-	if game._beat_button == null or game._beat_button.text != "CHALLENGE A FRIEND":
+	if game._beat_button == null or game._beat_button.text != "CHALLENGE":
 		push_error("death card should challenge a friend, got %s" % (game._beat_button.text if game._beat_button != null else "missing"))
 		failed += 1
 	game._on_beat_link()
@@ -6737,11 +6817,14 @@ func _check_dragon_death() -> int:
 	if not game.game_over_visible or game.phase != game.PHASE_DEAD:
 		push_error("a dragon death should open the death card, visible %s phase %s" % [game.game_over_visible, game.phase])
 		failed += 1
-	if game._share_label == null or game._share_label.text != "Reached DRAGON":
-		push_error("the death card should name the dragon, got %s" % (game._share_label.text if game._share_label != null else "missing"))
+	var dragon_line := ""
+	if game._share_label != null:
+		dragon_line = str(game._share_label.text)
+	if dragon_line.find("Reached DRAGON") < 0 or dragon_line.find("BEST") < 0 or dragon_line.find("DAILY") < 0 or dragon_line.find("\n") >= 0:
+		push_error("the death card should put the dragon and both bests on one line, got %s" % dragon_line)
 		failed += 1
-	if game._best_label == null or not str(game._best_label.text).begins_with("DRAGON BEST"):
-		push_error("the death card should score the dragon form, got %s" % (game._best_label.text if game._best_label != null else "missing"))
+	if game._best_label != null and game._best_label.visible and not str(game._best_label.text).is_empty():
+		push_error("the form best should not be a second block, got %s" % game._best_label.text)
 		failed += 1
 	if game._score_label == null or game._score_label.text != ScoreRules.format_score(4321):
 		push_error("the death card should show the run score, got %s" % (game._score_label.text if game._score_label != null else "missing"))

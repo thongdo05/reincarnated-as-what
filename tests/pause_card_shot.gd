@@ -21,6 +21,7 @@ func _initialize() -> void:
 		_spec("pickups", true, FormCatalog.Id.SLIME, 0, 480, "pause_pickups_ios.png"),
 		_spec("controls", true, FormCatalog.Id.SLIME, 0, 480, "pause_controls_ios.png"),
 		_spec("you", false, FormCatalog.Id.DEMON, 4, power_points, "pause_rank5.png"),
+		_spec("you", false, FormCatalog.Id.CAT, 0, 480, "pause_cat_you.png"),
 		_spec("you", false, FormCatalog.Id.DRAGON, 0, 200, "pause_dragon_you.png"),
 		_spec("pickups", false, FormCatalog.Id.DRAGON, 0, 200, "pause_dragon_pickups.png"),
 	]
