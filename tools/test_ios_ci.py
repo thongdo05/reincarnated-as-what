@@ -558,6 +558,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('runs-on: macos-26', testflight)
         self.assertIn('ASC_APP_APPLE_ID: "6831784046"', testflight)
         self.assertIn("use_real_ads:", testflight)
+        self.assertIn("default: false", testflight)
         self.assertNotIn("use_real_ads:", pages)
         secret_names = set(re.findall(r"secrets\.([A-Z0-9_]+)", testflight))
         self.assertEqual(secret_names, TESTFLIGHT_SECRETS)

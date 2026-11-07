@@ -2,18 +2,20 @@ class_name StoreConfig
 
 ## The only place real store and ad IDs go.
 ##
-## USE_TEST_ADS stays true for dev and TestFlight. Those builds request Google's
-## sample ad units. Set it to false only for a store build that should serve
-## the real interstitial units below. The app ids are always the real ones:
+## USE_TEST_ADS stays true for dev and for a TestFlight run that leaves the
+## workflow box unchecked. Those builds request Google's sample ad units.
+## The iOS TestFlight workflow flips this to false only when use_real_ads is
+## checked. That edit stays on the runner. A real-ads build serves the
+## interstitial and rewarded units below. Banner real units stay empty, so
+## that build does not request a banner. The app ids are always the real ones:
 ## export writes them into Info.plist and the Android manifest either way.
 ##
 ## A CrazyGames export (feature "crazygames") never offers AdMob, the
-## remove_ads purchase, or a link to the App Store or Google Play. Those
+## remove_ads purchase, or the pause-screen privacy and support links. Those
 ## stay on the iOS and Android builds. The web Pages build already has no
 ## store, because stores_available() is false for every web export.
 ##
 ## App IDs contain "~". Ad unit IDs contain "/".
-## Banner and rewarded real units are still empty.
 ## The price of remove_ads is set in the stores, not in code.
 
 const USE_TEST_ADS := true
@@ -24,8 +26,8 @@ const REAL_ANDROID_BANNER_UNIT_ID := ""
 const REAL_IOS_BANNER_UNIT_ID := ""
 const REAL_ANDROID_INTERSTITIAL_UNIT_ID := "ca-app-pub-1397621797560860/3747483284"
 const REAL_IOS_INTERSTITIAL_UNIT_ID := "ca-app-pub-1397621797560860/3293196875"
-const REAL_ANDROID_REWARDED_UNIT_ID := ""
-const REAL_IOS_REWARDED_UNIT_ID := ""
+const REAL_ANDROID_REWARDED_UNIT_ID := "ca-app-pub-1397621797560860/6919908709"
+const REAL_IOS_REWARDED_UNIT_ID := "ca-app-pub-1397621797560860/3491799585"
 
 const REMOVE_ADS_PRODUCT_ID := "remove_ads"
 
@@ -36,6 +38,10 @@ const REMOVE_ADS_PRODUCT_ID := "remove_ads"
 const WEB_GAME_URL := "https://thongdo05.github.io/reincarnated-as-what/"
 const IOS_GAME_URL := "https://thongdo05.github.io/reincarnated-as-what/"
 const ANDROID_GAME_URL := "https://thongdo05.github.io/reincarnated-as-what/"
+
+## Opened from the pause screen on iOS and Android. The Pages site hosts both.
+const PRIVACY_URL := "https://thongdo05.github.io/reincarnated-as-what/privacy.html"
+const SUPPORT_URL := "https://thongdo05.github.io/reincarnated-as-what/support.html"
 
 const TEST_ANDROID_APP_ID := "ca-app-pub-3940256099942544~3347511713"
 const TEST_IOS_APP_ID := "ca-app-pub-3940256099942544~1458002511"
@@ -91,30 +97,67 @@ static func android_app_id() -> String:
 static func banner_unit_id() -> String:
 	if not stores_available():
 		return ""
-	var ios := OS.has_feature("ios")
-	if USE_TEST_ADS:
-		return TEST_IOS_BANNER_UNIT_ID if ios else TEST_ANDROID_BANNER_UNIT_ID
-	var real := REAL_IOS_BANNER_UNIT_ID if ios else REAL_ANDROID_BANNER_UNIT_ID
-	return real.strip_edges()
+	return banner_unit_for(USE_TEST_ADS, OS.has_feature("ios"))
 
 
 static func interstitial_unit_id() -> String:
 	if not stores_available():
 		return ""
-	var ios := OS.has_feature("ios")
-	if USE_TEST_ADS:
-		return TEST_IOS_INTERSTITIAL_UNIT_ID if ios else TEST_ANDROID_INTERSTITIAL_UNIT_ID
-	var real := REAL_IOS_INTERSTITIAL_UNIT_ID if ios else REAL_ANDROID_INTERSTITIAL_UNIT_ID
-	return real.strip_edges()
+	return interstitial_unit_for(USE_TEST_ADS, OS.has_feature("ios"))
 
 
 static func rewarded_unit_id() -> String:
 	if not stores_available():
 		return ""
-	var ios := OS.has_feature("ios")
-	if USE_TEST_ADS:
-		return TEST_IOS_REWARDED_UNIT_ID if ios else TEST_ANDROID_REWARDED_UNIT_ID
-	var real := REAL_IOS_REWARDED_UNIT_ID if ios else REAL_ANDROID_REWARDED_UNIT_ID
+	return rewarded_unit_for(USE_TEST_ADS, OS.has_feature("ios"))
+
+
+## Pure lookups so a headless check can see which unit a build would request.
+## An empty banner id means that build does not load a banner.
+static func banner_unit_for(test_ads: bool, ios: bool) -> String:
+	return _platform_unit(
+		test_ads,
+		ios,
+		TEST_IOS_BANNER_UNIT_ID,
+		TEST_ANDROID_BANNER_UNIT_ID,
+		REAL_IOS_BANNER_UNIT_ID,
+		REAL_ANDROID_BANNER_UNIT_ID
+	)
+
+
+static func interstitial_unit_for(test_ads: bool, ios: bool) -> String:
+	return _platform_unit(
+		test_ads,
+		ios,
+		TEST_IOS_INTERSTITIAL_UNIT_ID,
+		TEST_ANDROID_INTERSTITIAL_UNIT_ID,
+		REAL_IOS_INTERSTITIAL_UNIT_ID,
+		REAL_ANDROID_INTERSTITIAL_UNIT_ID
+	)
+
+
+static func rewarded_unit_for(test_ads: bool, ios: bool) -> String:
+	return _platform_unit(
+		test_ads,
+		ios,
+		TEST_IOS_REWARDED_UNIT_ID,
+		TEST_ANDROID_REWARDED_UNIT_ID,
+		REAL_IOS_REWARDED_UNIT_ID,
+		REAL_ANDROID_REWARDED_UNIT_ID
+	)
+
+
+static func _platform_unit(
+	test_ads: bool,
+	ios: bool,
+	test_ios: String,
+	test_android: String,
+	real_ios: String,
+	real_android: String
+) -> String:
+	if test_ads:
+		return test_ios if ios else test_android
+	var real := real_ios if ios else real_android
 	return real.strip_edges()
 
 

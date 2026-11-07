@@ -42,7 +42,8 @@ func store_buttons_visible() -> bool:
 
 
 func banner_wanted() -> bool:
-	return StoreConfig.stores_available() and not ads_removed
+	# An empty real banner id keeps the banner off, including the death-card gap.
+	return StoreConfig.stores_available() and not ads_removed and not StoreConfig.banner_unit_id().is_empty()
 
 
 func choose_form_is_free() -> bool:

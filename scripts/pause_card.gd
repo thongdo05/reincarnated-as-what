@@ -3,6 +3,7 @@ class_name PauseCard
 
 ## Centred pause guide. Three tabs, short lines, and the pickup icons.
 ## Resume, sound, and the store row share the bottom bar.
+## iOS and Android add a slim Privacy and Support row just above that bar.
 ## Dragon copy is filled only for the current form, on the YOU tab.
 
 signal resume_pressed
@@ -33,6 +34,11 @@ const BAR_H := 44.0
 const RESUME_W := 120.0
 ## "SND OFF" at 18px needs more than a 44px square. Height stays 44.
 const SOUND_W := 88.0
+## Slim store-only row. 22px holds the 9px face with the same border as the bar.
+const LEGAL_H := 22.0
+## Pickup effect lines shrink only while that row is showing, so the web card
+## keeps the 22px effect line.
+const LEGAL_EFFECT_H := 16.0
 ## Native icon size. Gem art is 8px and is drawn at 3x (24) inside this box.
 const ICON := 28.0
 
@@ -67,6 +73,9 @@ var _control_labels: Array[Label] = []
 var _resume: Button
 var _remove_ph: Button
 var _restore_ph: Button
+var _privacy: Button
+var _support: Button
+var _legal := false
 var _sound_slot := Rect2()
 var _remove_slot := Rect2()
 var _restore_slot := Rect2()
@@ -158,6 +167,14 @@ func setup(font: Font) -> void:
 	_restore_ph.visible = false
 	add_child(_remove_ph)
 	add_child(_restore_ph)
+	_privacy = _button("PRIVACY", BAR_PX, 4.0)
+	_support = _button("SUPPORT", BAR_PX, 4.0)
+	_privacy.visible = false
+	_support.visible = false
+	_privacy.pressed.connect(_on_privacy)
+	_support.pressed.connect(_on_support)
+	add_child(_privacy)
+	add_child(_support)
 	_style_tabs()
 
 func show_form(id: int, rank_index: int, points: int, split_ready: bool) -> void:
@@ -195,8 +212,13 @@ func show_form(id: int, rank_index: int, points: int, split_ready: bool) -> void
 func set_store_row(enabled: bool, placeholders: bool) -> void:
 	_store = enabled
 	_placeholders = placeholders and enabled
+	_legal = enabled
 	_remove_ph.visible = _placeholders
 	_restore_ph.visible = _placeholders
+	if _privacy != null:
+		_privacy.visible = _legal
+	if _support != null:
+		_support.visible = _legal
 	apply_layout()
 
 func open_for_runs(runs_started: int) -> void:
@@ -228,6 +250,15 @@ func restore_slot() -> Rect2:
 
 func resume_control() -> Button:
 	return _resume
+
+func legal_visible() -> bool:
+	return _legal
+
+func privacy_control() -> Button:
+	return _privacy
+
+func support_control() -> Button:
+	return _support
 
 func tab_controls() -> Array[Button]:
 	return _tabs
@@ -302,7 +333,16 @@ func apply_layout() -> void:
 		_restore_slot = Rect2()
 	_place_button(_remove_ph, _remove_slot)
 	_place_button(_restore_ph, _restore_slot)
-	var content := Rect2(INSET + PAD, INSET + TAB_H + PAD, width - (INSET + PAD) * 2.0, bar_y - PAD - (INSET + TAB_H + PAD))
+	var legal_top := bar_y
+	if _legal:
+		legal_top = _place_legal(width, bar_y)
+	elif _privacy != null:
+		_privacy.visible = false
+		_support.visible = false
+	# Web keeps an 8px pad above the bar. The store row sits in that band.
+	var content_bottom := legal_top - (2.0 if _legal else PAD)
+	var content_top := INSET + TAB_H + PAD
+	var content := Rect2(INSET + PAD, content_top, width - (INSET + PAD) * 2.0, content_bottom - content_top)
 	for page in [_you, _pickups, _controls]:
 		page.position = content.position
 		page.size = content.size
@@ -401,8 +441,9 @@ func _layout_pickups(area: Rect2) -> void:
 	var col_w := floorf((area.size.x - gutter) / float(cols))
 	var row_count := int(ceil(float(count) / float(cols)))
 	var y := area.position.y
+	var effect_h := LEGAL_EFFECT_H if _legal else LINE
+	var row_h := ICON + effect_h
 	for r in row_count:
-		var row_h := ICON + LINE
 		for c in cols:
 			var i := r * cols + c
 			if i >= count:
@@ -422,7 +463,7 @@ func _layout_pickups(area: Rect2) -> void:
 			effect.autowrap_mode = TextServer.AUTOWRAP_OFF
 			effect.clip_text = true
 			effect.position = Vector2(x, y + ICON)
-			effect.size = Vector2(col_w, LINE)
+			effect.size = Vector2(col_w, effect_h)
 		y += row_h
 	_footer.visible = false
 
@@ -455,6 +496,37 @@ func _place_button(button: Button, slot: Rect2) -> void:
 
 func _on_resume() -> void:
 	resume_pressed.emit()
+
+func _on_privacy() -> void:
+	_open_store_link(StoreConfig.PRIVACY_URL)
+
+func _on_support() -> void:
+	_open_store_link(StoreConfig.SUPPORT_URL)
+
+func _open_store_link(url: String) -> void:
+	if url.is_empty():
+		return
+	# iOS and Android open the system browser. The buttons stay hidden on web.
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("window.open(%s, '_blank', 'noopener')" % JSON.stringify(url), true)
+		return
+	OS.shell_open(url)
+
+func _place_legal(width: float, bar_y: float) -> float:
+	var legal_y := bar_y - 2.0 - LEGAL_H
+	var privacy_w := maxf(_text_width(_privacy.text, BAR_PX) + 12.0, 72.0)
+	var support_w := maxf(_text_width(_support.text, BAR_PX) + 12.0, 72.0)
+	var gap := 6.0
+	var total := privacy_w + gap + support_w
+	var x := floorf((width - total) * 0.5)
+	x = clampf(x, INSET, maxf(width - INSET - total, INSET))
+	_privacy.visible = true
+	_support.visible = true
+	_privacy.position = Vector2(x, legal_y)
+	_privacy.size = Vector2(privacy_w, LEGAL_H)
+	_support.position = Vector2(x + privacy_w + gap, legal_y)
+	_support.size = Vector2(support_w, LEGAL_H)
+	return legal_y
 
 func _on_tab(index: int) -> void:
 	show_tab(index)

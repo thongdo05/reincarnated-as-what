@@ -143,6 +143,11 @@ func _check(spec: Dictionary, card) -> String:
 	if bool(spec["ios"]):
 		targets.append(card._remove_ph)
 		targets.append(card._restore_ph)
+		var legal_err := _check_legal(card, true)
+		if legal_err != "":
+			return legal_err
+	elif card.legal_visible() or card.privacy_control().visible or card.support_control().visible:
+		return "web pause should not show privacy or support"
 	for target in targets:
 		var rect := target.get_global_rect()
 		if not target.visible:
@@ -167,6 +172,30 @@ func _check(spec: Dictionary, card) -> String:
 	if _game._sound_button.flat:
 		return "sound toggle should use the resume frame"
 	return _check_lines(card)
+
+func _check_legal(card, want: bool) -> String:
+	if not want:
+		return ""
+	if not card.legal_visible():
+		return "store pause should show the legal row"
+	var card_rect: Rect2 = card.get_global_rect()
+	var bar_top := float(card.resume_control().get_global_rect().position.y)
+	for link in [card.privacy_control(), card.support_control()]:
+		if link == null or not link.visible:
+			return "missing privacy or support"
+		if int(link.get_theme_font_size("font_size")) < PauseCard.BAR_PX:
+			return "legal link shrunk"
+		var rect: Rect2 = link.get_global_rect()
+		if not card_rect.encloses(rect) or rect.end.y > bar_top + 0.5:
+			return "legal link outside the card %s" % rect
+		if rect.size.y + 0.01 < 18.0:
+			return "legal link too short %s" % rect.size
+		if rect.intersects(card.resume_control().get_global_rect()) or rect.intersects(_game._sound_button.get_global_rect()):
+			return "legal link overlaps the bar"
+	if card.privacy_control().get_global_rect().intersects(card.support_control().get_global_rect()):
+		return "privacy and support overlap"
+	return ""
+
 
 func _check_icons(card) -> String:
 	for i in card._pickup_icons.size():

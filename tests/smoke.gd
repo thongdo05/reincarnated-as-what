@@ -2782,7 +2782,59 @@ func _check_pause_pages(card) -> int:
 		if card._text_width(effect.text, PauseCard.EFFECT_PX) > effect.size.x + 1.0:
 			push_error("pickup effect does not fit '%s'" % effect.text)
 			failed += 1
+	if card.legal_visible() or card.privacy_control().visible or card.support_control().visible:
+		push_error("the editor and web pause card should hide privacy and support")
+		failed += 1
 	card.set_store_row(true, true)
+	if not card.legal_visible() or card.privacy_control().text != "PRIVACY" or card.support_control().text != "SUPPORT":
+		push_error("a store pause card should show Privacy and Support")
+		failed += 1
+	var store_card: Rect2 = card.get_global_rect()
+	var bar_top := float(card.resume_control().get_global_rect().position.y)
+	for link in [card.privacy_control(), card.support_control()]:
+		if not link.visible:
+			push_error("store pause link missing")
+			failed += 1
+			continue
+		var link_px := int(link.get_theme_font_size("font_size"))
+		if link_px < PauseCard.BAR_PX:
+			push_error("pause link should stay on the 9px face, got %s" % link_px)
+			failed += 1
+		if card._text_width(link.text, link_px) + 8.0 > link.size.x + 0.5:
+			push_error("pause link needs padding '%s'" % link.text)
+			failed += 1
+		var link_rect: Rect2 = link.get_global_rect()
+		if not store_card.encloses(link_rect) or link_rect.end.y > bar_top + 0.5:
+			push_error("pause link should sit inside the card above the bar, %s" % link_rect)
+			failed += 1
+		if link_rect.intersects(card.resume_control().get_global_rect()):
+			push_error("pause link overlaps resume")
+			failed += 1
+	if card.privacy_control().get_global_rect().intersects(card.support_control().get_global_rect()):
+		push_error("privacy and support overlap")
+		failed += 1
+	card.show_tab(PauseGuide.TAB_YOU)
+	for id in forms:
+		card.show_form(id, 0, 200, true)
+		var you_page: Control = card._you
+		var you_rect: Rect2 = you_page.get_global_rect()
+		if you_rect.end.y > bar_top - 6.0:
+			push_error("%s store you page crowds the bar" % FormCatalog.display_name(id))
+			failed += 1
+		for label in card._traits:
+			if not label.visible or str(label.text).is_empty():
+				continue
+			if not you_rect.encloses(label.get_global_rect()):
+				push_error("%s trait leaves the store pause page '%s'" % [FormCatalog.display_name(id), label.text])
+				failed += 1
+	card.show_tab(PauseGuide.TAB_PICKUPS)
+	for effect in card._pickup_effects:
+		if card._text_width(effect.text, PauseCard.EFFECT_PX) > effect.size.x + 1.0:
+			push_error("store pickup effect does not fit '%s'" % effect.text)
+			failed += 1
+		if not card._pickups.get_global_rect().encloses(effect.get_global_rect()):
+			push_error("store pickup effect leaves the page '%s'" % effect.text)
+			failed += 1
 	card.show_tab(PauseGuide.TAB_CONTROLS)
 	for label in card._control_labels:
 		if card._text_width(label.text, PauseCard.BODY_PX) > label.size.x + 1.0:
@@ -2794,6 +2846,9 @@ func _check_pause_pages(card) -> int:
 			push_error("bar label needs 4px padding '%s'" % button.text)
 			failed += 1
 	card.set_store_row(false, false)
+	if card.legal_visible() or card.privacy_control().visible:
+		push_error("clearing the store row should hide privacy and support")
+		failed += 1
 	card.show_form(FormCatalog.Id.SLIME, 0, 0, true)
 	card.show_tab(PauseGuide.TAB_YOU)
 	return failed
@@ -5170,10 +5225,43 @@ func _check_ad_policy() -> int:
 		push_error("Android interstitial unit id is not the store unit")
 		failed += 1
 	if not StoreConfig.REAL_IOS_BANNER_UNIT_ID.is_empty() or not StoreConfig.REAL_ANDROID_BANNER_UNIT_ID.is_empty():
-		push_error("banner real units are not created yet")
+		push_error("banner real units stay empty so a real-ads build keeps the banner off")
 		failed += 1
-	if not StoreConfig.REAL_IOS_REWARDED_UNIT_ID.is_empty() or not StoreConfig.REAL_ANDROID_REWARDED_UNIT_ID.is_empty():
-		push_error("rewarded real units are not created yet")
+	if StoreConfig.REAL_IOS_REWARDED_UNIT_ID != "ca-app-pub-1397621797560860/3491799585":
+		push_error("iOS rewarded unit id is not the store unit")
+		failed += 1
+	if StoreConfig.REAL_ANDROID_REWARDED_UNIT_ID != "ca-app-pub-1397621797560860/6919908709":
+		push_error("Android rewarded unit id is not the store unit")
+		failed += 1
+	if StoreConfig.rewarded_unit_for(true, true) != StoreConfig.TEST_IOS_REWARDED_UNIT_ID:
+		push_error("test ads should keep Google's iOS rewarded sample")
+		failed += 1
+	if StoreConfig.rewarded_unit_for(true, false) != StoreConfig.TEST_ANDROID_REWARDED_UNIT_ID:
+		push_error("test ads should keep Google's Android rewarded sample")
+		failed += 1
+	if StoreConfig.rewarded_unit_for(false, true) != StoreConfig.REAL_IOS_REWARDED_UNIT_ID:
+		push_error("real ads should request the iOS rewarded unit for choose-your-form")
+		failed += 1
+	if StoreConfig.rewarded_unit_for(false, false) != StoreConfig.REAL_ANDROID_REWARDED_UNIT_ID:
+		push_error("real ads should request the Android rewarded unit for choose-your-form")
+		failed += 1
+	if not StoreConfig.banner_unit_for(false, true).is_empty() or not StoreConfig.banner_unit_for(false, false).is_empty():
+		push_error("a real-ads build should not request a banner")
+		failed += 1
+	if StoreConfig.banner_unit_for(true, true).is_empty() or StoreConfig.banner_unit_for(true, false).is_empty():
+		push_error("test ads should still have a banner unit")
+		failed += 1
+	if StoreConfig.interstitial_unit_for(false, true) != StoreConfig.REAL_IOS_INTERSTITIAL_UNIT_ID:
+		push_error("real ads should request the iOS interstitial")
+		failed += 1
+	if StoreConfig.PRIVACY_URL != "https://thongdo05.github.io/reincarnated-as-what/privacy.html":
+		push_error("privacy url drifted")
+		failed += 1
+	if StoreConfig.SUPPORT_URL != "https://thongdo05.github.io/reincarnated-as-what/support.html":
+		push_error("support url drifted")
+		failed += 1
+	if CrazyGamesHost.PRIVACY_URL != StoreConfig.PRIVACY_URL:
+		push_error("the CrazyGames privacy link should stay the Pages privacy page")
 		failed += 1
 	if StoreConfig.REMOVE_ADS_PRODUCT_ID != "remove_ads":
 		push_error("remove ads product id changed")
@@ -5240,6 +5328,19 @@ func _check_ad_policy() -> int:
 	if not AdPolicy.rewarded_opens_picker(true) or AdPolicy.rewarded_opens_picker(false):
 		push_error("the form picker opens only from the rewarded callback")
 		failed += 1
+	var money_src := FileAccess.get_file_as_string("res://scripts/monetization.gd")
+	if money_src.find("StoreConfig.rewarded_unit_id()") < 0:
+		push_error("choose your form should load the rewarded unit")
+		failed += 1
+	var game_src := FileAccess.get_file_as_string("res://scripts/game.gd")
+	if game_src.find("request_rewarded_form_pick") < 0 or game_src.find("Choose your form") < 0:
+		push_error("the death card should still offer choose-your-form through the rewarded ad")
+		failed += 1
+	var pause_src := FileAccess.get_file_as_string("res://scripts/pause_card.gd")
+	if pause_src.find("StoreConfig.PRIVACY_URL") < 0 or pause_src.find("StoreConfig.SUPPORT_URL") < 0 or pause_src.find("OS.shell_open") < 0:
+		push_error("pause privacy and support should open in the system browser")
+		failed += 1
+	failed += _check_store_release_files()
 	if AdPolicy.form_is_pickable(FormCatalog.Id.DRAGON):
 		push_error("Dragon is not a pickable form")
 		failed += 1
@@ -5256,6 +5357,55 @@ func _check_ad_policy() -> int:
 	if not safe.encloses(band):
 		push_error("banner left the safe area %s" % band)
 		failed += 1
+	return failed
+
+
+func _check_store_release_files() -> int:
+	var failed := 0
+	var project := FileAccess.get_file_as_string("res://project.godot")
+	if project.find("window/handheld/orientation=4") < 0:
+		push_error("handheld orientation should stay sensor landscape")
+		failed += 1
+	var preset := FileAccess.get_file_as_string("res://export_presets.cfg")
+	var ios_at := preset.find("[preset.1]")
+	var android_at := preset.find("[preset.2]")
+	if ios_at < 0 or android_at < ios_at:
+		push_error("iOS preset should stay in slot 1")
+		return failed + 1
+	var ios := preset.substr(ios_at, android_at - ios_at)
+	if ios.find('name="iOS"') < 0:
+		push_error("preset 1 should be the iOS export")
+		failed += 1
+	if ios.find("application/targeted_device_family=0") < 0:
+		push_error("iOS export should stay iPhone only")
+		failed += 1
+	if ios.find("privacy/tracking_enabled=true") < 0:
+		push_error("iOS privacy manifest should declare tracking")
+		failed += 1
+	if ios.find("privacy/user_defaults_access_reasons=4") < 0:
+		push_error("iOS privacy manifest should declare user defaults CA92.1")
+		failed += 1
+	if ios.find("privacy/file_timestamp_access_reasons=3") < 0 or ios.find("privacy/disk_space_access_reasons=3") < 0 or ios.find("privacy/system_boot_time_access_reasons=1") < 0:
+		push_error("iOS privacy manifest should keep Godot's required-reason APIs")
+		failed += 1
+	var workflow := FileAccess.get_file_as_string("res://.github/workflows/ios-testflight.yml")
+	if workflow.find("use_real_ads:") < 0 or workflow.find("default: false") < 0:
+		push_error("TestFlight real ads should be an opt-in workflow input")
+		failed += 1
+	var pages := FileAccess.get_file_as_string("res://.github/workflows/pages.yml")
+	var crazy := FileAccess.get_file_as_string("res://.github/workflows/crazygames.yml")
+	if pages.find("use_real_ads") >= 0 or crazy.find("use_real_ads") >= 0:
+		push_error("web workflows should not flip ad units")
+		failed += 1
+	var skad := FileAccess.get_file_as_string("res://addons/admob/ios/bin/ads/poing_godot_admob_ads.gd")
+	if skad.find("cstr6suwn9.skadnetwork") < 0 or skad.find("SKAdNetworkItems") < 0:
+		push_error("the AdMob exporter should still ship Google's SKAdNetwork id")
+		failed += 1
+	var archive := FileAccess.get_file_as_string("res://tools/ios_archive_and_upload.sh")
+	for needle in ["GADApplicationIdentifier", "NSUserTrackingUsageDescription", "SKAdNetworkItems", "PrivacyInfo.xcprivacy", "TARGETED_DEVICE_FAMILY", "UIInterfaceOrientationLandscapeLeft"]:
+		if archive.find(needle) < 0:
+			push_error("the TestFlight archive check dropped %s" % needle)
+			failed += 1
 	return failed
 
 
