@@ -2,6 +2,8 @@
 
 The web build is still the one GitHub Pages ships. Ads and the remove-ads purchase do nothing on the web and in the editor. On a phone, dev and TestFlight builds request Google's test ad units until `USE_TEST_ADS` in `scripts/store_config.gd` is turned off. The AdMob app id in the binary is the real one either way.
 
+Support email: `playreincarnated@gmail.com`. The game does not collect the player's email. That address is the contact on the public privacy and support pages (`privacy.html` and `support.html` on the Pages site). A request to delete a leaderboard row is an email to that address. There is no in-game account.
+
 Landscape only. The project setting `display/window/handheld/orientation` is sensor landscape, so the phone may lie on either side and never in portrait. Dragging still moves the ship: touch is `InputEventScreenTouch` / `InputEventScreenDrag`, and the pause target stays at least 44 points, inset by the notch when the phone has one.
 
 ## Plugins
@@ -161,7 +163,7 @@ Three things, and nothing else. No email, phone number, contacts, photos, precis
 
 1. **Ads.** Google AdMob, only on the iOS and Android builds: a death-card banner, an interstitial every five runs, and an optional rewarded ad to choose the next form. Google receives the advertising identifier and related device data. If the player taps Ask App Not to Track, iOS does not give AdMob the advertising identifier. Buying `remove_ads` stops the banner and the interstitial. The web build does not load AdMob.
 2. **Remove ads.** The purchase is handled by Apple (StoreKit) or Google Play. The game keeps a local flag that ads are removed. It does not send the receipt or the payment to our server.
-3. **Leaderboard.** The name the player chooses and their scores are stored in Supabase (`scripts/leaderboard.gd`). The same row includes how long the run lasted, which form it was, and a random id the game creates so that device keeps its row. That id is not the advertising identifier. It is stored on the device and sent only with the leaderboard.
+3. **Leaderboard.** The name the player chooses and their scores are stored in Supabase (`scripts/leaderboard.gd`). The same row includes how long the run lasted, which form it was, and a random id the game creates so that device keeps its row. That id is not the advertising identifier. It is stored on the device and sent only with the leaderboard. To ask for that row to be deleted, email `playreincarnated@gmail.com` with the leaderboard name.
 
 ## Privacy labels
 

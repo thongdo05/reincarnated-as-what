@@ -5416,16 +5416,25 @@ func _check_crazygames_gates() -> int:
 		push_error("a missing SDK key should copy the old file once")
 		failed += 1
 	var policy := FileAccess.get_file_as_string("res://web/privacy.html")
-	for needle in ["leaderboard name", "random id", "Supabase", "AdMob", "Ask App Not to Track", "does not create an account", "TODO"]:
+	for needle in ["leaderboard name", "random id", "Supabase", "AdMob", "Ask App Not to Track", "does not create an account", "playreincarnated@gmail.com", "Remove Ads"]:
 		if policy.find(needle) < 0:
 			push_error("privacy.html is missing %s" % needle)
 			failed += 1
-	if policy.find("@") >= 0:
-		push_error("privacy.html should not invent a contact email")
+	if policy.find("TODO") >= 0:
+		push_error("privacy.html should use the support email, not a TODO")
 		failed += 1
+	var support := FileAccess.get_file_as_string("res://web/support.html")
+	for needle in ["playreincarnated@gmail.com", "Restore", "Remove Ads"]:
+		if support.find(needle) < 0:
+			push_error("support.html is missing %s" % needle)
+			failed += 1
 	var workflow := FileAccess.get_file_as_string("res://.github/workflows/pages.yml")
-	if workflow.find("web/privacy.html") < 0:
-		push_error("the Pages workflow should publish privacy.html")
+	if workflow.find("web/privacy.html") < 0 or workflow.find("web/support.html") < 0:
+		push_error("the Pages workflow should publish privacy.html and support.html")
+		failed += 1
+	var stores_doc := FileAccess.get_file_as_string("res://docs/MOBILE_STORES.md")
+	if stores_doc.find("playreincarnated@gmail.com") < 0:
+		push_error("MOBILE_STORES.md should list the support email")
 		failed += 1
 	var game_src := FileAccess.get_file_as_string("res://scripts/game.gd")
 	var open_at := game_src.find("func _open_privacy_page")
