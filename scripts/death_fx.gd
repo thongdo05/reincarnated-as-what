@@ -23,7 +23,7 @@ func start(at: Vector2, sprite: String) -> void:
 func _draw() -> void:
 	if not active or sprite_name.is_empty():
 		return
-	var frame := int(floor(elapsed * FxTimeline.FPS + 0.0001))
+	var frame := int(floor(FxTimeline.death_to_source(elapsed) * FxTimeline.FPS + 0.0001))
 	if frame < 0 or frame > 10:
 		return
 	if frame <= 1:

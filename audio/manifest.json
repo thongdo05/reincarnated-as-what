@@ -47,7 +47,7 @@
     "event": "REBORN AS...? tease card (1 s)",
     "lufs": -18.8,
     "true_peak": -7.6,
-    "notes": "Rising chiptune arpeggio (notes ~every 85 ms) ending on an unresolved chime; trimmed to exactly 1.0 s. Play at death f11 (0.92 s). Max momentary -16.0 LUFS. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
+    "notes": "Rising chiptune arpeggio (notes ~every 85 ms) ending on an unresolved chime; trimmed to exactly 1.0 s. The engine starts this 1.0 s sting early enough that it finishes as the 1.2 s death card arrives, so the ending is not cut off. Max momentary -16.0 LUFS. 48000 Hz, mono. lufs = integrated (gated) loudness; true_peak in dBTP."
   },
   {
     "file": "sting_reborn_tease.ogg",

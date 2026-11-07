@@ -12,6 +12,13 @@ class_name SoundRig
 var settings_path := AudioCues.SETTINGS_PATH
 var enabled := true
 var played: Array[String] = []
+## Events asked to stop. Skip and retry append here even when headless
+## never started the voice, so the check can see the request.
+var stopped: Array[String] = []
+## Reveal stings asked to fade. The seconds live in fade_seconds.
+var faded: Array[String] = []
+var fade_seconds: Dictionary = {}
+var last_from_position := 0.0
 
 var _music_wanted := false
 var _unlocked := false
@@ -47,6 +54,8 @@ var _loop_latched: Dictionary = {}
 ## Seconds left on the gem duck and on the shared SFX limiter.
 var _gem_duck := 0.0
 var _cue_headroom := 0.0
+var _fades: Array[Dictionary] = []
+var _reveal_event := ""
 
 ## Meteor falls sit under the impacts while a rain is up. The SFX bus
 ## also gives the stack 1.5 dB of headroom and a limiter. The power
@@ -226,23 +235,34 @@ func _process(delta: float) -> void:
 	_gem_quiet = minf(_gem_quiet + delta, AudioCues.GEM_CHAIN_RESET)
 	if _gem_quiet >= AudioCues.GEM_CHAIN_RESET:
 		_gem_step = 0
+	_tick_fades(delta)
 	poll_web_gesture(delta)
 
 func play_title_card(card: String) -> void:
 	var event := AudioCues.reveal_event_for_card(card)
 	if event == "":
 		return
+	_reveal_event = event
+	play_event(event)
+
+func play_form_reveal(form_id: int) -> void:
+	var event := AudioCues.reveal_event_for_form(form_id)
+	if event == "":
+		_reveal_event = ""
+		return
+	_reveal_event = event
 	play_event(event)
 
 ## The vending machine is not in the run roster. Call this to hear its sting.
 func debug_play_vending_reveal() -> void:
+	_reveal_event = "reveal_vending_machine"
 	play_event("reveal_vending_machine")
 
-func play_event(event: String, gain_db: float = 0.0, pitch_scale: float = -1.0) -> void:
+func play_event(event: String, gain_db: float = 0.0, pitch_scale: float = -1.0, from_position: float = 0.0) -> void:
 	if DragonAudio.is_tier(event):
 		_arm_tier(event, gain_db)
 		return
-	_emit(event, gain_db, pitch_scale)
+	_emit(event, gain_db, pitch_scale, from_position)
 
 func play_later(event: String, delay: float, gain_db: float = 0.0) -> void:
 	if delay <= 0.0:
@@ -326,7 +346,7 @@ func _sync_sfx_guard() -> void:
 			break
 	_limiter = null
 
-func _emit(event: String, gain_db: float, pitch_scale: float = -1.0) -> void:
+func _emit(event: String, gain_db: float, pitch_scale: float = -1.0, from_position: float = 0.0) -> void:
 	var key := DragonAudio.canonical(event)
 	var data := AudioCues.spec(key)
 	if data.is_empty():
@@ -348,6 +368,7 @@ func _emit(event: String, gain_db: float, pitch_scale: float = -1.0) -> void:
 		_loop_latched[key] = true
 	last_gain_db = gain_db
 	last_pitch_scale = pitch
+	last_from_position = from_position
 	if key == "power_level_up" and enabled:
 		_begin_power_level_mix()
 	if DragonAudio.is_breath_warning(key):
@@ -369,7 +390,7 @@ func _emit(event: String, gain_db: float, pitch_scale: float = -1.0) -> void:
 	# exit is reported as a leak, and the headless check fails CI on it.
 	if DisplayServer.get_name() == "headless":
 		return
-	player.play()
+	player.play(maxf(from_position, 0.0))
 
 func _arm_tier(event: String, gain_db: float) -> void:
 	_tier_armed = true
@@ -452,11 +473,97 @@ func _exit_tree() -> void:
 
 func stop_event(event: String) -> void:
 	var key := DragonAudio.canonical(event)
+	stopped.append(key)
 	_loop_latched.erase(key)
+	_drop_fades(key)
+	var restore := float(AudioCues.spec(key).get("volume_db", 0.0))
 	for item in _pool(key):
 		var player := item as AudioStreamPlayer
-		if player.playing:
+		player.stop()
+		player.volume_db = restore
+
+## Short fade, then stop. Headless has no device, so the stop is immediate
+## and faded/fade_seconds still record the request.
+func fade_event(event: String, seconds: float = -1.0) -> void:
+	var key := DragonAudio.canonical(event)
+	if _pool(key).is_empty():
+		return
+	var span := AudioCues.REVEAL_FADE_SECONDS if seconds < 0.0 else seconds
+	faded.append(key)
+	fade_seconds[key] = span
+	if DisplayServer.get_name() == "headless" or span <= 0.0:
+		stop_event(key)
+		return
+	var fading := false
+	for item in _pool(key):
+		var player := item as AudioStreamPlayer
+		if not player.playing:
+			continue
+		fading = true
+		_fades.append({
+			"player": player,
+			"event": key,
+			"left": span,
+			"total": span,
+			"from_db": player.volume_db,
+		})
+	if not fading:
+		stop_event(key)
+
+## Title-card stings stop when play begins, including a tap that skips the card.
+func fade_form_reveals() -> void:
+	var named := _reveal_event
+	_reveal_event = ""
+	if named != "":
+		fade_event(named, AudioCues.REVEAL_FADE_SECONDS)
+	for event in AudioCues.reveal_events():
+		if event == named:
+			continue
+		fade_event(event, AudioCues.REVEAL_FADE_SECONDS)
+
+func event_length(event: String) -> float:
+	var hinted := float(AudioCues.spec(event).get("duration", 0.0))
+	var player := player_for(event)
+	if player != null and player.stream != null:
+		var measured := player.stream.get_length()
+		if measured > 0.05:
+			return measured
+	if hinted > 0.05:
+		return hinted
+	return 0.0
+
+func _tick_fades(delta: float) -> void:
+	if _fades.is_empty():
+		return
+	var keep: Array[Dictionary] = []
+	for item in _fades:
+		var player := item["player"] as AudioStreamPlayer
+		if not is_instance_valid(player):
+			continue
+		var left := float(item["left"]) - delta
+		var total := maxf(float(item["total"]), 0.0001)
+		if left <= 0.0 or not player.playing:
 			player.stop()
+			player.volume_db = float(item["from_db"])
+			continue
+		var unit := clampf(left / total, 0.0, 1.0)
+		player.volume_db = float(item["from_db"]) + linear_to_db(maxf(unit, 0.0001))
+		item["left"] = left
+		keep.append(item)
+	_fades = keep
+
+func _drop_fades(event: String) -> void:
+	if _fades.is_empty():
+		return
+	var keep: Array[Dictionary] = []
+	for item in _fades:
+		if str(item["event"]) == event:
+			var player := item["player"] as AudioStreamPlayer
+			if is_instance_valid(player):
+				player.volume_db = float(item["from_db"])
+			continue
+		keep.append(item)
+	_fades = keep
 
 func play_count(event: String) -> int:
 	var count := 0

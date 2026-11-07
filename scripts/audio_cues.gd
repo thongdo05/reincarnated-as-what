@@ -40,8 +40,19 @@ const POWER_LEVEL_PITCH_CAP := 12
 ## Fanfare chord inside sfx_evolve.wav. Evolve frame 5, the EVOLVED! pop.
 const EVOLVE_HIT_SECONDS := 0.42
 
-## Plays with the Vending Machine title card. The other forms stay silent.
+## Plays with the Vending Machine title card. The other forms stay silent
+## until a reveal_<form> file is dropped in.
 const VENDING_TITLE := "title_cards/title_vending_machine.png"
+
+## Designer drop-ins. Each event loads res://audio/<event>.ogg, then .wav.
+## A missing file keeps today's sound, so a build with no new assets plays
+## the same cues as before. See audio/README.md.
+const SIGNATURE_EVENT := "sting_reincarnation_signature"
+const NEW_BEST_EVENT := "new_best"
+const FORM_KEYS: PackedStringArray = ["slime", "vending_machine", "goblin", "cat", "demon_lord", "dragon"]
+## The vending reveal is 1.6 s and the card is 1.5 s (0.48 s on a retry).
+## Fade it out instead of letting the tail play into the run.
+const REVEAL_FADE_SECONDS := 0.08
 
 ## A DragonPhase hook name is a cue even when its sample has not been matched.
 static func is_hook(event: String) -> bool:
@@ -51,6 +62,8 @@ static func spec(event: String) -> Dictionary:
 	var dragon := DragonAudio.spec(event)
 	if not dragon.is_empty():
 		return dragon
+	if is_drop_in(event):
+		return _drop_in_spec(event)
 	match event:
 		"gameplay_music":
 			return {
@@ -106,32 +119,11 @@ static func spec(event: String) -> Dictionary:
 				"duration": 0.68,
 			}
 		"enemy_killed":
-			return {
-				"file": "res://audio/sfx_enemy_pop.wav",
-				"bus": SFX_BUS,
-				"loop": false,
-				"lufs": -17.0,
-				"polyphony": POP_POLYPHONY,
-				"pitch_semitones": POP_SEMITONE_MAX,
-			}
+			return _enemy_pop_spec()
 		"player_death":
-			return {
-				"file": "res://audio/sfx_death.wav",
-				"bus": SFX_BUS,
-				"loop": false,
-				"lufs": -18.3,
-				"polyphony": 1,
-				"pitch_semitones": 0.0,
-			}
+			return _player_death_spec()
 		"reborn_tease":
-			return {
-				"file": "res://audio/sting_reborn_tease.ogg",
-				"bus": SFX_BUS,
-				"loop": false,
-				"lufs": -18.7,
-				"polyphony": 1,
-				"pitch_semitones": 0.0,
-			}
+			return _reborn_spec()
 		"evolve":
 			return {
 				"file": "res://audio/sfx_evolve.wav",
@@ -141,15 +133,6 @@ static func spec(event: String) -> Dictionary:
 				"polyphony": 1,
 				"pitch_semitones": 0.0,
 				"hit_seconds": EVOLVE_HIT_SECONDS,
-			}
-		"reveal_vending_machine":
-			return {
-				"file": "res://audio/sting_reveal_vending_machine.wav",
-				"bus": SFX_BUS,
-				"loop": false,
-				"lufs": -19.3,
-				"polyphony": 1,
-				"pitch_semitones": 0.0,
 			}
 		"boss_lich_king_enter":
 			return _boss_cue("sfx_boss_lich_king_enter.wav", -19.9, 1.24)
@@ -194,8 +177,168 @@ static func _shot_spec(path: String, lufs: float, duration: float, optional: boo
 		"optional": optional,
 	}
 
+static func _enemy_pop_spec() -> Dictionary:
+	return {
+		"file": "res://audio/sfx_enemy_pop.wav",
+		"bus": SFX_BUS,
+		"loop": false,
+		"lufs": -17.0,
+		"polyphony": POP_POLYPHONY,
+		"pitch_semitones": POP_SEMITONE_MAX,
+	}
+
+static func _player_death_spec() -> Dictionary:
+	return {
+		"file": "res://audio/sfx_death.wav",
+		"bus": SFX_BUS,
+		"loop": false,
+		"lufs": -18.3,
+		"polyphony": 1,
+		"pitch_semitones": 0.0,
+	}
+
+static func _reborn_spec() -> Dictionary:
+	return {
+		"file": "res://audio/sting_reborn_tease.ogg",
+		"bus": SFX_BUS,
+		"loop": false,
+		"lufs": -18.7,
+		"polyphony": 1,
+		"pitch_semitones": 0.0,
+		"duration": 1.0,
+	}
+
+static func _vending_reveal_spec() -> Dictionary:
+	return {
+		"file": "res://audio/sting_reveal_vending_machine.wav",
+		"bus": SFX_BUS,
+		"loop": false,
+		"lufs": -19.3,
+		"polyphony": 1,
+		"pitch_semitones": 0.0,
+		"duration": 1.6,
+	}
+
+static func _plain_sting() -> Dictionary:
+	return {
+		"file": "",
+		"bus": SFX_BUS,
+		"loop": false,
+		"lufs": -18.0,
+		"polyphony": 1,
+		"pitch_semitones": 0.0,
+		"optional": true,
+	}
+
+## player_death_<form>, sting_reincarnation_signature, new_best, reveal_<form>.
+static func is_drop_in(event: String) -> bool:
+	if event == SIGNATURE_EVENT or event == NEW_BEST_EVENT:
+		return true
+	if event.begins_with("player_death_") and event != "player_death":
+		return true
+	return event.begins_with("reveal_")
+
+static func _drop_in_base(event: String) -> Dictionary:
+	if event.begins_with("player_death_"):
+		return _player_death_spec()
+	if event == SIGNATURE_EVENT:
+		return _reborn_spec()
+	if event == NEW_BEST_EVENT:
+		return _enemy_pop_spec()
+	if event == "reveal_vending_machine":
+		return _vending_reveal_spec()
+	return {}
+
+## ogg wins when both are present. ResourceLoader sees the imported sample
+## inside an exported pck. FileAccess also sees a source file a designer
+## just dropped in, which is what the headless fallback test writes.
+static func hook_file(event: String) -> String:
+	for ext in ["ogg", "wav"]:
+		var path := "res://audio/%s.%s" % [event, ext]
+		if ResourceLoader.exists(path) or FileAccess.file_exists(path):
+			return path
+	return ""
+
+static func _drop_in_spec(event: String) -> Dictionary:
+	var custom := hook_file(event)
+	if custom != "":
+		var shell := _drop_in_base(event)
+		if shell.is_empty():
+			shell = _plain_sting()
+		return _use_custom_file(shell, custom)
+	var base := _drop_in_base(event)
+	if base.is_empty():
+		return {}
+	var data := base.duplicate(true)
+	data["using_fallback"] = true
+	return data
+
+## A dropped-in file plays as mastered: one voice, no pitch wobble.
+static func _use_custom_file(base: Dictionary, path: String) -> Dictionary:
+	var data := base.duplicate(true)
+	data["file"] = path
+	data["using_fallback"] = false
+	data["pitch_semitones"] = 0.0
+	data["pitch_ratio"] = 0.0
+	data["polyphony"] = 1
+	data["optional"] = true
+	if data.has("pitch_chain"):
+		data["pitch_chain"] = false
+	return data
+
+static func death_event_for_form(form_id: int) -> String:
+	return "player_death_%s" % FormCatalog.key_for(form_id)
+
+static func reveal_event_for_form(form_id: int) -> String:
+	var event := "reveal_%s" % FormCatalog.key_for(form_id)
+	if hook_file(event) != "":
+		return event
+	if event == "reveal_vending_machine":
+		return event
+	return ""
+
+static func reveal_events() -> PackedStringArray:
+	var names := PackedStringArray()
+	for key in FORM_KEYS:
+		names.append("reveal_%s" % key)
+	return names
+
+static func death_events() -> PackedStringArray:
+	var names := PackedStringArray()
+	names.append("player_death")
+	for key in FORM_KEYS:
+		names.append("player_death_%s" % key)
+	return names
+
+## Death stings, the tease, and NEW BEST. Skip and retry stop all of these.
+## None of them block the tap.
+static func run_end_events() -> PackedStringArray:
+	var names := death_events()
+	names.append("reborn_tease")
+	names.append(SIGNATURE_EVENT)
+	names.append(NEW_BEST_EVENT)
+	return names
+
+## Start the 1 s tease sting early enough that it ends as the card opens.
+## A sting longer than the whole sequence keeps its ending (the front is trimmed).
+## A short sting waits for the REBORN AS...? card.
+static func signature_start(length: float) -> float:
+	var card := FxTimeline.death_card_at()
+	var visual := FxTimeline.death_tease_at()
+	if length <= 0.0:
+		return visual
+	if length >= card:
+		return 0.0
+	return minf(card - length, visual)
+
+static func signature_offset(length: float) -> float:
+	var card := FxTimeline.death_card_at()
+	if length > card:
+		return length - card
+	return 0.0
+
 static func all_events() -> PackedStringArray:
-	return PackedStringArray([
+	var names := PackedStringArray([
 		"gameplay_music",
 		"slime_shot",
 		"goblin_shot",
@@ -208,8 +351,14 @@ static func all_events() -> PackedStringArray:
 		"enemy_killed",
 		"player_death",
 		"reborn_tease",
+		SIGNATURE_EVENT,
+		NEW_BEST_EVENT,
 		"evolve",
-		"reveal_vending_machine",
+	])
+	for key in FORM_KEYS:
+		names.append("player_death_%s" % key)
+		names.append("reveal_%s" % key)
+	names.append_array(PackedStringArray([
 		"boss_lich_king_enter",
 		"boss_lich_king_death",
 		"boss_death_knight_enter",
@@ -217,7 +366,8 @@ static func all_events() -> PackedStringArray:
 		"boss_great_dragon_enter",
 		"boss_great_dragon_death",
 		"dragon_slain",
-	])
+	]))
+	return names
 
 static func is_shot_event(event: String) -> bool:
 	var key := DragonAudio.canonical(event)
@@ -263,24 +413,27 @@ static func power_level_pitch(level: int) -> float:
 	return semitone_to_pitch(power_level_semitones(level))
 
 static func reveal_event_for_card(card: String) -> String:
+	for id in [FormCatalog.Id.SLIME, FormCatalog.Id.GOBLIN, FormCatalog.Id.VENDING, FormCatalog.Id.CAT, FormCatalog.Id.DEMON]:
+		var title := FormCatalog.title_card(id)
+		if card == title or card.ends_with(title):
+			return reveal_event_for_form(id)
 	if card == VENDING_TITLE or card.ends_with(VENDING_TITLE):
 		return "reveal_vending_machine"
 	return ""
 
-## Death sting at frame 0. Tease sting at frame 11, which is the 0.92 s handoff.
-static func cues_for_death_transition(previous: String, stage: String) -> PackedStringArray:
+## Death sting at the hit. The signature is scheduled by signature_start so a
+## 1 s file is not cut off when the card arrives at 1.2 s.
+static func cues_for_death_transition(previous: String, stage: String, form_id: int = -1) -> PackedStringArray:
 	var cues := PackedStringArray()
 	if stage == "hit" and previous != "hit":
-		cues.append("player_death")
-	if stage == "tease" and previous != "tease":
-		cues.append("reborn_tease")
+		cues.append(death_event_for_form(form_id))
 	return cues
 
 static func death_event_seconds(event: String) -> float:
-	if event == "player_death":
+	if event == "player_death" or event.begins_with("player_death_"):
 		return 0.0
-	if event == "reborn_tease":
-		return float(FxTimeline.DEATH_FRAMES) / FxTimeline.FPS
+	if event == "reborn_tease" or event == SIGNATURE_EVENT:
+		return signature_start(float(spec(SIGNATURE_EVENT).get("duration", 1.0)))
 	return -1.0
 
 static func semitone_to_pitch(semitones: float) -> float:
