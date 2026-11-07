@@ -1576,23 +1576,48 @@ func _winner_clear() -> void:
 				_spawn_fx("death_puff.png", enemy.position, 0.22, 0.35, 1.1)
 	_winner_busy = false
 
+## Demon Lord orbs are the only homing shots. With no boss alive, each orb
+## still picks the nearest living enemy. While a boss is alive, the orb holds
+## on that boss unless a non-boss enemy is within DEMON_BOSS_PREF_RADIUS.
 func _guide_orbs(delta: float) -> void:
+	var boss: EnemyActor = null
 	var foes: Array[EnemyActor] = []
+	# Same boss _living_boss() would return, gathered in that one pass.
 	for enemy in _enemies:
-		if enemy.alive:
-			foes.append(enemy)
-	if foes.is_empty():
+		if not is_instance_valid(enemy) or not enemy.alive:
+			continue
+		if enemy.is_boss():
+			if boss == null:
+				boss = enemy
+			continue
+		foes.append(enemy)
+	if boss == null and foes.is_empty():
 		return
+	var grab_r2 := 0.0
+	if boss != null:
+		var grab := FormCatalog.DEMON_BOSS_PREF_RADIUS
+		grab_r2 = grab * grab
 	for shot in _shots:
 		if not is_instance_valid(shot) or shot.homing <= 0.0 or not shot.from_player:
 			continue
 		var best: EnemyActor = null
 		var best_d := 99999999.0
-		for enemy in foes:
-			var dist := shot.position.distance_squared_to(enemy.position)
-			if dist < best_d:
-				best_d = dist
-				best = enemy
+		if boss == null:
+			for enemy in foes:
+				var dist := shot.position.distance_squared_to(enemy.position)
+				if dist < best_d:
+					best_d = dist
+					best = enemy
+		else:
+			best = boss
+			var close_d := grab_r2
+			for enemy in foes:
+				var dist := shot.position.distance_squared_to(enemy.position)
+				if dist > grab_r2:
+					continue
+				if best == boss or dist < close_d:
+					close_d = dist
+					best = enemy
 		if best == null:
 			continue
 		var cruise := shot.cruise if shot.cruise > 1.0 else shot.velocity.length()

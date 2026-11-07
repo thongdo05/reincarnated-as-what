@@ -162,6 +162,9 @@ const DEMON := {
 	"per_enemy": 0.5,
 	"enemy_cap": 6,
 }
+## While a boss is alive, a homing orb steers at that boss unless a minion
+## is this close. Center distance, not the hit circle.
+const DEMON_BOSS_PREF_RADIUS := 40.0
 
 ## Kept so older shot-size checks can still name the previous circle fraction.
 ## Live shots use the shapes in res://art/hitboxes.json.
