@@ -1817,8 +1817,8 @@ func _check_death_card() -> int:
 		if button.mouse_filter != Control.MOUSE_FILTER_STOP:
 			push_error("Reincarnate should receive taps")
 			failed += 1
-		if rect.size.y + 0.01 < 22.0 or rect.size.y > 40.0 or rect.size.x < 300.0:
-			push_error("Reincarnate should be a full-width button about 40%% shorter (%s)" % rect)
+		if rect.size.y + 0.01 < 42.0 or rect.size.y > 46.0 or rect.size.x < 300.0:
+			push_error("Reincarnate should be about 42-46px tall and full width (%s)" % rect)
 			failed += 1
 		if rect.position.x < -0.5 or rect.position.y < -0.5 or rect.end.x > field.x + 0.5 or rect.end.y > field.y + 0.5:
 			push_error("Reincarnate left the field for '%s' rect %s field %s" % [lines[i], rect, field])
@@ -1896,6 +1896,10 @@ func _check_death_card() -> int:
 			var challenge_row := Rect2(game._beat_button.position, game._beat_button.size)
 			if absf(share_rect.size.x - challenge_row.size.x) > 1.0 or absf(share_rect.position.y - challenge_row.position.y) > 1.0:
 				push_error("Share should match the challenge row (%s vs %s)" % [share_rect, challenge_row])
+				failed += 1
+			var row_gap := float(challenge_row.position.x) - float(share_rect.end.x)
+			if row_gap < 6.0 or row_gap > 10.0:
+				push_error("the row buttons should have about 8px between them, gap %s" % row_gap)
 				failed += 1
 			if share_rect.intersects(rect) or share_rect.intersects(challenge_row):
 				push_error("Share overlaps Reincarnate or Challenge")
@@ -1978,9 +1982,13 @@ func _check_death_card_fit(game) -> int:
 		if not ad.visible or ad_rect.size.y + 0.01 < 22.0 or ad_rect.size.y > 28.0 or ad_rect.size.x + 1.0 < reinc_rect.size.x:
 			push_error("ad line should be a slim full-width row, got %s visible %s insets %s" % [ad_rect, ad.visible, insets])
 			failed += 1
-		var ad_gap := reinc_rect.position.y - ad_rect.end.y
-		if ad_gap > 8.0 or ad_gap < -0.5:
-			push_error("ad line should sit just above Reincarnate, gap %s insets %s" % [ad_gap, insets])
+		var ad_gap := float(reinc_rect.position.y) - float(ad_rect.end.y)
+		if ad_gap > 10.0 or ad_gap < 6.0:
+			push_error("ad line should sit about 8px above Reincarnate, gap %s insets %s" % [ad_gap, insets])
+			failed += 1
+		var row_gap := float(game._beat_button.position.y) - float(reinc_rect.end.y)
+		if row_gap > 10.0 or row_gap < 6.0:
+			push_error("the row should sit about 8px under Reincarnate, gap %s" % row_gap)
 			failed += 1
 		if game._restart_button.size.y + 0.01 < 22.0 or game._beat_button.size.y + 0.01 < 22.0:
 			push_error("retry %s and challenge %s should stay touch-sized" % [game._restart_button.size, game._beat_button.size])
@@ -2004,8 +2012,11 @@ func _check_death_card_fit(game) -> int:
 			failed += 1
 		var labels: Array[Label] = [
 			game._death_kicker, game._score_label, game._new_best_label,
-			game._share_label, game._rank_label, game._footer_label,
+			game._share_label, game._rank_label,
 		]
+		if game._footer_label.visible and game._footer_label.size.y > 1.0:
+			push_error("BEAT MY RUN should not be on the card")
+			failed += 1
 		var safe := Rect2(insets.x, insets.y, field.x - insets.x - insets.z, field.y - insets.y - insets.w)
 		for label in labels:
 			var rect := Rect2(label.position, label.size)
@@ -2371,6 +2382,14 @@ func _check_rank_fallback() -> int:
 	game._on_rank_part({"ok": false, "error": "offline", "rows": []}, "all", 4, 7)
 	if game._rank_label.text != "#4 today":
 		push_error("one good rank should show even if the other fetch fails, got %s" % game._rank_label.text)
+		failed += 1
+	game._set_rank_text("...", Color("a49fcf"))
+	if game._rank_label.visible or game._rank_label.text != "...":
+		push_error("the loading dots should stay off the death card, visible %s text %s" % [game._rank_label.visible, game._rank_label.text])
+		failed += 1
+	game._set_rank_text("#4 today", Color("8ecbff"))
+	if not game._rank_label.visible or game._rank_label.text != "#4 today":
+		push_error("a real rank should still show after the loading dots, got %s" % game._rank_label.text)
 		failed += 1
 	game._lb_gen = 5
 	game._rank_serial = 8
@@ -4983,18 +5002,9 @@ func _check_replay() -> int:
 	if game._new_best_label == null or game._new_best_label.text != "NEW BEST!":
 		push_error("beating the stored best should pop NEW BEST!")
 		failed += 1
-	if game._footer_label == null or game._footer_label.text != "BEAT MY RUN":
-		push_error("the death card should replace the seed line with BEAT MY RUN, got %s" % (game._footer_label.text if game._footer_label != null else "missing"))
+	if game._footer_label != null and game._footer_label.visible and not str(game._footer_label.text).is_empty():
+		push_error("the death card should not show BEAT MY RUN, got %s" % game._footer_label.text)
 		failed += 1
-	else:
-		var glyphs: Dictionary = PixelFont.plain_glyphs()
-		var footer_text := str(game._footer_label.text)
-		for i in footer_text.length():
-			var ch := footer_text.substr(i, 1)
-			if ch != "\n" and not glyphs.has(ch):
-				push_error("footer line uses a glyph the pixel font lacks: %s" % ch)
-				failed += 1
-				break
 	var seed_line := str(game._seed_line())
 	if seed_line.find("·") >= 0 or seed_line.find(" - ") < 0 or seed_line.find(str(game.day_seed)) < 0:
 		push_error("the seed string should stay available for links, got %s" % seed_line)
