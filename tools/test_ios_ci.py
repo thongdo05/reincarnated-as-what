@@ -571,6 +571,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertNotIn('echo "$IOS_PROVISIONING_PROFILE', line)
         self.assertIn("github.run_number", testflight)
         self.assertIn('IOS_SHORT_VERSION: "1.0"', testflight)
+        self.assertIn("build_ios_share_plugin.sh", script)
 
     def test_vendored_plugin_binaries(self) -> None:
         previous = os.getcwd()

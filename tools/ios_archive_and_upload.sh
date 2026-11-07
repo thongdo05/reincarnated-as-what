@@ -135,6 +135,9 @@ printf '%s\n' "$PROFILE_DIR/${PROFILE_UUID}.mobileprovision" >>"$MANIFEST"
 export GODOT_APPLE_PLATFORM_PROFILE_SPECIFIER_RELEASE="$PROFILE_NAME"
 
 mkdir -p build/ios
+echo "Building the iOS share sheet plugin."
+bash "$ROOT/tools/build_ios_share_plugin.sh"
+
 echo "Importing the Godot project."
 "$GODOT" --headless --path . --import --quit
 

@@ -36,6 +36,7 @@ func _initialize() -> void:
 	_unit_failed += _check_bosses()
 	_unit_failed += load("res://tests/dragon_phase_checks.gd").new().run()
 	_unit_failed += _check_ad_policy()
+	_unit_failed += _check_share_bridge()
 	_unit_failed += _check_safe_insets()
 	_unit_failed += _check_crazygames()
 	if _unit_failed > 0:
@@ -1800,7 +1801,7 @@ func _check_death_card() -> int:
 	for i in lines.size():
 		game._share_label.text = lines[i]
 		game._best_label.text = bests[i]
-		game._seed_label.text = "UTC seed 20261101 - run 99"
+		game._footer_label.text = "UTC seed 20261101 - run 99"
 		game._layout_death_card()
 		var field: Vector2 = game._viewport_size()
 		var button: Button = game._restart_button
@@ -1866,7 +1867,7 @@ func _check_death_card() -> int:
 			game._rank_label.visible = true
 			game._rank_label.text = "#12 today - #40 all-time"
 			game._layout_death_card()
-		for label in [game._share_label, game._best_label, game._seed_label, game._death_kicker, game._rank_label]:
+		for label in [game._share_label, game._best_label, game._footer_label, game._death_kicker, game._rank_label]:
 			var label_rect := Rect2(label.position, label.size)
 			if label_rect.end.y > rect.position.y + 0.5:
 				push_error("death copy overlaps Reincarnate for '%s'" % lines[i])
@@ -1888,8 +1889,175 @@ func _check_death_card() -> int:
 				push_error("death copy left the field for '%s'" % lines[i])
 				failed += 1
 				break
+	failed += _check_death_card_fit(game)
 	root.remove_child(game)
 	game.free()
+	return failed
+
+
+## Worst case at 480x270: every optional line, a long rank, and the ad button,
+## including a notch-sized safe inset. The ad row must not cover the info stack,
+## and hiding it must not leave that row's gap.
+func _check_death_card_fit(game) -> int:
+	var failed := 0
+	game._death_kicker.text = "RUN OVER"
+	game._score_label.text = "999,999"
+	game._score_label.visible = true
+	game._new_best_label.text = "NEW BEST!"
+	game._new_best_label.visible = true
+	game._share_label.text = "Reached VENDING FORTRESS"
+	game._best_label.text = "VENDING MACHINE BEST 999,999\nDAILY BEST 999,999"
+	game._rank_label.text = "Can't reach leaderboard - tap to retry"
+	game._rank_label.visible = true
+	game._footer_label.text = "BEAT MY RUN"
+	if game._form_pick_button == null:
+		game._form_pick_button = game._make_store_button()
+		game._game_over.add_child(game._form_pick_button)
+	game._form_pick_button.text = "Watch ad: choose your form"
+	game._form_pick_button.visible = true
+	var field: Vector2 = game._viewport_size()
+	if absf(field.x - 480.0) > 0.5 or absf(field.y - 270.0) > 0.5:
+		push_error("death card fit check expected the 480x270 viewport, got %s" % field)
+		failed += 1
+	var cases: Array[Vector4] = [Vector4.ZERO, Vector4(16, 4, 16, 12)]
+	for insets in cases:
+		game._force_death_insets_for_test(insets)
+		game._layout_death_card()
+		var ad: Button = game._form_pick_button
+		var ad_rect := Rect2(ad.position, ad.size)
+		if not ad.visible or ad_rect.size.y < 44.0 or ad_rect.size.x < 160.0:
+			push_error("ad button should be its own touch-sized row, got %s visible %s insets %s" % [ad_rect, ad.visible, insets])
+			failed += 1
+		if game._restart_button.size.y < 48.0 or game._beat_button.size.y < 44.0:
+			push_error("retry %s and challenge %s should stay touch-sized" % [game._restart_button.size, game._beat_button.size])
+			failed += 1
+		if game._beat_button.size.y + 0.5 >= game._restart_button.size.y:
+			push_error("challenge should stay shorter than Reincarnate")
+			failed += 1
+		var labels: Array[Label] = [
+			game._death_kicker, game._score_label, game._new_best_label,
+			game._share_label, game._best_label, game._rank_label, game._footer_label,
+		]
+		var safe := Rect2(insets.x, insets.y, field.x - insets.x - insets.z, field.y - insets.y - insets.w)
+		for label in labels:
+			var rect := Rect2(label.position, label.size)
+			if rect.size.y < 1.0 or rect.size.x < 1.0:
+				push_error("info line '%s' was not placed, insets %s" % [label.text, insets])
+				failed += 1
+				continue
+			if ad_rect.intersects(rect):
+				push_error("ad button covers '%s' ad %s label %s insets %s" % [label.text, ad_rect, rect, insets])
+				failed += 1
+			if not safe.encloses(rect):
+				push_error("info line '%s' left the safe area %s rect %s" % [label.text, safe, rect])
+				failed += 1
+			for button in [game._restart_button, game._share_button, game._beat_button, game._board_button]:
+				if button == null or not button.visible:
+					continue
+				var button_rect := Rect2(button.position, button.size)
+				if rect.intersects(button_rect):
+					push_error("'%s' overlaps %s" % [label.text, button.text])
+					failed += 1
+		for button in [game._restart_button, game._beat_button, game._board_button, ad]:
+			var button_rect := Rect2(button.position, button.size)
+			if not safe.encloses(button_rect):
+				push_error("%s left the safe area %s rect %s" % [button.text, safe, button_rect])
+				failed += 1
+		if insets == Vector4.ZERO:
+			print("DEATH_CARD_RECTS ad=%s footer=%s best=%s score=%s rank=%s challenge=%s retry=%s" % [
+				ad_rect,
+				Rect2(game._footer_label.position, game._footer_label.size),
+				Rect2(game._best_label.position, game._best_label.size),
+				Rect2(game._score_label.position, game._score_label.size),
+				Rect2(game._rank_label.position, game._rank_label.size),
+				Rect2(game._beat_button.position, game._beat_button.size),
+				Rect2(game._restart_button.position, game._restart_button.size),
+			])
+	game._force_death_insets_for_test(Vector4.ZERO)
+	game._form_pick_button.visible = false
+	game._layout_death_card()
+	var footer := Rect2(game._footer_label.position, game._footer_label.size)
+	var challenge := Rect2(game._beat_button.position, game._beat_button.size)
+	var closed := challenge.position.y - footer.end.y
+	if closed > 10.0 or closed < 0.0:
+		push_error("hiding the ad button should close the stack onto the challenge row, gap %s" % closed)
+		failed += 1
+	if game._form_pick_button.visible:
+		push_error("the ad button should hide when it is not offered")
+		failed += 1
+	var hidden := Rect2(game._form_pick_button.position, game._form_pick_button.size)
+	if hidden.size.y > 1.0 and hidden.intersects(challenge):
+		push_error("a hidden ad button still covers the challenge row %s" % hidden)
+		failed += 1
+	game._force_death_insets_for_test(Vector4.ZERO, false)
+	return failed
+
+
+func _check_share_bridge() -> int:
+	var failed := 0
+	if ShareBridge.channel_for(true, true, true, true, true) != "web":
+		push_error("web share must stay on the page shell")
+		failed += 1
+	if ShareBridge.channel_for(false, true, false, true, false) != "ios_sheet":
+		push_error("iOS with the plugin should open the share sheet")
+		failed += 1
+	if ShareBridge.channel_for(false, true, false, false, false) != "clipboard":
+		push_error("iOS without the plugin should copy and toast")
+		failed += 1
+	if ShareBridge.channel_for(false, false, true, false, true) != "android_sheet":
+		push_error("Android with AndroidRuntime should open the share sheet")
+		failed += 1
+	if ShareBridge.channel_for(false, false, true, false, false) != "clipboard":
+		push_error("Android without AndroidRuntime should copy and toast")
+		failed += 1
+	if ShareBridge.channel_for(false, false, false, false, false) != "desktop_file":
+		push_error("desktop share should keep saving the PNG")
+		failed += 1
+	if ShareBridge.copy_channel(true, false) != "web":
+		push_error("a web challenge copy should use the page shell")
+		failed += 1
+	if ShareBridge.copy_channel(false, true) != "skip":
+		push_error("headless should not touch the clipboard")
+		failed += 1
+	if ShareBridge.copy_channel(false, false) != "clipboard":
+		push_error("iOS and Android challenge taps should copy the link")
+		failed += 1
+	var body := ShareBridge.mobile_body("Reborn as SLIME.", "https://example.test/?seed=1")
+	if body != "Reborn as SLIME.\nhttps://example.test/?seed=1":
+		push_error("mobile share should keep the text and the link, got %s" % body)
+		failed += 1
+	if StoreConfig.game_url_for(false, false) != StoreConfig.WEB_GAME_URL:
+		push_error("desktop challenge links should use the web game")
+		failed += 1
+	if StoreConfig.game_url_for(true, false) != StoreConfig.IOS_GAME_URL:
+		push_error("iOS challenge links should use the iOS constant")
+		failed += 1
+	if StoreConfig.game_url_for(false, true) != StoreConfig.ANDROID_GAME_URL:
+		push_error("Android challenge links should use the Android constant")
+		failed += 1
+	if StoreConfig.IOS_GAME_URL != StoreConfig.WEB_GAME_URL or StoreConfig.ANDROID_GAME_URL != StoreConfig.WEB_GAME_URL:
+		push_error("mobile links should stay on the browser game until the store listing exists")
+		failed += 1
+	var store_src := FileAccess.get_file_as_string("res://scripts/store_config.gd")
+	if store_src.find("TODO: Once the App Store listing exists") < 0:
+		push_error("the store-link TODO should stay next to the platform URLs")
+		failed += 1
+	if not AdPolicy.form_pick_offered(true, false, true):
+		push_error("a store build with a rewarded unit should show the ad row")
+		failed += 1
+	if AdPolicy.form_pick_offered(false, false, true) or AdPolicy.form_pick_offered(true, false, false):
+		push_error("CrazyGames and a build with no rewarded unit should hide the ad row")
+		failed += 1
+	if not AdPolicy.form_pick_offered(true, true, false):
+		push_error("remove_ads should keep the free form picker")
+		failed += 1
+	var game_src := FileAccess.get_file_as_string("res://scripts/game.gd")
+	var web_at := game_src.find("OS.has_feature(\"web\")")
+	var sheet_at := game_src.find("shareRunCard")
+	var mobile_at := game_src.find("_share_mobile")
+	if web_at < 0 or sheet_at < 0 or mobile_at < 0 or not (web_at < sheet_at and sheet_at < mobile_at):
+		push_error("the web share path should still run before the mobile sheet")
+		failed += 1
 	return failed
 
 func _check_lb_parse() -> int:
@@ -4395,24 +4563,34 @@ func _check_replay() -> int:
 	if game._new_best_label == null or game._new_best_label.text != "NEW BEST!":
 		push_error("beating the stored best should pop NEW BEST!")
 		failed += 1
-	if game._seed_label == null or game._seed_label.text.find("·") >= 0 or game._seed_label.text.find(" - ") < 0:
-		push_error("seed line should use a hyphen the pixel font can draw, got %s" % (game._seed_label.text if game._seed_label != null else "missing"))
+	if game._footer_label == null or game._footer_label.text != "BEAT MY RUN":
+		push_error("the death card should replace the seed line with BEAT MY RUN, got %s" % (game._footer_label.text if game._footer_label != null else "missing"))
 		failed += 1
 	else:
 		var glyphs: Dictionary = PixelFont.plain_glyphs()
-		var seed_text := str(game._seed_label.text)
-		for i in seed_text.length():
-			var ch := seed_text.substr(i, 1)
+		var footer_text := str(game._footer_label.text)
+		for i in footer_text.length():
+			var ch := footer_text.substr(i, 1)
 			if ch != "\n" and not glyphs.has(ch):
-				push_error("seed line uses a glyph the pixel font lacks: %s" % ch)
+				push_error("footer line uses a glyph the pixel font lacks: %s" % ch)
 				failed += 1
 				break
+	var seed_line := str(game._seed_line())
+	if seed_line.find("·") >= 0 or seed_line.find(" - ") < 0 or seed_line.find(str(game.day_seed)) < 0:
+		push_error("the seed string should stay available for links, got %s" % seed_line)
+		failed += 1
 	if game._beat_button == null or game._beat_button.text != "CHALLENGE A FRIEND":
 		push_error("death card should challenge a friend, got %s" % (game._beat_button.text if game._beat_button != null else "missing"))
 		failed += 1
 	game._on_beat_link()
 	if game._beat_button.text != "LINK COPIED!":
 		push_error("the challenge button should confirm the link, got %s" % game._beat_button.text)
+		failed += 1
+	if game._copy_toast == null or not game._copy_toast.visible or game._copy_toast.text != "LINK COPIED!":
+		push_error("the challenge tap should show a LINK COPIED! toast, got %s" % (game._copy_toast.text if game._copy_toast != null else "missing"))
+		failed += 1
+	if ShareBridge.copy_channel(false, DisplayServer.get_name() == "headless") != "skip":
+		push_error("this headless run should skip the clipboard and still show the toast")
 		failed += 1
 	print("DEATH_TO_CONTROL %.3f guard %.3f flash %.3f" % [sim, guard_at, Replay.FLASH_REVEAL])
 	root.remove_child(game)

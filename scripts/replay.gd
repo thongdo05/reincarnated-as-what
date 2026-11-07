@@ -13,7 +13,6 @@ const JUICE_SHAKE_REDUCED := 1.0
 const JUICE_SHAKE_SECONDS := 0.12
 const BULLET_Z := 20
 const SEEN_PATH := "user://tutorial_seen.json"
-const PAGE := "https://thongdo05.github.io/reincarnated-as-what/"
 
 static var _motion_known := false
 static var _motion := false
@@ -103,7 +102,7 @@ static func daily_text(seed_value: int, form_id: int, score: int, rank_name: Str
 ## Same seed and form. Any of the five playable forms stays on the link.
 ## An unknown key drops the form so the friend gets that day's normal run.
 static func beat_url(seed_value: int, form_key: String) -> String:
-	var base := "%s?seed=%d" % [PAGE, seed_value]
+	var base := "%s?seed=%d" % [StoreConfig.game_url(), seed_value]
 	var key := form_key.strip_edges().to_lower()
 	if FormCatalog.id_from_key(key) < 0:
 		return base

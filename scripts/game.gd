@@ -12,6 +12,8 @@ const PAUSE_ART_PX := 18.0
 const PAUSE_MIN_PT := 44.0
 const CHALLENGE_LABEL := "CHALLENGE A FRIEND"
 const CHALLENGE_COPIED := "LINK COPIED!"
+const SHARE_COPIED := "COPIED!"
+const DEATH_FOOTER := "BEAT MY RUN"
 const COPY_FEEDBACK := 1.4
 ## The world name stays up with the form card, then for this long once play starts.
 const WORLD_NAME_HOLD := 0.9
@@ -88,7 +90,10 @@ var _skip_label: Label
 var _game_over: Control
 var _share_label: Label
 var _best_label: Label
-var _seed_label: Label
+var _footer_label: Label
+var _copy_toast: Label
+var _death_insets_forced := false
+var _death_insets_value := Vector4.ZERO
 var _death_kicker: Label
 var _restart_button: Button
 var _share_button: Button
@@ -391,11 +396,20 @@ func _build_hud() -> void:
 	_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_best_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_game_over.add_child(_best_label)
-	_seed_label = _make_label(9, Color("a49fcf"))
-	_seed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_game_over.add_child(_seed_label)
+	_footer_label = _make_label(9, Color("a49fcf"))
+	_footer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_footer_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_footer_label.text = DEATH_FOOTER
+	_game_over.add_child(_footer_label)
+	_copy_toast = _make_label(18, Color("ffe56a"))
+	_copy_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_copy_toast.visible = false
+	_copy_toast.z_index = 6
+	_copy_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_game_over.add_child(_copy_toast)
 	_rank_label = _make_label(9, Color("8ecbff"))
 	_rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_rank_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_rank_label.visible = false
 	_rank_label.gui_input.connect(_on_rank_retry_input)
 	_game_over.add_child(_rank_label)
@@ -1863,7 +1877,8 @@ func _set_default_death(form_name: String, reached_rank: String) -> void:
 		ScoreRules.format_score(int(saved["overall"])),
 	]
 	_share_label.text = "Reached %s" % reached_rank.to_upper()
-	_seed_label.text = _seed_line()
+	if _footer_label != null:
+		_footer_label.text = DEATH_FOOTER
 	if _beat_button != null:
 		_beat_button.visible = true
 		_beat_button.text = CHALLENGE_LABEL
@@ -1871,47 +1886,67 @@ func _set_default_death(form_name: String, reached_rank: String) -> void:
 	if beaten and _sound != null:
 		_sound.play_event("enemy_killed")
 
-## Pin Reincarnate inside the field. Long rank names wrap, then shrink, so the
-## button is never pushed past the bottom of the 480x270 viewport.
+## Buttons stay on the bottom of the safe area. The info stack is a list
+## (see _death_info_entries) packed just above the next button, so a later
+## form-chain line can be appended without reflowing the buttons by hand.
 func _layout_death_card() -> void:
 	if _restart_button == null or _share_label == null:
 		return
 	var field := _viewport_size()
-	var edge := _crazygames_insets(field)
-	var margin := 10.0 + edge.w + _death_banner_reserve(field)
+	var edge := _death_card_insets(field)
 	var share_w := 112.0
 	var gap := 8.0
-	var reinc_w := minf(252.0, field.x - 16.0 - share_w - gap)
-	reinc_w = maxf(reinc_w, minf(220.0, field.x - 16.0))
+	var usable_w := field.x - edge.x - edge.z
+	var text_width := minf(448.0, usable_w - 16.0)
+	var show_pick := _form_pick_button != null and _form_pick_button.visible
+	var challenge := _beat_button != null and _beat_button.visible
 	var button_h := 56.0
+	var challenge_gap := 6.0 if challenge or (_board_button != null and _board_button.visible) else 0.0
+	var pick_gap := 4.0 if show_pick else 0.0
+	var stack_gap := 4.0
+	var margin := _death_bottom_margin(field, edge, 8.0)
+	var floor_h := _death_stack_floor(text_width)
+	var chrome := margin + button_h + stack_gap + 4.0 + edge.y
+	if challenge or (_board_button != null and _board_button.visible):
+		chrome += challenge_gap + 44.0
+	if show_pick:
+		chrome += pick_gap + 44.0
+	# Touch targets stay at least 44, and Reincarnate stays at least 48.
+	# Only the padding shrinks when every line is on screen.
+	if floor_h + chrome > field.y:
+		button_h = 48.0
+		if challenge_gap > 0.0:
+			challenge_gap = 3.0
+		pick_gap = 2.0 if show_pick else 0.0
+		stack_gap = 2.0
+		margin = _death_bottom_margin(field, edge, 2.0)
+	var reinc_w := minf(252.0, usable_w - 16.0 - share_w - gap)
+	reinc_w = maxf(reinc_w, minf(220.0, usable_w - 16.0))
 	var row_w := share_w + gap + reinc_w
-	if row_w > field.x - 8.0:
+	if row_w > usable_w - 8.0:
 		share_w = 96.0
-		reinc_w = minf(220.0, field.x - 16.0 - share_w - gap)
+		reinc_w = minf(220.0, usable_w - 16.0 - share_w - gap)
 		row_w = share_w + gap + reinc_w
-	var row_x := edge.x + (field.x - edge.x - edge.z - row_w) * 0.5
+	var row_x := edge.x + (usable_w - row_w) * 0.5
 	var button_pos := Vector2(row_x + share_w + gap, field.y - margin - button_h)
 	_place_death_control(_restart_button, button_pos, Vector2(reinc_w, button_h))
 	if _share_button != null:
 		_place_death_control(_share_button, Vector2(row_x, button_pos.y), Vector2(share_w, button_h))
-	# Challenge sits above the retry row. Shorter and narrower than Reincarnate,
-	# and a different color, so the gold button stays the retry target.
-	# Leaderboard shares that row, on the left, in a smaller face.
-	var challenge := _beat_button != null and _beat_button.visible
 	var challenge_h := 44.0 if challenge else 0.0
-	var challenge_gap := 6.0 if challenge else 0.0
+	var next_y := button_pos.y
+	var action_w := row_w
 	if challenge:
 		var challenge_w := minf(240.0, reinc_w - 8.0)
 		if challenge_w < 160.0:
-			challenge_w = minf(240.0, field.x - 16.0)
+			challenge_w = minf(240.0, usable_w - 16.0)
 		var show_board := _board_button != null and _board_button.visible
 		var board_w := 120.0 if show_board else 0.0
 		var pair_gap := 8.0 if show_board else 0.0
 		var pair := board_w + pair_gap + challenge_w
-		if show_board and pair > field.x - 12.0:
-			board_w = maxf(96.0, field.x - 12.0 - pair_gap - challenge_w)
+		if show_board and pair > usable_w - 12.0:
+			board_w = maxf(96.0, usable_w - 12.0 - pair_gap - challenge_w)
 			pair = board_w + pair_gap + challenge_w
-		var pair_x := edge.x + (field.x - edge.x - edge.z - pair) * 0.5
+		var pair_x := edge.x + (usable_w - pair) * 0.5
 		var challenge_y := button_pos.y - challenge_gap - challenge_h
 		if show_board:
 			_place_death_control(_board_button, Vector2(pair_x, challenge_y), Vector2(board_w, challenge_h))
@@ -1920,86 +1955,161 @@ func _layout_death_card() -> void:
 			_place_death_control(_beat_button, Vector2(pair_x, challenge_y), Vector2(challenge_w, challenge_h))
 		var label_px := 18 if challenge_w >= 224.0 else 9
 		_beat_button.add_theme_font_size_override("font_size", label_px)
+		next_y = challenge_y
+		action_w = pair
 	elif _board_button != null and _board_button.visible:
-		var lone_w := minf(200.0, field.x - 16.0)
-		var lone_y := button_pos.y - 6.0 - 44.0
-		_place_death_control(_board_button, Vector2(edge.x + (field.x - edge.x - edge.z - lone_w) * 0.5, lone_y), Vector2(lone_w, 44.0))
-		challenge_h = 44.0
-		challenge_gap = 6.0
-	var text_width := minf(448.0, field.x - 16.0 - edge.x - edge.z)
-	var text_left := edge.x + (field.x - edge.x - edge.z - text_width) * 0.5
-	var text_top := 6.0 + edge.y
-	var pick_h := 0.0
-	var pick_gap := 0.0
-	if _form_pick_button != null and _form_pick_button.visible:
-		pick_h = 22.0
-		pick_gap = 4.0
-	var text_bottom := button_pos.y - challenge_gap - challenge_h - pick_gap - pick_h - 6.0
-	if pick_h > 0.0:
-		var pick_w := minf(280.0, field.x - 16.0)
-		_place_death_control(_form_pick_button, Vector2(edge.x + (field.x - edge.x - edge.z - pick_w) * 0.5, text_bottom + 6.0), Vector2(pick_w, pick_h))
-	var text_height := maxf(text_bottom - text_top, 48.0)
-	var kicker_h := 14.0
-	var seed_h := 14.0
-	var text_gap := 3.0
-	var score_h := 0.0
-	if _score_label != null and _score_label.visible and not _score_label.text.is_empty():
-		_fit_wrapped_label(_score_label, text_width, 34.0, 27, 18)
-		score_h = _wrapped_height(_score_label.text, text_width, _death_font_size(_score_label))
-	var new_h := 0.0
-	if _new_best_label != null and _new_best_label.visible and not _new_best_label.text.is_empty():
-		_fit_wrapped_label(_new_best_label, text_width, 22.0, 18, 9)
-		new_h = _wrapped_height(_new_best_label.text, text_width, _death_font_size(_new_best_label))
-	var rank_h := 0.0
-	if _rank_label != null and _rank_label.visible and not _rank_label.text.is_empty():
-		_fit_wrapped_label(_rank_label, text_width, 28.0, 9, 9)
-		rank_h = _wrapped_height(_rank_label.text, text_width, _death_font_size(_rank_label))
-	var chrome := kicker_h + seed_h + score_h + new_h + rank_h
-	var gap_count := 3.0
-	if score_h > 0.0:
-		gap_count += 1.0
-	if new_h > 0.0:
-		gap_count += 1.0
-	if rank_h > 0.0:
-		gap_count += 1.0
-	var room := maxf(text_height - chrome - text_gap * gap_count, 24.0)
-	# A rank line takes a row. The score stays the largest line, a step smaller.
-	var score_cap := 22.0 if rank_h > 0.0 else 34.0
-	var score_start := 18 if rank_h > 0.0 else 27
-	if _score_label != null and score_h > 0.0:
-		_fit_wrapped_label(_score_label, text_width, score_cap, score_start, 9)
-		score_h = _wrapped_height(_score_label.text, text_width, _death_font_size(_score_label))
-		chrome = kicker_h + seed_h + score_h + new_h + rank_h
-		room = maxf(text_height - chrome - text_gap * gap_count, 24.0)
-	_fit_wrapped_label(_share_label, text_width, room * 0.4, 18, 9)
-	_fit_wrapped_label(_best_label, text_width, room * 0.6, 18, 9)
-	var share_h := _wrapped_height(_share_label.text, text_width, _death_font_size(_share_label))
-	var best_h := _wrapped_height(_best_label.text, text_width, _death_font_size(_best_label))
-	var used := chrome + share_h + best_h + text_gap * gap_count
-	var y := text_top + maxf(text_height - used, 0.0) * 0.35
-	_place_death_control(_death_kicker, Vector2(text_left, y), Vector2(text_width, kicker_h))
-	y += kicker_h + text_gap
-	if score_h > 0.0:
-		_place_death_control(_score_label, Vector2(text_left, y), Vector2(text_width, score_h))
-		y += score_h + text_gap
-	if new_h > 0.0:
-		_place_death_control(_new_best_label, Vector2(text_left, y), Vector2(text_width, new_h))
-		_new_best_label.pivot_offset = Vector2(text_width * 0.5, new_h * 0.5)
-		y += new_h + text_gap
-	_place_death_control(_share_label, Vector2(text_left, y), Vector2(text_width, share_h))
-	y += share_h + text_gap
-	_place_death_control(_best_label, Vector2(text_left, y), Vector2(text_width, best_h))
-	y += best_h + text_gap
-	if rank_h > 0.0:
-		_place_death_control(_rank_label, Vector2(text_left, y), Vector2(text_width, rank_h))
-		y += rank_h + text_gap
-	_place_death_control(_seed_label, Vector2(text_left, y), Vector2(text_width, seed_h))
+		var lone_w := minf(200.0, usable_w - 16.0)
+		var lone_y := button_pos.y - challenge_gap - 44.0
+		action_w = lone_w
+		var lone_x := edge.x + (usable_w - lone_w) * 0.5
+		_place_death_control(_board_button, Vector2(lone_x, lone_y), Vector2(lone_w, 44.0))
+		next_y = lone_y
+	var text_left := edge.x + (usable_w - text_width) * 0.5
+	if show_pick:
+		var pick_h := 44.0
+		var pick_w := minf(text_width, maxf(action_w, 220.0))
+		pick_w = minf(pick_w, usable_w - 8.0)
+		var pick_x := edge.x + (usable_w - pick_w) * 0.5
+		var pick_y := next_y - pick_gap - pick_h
+		_place_death_control(_form_pick_button, Vector2(pick_x, pick_y), Vector2(pick_w, pick_h))
+		next_y = pick_y
+	elif _form_pick_button != null:
+		_place_death_control(_form_pick_button, Vector2.ZERO, Vector2.ZERO)
+	var text_top := 4.0 + edge.y
+	var text_bottom := next_y - stack_gap
+	var entries := _death_info_entries()
+	var line_gap := 2.0
+	var room := maxf(text_bottom - text_top, 0.0)
+	var used := _measure_death_stack(entries, text_width, line_gap)
+	while used > room + 0.5:
+		if _shrink_death_stack(entries):
+			used = _measure_death_stack(entries, text_width, line_gap)
+			continue
+		if line_gap > 0.0:
+			line_gap = 0.0
+			used = _measure_death_stack(entries, text_width, line_gap)
+			continue
+		break
+	var y := text_bottom - used
+	if y < text_top:
+		y = text_top
+	for i in entries.size():
+		var entry: Dictionary = entries[i]
+		var label: Label = entry["label"]
+		var height := float(entry["height"])
+		_place_death_control(label, Vector2(text_left, y), Vector2(text_width, height))
+		if label == _new_best_label:
+			label.pivot_offset = Vector2(text_width * 0.5, height * 0.5)
+		y += height
+		if i < entries.size() - 1:
+			y += line_gap
+	if _copy_toast != null and _copy_toast.visible:
+		_place_death_control(_copy_toast, Vector2(text_left, text_top), Vector2(text_width, 22.0))
+	elif _copy_toast != null:
+		_place_death_control(_copy_toast, Vector2.ZERO, Vector2.ZERO)
+
+
+## The card's info lines, top to bottom. Skip a line by hiding it or clearing
+## its text. A later share card can append the form chain to this list.
+func _death_info_entries() -> Array:
+	var entries: Array = []
+	_push_death_entry(entries, _death_kicker, 9, 9)
+	_push_death_entry(entries, _score_label, 27, 9)
+	_push_death_entry(entries, _new_best_label, 18, 9)
+	_push_death_entry(entries, _share_label, 18, 9)
+	_push_death_entry(entries, _best_label, 18, 9)
+	_push_death_entry(entries, _rank_label, 9, 9)
+	_push_death_entry(entries, _footer_label, 9, 9)
+	return entries
+
+
+func _push_death_entry(entries: Array, label: Label, start_size: int, min_size: int) -> void:
+	if label == null:
+		return
+	if not label.visible or label.text.is_empty():
+		_place_death_control(label, Vector2.ZERO, Vector2.ZERO)
+		return
+	entries.append({"label": label, "size": start_size, "min": min_size, "height": 0.0})
+
+
+func _shrink_death_stack(entries: Array) -> bool:
+	var prefer: Array[Label] = []
+	for label in [_best_label, _share_label, _new_best_label, _score_label]:
+		if label != null:
+			prefer.append(label)
+	for label in prefer:
+		for i in entries.size():
+			var entry: Dictionary = entries[i]
+			if entry["label"] != label:
+				continue
+			var size := int(entry["size"])
+			var min_size := int(entry["min"])
+			if size <= min_size:
+				break
+			entry["size"] = maxi(min_size, size - 9)
+			entries[i] = entry
+			return true
+	return false
+
+
+func _measure_death_stack(entries: Array, width: float, gap: float) -> float:
+	var used := 0.0
+	for i in entries.size():
+		var entry: Dictionary = entries[i]
+		var label: Label = entry["label"]
+		var size := int(entry["size"])
+		label.add_theme_font_size_override("font_size", size)
+		# Width first, so the label's own wrap height matches the rect we stack.
+		label.custom_minimum_size = Vector2(width, 0)
+		label.size = Vector2(width, 1)
+		var height := maxf(label.get_minimum_size().y, _wrapped_height(label.text, width, size))
+		entry["height"] = height
+		entries[i] = entry
+		used += height
+		if i > 0:
+			used += gap
+	return used
+
+
+func _force_death_insets_for_test(insets: Vector4, enabled: bool = true) -> void:
+	_death_insets_forced = enabled
+	_death_insets_value = insets
+
+
+func _death_card_insets(field: Vector2) -> Vector4:
+	if _death_insets_forced:
+		return _death_insets_value
+	if CrazyGamesHost.wanted():
+		return _crazygames_insets(field)
+	var window := Vector2(DisplayServer.window_get_size())
+	return safe_insets_for(field, window, _window_safe_rect(), true)
+
+
+## Banner reserve already includes the bottom safe inset.
+func _death_bottom_margin(field: Vector2, edge: Vector4, pad: float = 8.0) -> float:
+	var reserve := _death_banner_reserve(field)
+	var bottom := reserve if reserve > 0.0 else edge.w
+	return pad + bottom
+
+
+## Height of the info stack at the smallest font and no extra leading.
+func _death_stack_floor(width: float) -> float:
+	var entries := _death_info_entries()
+	for i in entries.size():
+		var entry: Dictionary = entries[i]
+		entry["size"] = int(entry["min"])
+		entries[i] = entry
+	return _measure_death_stack(entries, width, 0.0)
+
+
 
 func _place_death_control(control: Control, pos: Vector2, control_size: Vector2) -> void:
 	control.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	control.position = pos
+	# A previous minimum keeps the control from shrinking into a safe inset.
+	control.custom_minimum_size = Vector2.ZERO
 	control.size = control_size
 	control.custom_minimum_size = control_size
+	control.position = pos
 
 func _death_font_size(label: Label) -> int:
 	return int(label.get_theme_font_size("font_size"))
@@ -2307,9 +2417,30 @@ func _on_share() -> void:
 		]
 		JavaScriptBridge.eval(call, true)
 		return
+	if OS.has_feature("ios") or OS.has_feature("android"):
+		var link := Replay.beat_url_for(day_seed, _public_form())
+		_share_mobile(ShareBridge.mobile_body(text, link), image)
+		return
 	var path := "user://reincarnated.png"
 	image.save_png(path)
 	print("Saved share card to %s" % ProjectSettings.globalize_path(path))
+
+
+## iOS presents UIActivityViewController. Android presents an ACTION_SEND
+## chooser. If that sheet cannot open, the text is copied and a toast shows.
+func _share_mobile(body: String, image: Image) -> void:
+	var path := "user://reincarnated.png"
+	var saved := image.save_png(path) == OK
+	var abs_path := ProjectSettings.globalize_path(path) if saved else ""
+	var opened := false
+	if OS.has_feature("ios"):
+		opened = await ShareBridge.await_ios_sheet(self, body, abs_path)
+	elif OS.has_feature("android"):
+		opened = ShareBridge.android_share(body, abs_path)
+	if opened:
+		return
+	_copy_text(body)
+	_flash_toast(SHARE_COPIED)
 
 func _on_restart() -> void:
 	_force_close_board()
@@ -2354,7 +2485,9 @@ func _finish_restart() -> void:
 		_reincarnate()
 	_restart_busy = false
 
-## Kaito has no middle dot, so the seed line uses a hyphen.
+## The death card does not show this. Challenge links and the mobile share
+## body still carry the seed in the URL. Kaito has no middle dot, so the
+## readable line uses a hyphen.
 func _seed_line() -> String:
 	return "UTC seed %d - run %d" % [day_seed, run_index + 1]
 
@@ -2383,8 +2516,18 @@ func _style_challenge(copied: bool) -> void:
 		style.bg_color = bg
 		style.border_color = edge
 
-func _flash_copy() -> void:
+func _flash_toast(text: String) -> void:
 	_copy_left = COPY_FEEDBACK
+	if _copy_toast == null:
+		return
+	_copy_toast.text = text
+	_copy_toast.visible = true
+	if game_over_visible:
+		_layout_death_card()
+
+
+func _flash_copy() -> void:
+	_flash_toast(CHALLENGE_COPIED)
 	if _beat_button == null:
 		return
 	_beat_button.text = CHALLENGE_COPIED
@@ -2396,6 +2539,9 @@ func _tick_copy_flash(delta: float) -> void:
 	_copy_left = maxf(_copy_left - delta, 0.0)
 	if _copy_left > 0.0:
 		return
+	if _copy_toast != null:
+		_copy_toast.visible = false
+		_place_death_control(_copy_toast, Vector2.ZERO, Vector2.ZERO)
 	if _beat_button != null and _beat_button.text == CHALLENGE_COPIED:
 		_beat_button.text = CHALLENGE_LABEL
 		_style_challenge(false)
@@ -2612,13 +2758,19 @@ func _refresh_store_buttons() -> void:
 func _refresh_form_pick_button() -> void:
 	if _form_pick_button == null or Monetization == null:
 		return
-	if _chosen_next_form >= 0 and AdPolicy.form_is_pickable(_chosen_next_form):
+	var picked := _chosen_next_form >= 0 and AdPolicy.form_is_pickable(_chosen_next_form)
+	var offered := picked or AdPolicy.form_pick_offered(
+		StoreConfig.stores_available(),
+		Monetization.choose_form_is_free(),
+		not StoreConfig.rewarded_unit_id().is_empty()
+	)
+	_form_pick_button.visible = offered
+	if picked:
 		_form_pick_button.text = "NEXT: " + FormCatalog.display_name(_chosen_next_form)
-		return
-	if Monetization.choose_form_is_free():
+	elif Monetization.choose_form_is_free():
 		_form_pick_button.text = "Choose your form"
-		return
-	_form_pick_button.text = "Watch ad: choose your form"
+	else:
+		_form_pick_button.text = "Watch ad: choose your form"
 
 
 func _build_form_picker() -> void:
@@ -3433,6 +3585,8 @@ func _reincarnate() -> void:
 	_tut_shot = false
 	_new_best = false
 	_copy_left = 0.0
+	if _copy_toast != null:
+		_copy_toast.visible = false
 	killer_name = "something"
 	death_elapsed = 0.0
 	_card_age = 0.0

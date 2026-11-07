@@ -26,6 +26,8 @@ IAP_RELEASE = Path(
 ATT_RELEASE = Path(
     "ios/plugins/godot-ios-att/godot-ios-att.release.xcframework/ios-arm64/libgodot-ios-att.a"
 )
+SHARE_SOURCE = Path("ios/plugins/share_sheet/share_sheet.mm")
+SHARE_CONFIG = Path("ios/plugins/share_sheet/share_sheet.gdip")
 
 ADMOB_VERSION = "v5.1.0"
 GODOT_TEMPLATE_VERSION = "v4.7.2"
@@ -76,6 +78,22 @@ def check(download_missing_admob: bool) -> None:
             + ". These are committed under ios/plugins and are not downloaded in CI."
         )
     print("iOS plugin binaries: AdMob ads, StoreKit IAP, and ATT release libraries are present")
+    check_share_sheet_source()
+
+
+def check_share_sheet_source() -> None:
+    """The share sheet library is compiled on the macOS runner, not vendored."""
+    if not SHARE_SOURCE.is_file() or not SHARE_CONFIG.is_file():
+        raise SystemExit("the iOS share sheet plugin source is missing")
+    source = SHARE_SOURCE.read_text(encoding="utf-8")
+    config = SHARE_CONFIG.read_text(encoding="utf-8")
+    for needle in ("void share_sheet_init()", "void share_sheet_deinit()", "UIActivityViewController"):
+        if needle not in source:
+            raise SystemExit(f"share sheet source is missing {needle}")
+    for needle in ('name="ShareSheet"', 'initialization="share_sheet_init"', "UIKit.framework"):
+        if needle not in config:
+            raise SystemExit(f"share sheet gdip is missing {needle}")
+    print("iOS share sheet plugin source is present (xcframework is built on the TestFlight runner)")
 
 
 def main(argv: list[str] | None = None) -> int:
