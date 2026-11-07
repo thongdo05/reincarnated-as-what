@@ -18,7 +18,7 @@ const DEATH_FOOTER := "BEAT MY RUN"
 const DEATH_SCORE_PX := 72
 const DEATH_TAG_PX := 18
 const DEATH_BODY_PX := 9
-## The row shares one size. Reincarnate is the large dark label on gold.
+## The row shares one size. REINCARNATE is the plain face at 2x, with no stroke.
 const DEATH_BUTTON_PX := 9
 const DEATH_REINC_PX := 18
 const DEATH_INK := Color("14121f")
@@ -103,6 +103,7 @@ var _mouse_down := false
 var _hud: Control
 var _hud_view: HudView
 var _font_outlined: Font
+var _reinc_mark: TextureRect
 var _hint_label: Label
 var _reveal: Control
 var _title_card: TextureRect
@@ -436,7 +437,7 @@ func _build_hud() -> void:
 	_rank_label.gui_input.connect(_on_rank_retry_input)
 	_game_over.add_child(_rank_label)
 	_restart_button = Button.new()
-	_restart_button.text = "Reincarnate"
+	_restart_button.text = "REINCARNATE"
 	_restart_button.focus_mode = Control.FOCUS_NONE
 	_restart_button.mouse_filter = Control.MOUSE_FILTER_STOP
 	var style := StyleBoxFlat.new()
@@ -448,11 +449,7 @@ func _build_hud() -> void:
 	_restart_button.add_theme_stylebox_override("hover", style)
 	_restart_button.add_theme_stylebox_override("pressed", style)
 	_restart_button.add_theme_stylebox_override("focus", style)
-	_restart_button.add_theme_font_override("font", _font_outlined)
-	_restart_button.add_theme_color_override("font_color", DEATH_INK)
-	_restart_button.add_theme_color_override("font_hover_color", DEATH_INK)
-	_restart_button.add_theme_color_override("font_pressed_color", DEATH_INK)
-	_restart_button.add_theme_font_size_override("font_size", DEATH_REINC_PX)
+	_style_reincarnate_label(_restart_button)
 	_restart_button.pressed.connect(_on_restart)
 	_game_over.add_child(_restart_button)
 	_share_button = Button.new()
@@ -2028,13 +2025,46 @@ func _apply_death_button_font() -> void:
 			continue
 		button.add_theme_font_size_override("font_size", DEATH_BUTTON_PX)
 		button.clip_text = true
-	if _restart_button == null:
+	_style_reincarnate_label(_restart_button)
+
+
+## The button's own font is hidden. The visible word is the plain face at 2x,
+## nearest-neighbor, with no outline and no shadow.
+func _style_reincarnate_label(button: Button) -> void:
+	if button == null:
 		return
-	_restart_button.add_theme_font_size_override("font_size", DEATH_REINC_PX)
-	_restart_button.add_theme_color_override("font_color", DEATH_INK)
-	_restart_button.add_theme_color_override("font_hover_color", DEATH_INK)
-	_restart_button.add_theme_color_override("font_pressed_color", DEATH_INK)
-	_restart_button.clip_text = true
+	button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	button.clip_text = true
+	button.add_theme_font_size_override("font_size", DEATH_REINC_PX)
+	button.add_theme_color_override("font_color", Color(0, 0, 0, 0))
+	button.add_theme_color_override("font_hover_color", Color(0, 0, 0, 0))
+	button.add_theme_color_override("font_pressed_color", Color(0, 0, 0, 0))
+	button.add_theme_constant_override("outline_size", 0)
+	button.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0))
+	button.add_theme_constant_override("shadow_offset_x", 0)
+	button.add_theme_constant_override("shadow_offset_y", 0)
+	button.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+	if _reinc_mark == null:
+		_reinc_mark = TextureRect.new()
+		_reinc_mark.name = "ReincarnateMark"
+		_reinc_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_reinc_mark.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		_reinc_mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_reinc_mark.stretch_mode = TextureRect.STRETCH_SCALE
+		button.add_child(_reinc_mark)
+	var tex := PixelFont.row_texture("REINCARNATE", DEATH_INK, false, 2)
+	_reinc_mark.texture = tex
+	var mark_size := tex.get_size()
+	_reinc_mark.custom_minimum_size = mark_size
+	_reinc_mark.size = mark_size
+
+
+func _center_reincarnate_mark() -> void:
+	if _reinc_mark == null or _restart_button == null or _reinc_mark.texture == null:
+		return
+	var mark_size := _reinc_mark.texture.get_size()
+	_reinc_mark.size = mark_size
+	_reinc_mark.position = (_restart_button.size - mark_size) * 0.5
 
 
 func _place_death_buttons(field: Vector2, edge: Vector4, usable_w: float, reinc_h: float, row_h: float, ad_h: float, gap: float, pad: float, show_pick: bool, row: Array[Button]) -> void:
@@ -2057,6 +2087,7 @@ func _place_death_buttons(field: Vector2, edge: Vector4, usable_w: float, reinc_
 		y -= gap
 	y -= reinc_h
 	_place_death_control(_restart_button, Vector2(left, y), Vector2(row_w, reinc_h))
+	_center_reincarnate_mark()
 	if show_pick:
 		y -= gap + ad_h
 		_place_death_control(_form_pick_button, Vector2(left, y), Vector2(row_w, ad_h))

@@ -1852,12 +1852,18 @@ func _check_death_card() -> int:
 			if crect.intersects(rect):
 				push_error("challenge button overlaps Reincarnate")
 				failed += 1
-			if int(button.get_theme_font_size("font_size")) < 18:
-				push_error("Reincarnate should use the large label, font %s" % button.get_theme_font_size("font_size"))
+			if button.text != "REINCARNATE":
+				push_error("Reincarnate should read REINCARNATE, got %s" % button.text)
 				failed += 1
-			var ink: Color = button.get_theme_color("font_color")
-			if ink.r > 0.25 or ink.g > 0.25 or ink.b > 0.3:
-				push_error("Reincarnate should be dark on gold, got %s" % ink)
+			if int(button.get_theme_constant("outline_size")) != 0:
+				push_error("Reincarnate should have no outline")
+				failed += 1
+			var mark := button.get_node_or_null("ReincarnateMark") as TextureRect
+			if mark == null or mark.texture == null or mark.texture_filter != CanvasItem.TEXTURE_FILTER_NEAREST:
+				push_error("Reincarnate should be a nearest-filtered plain word")
+				failed += 1
+			elif int(mark.texture.get_height()) % 11 != 0 or mark.texture.get_height() < 20:
+				push_error("Reincarnate art should be an integer scale bigger than the row, got %s" % mark.texture.get_height())
 				failed += 1
 		if game._board_button == null or not game._board_button.visible or game._board_button.text != "LEADERBOARD":
 			push_error("the death card should offer LEADERBOARD")
