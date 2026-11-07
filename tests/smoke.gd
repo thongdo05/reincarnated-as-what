@@ -51,7 +51,7 @@ func _process(_delta: float) -> bool:
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
 	var live_failed: int = load("res://tests/dragon_phase_checks.gd").new().run_live(self)
-	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_meteor_shake() + _check_dragon_death()
+	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_meteor_shake() + _check_dragon_death() + _check_demon_boss_homing()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
@@ -7255,6 +7255,83 @@ func _check_boss_arrives() -> int:
 	root.remove_child(game)
 	game.free()
 	return failed
+
+## Boss fights: a Demon orb holds the living boss unless a minion is inside
+## DEMON_BOSS_PREF_RADIUS. No boss: nearest living enemy, same as before.
+func _check_demon_boss_homing() -> int:
+	var failed := 0
+	var reach := FormCatalog.DEMON_BOSS_PREF_RADIUS
+	if absf(reach - 40.0) > 0.001:
+		push_error("demon boss preference radius should be 40, got %s" % reach)
+		return 1
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	var origin := Vector2(80, 120)
+	var boss := _plant_actor(game, origin + Vector2(220, 0), "great_dragon")
+	# Closer than the boss, and past the grab radius. A corpse on the orb must not count.
+	var minion := _plant_actor(game, origin + Vector2(0, reach + 24.0), "")
+	var corpse := _plant_actor(game, origin + Vector2(0, -2), "")
+	corpse.alive = false
+	var orb := _plant_orb(game, origin)
+	var plain := _plant_orb(game, origin)
+	plain.homing = 0.0
+	var plain_vel: Vector2 = plain.velocity
+	game._guide_orbs(1.0)
+	if not _velocity_aims_at(orb, boss.position):
+		push_error("a closer minion past %spx should not pull a demon orb off the boss" % reach)
+		failed += 1
+	if plain.velocity != plain_vel:
+		push_error("a shot with no homing should not steer")
+		failed += 1
+	game._clear_field()
+	boss = _plant_actor(game, origin + Vector2(220, 0), "lich_king")
+	minion = _plant_actor(game, origin + Vector2(0, reach * 0.5), "")
+	_plant_actor(game, origin + Vector2(0, reach + 80.0), "")
+	orb = _plant_orb(game, origin)
+	game._guide_orbs(1.0)
+	if not _velocity_aims_at(orb, minion.position) or _velocity_aims_at(orb, boss.position):
+		push_error("a minion inside %spx should catch the demon orb during a boss fight" % reach)
+		failed += 1
+	game._clear_field()
+	var near := _plant_actor(game, origin + Vector2(reach + 50.0, 0), "")
+	var far := _plant_actor(game, origin + Vector2(0, 240), "")
+	orb = _plant_orb(game, origin)
+	game._guide_orbs(1.0)
+	if not _velocity_aims_at(orb, near.position) or _velocity_aims_at(orb, far.position):
+		push_error("with no boss, a demon orb should still home on the nearest enemy")
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	return failed
+
+func _plant_actor(game, at: Vector2, slug: String) -> EnemyActor:
+	var enemy: EnemyActor = BossActor.new() if slug != "" else EnemyActor.new()
+	enemy.alive = true
+	enemy.hp = 20
+	enemy.max_hp = 20
+	enemy.position = at
+	enemy.boss_slug = slug
+	game.add_child(enemy)
+	game._enemies.append(enemy)
+	return enemy
+
+func _plant_orb(game, at: Vector2) -> Shot:
+	var shot: Shot = game._spawn_shot({
+		"position": at,
+		"velocity": Vector2(-180, 0),
+		"homing": 100000.0,
+		"damage": 2,
+		"sprite": "demon_orb_r1.png",
+	}, true)
+	return shot
+
+func _velocity_aims_at(shot: Shot, mark: Vector2) -> bool:
+	var aim := mark - shot.position
+	if aim.length_squared() < 1.0 or shot.velocity.length_squared() < 1.0:
+		return false
+	return shot.velocity.normalized().dot(aim.normalized()) > 0.99
 
 func _sample(id: int, drag: Vector2, bounds: Rect2, frames: int) -> Vector2:
 	var ship := PlayerShip.new()
