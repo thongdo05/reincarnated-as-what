@@ -172,31 +172,38 @@ const SHOT_PCT := 0.62
 const FORM_CARD := {
 	Id.SLIME: {
 		"trait": "Once per run, splits into a small slime instead of dying; regrows in 15s. Later ranks add lanes and a wider split.",
+		"short": "Splits once instead of dying.",
 		"ready": "Split ready.",
 		"used": "Split used.",
 	},
 	Id.GOBLIN: {
 		"trait": "Gems nearby get pulled in. Later ranks throw more rocks that hit harder.",
+		"short": "Pulls in nearby gems.",
 		"ready": "",
 		"used": "",
 	},
 	Id.VENDING: {
 		"trait": "Heavy drift. Kills and gems fill a WINNER! meter in 10, then 11, 12, 13, and 14. A full meter blasts the field and clears shots. Those kills score and drop loot. Later ranks blast harder.",
+		"short": "Kills and gems fill WINNER!",
 		"ready": "",
 		"used": "",
 	},
 	Id.CAT: {
 		"trait": "A hard flick blinks a short dash. Swipes pierce 2 and knock bullets away. Later ranks dash farther and swipe bigger. The final form crosses the screen.",
+		"short": "Flick to dash.\nSwipes pierce %d.",
 		"ready": "",
 		"used": "",
 	},
 	Id.DEMON: {
 		"trait": "Big slow orbs home in. They hit harder the more enemies are on screen. Later ranks loose more orbs.",
+		"short": "Homing orbs.",
 		"ready": "",
 		"used": "",
 	},
 	Id.DRAGON: {
 		"trait": "Earned by slaying the Great Dragon. Fireballs explode. Kills fill Meteor Rain in %d kills. It chips a boss for 15%% of its max HP.",
+		# Pause YOU tab only, and only while the player is the Dragon.
+		"short": "Fireballs explode.\nMeteor Rain in %d.",
 		"ready": "",
 		"used": "",
 	},
@@ -805,6 +812,49 @@ static func trait_line(id: int, split_ready: bool) -> String:
 	if id == Id.GOBLIN and goblin_f("loot_magnet") > 0.0:
 		return "%s Pulls in within %dpx." % [body, int(round(goblin_f("loot_magnet")))]
 	return body
+
+## One short weapon line for the pause guide. The long weapon_line() stays for the catalog.
+static func guide_weapon(id: int, rank_index: int) -> String:
+	var spec := rank_spec(id, rank_index)
+	var every := "%.2fs" % float(spec["fire_interval"])
+	var count := player_shots(id, Vector2.ZERO, rank_index).size()
+	if id == Id.SLIME:
+		if count <= 1:
+			return "Shot every %s." % every
+		return "%d shots every %s." % [count, every]
+	if id == Id.VENDING:
+		return "%d cans every %s." % [count, every]
+	if id == Id.CAT:
+		return "Swipe every %s." % every
+	if id == Id.DEMON:
+		if count <= 1:
+			return "Homing orb every %s." % every
+		return "%d orbs every %s." % [count, every]
+	if id == Id.DRAGON:
+		return "Fireball every %s." % every
+	return "%d rocks every %s." % [count, every]
+
+
+## Short pause-guide lines. Slime leads with the live split state.
+## Cat fills %d from pierce. Dragon fills %d from the Meteor Rain kill count.
+static func guide_trait_lines(id: int, rank_index: int, split_ready: bool) -> PackedStringArray:
+	var row: Dictionary = FORM_CARD.get(id, {})
+	var body := str(row.get("short", ""))
+	if id == Id.CAT:
+		body = body % cat_pierce(rank_index)
+	elif id == Id.DRAGON:
+		body = body % DRAGON_METEOR_KILLS
+	var lines: PackedStringArray = []
+	if id == Id.SLIME:
+		var flag := "Split used."
+		if split_ready:
+			flag = "Split ready."
+		lines.append(flag)
+	for part in body.split("\n", false):
+		if part != "":
+			lines.append(part)
+	return lines
+
 
 ## Absolute points against the next gate, or FINAL FORM at the last rank.
 static func next_rank_text(rank_index: int, points: int) -> String:

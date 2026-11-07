@@ -43,24 +43,44 @@ static func force_reduced_motion_for_test(mode: int) -> void:
 	_force_motion = mode
 	_motion_known = false
 
-static func seen() -> bool:
+static func _read_seen_file() -> Dictionary:
 	if not FileAccess.file_exists(SEEN_PATH):
-		return false
+		return {}
 	var file := FileAccess.open(SEEN_PATH, FileAccess.READ)
 	if file == null:
-		return false
+		return {}
 	var parsed: Variant = JSON.parse_string(file.get_as_text())
 	file.close()
 	if typeof(parsed) != TYPE_DICTIONARY:
-		return false
-	return bool((parsed as Dictionary).get("seen", false))
+		return {}
+	return parsed
 
-static func mark_seen() -> void:
+static func _write_seen_file(data: Dictionary) -> void:
 	var file := FileAccess.open(SEEN_PATH, FileAccess.WRITE)
 	if file == null:
 		return
-	file.store_string(JSON.stringify({"seen": true}))
+	file.store_string(JSON.stringify({
+		"seen": bool(data.get("seen", false)),
+		"runs": maxi(int(data.get("runs", 0)), 0),
+	}))
 	file.close()
+
+static func seen() -> bool:
+	return bool(_read_seen_file().get("seen", false))
+
+## How many runs have started on this save. The pause guide reads it.
+static func guide_runs() -> int:
+	return maxi(int(_read_seen_file().get("runs", 0)), 0)
+
+static func note_guide_run() -> void:
+	var data := _read_seen_file()
+	data["runs"] = int(data.get("runs", 0)) + 1
+	_write_seen_file(data)
+
+static func mark_seen() -> void:
+	var data := _read_seen_file()
+	data["seen"] = true
+	_write_seen_file(data)
 
 static func reset_seen_for_test() -> void:
 	if FileAccess.file_exists(SEEN_PATH):

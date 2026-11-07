@@ -123,6 +123,7 @@ var _form_pick_button: Button
 var _form_picker: Control
 var _sound: SoundRig
 var _sound_button: Button
+var _sound_in_bar := false
 var _sound_label: Label
 var _audio_blocked_button: Button
 var _audio_blocked_icon: Control
@@ -497,12 +498,13 @@ func _build_hud() -> void:
 	_pause_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud.add_child(_pause_overlay)
 	var pause_dim := ColorRect.new()
-	pause_dim.color = Color(0.04, 0.03, 0.07, 0.45)
+	pause_dim.color = Color(0.04, 0.03, 0.07, 0.72)
 	pause_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	pause_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pause_dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	_pause_overlay.add_child(pause_dim)
 	_pause_card = PauseCard.new()
 	_pause_card.setup(_font_outlined)
+	_pause_card.resume_pressed.connect(_toggle_pause)
 	_pause_overlay.add_child(_pause_card)
 	_refresh_pause_card()
 	_build_store_controls()
@@ -667,6 +669,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if CaptureMode.eat_key(self, event.keycode):
+			return
+		if _paused and _pause_card != null and _pause_tab_key(event.keycode):
 			return
 		if event.keycode == KEY_H:
 			HitLibrary.show = not HitLibrary.show
@@ -895,6 +899,7 @@ func _begin_play() -> void:
 		_hint_label.visible = false
 	if _cg != null:
 		_cg.gameplay_start()
+	Replay.note_guide_run()
 
 func _play_frame(delta: float, size: Vector2) -> void:
 	var bounds := _play_bounds(size)
@@ -2640,6 +2645,12 @@ func apply_pause_layout(viewport: Vector2, window: Vector2, screen_scale: float,
 		_sound_button.position = sound_pos
 		_sound_button.size = control_size
 		_sound_button.custom_minimum_size = control_size
+		if _paused and _pause_card != null:
+			var slot := _pause_card.sound_slot()
+			_sound_button.position = _pause_card.position + slot.position
+			_sound_button.size = slot.size
+			_sound_button.custom_minimum_size = slot.size
+		_fit_paused_sound_label(_paused)
 		_sound_button.visible = phase == PHASE_REVEAL or phase == PHASE_PLAY or _paused
 		if _audio_blocked_button != null:
 			var blocked_pos := Vector2(sound_pos.x, sound_pos.y + hit + gap)
@@ -2726,16 +2737,20 @@ func _make_store_button() -> Button:
 	return button
 
 
-func _layout_store_row(viewport: Vector2) -> void:
+func _layout_store_row(_viewport: Vector2) -> void:
 	if _remove_ads_button == null or _pause_card == null:
 		return
-	var height := 22.0
-	var y := viewport.y - 4.0 - height
-	var width := minf(168.0, (viewport.x - 24.0) * 0.5)
-	_remove_ads_button.position = Vector2(8, y)
-	_remove_ads_button.size = Vector2(width, height)
-	_restore_ads_button.position = Vector2(12 + width, y)
-	_restore_ads_button.size = Vector2(minf(88.0, viewport.x - width - 20.0), height)
+	var origin := _pause_card.position
+	var remove := _pause_card.remove_slot()
+	var restore := _pause_card.restore_slot()
+	_remove_ads_button.position = origin + remove.position
+	_remove_ads_button.size = remove.size
+	_restore_ads_button.position = origin + restore.position
+	_restore_ads_button.size = restore.size
+	_remove_ads_button.add_theme_font_size_override("font_size", PauseCard.BODY_PX)
+	_restore_ads_button.add_theme_font_size_override("font_size", PauseCard.BODY_PX)
+	_remove_ads_button.clip_text = true
+	_restore_ads_button.clip_text = true
 
 
 func _layout_offer() -> void:
@@ -2946,22 +2961,23 @@ func _prompt_remove_ads() -> void:
 func _layout_pause_card(viewport: Vector2) -> void:
 	if _pause_card == null:
 		return
-	# Leave a row for Remove ads / Restore. Web and editor have no such buttons.
-	if _remove_ads_button != null:
-		viewport = Vector2(viewport.x, maxf(viewport.y - 28.0, 120.0))
-	# The pause glyph and the SND control share a column on the right.
-	var reserved := 56.0
+	var width := PauseCard.PANEL_W
+	var height := PauseCard.PANEL_H
+	var x := (viewport.x - width) * 0.5
+	var y := (viewport.y - height) * 0.5
+	# The top-right pause hit stays outside the modal.
 	if _pause_button != null:
-		reserved = maxf(viewport.x - _pause_button.position.x + 8.0, 56.0)
-	var margin := 8.0
-	var width := clampf(viewport.x - margin - reserved, 160.0, 400.0)
-	_pause_card.set_card_width(width)
-	_refresh_pause_card()
-	var height := _pause_card.get_combined_minimum_size().y
-	var y := clampf((viewport.y - height) * 0.5, 66.0, maxf(viewport.y - height - 4.0, 66.0))
+		var limit := _pause_button.position.x - 4.0
+		if x + width > limit:
+			x = limit - width
+	x = clampf(x, 2.0, maxf(viewport.x - width - 2.0, 2.0))
+	y = clampf(y, 2.0, maxf(viewport.y - height - 2.0, 2.0))
 	_pause_card.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_pause_card.position = Vector2(margin, y)
+	_pause_card.position = Vector2(floorf(x), floorf(y))
 	_pause_card.size = Vector2(width, height)
+	if _remove_ads_button != null:
+		_pause_card.set_store_row(true, false)
+	_refresh_pause_card()
 
 func _refresh_pause_card() -> void:
 	if _pause_card == null or _player == null:
@@ -3016,6 +3032,17 @@ func _layout_pause(viewport: Vector2) -> void:
 	var insets := safe_insets_for(viewport, Vector2(window), safe, not fractional)
 	apply_pause_layout(viewport, Vector2(window), DisplayServer.screen_get_scale(), insets)
 	_apply_edge_insets(insets if fractional else Vector4.ZERO)
+	# The world name and the drag hint sit on the bottom edge of the modal.
+	if _paused:
+		if _world_flash != null:
+			_world_flash.visible = false
+		if _hint_label != null:
+			_hint_label.visible = false
+	elif phase == PHASE_PLAY:
+		if _world_flash != null and _world_flash_left > 0.0:
+			_world_flash.visible = true
+		if _hint_label != null and not _tutorial_active and elapsed <= 3.2:
+			_hint_label.visible = true
 
 
 ## Window-pixel safe rect to viewport pixels. A full-window rect returns zero,
@@ -3102,9 +3129,12 @@ func _toggle_pause() -> void:
 		return
 	if _sound != null:
 		_sound.unlock_from_gesture()
+	var opening := not _paused
 	_paused = not _paused
 	_mouse_down = false
 	_primary_touch = -1
+	if opening and _paused and _pause_card != null:
+		_pause_card.open_for_runs(Replay.guide_runs())
 	if _sound != null:
 		_sound.set_music_paused(_paused)
 	if _cg != null:
@@ -3121,11 +3151,57 @@ func _toggle_sound() -> void:
 	_sound.set_enabled(not _sound.enabled)
 	_refresh_sound_button()
 
+func _pause_tab_key(keycode: Key) -> bool:
+	if keycode == KEY_LEFT or keycode == KEY_A:
+		_pause_card.step_tab(-1)
+		return true
+	if keycode == KEY_RIGHT or keycode == KEY_D:
+		_pause_card.step_tab(1)
+		return true
+	return false
+
+func _fit_paused_sound_label(in_bar: bool) -> void:
+	if _sound_label == null or _sound_button == null:
+		return
+	var px := PauseCard.BODY_PX if in_bar else 9
+	_sound_label.add_theme_font_size_override("font_size", px)
+	_sound_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER if in_bar else VERTICAL_ALIGNMENT_TOP
+	_sound_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if in_bar else HORIZONTAL_ALIGNMENT_RIGHT
+	# flat draws text only. The pause bar uses the same framed style as RESUME.
+	_sound_button.flat = not in_bar
+	if in_bar:
+		_sound_label.offset_left = 2.0
+		_sound_label.offset_right = -2.0
+		_sound_label.offset_top = 0.0
+		_sound_label.offset_bottom = 0.0
+	else:
+		_sound_label.offset_left = 0.0
+		_sound_label.offset_top = 1.0
+		_sound_label.offset_right = -2.0
+		_sound_label.offset_bottom = 0.0
+	_refresh_sound_button()
+	if in_bar == _sound_in_bar:
+		return
+	_sound_in_bar = in_bar
+	var style: StyleBox = StyleBoxEmpty.new()
+	if in_bar:
+		var box := StyleBoxFlat.new()
+		box.bg_color = Color("241428")
+		box.set_border_width_all(2)
+		box.border_color = Color("f0d78c")
+		box.set_corner_radius_all(0)
+		style = box
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		_sound_button.add_theme_stylebox_override(state, style)
+
 func _refresh_sound_button() -> void:
 	if _sound_label == null or _sound == null:
 		return
 	var on := _sound.enabled
-	_sound_label.text = "SND" if on else "OFF"
+	if _paused:
+		_sound_label.text = "SND ON" if on else "SND OFF"
+	else:
+		_sound_label.text = "SND" if on else "OFF"
 	var color := Color("f2fbff") if on else Color("8d88a8")
 	_sound_label.add_theme_color_override("font_color", color)
 
