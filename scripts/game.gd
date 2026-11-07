@@ -13,7 +13,6 @@ const PAUSE_MIN_PT := 44.0
 const CHALLENGE_LABEL := "CHALLENGE"
 const CHALLENGE_COPIED := "LINK COPIED!"
 const SHARE_COPIED := "COPIED!"
-const DEATH_FOOTER := "BEAT MY RUN"
 ## The old score was 27. 72 is about 2.5x, on the 9px pixel grid.
 const DEATH_SCORE_PX := 72
 const DEATH_TAG_PX := 18
@@ -23,11 +22,14 @@ const DEATH_BUTTON_PX := 9
 const DEATH_REINC_PX := 18
 const DEATH_INK := Color("14121f")
 ## About 40% shorter than the old 56 and 44. 22 is the phone's 44pt target.
-const DEATH_REINC_H := 34.0
+const DEATH_REINC_H := 44.0
 const DEATH_ROW_H := 26.0
 const DEATH_AD_H := 22.0
 const DEATH_TAP_MIN := 22.0
-const DEATH_BUTTON_GAP := 6.0
+## Space between SHARE, CHALLENGE, and LEADERBOARD.
+const DEATH_BUTTON_GAP := 8.0
+## Even space between the ad line, REINCARNATE, and the row.
+const DEATH_BLOCK_GAP := 8.0
 ## Extra inset inside the safe area so the buttons are not flush with the screen.
 const DEATH_SIDE := 16.0
 const DEATH_BOTTOM_PAD := 8.0
@@ -422,7 +424,8 @@ func _build_hud() -> void:
 	_footer_label = _make_label(9, Color("a49fcf"))
 	_footer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_footer_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_footer_label.text = DEATH_FOOTER
+	_footer_label.text = ""
+	_footer_label.visible = false
 	_game_over.add_child(_footer_label)
 	_copy_toast = _make_label(18, Color("ffe56a"))
 	_copy_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1942,7 +1945,8 @@ func _set_default_death(form_name: String, reached_rank: String) -> void:
 		_best_label.text = ""
 		_best_label.visible = false
 	if _footer_label != null:
-		_footer_label.text = DEATH_FOOTER
+		_footer_label.text = ""
+		_footer_label.visible = false
 	if _beat_button != null:
 		_beat_button.visible = true
 		_beat_button.text = CHALLENGE_LABEL
@@ -1969,21 +1973,22 @@ func _layout_death_card() -> void:
 	var reinc_h := DEATH_REINC_H
 	var row_h := DEATH_ROW_H if not row.is_empty() else 0.0
 	var ad_h := DEATH_AD_H if show_pick else 0.0
-	var gap := 4.0
+	var gap := DEATH_BLOCK_GAP
 	var pad := DEATH_BOTTOM_PAD
+	var kicker_gap := DEATH_KICKER_GAP
 	for _step in 14:
 		var room := _death_text_room(field, edge, pad, gap, reinc_h, row_h, ad_h, show_pick)
-		var used := _death_info_height(text_width, score_px, tag_px, body_px)
+		var used := _death_info_height(text_width, score_px, tag_px, body_px, kicker_gap)
 		if used <= room + 0.5:
 			break
 		if row_h > DEATH_TAP_MIN:
 			row_h = DEATH_TAP_MIN
 			continue
-		if reinc_h > row_h + 4.0:
-			reinc_h = maxf(row_h, reinc_h - 4.0)
+		if reinc_h > 42.0:
+			reinc_h = 42.0
 			continue
-		if gap > 2.0:
-			gap = 2.0
+		if gap > 6.0:
+			gap = 6.0
 			continue
 		if tag_px > DEATH_BODY_PX:
 			tag_px = DEATH_BODY_PX
@@ -1991,10 +1996,16 @@ func _layout_death_card() -> void:
 		if score_px > 63:
 			score_px = maxi(63, score_px - 9)
 			continue
+		if reinc_h > 36.0:
+			reinc_h = maxf(36.0, reinc_h - 2.0)
+			continue
+		if kicker_gap > 10.0:
+			kicker_gap = 10.0
+			continue
 		break
 	_apply_death_button_font()
 	_place_death_buttons(field, edge, usable_w, reinc_h, row_h, ad_h, gap, pad, show_pick, row)
-	_place_death_info(field, edge, text_width, score_px, tag_px, body_px, pad, gap, reinc_h, row_h, ad_h, show_pick)
+	_place_death_info(field, edge, text_width, score_px, tag_px, body_px, pad, gap, reinc_h, row_h, ad_h, show_pick, kicker_gap)
 
 
 func _death_text_room(field: Vector2, edge: Vector4, pad: float, gap: float, reinc_h: float, row_h: float, ad_h: float, show_pick: bool) -> float:
@@ -2095,13 +2106,21 @@ func _place_death_buttons(field: Vector2, edge: Vector4, usable_w: float, reinc_
 		_place_death_control(_form_pick_button, Vector2.ZERO, Vector2.ZERO)
 
 
-func _place_death_info(field: Vector2, edge: Vector4, text_width: float, score_px: int, tag_px: int, body_px: int, pad: float, gap_buttons: float, reinc_h: float, row_h: float, ad_h: float, show_pick: bool) -> void:
+func _place_death_info(field: Vector2, edge: Vector4, text_width: float, score_px: int, tag_px: int, body_px: int, pad: float, gap_buttons: float, reinc_h: float, row_h: float, ad_h: float, show_pick: bool, kicker_gap: float) -> void:
 	var usable_w := field.x - edge.x - edge.z
 	var text_left := edge.x + (usable_w - text_width) * 0.5
-	var y := edge.y + 4.0
+	var text_top := edge.y + 4.0
+	var button_top := _death_button_top(field, edge, pad, gap_buttons, reinc_h, row_h, ad_h, show_pick)
+	var used := _death_info_height(text_width, score_px, tag_px, body_px, kicker_gap)
+	var limit := button_top - gap_buttons
+	var spare := limit - text_top - used
+	var y := text_top + maxf(spare, 0.0) * 0.5
+	# Keep a couple of pixels above the buttons when the measure is a hair short.
+	if y + used + 2.0 > limit:
+		y = maxf(text_top, limit - used - 2.0)
 	var gap := 2.0
 	if _label_on_card(_death_kicker):
-		y = _place_death_line(_death_kicker, text_left, y, text_width, body_px) + DEATH_KICKER_GAP
+		y = _place_death_line(_death_kicker, text_left, y, text_width, body_px) + kicker_gap
 	if _label_on_card(_score_label):
 		y = _place_death_score_row(text_left, y, text_width, score_px, tag_px) + gap
 	elif _label_on_card(_new_best_label):
@@ -2111,12 +2130,13 @@ func _place_death_info(field: Vector2, edge: Vector4, text_width: float, score_p
 		_park_death_label(_score_label)
 		_park_death_label(_new_best_label)
 	for label in [_share_label, _best_label, _rank_label, _footer_label]:
-		if not _label_on_card(label):
+		if not _death_line_on_card(label):
+			if label == _footer_label:
+				label.visible = false
 			_park_death_label(label)
 			continue
 		y = _place_death_line(label, text_left, y, text_width, body_px) + gap
 	if _copy_toast != null and _copy_toast.visible:
-		var button_top := _death_button_top(field, edge, pad, gap_buttons, reinc_h, row_h, ad_h, show_pick)
 		var toast_y := maxf(button_top - 24.0, edge.y + 2.0)
 		_place_death_control(_copy_toast, Vector2(text_left, toast_y), Vector2(text_width, 22.0))
 	elif _copy_toast != null:
@@ -2159,6 +2179,7 @@ func _place_death_line(label: Label, text_left: float, y: float, width: float, f
 	# line as one glyph tall per character.
 	label.custom_minimum_size = Vector2(width, 0)
 	label.size = Vector2(width, 1)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var height := maxf(label.get_minimum_size().y, _wrapped_height(label.text, width, font_size))
 	_place_death_control(label, Vector2(text_left, y), Vector2(width, height))
 	return y + height
@@ -2167,11 +2188,27 @@ func _place_death_line(label: Label, text_left: float, y: float, width: float, f
 func _park_death_label(label: Label) -> void:
 	if label == null:
 		return
-	_place_death_control(label, Vector2.ZERO, Vector2.ZERO)
+	# Autowrap at width 0 turns a short line into a tall column and the
+	# control will not shrink back to nothing.
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	label.custom_minimum_size = Vector2.ZERO
+	label.size = Vector2.ZERO
+	label.position = Vector2.ZERO
 
 
 func _label_on_card(label: Label) -> bool:
 	return label != null and label.visible and not label.text.is_empty()
+
+
+## BEAT MY RUN is gone. The "..." is only the rank fetch in flight, so it does
+## not take a line. A real rank, or the tap-to-retry line, still shows.
+func _death_line_on_card(label: Label) -> bool:
+	if label == _footer_label or not _label_on_card(label):
+		return false
+	if label == _rank_label and label.text == "...":
+		return false
+	return true
 
 
 func _death_score_row_height(width: float, score_px: int, tag_px: int) -> float:
@@ -2182,7 +2219,7 @@ func _death_score_row_height(width: float, score_px: int, tag_px: int) -> float:
 	return score_h + DEATH_TAG_GAP + tag_h
 
 
-func _death_info_height(width: float, score_px: int, tag_px: int, body_px: int) -> float:
+func _death_info_height(width: float, score_px: int, tag_px: int, body_px: int, kicker_gap: float) -> float:
 	var gap := 2.0
 	var used := 0.0
 	var any := false
@@ -2191,7 +2228,7 @@ func _death_info_height(width: float, score_px: int, tag_px: int, body_px: int) 
 		any = true
 	if _label_on_card(_score_label):
 		if any:
-			used += DEATH_KICKER_GAP
+			used += kicker_gap
 		used += _death_score_row_height(width, score_px, tag_px)
 		any = true
 	elif _label_on_card(_new_best_label):
@@ -2200,7 +2237,7 @@ func _death_info_height(width: float, score_px: int, tag_px: int, body_px: int) 
 		used += _wrapped_height(_new_best_label.text, width, tag_px)
 		any = true
 	for label in [_share_label, _best_label, _rank_label, _footer_label]:
-		if not _label_on_card(label):
+		if not _death_line_on_card(label):
 			continue
 		if any:
 			used += gap
@@ -2852,6 +2889,16 @@ func _make_store_button() -> Button:
 	return button
 
 
+func _pad_store_bar_button(button: Button) -> void:
+	button.clip_text = true
+	for state in ["normal", "hover", "pressed", "focus"]:
+		var style := button.get_theme_stylebox(state)
+		if style is StyleBoxFlat:
+			var box := style as StyleBoxFlat
+			box.content_margin_left = 4.0
+			box.content_margin_right = 4.0
+
+
 func _layout_store_row(_viewport: Vector2) -> void:
 	if _remove_ads_button == null or _pause_card == null:
 		return
@@ -2862,10 +2909,10 @@ func _layout_store_row(_viewport: Vector2) -> void:
 	_remove_ads_button.size = remove.size
 	_restore_ads_button.position = origin + restore.position
 	_restore_ads_button.size = restore.size
-	_remove_ads_button.add_theme_font_size_override("font_size", PauseCard.BODY_PX)
-	_restore_ads_button.add_theme_font_size_override("font_size", PauseCard.BODY_PX)
-	_remove_ads_button.clip_text = true
-	_restore_ads_button.clip_text = true
+	_remove_ads_button.add_theme_font_size_override("font_size", PauseCard.BAR_PX)
+	_restore_ads_button.add_theme_font_size_override("font_size", PauseCard.BAR_PX)
+	_pad_store_bar_button(_remove_ads_button)
+	_pad_store_bar_button(_restore_ads_button)
 
 
 func _layout_offer() -> void:
@@ -3278,15 +3325,15 @@ func _pause_tab_key(keycode: Key) -> bool:
 func _fit_paused_sound_label(in_bar: bool) -> void:
 	if _sound_label == null or _sound_button == null:
 		return
-	var px := PauseCard.BODY_PX if in_bar else 9
+	var px := PauseCard.BAR_PX if in_bar else 9
 	_sound_label.add_theme_font_size_override("font_size", px)
 	_sound_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER if in_bar else VERTICAL_ALIGNMENT_TOP
 	_sound_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if in_bar else HORIZONTAL_ALIGNMENT_RIGHT
 	# flat draws text only. The pause bar uses the same framed style as RESUME.
 	_sound_button.flat = not in_bar
 	if in_bar:
-		_sound_label.offset_left = 2.0
-		_sound_label.offset_right = -2.0
+		_sound_label.offset_left = 4.0
+		_sound_label.offset_right = -4.0
 		_sound_label.offset_top = 0.0
 		_sound_label.offset_bottom = 0.0
 	else:
@@ -4302,7 +4349,11 @@ func _set_rank_text(text: String, color: Color) -> void:
 	if _rank_label == null:
 		return
 	_rank_label.text = text
-	_rank_label.visible = text != "" or (_board_button != null and _board_button.visible and Leaderboard.should_submit())
+	# The loading dots stay off the card. The submit and the rank fetch still run.
+	if text == "...":
+		_rank_label.visible = false
+	else:
+		_rank_label.visible = text != "" or (_board_button != null and _board_button.visible and Leaderboard.should_submit())
 	_rank_label.mouse_filter = Control.MOUSE_FILTER_STOP if text == Leaderboard.UNREACHABLE else Control.MOUSE_FILTER_IGNORE
 	_rank_label.add_theme_color_override("font_color", color)
 	if game_over_visible:
