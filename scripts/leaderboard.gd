@@ -391,13 +391,22 @@ func _mark_posted(name: String) -> void:
 	_write(data)
 
 func _read() -> Dictionary:
+	if CrazyGamesHost.cloud_handles():
+		return _saved_profile(CrazyGamesHost.cloud_get(CrazyGamesHost.CLOUD_PROFILE))
 	if not FileAccess.file_exists(PROFILE_PATH):
 		return {}
 	var file := FileAccess.open(PROFILE_PATH, FileAccess.READ)
 	if file == null:
 		return {}
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	var parsed_text := file.get_as_text()
 	file.close()
+	return _saved_profile(parsed_text)
+
+
+func _saved_profile(text: String) -> Dictionary:
+	if text.strip_edges() == "":
+		return {}
+	var parsed: Variant = JSON.parse_string(text)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {}
 	var data: Dictionary = parsed
@@ -417,10 +426,14 @@ func _write(data: Dictionary) -> void:
 		if data.has(key):
 			stored[key] = data[key]
 	stored["epoch"] = BestScores.SCORE_EPOCH
+	var body := JSON.stringify(stored)
+	if CrazyGamesHost.cloud_handles():
+		CrazyGamesHost.cloud_set(CrazyGamesHost.CLOUD_PROFILE, body)
+		return
 	var file := FileAccess.open(PROFILE_PATH, FileAccess.WRITE)
 	if file == null:
 		return
-	file.store_string(JSON.stringify(stored))
+	file.store_string(body)
 	file.close()
 
 static func _uuid_v4() -> String:

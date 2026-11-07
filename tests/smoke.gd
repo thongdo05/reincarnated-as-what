@@ -51,7 +51,7 @@ func _process(_delta: float) -> bool:
 	var saved_bests := "user://best_scores.json"
 	var saved_bests_body := FileAccess.get_file_as_string(saved_bests) if FileAccess.file_exists(saved_bests) else ""
 	var live_failed: int = load("res://tests/dragon_phase_checks.gd").new().run_live(self)
-	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_meteor_shake() + _check_dragon_death() + _check_demon_boss_homing()
+	var failed := _unit_failed + live_failed + _check_hurt_kills() + _check_goblin_magnet() + _check_play() + _check_death_card() + _check_pause() + _check_death_play() + _check_evolve_play() + _check_audio_play() + _check_replay() + _check_roster_play() + _check_vending_gem_meter() + _check_cat_swipe() + _check_name_entry() + _check_crazygames_scene() + _check_board_rows() + _check_rank_fallback() + _check_boss_play() + _check_boss_arrives() + _check_dragon_displaces_regular() + _check_meteor_rain() + _check_meteor_shake() + _check_dragon_death() + _check_demon_boss_homing()
 	_restore_user_file(saved_bests, saved_bests_body)
 	if failed > 0:
 		push_error("%d smoke checks failed" % failed)
@@ -5358,6 +5358,286 @@ func _check_crazygames() -> int:
 	if presets.find("res://web/shell.html") < 0 or presets.find("res://web/shell_crazygames.html") < 0:
 		push_error("Pages and CrazyGames should keep their own html shells")
 		failed += 1
+	failed += _check_crazygames_gates()
+	return failed
+
+
+func _check_crazygames_gates() -> int:
+	var failed := 0
+	if CrazyGamesHost.wanted():
+		push_error("headless smoke is not the CrazyGames export")
+		failed += 1
+	if not NamePrompt.uses_window_prompt(true, false) or NamePrompt.uses_window_prompt(true, true) or NamePrompt.uses_window_prompt(false, false):
+		push_error("window.prompt stays on the Pages web build only")
+		failed += 1
+	if not CrazyGamesHost.challenge_visible(false, "") or CrazyGamesHost.challenge_visible(true, ""):
+		push_error("only an empty CrazyGames invite link hides Challenge")
+		failed += 1
+	if CrazyGamesHost.challenge_visible(true, "https://thongdo05.github.io/reincarnated-as-what/?seed=1"):
+		push_error("the Pages URL is not a CrazyGames invite link")
+		failed += 1
+	if not CrazyGamesHost.invite_link_usable("https://www.crazygames.com/game/reincarnated-as-what?seed=1&form=goblin"):
+		push_error("an SDK invite URL should count as usable")
+		failed += 1
+	if CrazyGamesHost.shows_privacy_notice(false, false) or not CrazyGamesHost.shows_privacy_notice(true, false) or CrazyGamesHost.shows_privacy_notice(true, true):
+		push_error("the privacy line is first-launch CrazyGames only")
+		failed += 1
+	if not ShareBridge.share_appends_link(false, false, true):
+		push_error("iOS and Android should still append the challenge link")
+		failed += 1
+	if ShareBridge.share_appends_link(true, true, false) or ShareBridge.share_appends_link(false, true, false) or ShareBridge.share_appends_link(true, false, true):
+		push_error("CrazyGames and the Pages web share must not append an external link")
+		failed += 1
+	var params: Dictionary = Replay.invite_params(20261101, "goblin")
+	if str(params.get("seed", "")) != "20261101" or str(params.get("form", "")) != "goblin":
+		push_error("invite params should carry the seed and the form, got %s" % params)
+		failed += 1
+	if Replay.invite_params(20261101, "nope").has("form"):
+		push_error("an unknown form should stay off the invite params")
+		failed += 1
+	var pages_link := Replay.beat_url(20261101, "goblin")
+	if not pages_link.begins_with(StoreConfig.WEB_GAME_URL) or pages_link.find("seed=20261101") < 0 or pages_link.find("form=goblin") < 0:
+		push_error("Pages, iOS, and Android challenge links should stay on the game URL, got %s" % pages_link)
+		failed += 1
+	var stripped := ShareBridge.strip_urls("Score 1 https://thongdo05.github.io/reincarnated-as-what/?seed=1 tail")
+	if stripped.find("http") >= 0 or stripped.find("tail") < 0 or stripped.find("Score 1") < 0:
+		push_error("url stripping should drop the link and keep the words, got %s" % stripped)
+		failed += 1
+	if CrazyGamesHost.username_from_user({"username": "Ace_2"}) != "Ace_2":
+		push_error("a signed-in username should prefill when it passes the name rules")
+		failed += 1
+	if CrazyGamesHost.username_from_user({"username": "!!!"}) != "" or CrazyGamesHost.username_from_user({"error": "nope"}) != "":
+		push_error("a bad or missing username should not prefill")
+		failed += 1
+	if CrazyGamesHost.migrated_value(true, "{\"overall\":9}", "{\"overall\":1}") != "{\"overall\":9}":
+		push_error("an existing SDK save should win over the old file")
+		failed += 1
+	if CrazyGamesHost.migrated_value(false, "", "{\"overall\":1}") != "{\"overall\":1}":
+		push_error("a missing SDK key should copy the old file once")
+		failed += 1
+	var policy := FileAccess.get_file_as_string("res://web/privacy.html")
+	for needle in ["leaderboard name", "random id", "Supabase", "AdMob", "Ask App Not to Track", "does not create an account", "playreincarnated@gmail.com", "Remove Ads"]:
+		if policy.find(needle) < 0:
+			push_error("privacy.html is missing %s" % needle)
+			failed += 1
+	if policy.find("TODO") >= 0:
+		push_error("privacy.html should use the support email, not a TODO")
+		failed += 1
+	var support := FileAccess.get_file_as_string("res://web/support.html")
+	for needle in ["playreincarnated@gmail.com", "Restore", "Remove Ads"]:
+		if support.find(needle) < 0:
+			push_error("support.html is missing %s" % needle)
+			failed += 1
+	var workflow := FileAccess.get_file_as_string("res://.github/workflows/pages.yml")
+	if workflow.find("web/privacy.html") < 0 or workflow.find("web/support.html") < 0:
+		push_error("the Pages workflow should publish privacy.html and support.html")
+		failed += 1
+	var stores_doc := FileAccess.get_file_as_string("res://docs/MOBILE_STORES.md")
+	if stores_doc.find("playreincarnated@gmail.com") < 0:
+		push_error("MOBILE_STORES.md should list the support email")
+		failed += 1
+	var game_src := FileAccess.get_file_as_string("res://scripts/game.gd")
+	var open_at := game_src.find("func _open_privacy_page")
+	if open_at < 0 or game_src.substr(open_at, 220).find("CrazyGamesHost.wanted()") < 0:
+		push_error("the privacy link should be gated to the CrazyGames build")
+		failed += 1
+	var pages_shell := FileAccess.get_file_as_string("res://web/shell.html")
+	if pages_shell.find("window.prompt") < 0:
+		push_error("the Pages shell should still document window.prompt")
+		failed += 1
+	var cg_shell := FileAccess.get_file_as_string("res://web/shell_crazygames.html")
+	if cg_shell.find("letter picker") < 0 or cg_shell.find("lbReleaseInput") < 0:
+		push_error("the CrazyGames shell should keep the input blur and describe the letter picker")
+		failed += 1
+	CaptureMode.reset_for_test(PackedStringArray())
+	CaptureMode.note_launch_query("seed=20261101&form=cat")
+	var invited := CaptureMode.summary()
+	if invited.find("form=cat") < 0 or invited.find("seed=20261101") < 0:
+		push_error("SDK invite params should open the challenged run, got %s" % invited)
+		failed += 1
+	CaptureMode.reset_for_test(PackedStringArray())
+	if CaptureMode.is_active():
+		push_error("clearing the test capture state should drop the invite query")
+		failed += 1
+	var best_path := BestScores.SAVE_PATH
+	var daily_path := DailyRun.SAVE_PATH
+	var profile_path := Leaderboard.PROFILE_PATH
+	var audio_path := AudioCues.SETTINGS_PATH
+	var best_before := FileAccess.get_file_as_string(best_path) if FileAccess.file_exists(best_path) else ""
+	var daily_before := FileAccess.get_file_as_string(daily_path) if FileAccess.file_exists(daily_path) else ""
+	var profile_before := FileAccess.get_file_as_string(profile_path) if FileAccess.file_exists(profile_path) else ""
+	var audio_before := FileAccess.get_file_as_string(audio_path) if FileAccess.file_exists(audio_path) else ""
+	var had_best := FileAccess.file_exists(best_path)
+	var had_daily := FileAccess.file_exists(daily_path)
+	var had_profile := FileAccess.file_exists(profile_path)
+	var had_audio := FileAccess.file_exists(audio_path)
+	CrazyGamesHost.use_memory_store_for_test({
+		"daily_run": JSON.stringify({
+			"date": str(DailyRun.date_seed()),
+			"next_run": 3,
+			"epoch": BestScores.SCORE_EPOCH,
+		}),
+	})
+	var recorded: Dictionary = BestScores.record("SLIME", 42)
+	if int(recorded.get("form", 0)) != 42 or int(BestScores.read().get("SLIME", 0)) != 42:
+		push_error("CrazyGames bests should round-trip through the data module")
+		failed += 1
+	if DailyRun.peek_run_index() != 3 or DailyRun.consume_run_index() != 3 or DailyRun.peek_run_index() != 4:
+		push_error("CrazyGames daily run should round-trip through the data module")
+		failed += 1
+	AudioCues.write_enabled(false)
+	if AudioCues.read_enabled():
+		push_error("CrazyGames sound off should stick in the data module")
+		failed += 1
+	AudioCues.write_enabled(true, "user://audio_cg_gate.cfg")
+	if not AudioCues.read_enabled("user://audio_cg_gate.cfg"):
+		push_error("a custom audio path should stay a file even during a CrazyGames test")
+		failed += 1
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://audio_cg_gate.cfg"))
+	var client := Leaderboard.new()
+	root.add_child(client)
+	if client.set_local_name("Zap") != "Zap" or client.player_name() != "Zap" or client.device_id() == "":
+		push_error("CrazyGames leaderboard profile should stick in the data module")
+		failed += 1
+	var cloud_id := client.device_id()
+	client.free()
+	var best_after := FileAccess.get_file_as_string(best_path) if FileAccess.file_exists(best_path) else ""
+	var daily_after := FileAccess.get_file_as_string(daily_path) if FileAccess.file_exists(daily_path) else ""
+	var profile_after := FileAccess.get_file_as_string(profile_path) if FileAccess.file_exists(profile_path) else ""
+	var audio_after := FileAccess.get_file_as_string(audio_path) if FileAccess.file_exists(audio_path) else ""
+	if best_after != best_before or daily_after != daily_before or profile_after != profile_before or audio_after != audio_before:
+		push_error("CrazyGames cloud saves must not rewrite user:// files")
+		failed += 1
+	CrazyGamesHost.force_for_test(-1)
+	if int(BestScores.read().get("SLIME", 0)) == 42 and best_before.find("42") < 0:
+		push_error("leaving the CrazyGames build should read user:// bests again")
+		failed += 1
+	if not had_best and FileAccess.file_exists(best_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(best_path))
+	elif had_best:
+		var restore_best := FileAccess.open(best_path, FileAccess.WRITE)
+		if restore_best != null:
+			restore_best.store_string(best_before)
+			restore_best.close()
+	if not had_daily and FileAccess.file_exists(daily_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(daily_path))
+	elif had_daily:
+		var restore_daily := FileAccess.open(daily_path, FileAccess.WRITE)
+		if restore_daily != null:
+			restore_daily.store_string(daily_before)
+			restore_daily.close()
+	if not had_profile and FileAccess.file_exists(profile_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(profile_path))
+	elif had_profile:
+		var restore_profile := FileAccess.open(profile_path, FileAccess.WRITE)
+		if restore_profile != null:
+			restore_profile.store_string(profile_before)
+			restore_profile.close()
+	if not had_audio and FileAccess.file_exists(audio_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(audio_path))
+	elif had_audio:
+		var restore_audio := FileAccess.open(audio_path, FileAccess.WRITE)
+		if restore_audio != null:
+			restore_audio.store_string(audio_before)
+			restore_audio.close()
+	if cloud_id == "":
+		push_error("cloud device id was empty")
+		failed += 1
+	return failed
+
+
+func _check_crazygames_scene() -> int:
+	var failed := 0
+	var stretch := root.content_scale_stretch
+	CrazyGamesHost.use_memory_store_for_test({})
+	var packed: PackedScene = load("res://scenes/main.tscn")
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	if game._privacy == null or not game._privacy.visible:
+		push_error("the first CrazyGames launch should show the privacy line")
+		failed += 1
+	else:
+		var copy := game._privacy.get_node_or_null("Strip/Copy") as Label
+		if copy == null or copy.text.find("Scores and your leaderboard name are saved online.") < 0:
+			push_error("privacy copy drifted")
+			failed += 1
+		if game._privacy.get_node_or_null("Strip/Privacy") == null or game._privacy.get_node_or_null("Strip/Dismiss") == null:
+			push_error("the privacy line needs a Privacy link and a dismiss control")
+			failed += 1
+		if game._privacy.mouse_filter != Control.MOUSE_FILTER_IGNORE:
+			push_error("the privacy strip should not block play")
+			failed += 1
+	if game._name_prompt == null or not game._name_prompt._picker:
+		push_error("CrazyGames name entry should be the in-game picker")
+		failed += 1
+	else:
+		CrazyGamesHost.set_suggested_name_for_test("Ace")
+		game._name_prompt.open("", "death")
+		if not game._name_prompt.visible or game._name_prompt.current_text() != "Ace":
+			push_error("an empty picker should prefill the SDK username, got %s" % game._name_prompt.current_text())
+			failed += 1
+		game._name_prompt._picker_type("!")
+		game._name_prompt._picker_type("2")
+		if game._name_prompt.current_text() != "Ace2":
+			push_error("the picker should take a digit and ignore symbols, got %s" % game._name_prompt.current_text())
+			failed += 1
+		for _i in 20:
+			game._name_prompt._picker_type("B")
+		if game._name_prompt.current_text().length() != 12:
+			push_error("the picker should stop at 12 characters, got %s" % game._name_prompt.current_text().length())
+			failed += 1
+		game._name_prompt._cancel()
+		if game._name_prompt.visible:
+			push_error("Skip should close the name picker")
+			failed += 1
+	game.day_seed = 20261101
+	game.form_id = FormCatalog.Id.GOBLIN
+	CrazyGamesHost.set_invite_override_for_test("")
+	game._refresh_challenge_offer()
+	if game._beat_button != null and game._beat_button.visible:
+		push_error("Challenge should hide when inviteLink is unavailable")
+		failed += 1
+	CrazyGamesHost.set_invite_override_for_test("https://www.crazygames.com/game/reincarnated-as-what?seed=20261101&form=goblin")
+	game._refresh_challenge_offer()
+	if game._beat_button == null or not game._beat_button.visible or game.challenge_link().find("github.io") >= 0:
+		push_error("Challenge should copy the SDK link, got %s" % game.challenge_link())
+		failed += 1
+	var shared := ScoreRules.share_line("GOBLIN", "Goblin", 12.0, "Dire Wolf", 10)
+	if ShareBridge.strip_urls(shared).find("http") >= 0 or shared.find("github.io") >= 0:
+		push_error("the CrazyGames share body should have no external URL")
+		failed += 1
+	game._dismiss_privacy()
+	if game._privacy != null and game._privacy.visible:
+		push_error("dismiss should hide the privacy line")
+		failed += 1
+	if CrazyGamesHost.cloud_get(CrazyGamesHost.CLOUD_PRIVACY) != "1":
+		push_error("dismiss should remember the privacy line in the data module")
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	CrazyGamesHost.force_for_test(-1)
+	var plain := packed.instantiate()
+	plain.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(plain)
+	if plain._privacy != null:
+		push_error("Pages, iOS, and Android must not build the privacy notice")
+		failed += 1
+	if plain._name_prompt != null and plain._name_prompt._picker:
+		push_error("Pages, iOS, and Android must keep the existing name entry")
+		failed += 1
+	plain.day_seed = 20261101
+	plain.form_id = FormCatalog.Id.SLIME
+	plain._refresh_challenge_offer()
+	var plain_link := str(plain.challenge_link())
+	if plain._beat_button == null or not plain._beat_button.visible or not plain_link.begins_with(StoreConfig.WEB_GAME_URL):
+		push_error("the other builds should still show and copy the Pages challenge link, got %s" % plain_link)
+		failed += 1
+	root.remove_child(plain)
+	plain.free()
+	CaptureMode.reset_for_test(PackedStringArray())
+	root.content_scale_stretch = stretch
+	CrazyGamesHost.force_for_test(-1)
 	return failed
 
 

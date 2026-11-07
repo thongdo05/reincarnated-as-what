@@ -89,7 +89,15 @@ The addon is the official Godot 4 package from the Godot Asset Library (`CrazyGa
 | `CrazyGames.Game.gameplay_stop()` | Pause opens, the player dies, the leaderboard opens during a run |
 | `CrazyGames.Game.happy_time()` | A boss dies (Lich King, Death Knight, Great Dragon) |
 
-Loading start/stop is not called. The Godot export reports that itself. No ad, banner, user, or data calls. Those are for a later Full Launch.
+Loading start/stop is not called. The Godot export reports that itself. There are still no SDK ads or banners.
+
+This build does call the SDK for three other things. Pages, iOS, and Android do not.
+
+- **Invite link.** The death card's Challenge button copies `CrazyGames.SDK.game.inviteLink` with the same `seed` and `form` query the other builds put on the GitHub Pages URL. On launch the game reads those params with `getInviteParam`, then the page URL if the SDK value is empty, and feeds them through the same capture parser. If `inviteLink` returns nothing (the local SDK often does), the Challenge button is hidden. It does not copy `thongdo05.github.io`. Share on this build never appends that URL either.
+- **Data module.** After the SDK initialises, best scores, the daily-run index, the leaderboard profile (name, device id, posted flag), and the sound on/off setting load from `CrazyGames.SDK.data`. If a key is missing and the matching `user://` file exists, that file is copied into the module once. Later writes go to the module. Select "Yes, using the Data Module from the CrazyGames SDK" in the submission flow or the module stays disabled and this build keeps the `user://` files. The other builds always use `user://`.
+- **Username.** If a player is signed in, an empty name field can start from `SDK.user.getUser().username`. Skipping the field still leaves the saved name alone.
+
+The first launch shows a small dismissible line, "Scores and your leaderboard name are saved online.", with a Privacy link to `https://thongdo05.github.io/reincarnated-as-what/privacy.html`. The pause screen's legal and ads row is unchanged, and the other builds do not show the line. Name entry on this build is an in-game letter picker (the shell still blurs HTML inputs). GitHub Pages still uses `window.prompt`.
 
 If you replace the addon, keep the `_ready` guard and the autoload paths above.
 
@@ -102,6 +110,10 @@ If you replace the addon, keep the `_ready` guard and the autoload paths above.
 - [ ] Pause, death, and the leaderboard show `gameplayStop`, and unpausing shows `gameplayStart` again
 - [ ] Killing a boss shows the happy-time log
 - [ ] No AdMob, no Remove Ads, no store link, no fullscreen button
+- [ ] Challenge copies an SDK invite link, or the button is hidden when that link is empty. No `github.io` URL in Challenge or Share
+- [ ] A new browser shows the privacy line once. Privacy opens the Pages privacy policy
+- [ ] The name picker accepts keyboard and taps, and Skip returns to the card
+- [ ] Progress Save is set to the Data module in the portal, and a returning browser keeps its best and its name
 - [ ] Text is readable at 800×450 and 1920×1080
 - [ ] A phone in landscape plays, and a notch does not cover the score or the pause mark
 - [ ] iOS Safari plays audio after the first tap, including after switching away and back

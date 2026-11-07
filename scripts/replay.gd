@@ -128,6 +128,17 @@ static func beat_url(seed_value: int, form_key: String) -> String:
 		return base
 	return "%s&form=%s" % [base, key]
 
+
+## Params for CrazyGames.SDK.game.inviteLink. Same seed and form as beat_url.
+## Pages, iOS, and Android keep using beat_url.
+static func invite_params(seed_value: int, form_key: String) -> Dictionary:
+	var params := {"seed": str(seed_value)}
+	var key := form_key.strip_edges().to_lower()
+	if FormCatalog.id_from_key(key) < 0:
+		return params
+	params["form"] = key
+	return params
+
 static func beat_url_for(seed_value: int, form_id: int) -> String:
 	return beat_url(seed_value, form_key(form_id))
 

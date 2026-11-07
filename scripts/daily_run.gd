@@ -25,13 +25,22 @@ static func consume_run_index() -> int:
 
 static func _read() -> Dictionary:
 	var today := str(date_seed())
+	if CrazyGamesHost.cloud_handles():
+		return _saved_run(CrazyGamesHost.cloud_get(CrazyGamesHost.CLOUD_DAILY), today)
 	if not FileAccess.file_exists(SAVE_PATH):
 		return {"date": today, "next_run": 0}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
 	if file == null:
 		return {"date": today, "next_run": 0}
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	var parsed_text := file.get_as_text()
 	file.close()
+	return _saved_run(parsed_text, today)
+
+
+static func _saved_run(text: String, today: String) -> Dictionary:
+	if text.strip_edges() == "":
+		return {"date": today, "next_run": 0}
+	var parsed: Variant = JSON.parse_string(text)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {"date": today, "next_run": 0}
 	var data: Dictionary = parsed
@@ -49,13 +58,17 @@ static func _has_score_fields(data: Dictionary) -> bool:
 	return false
 
 static func _write(next_run: int) -> void:
+	var body := JSON.stringify({
+		"date": str(date_seed()),
+		"next_run": next_run,
+		"epoch": BestScores.SCORE_EPOCH,
+	})
+	if CrazyGamesHost.cloud_handles():
+		CrazyGamesHost.cloud_set(CrazyGamesHost.CLOUD_DAILY, body)
+		return
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
 		push_warning("Could not save the daily run index.")
 		return
-	file.store_string(JSON.stringify({
-		"date": str(date_seed()),
-		"next_run": next_run,
-		"epoch": BestScores.SCORE_EPOCH,
-	}))
+	file.store_string(body)
 	file.close()

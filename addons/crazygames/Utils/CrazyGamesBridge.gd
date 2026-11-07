@@ -99,15 +99,25 @@ func gameplay_stop():
 	JavaScriptBridge.eval("window.CrazyGames.SDK.game.gameplayStop();")
 
 func request_invite_url(params: Dictionary) -> String:
-	var params_json = JSON.stringify(params)
-	var url = JavaScriptBridge.eval("window.CrazyGames.SDK.game.inviteLink(JSON.parse('%s'));" % params_json)
-	return url as String
+	var js := "(function(){ try { if (!window.CrazyGames || !window.CrazyGames.SDK || !window.CrazyGames.SDK.game || typeof window.CrazyGames.SDK.game.inviteLink !== 'function') return ''; var link = window.CrazyGames.SDK.game.inviteLink(%s); if (link === null || link === undefined) return ''; return String(link); } catch (e) { return ''; } })()" % JSON.stringify(params)
+	var url = JavaScriptBridge.eval(js, true)
+	if url == null:
+		return ""
+	return str(url)
 
 func get_invite_link_param(param_name: String) -> String:
-	var value = JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('%s');" % param_name)
+	var safe := ""
+	for i in param_name.length():
+		var ch := param_name.substr(i, 1)
+		if (ch >= "a" and ch <= "z") or (ch >= "A" and ch <= "Z") or (ch >= "0" and ch <= "9") or ch == "_":
+			safe += ch
+	if safe == "":
+		return ""
+	var js := "(function(){ try { var game = window.CrazyGames && window.CrazyGames.SDK && window.CrazyGames.SDK.game; if (game && typeof game.getInviteParam === 'function') { var v = game.getInviteParam('%s'); if (v !== null && v !== undefined && String(v) !== '') return String(v); } } catch (e) {} try { var q = new URLSearchParams(window.location.search).get('%s'); if (q !== null && q !== undefined && String(q) !== '') return String(q); } catch (e2) {} return ''; })()" % [safe, safe]
+	var value = JavaScriptBridge.eval(js, true)
 	if value == null:
 		return ""
-	return value as String
+	return str(value)
 
 func show_invite_button(params: Dictionary) -> String:
 	var params_json = JSON.stringify(params)
@@ -207,19 +217,23 @@ func data_clear():
 	JavaScriptBridge.eval("window.CrazyGames.SDK.data.clear();")
 
 func data_get_item(key: String) -> String:
-	var value = JavaScriptBridge.eval("window.CrazyGames.SDK.data.getItem('%s');" % key)
-	if value != null:
-		return value as String
-	return ""
+	var js := "(function(){ try { if (!window.CrazyGames || !window.CrazyGames.SDK || !window.CrazyGames.SDK.data) return null; return window.CrazyGames.SDK.data.getItem(%s); } catch (e) { return null; } })()" % JSON.stringify(key)
+	var value = JavaScriptBridge.eval(js, true)
+	if value == null:
+		return ""
+	return str(value)
 
 func data_has_key(key: String) -> bool:
-	return JavaScriptBridge.eval("window.CrazyGames.SDK.data.getItem('%s') !== null;" % key) as bool
+	var js := "(function(){ try { if (!window.CrazyGames || !window.CrazyGames.SDK || !window.CrazyGames.SDK.data) return false; return window.CrazyGames.SDK.data.getItem(%s) !== null; } catch (e) { return false; } })()" % JSON.stringify(key)
+	return bool(JavaScriptBridge.eval(js, true))
 
 func data_remove_item(key: String):
-	JavaScriptBridge.eval("window.CrazyGames.SDK.data.removeItem('%s');" % key)
+	var js := "(function(){ try { if (!window.CrazyGames || !window.CrazyGames.SDK || !window.CrazyGames.SDK.data) return; window.CrazyGames.SDK.data.removeItem(%s); } catch (e) {} })()" % JSON.stringify(key)
+	JavaScriptBridge.eval(js, true)
 
-func data_set_item(key: String, value: String):
-	JavaScriptBridge.eval("window.CrazyGames.SDK.data.setItem('%s', '%s');" % [key, value])
+func data_set_item(key: String, value: String) -> bool:
+	var js := "(function(){ try { if (!window.CrazyGames || !window.CrazyGames.SDK || !window.CrazyGames.SDK.data) return false; window.CrazyGames.SDK.data.setItem(%s, %s); return true; } catch (e) { return false; } })()" % [JSON.stringify(key), JSON.stringify(value)]
+	return bool(JavaScriptBridge.eval(js, true))
 
 ## ------------------------------------------------------------------
 ## Analytics Module

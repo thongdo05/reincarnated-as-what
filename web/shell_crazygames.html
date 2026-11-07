@@ -245,9 +245,9 @@ body {
 				// Godot's web IME is a contentEditable node that refocuses itself
 				// on a timer while a LineEdit is editing. On iPhone Safari that
 				// timer keeps the keyboard's focus after it closes, and the next
-				// taps never reach the canvas. Name entry uses window.prompt, so
-				// this node must not take focus. A leftover <input> would do the
-				// same: it sits over the buttons and swallows the tap.
+				// taps never reach the canvas. This build's name entry is an
+				// in-game letter picker, so it never needs that HTML field.
+				// A leftover <input> would sit over the buttons and swallow the tap.
 				window.lbReleaseInput = function () {
 					if (window.__lbReleasing) {
 						return;
