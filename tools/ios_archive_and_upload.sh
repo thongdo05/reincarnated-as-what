@@ -173,7 +173,47 @@ require_text "$pbxproj" "MARKETING_VERSION = ${IOS_SHORT_VERSION};" "store versi
 require_text "$pbxproj" "CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};" "build number ${BUILD_NUMBER}"
 require_text "$pbxproj" "PRODUCT_BUNDLE_IDENTIFIER = ${BUNDLE_ID};" "bundle id"
 require_text "$info_plist" "GADApplicationIdentifier" "AdMob app id"
+require_text "$info_plist" "ca-app-pub-1397621797560860~9031599553" "real iOS AdMob app id"
 require_text "$info_plist" "NSUserTrackingUsageDescription" "tracking usage description"
+require_text "$info_plist" "Ask App Not to Track" "tracking prompt copy"
+require_text "$info_plist" "SKAdNetworkItems" "AdMob SKAdNetwork list"
+require_text "$info_plist" "cstr6suwn9.skadnetwork" "Google SKAdNetwork id"
+require_text "$info_plist" "UIInterfaceOrientationLandscapeLeft" "landscape left"
+require_text "$info_plist" "UIInterfaceOrientationLandscapeRight" "landscape right"
+if grep -q "UIInterfaceOrientationPortrait" "$info_plist"; then
+  echo "iPhone build should stay landscape."
+  exit 1
+fi
+require_text "$pbxproj" 'TARGETED_DEVICE_FAMILY = "1";' "iPhone only"
+if grep -q 'TARGETED_DEVICE_FAMILY = "1,2";' "$pbxproj"; then
+  echo "iPhone build should not include iPad."
+  exit 1
+fi
+privacy_plist="$(find build/ios -name 'PrivacyInfo.xcprivacy' -print -quit)"
+if [ -z "$privacy_plist" ]; then
+  echo "Expected PrivacyInfo.xcprivacy in the iOS export."
+  exit 1
+fi
+require_text "$privacy_plist" "NSPrivacyTracking" "privacy manifest tracking flag"
+python3 - "$privacy_plist" <<'PY'
+import sys
+from pathlib import Path
+text = Path(sys.argv[1]).read_text()
+key = "<key>NSPrivacyTracking</key>"
+start = text.find(key)
+window = text[start:start + 80] if start >= 0 else ""
+if "<true/>" not in window:
+    raise SystemExit("PrivacyInfo.xcprivacy should set NSPrivacyTracking to true")
+PY
+require_text "$privacy_plist" "NSPrivacyAccessedAPICategoryFileTimestamp" "file timestamp reason"
+require_text "$privacy_plist" "DDA9.1" "file timestamp reason code"
+require_text "$privacy_plist" "C617.1" "file timestamp container reason"
+require_text "$privacy_plist" "NSPrivacyAccessedAPICategoryDiskSpace" "disk space reason"
+require_text "$privacy_plist" "E174.1" "disk space reason code"
+require_text "$privacy_plist" "NSPrivacyAccessedAPICategorySystemBootTime" "boot time reason"
+require_text "$privacy_plist" "35F9.1" "boot time reason code"
+require_text "$privacy_plist" "NSPrivacyAccessedAPICategoryUserDefaults" "user defaults reason"
+require_text "$privacy_plist" "CA92.1" "user defaults reason code"
 require_text "$pbxproj" "PoingGodotAdMobDeps" "AdMob Swift package"
 test -f build/ios/admob_spm/Package.swift
 echo "Xcode project has version ${IOS_SHORT_VERSION} (${BUILD_NUMBER}), AdMob, and the tracking prompt."

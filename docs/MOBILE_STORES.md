@@ -1,6 +1,6 @@
 # iOS and Android
 
-The web build is still the one GitHub Pages ships. Ads and the remove-ads purchase do nothing on the web and in the editor. On a phone, dev and TestFlight builds request Google's test ad units until `USE_TEST_ADS` in `scripts/store_config.gd` is turned off. The AdMob app id in the binary is the real one either way.
+The web build is still the one GitHub Pages ships. Ads and the remove-ads purchase do nothing on the web and in the editor. On a phone, dev builds and a TestFlight run that leaves **Use real AdMob unit ids** unchecked request Google's test ad units. `USE_TEST_ADS` in `scripts/store_config.gd` stays `true` in git. The AdMob app id in the binary is the real one either way.
 
 Support email: `playreincarnated@gmail.com`. The game does not collect the player's email. That address is the contact on the public privacy and support pages (`privacy.html` and `support.html` on the Pages site). A request to delete a leaderboard row is an email to that address. There is no in-game account.
 
@@ -20,12 +20,14 @@ The prompt text is `StoreConfig.ATT_USAGE_DESCRIPTION`. The export plugin writes
 
 `scripts/store_config.gd`
 
-- `USE_TEST_ADS` defaults to `true`. Dev and TestFlight builds request Google's sample ad units. Real interstitial units are already in this file and are used only when the flag is `false`.
+- `USE_TEST_ADS` defaults to `true`. Dev builds, and a TestFlight run with the box unchecked, request Google's sample ad units. Real interstitial and rewarded units are already in this file and are used only when the flag is `false`.
 - The real AdMob app ids are filled in. Export always writes those into Info.plist (`GADApplicationIdentifier`) and the Android manifest (`com.google.android.gms.ads.APPLICATION_ID`), including while test units are on.
-- Banner and rewarded real unit ids are still empty. Those formats stay on Google's sample units until the ids are pasted and the flag is off.
+- Banner real unit ids stay empty. A real-ads build therefore does not request a banner. Test-ads builds still use Google's sample banner.
+- Rewarded real units are filled: iOS `ca-app-pub-1397621797560860/3491799585`, Android `ca-app-pub-1397621797560860/6919908709`. **Watch ad: choose your form** loads whichever rewarded unit `rewarded_unit_id()` returns.
+- Privacy and support URLs live here too (`PRIVACY_URL`, `SUPPORT_URL`). The pause screen on iOS and Android opens them in the system browser.
 - `remove_ads` is the product id. It is already created in App Store Connect as a non-consumable. The $2.99 price is set in the stores, not in code.
 
-To serve real interstitials, set `USE_TEST_ADS` to `false` in `scripts/store_config.gd` and export again. Leave it `true` for a Mac dev run or a TestFlight build.
+Do not flip `USE_TEST_ADS` in git for a TestFlight upload. Use the workflow input below. A local Mac archive that should serve real units can set the flag to `false`, export, then set it back before committing.
 
 ## Build the iOS app on a Mac
 
@@ -47,7 +49,7 @@ Godot 4.7.2, Xcode 15 or newer, and an Apple Developer account.
 7. Pick your iPhone (the StoreKit plugin is unreliable in the Simulator) and press Run.
 8. The first launch asks for tracking, then the game. With the flag on, the ads are Google's test ads and do not earn money.
 9. For TestFlight from a Mac, keep `USE_TEST_ADS` true, set Export Project Only off, keep Release export method on App Store, and archive from Xcode (Product → Archive → Distribute). The store version on the preset is `1.0` (`application/short_version`). The build number (`application/version`) stays `1` for a local archive. Without a Mac, use the GitHub Actions workflow in the next section.
-10. For an App Store build that should serve the real interstitial, set `USE_TEST_ADS` to `false`, export again, then archive. Banner and rewarded stay on test units until their real ids are filled in the same file.
+10. For a local archive that should serve the real interstitial and the real rewarded unit, set `USE_TEST_ADS` to `false`, export again, then archive. Set it back to `true` before you commit. Banner real ids are empty, so that build does not show a banner. The GitHub Actions path does the same flip without a commit: check **Use real AdMob unit ids**.
 
 ## TestFlight from GitHub Actions
 
@@ -56,7 +58,7 @@ No Mac. Actions → **iOS TestFlight** → Run workflow. The workflow is `workfl
 The runner is a GitHub-hosted `macos-26` machine with Xcode 26, which is what App Store Connect currently requires for an iOS upload. It installs Godot 4.7.2 and the matching export templates, checks the vendored AdMob, StoreKit, and ATT release libraries (and downloads the AdMob ads xcframework only if that file is missing), compiles the share-sheet plugin with `tools/build_ios_share_plugin.sh`, exports the Xcode project, archives it, and uploads the IPA to the existing App Store Connect app `6831784046`.
 
 - Store version stays **1.0**. The build number is `github.run_number` for that workflow, so a second upload does not reuse build 1. The first successful run is build 1. If a build with that number was already uploaded, run the workflow again.
-- `USE_TEST_ADS` stays `true` unless you check **Use real AdMob unit ids**. That checkbox edits the runner's copy of `scripts/store_config.gd` for that build only. It is not committed. Banner and rewarded real unit ids are still empty, so those formats stay on Google's sample units even when the box is checked.
+- `USE_TEST_ADS` stays `true` unless you check **Use real AdMob unit ids** (`use_real_ads`, default off). That checkbox edits the runner's copy of `scripts/store_config.gd` for that build only. It is not committed. Checked, the build requests the real interstitial and the real rewarded unit. Real banner ids are empty, so the banner stays off. Unchecked, every format stays on Google's sample units, which is what an existing run does if you leave the box alone.
 - The upload uses `xcrun altool` with the App Manager API key. The `.p8` is written to a temp file mode `0600` and deleted at the end, including when the job fails. The log does not print it.
 
 ### Signing
@@ -106,20 +108,21 @@ Godot 4.7.2, Android SDK, and a JDK that matches the Godot 4.7 Android docs. The
    - Min SDK 24, arm64-v8a, landscape
    - Adaptive icons from `app_icon/android_adaptive_foreground_432.png` and `android_adaptive_background_432.png`
    - Export format: AAB (`build/android/reincarnated.aab`) for Play
-3. Leave `USE_TEST_ADS` true. Export still writes the real Android AdMob app id `ca-app-pub-1397621797560860~1097269219` into the manifest. Requests use Google's test ad units. Set the flag to `false` and export again only when the build should serve the real interstitial.
+3. Leave `USE_TEST_ADS` true. Export still writes the real Android AdMob app id `ca-app-pub-1397621797560860~1097269219` into the manifest. Requests use Google's test ad units. Set the flag to `false` and export again only when the build should serve the real interstitial and the real rewarded unit. Banner real ids are empty, so that build does not show a banner. Set the flag back to `true` before you commit.
 4. For a cable install, switch Export Format to APK and set the path to `build/android/reincarnated.apk`. Debug exports use Godot's debug keystore. Release exports need a keystore filled in on the preset (do not commit the passwords; Godot keeps those in `export_credentials.cfg`, which is gitignored).
 5. Install the APK, or upload the AAB to Play Console's internal testing track. Billing and real ads only work on a build Play signed, installed from a testing track, with a license tester account.
 
 ## What to create in the consoles
 
-App ids and interstitial units are already in `scripts/store_config.gd`. Banner and rewarded real units are not.
+App ids, interstitial units, and rewarded units are already in `scripts/store_config.gd`. Banner real units are not, on purpose.
 
 ### AdMob
 
 1. The Android app id `ca-app-pub-1397621797560860~1097269219` is `REAL_ANDROID_APP_ID`. Export writes it into the manifest as `com.google.android.gms.ads.APPLICATION_ID`.
 2. The iOS app id `ca-app-pub-1397621797560860~9031599553` is `REAL_IOS_APP_ID`. Export writes it into Info.plist as `GADApplicationIdentifier`.
 3. Interstitial units are filled: Android `ca-app-pub-1397621797560860/3747483284`, iOS `ca-app-pub-1397621797560860/3293196875`. They are requested only when `USE_TEST_ADS` is `false`.
-4. Banner and rewarded real units are still empty. Create those in AdMob when you want them, then paste them into `REAL_ANDROID_BANNER_UNIT_ID`, `REAL_IOS_BANNER_UNIT_ID`, `REAL_ANDROID_REWARDED_UNIT_ID`, and `REAL_IOS_REWARDED_UNIT_ID`.
+4. Rewarded units are filled: Android `ca-app-pub-1397621797560860/6919908709`, iOS `ca-app-pub-1397621797560860/3491799585`. **Watch ad: choose your form** requests the sample rewarded unit while `USE_TEST_ADS` is true, and these units when it is false. Buying `remove_ads` still opens the picker with no ad.
+5. Banner real units stay empty (`REAL_ANDROID_BANNER_UNIT_ID`, `REAL_IOS_BANNER_UNIT_ID`). A real-ads build does not request a banner. Paste an id here later only when a real banner should ship.
 5. Privacy & messaging: create a GDPR / EEA message so the UMP form can show in Europe. Do not also create an IDFA message there. The game already shows Apple's tracking prompt after the GDPR form, and a second message would ask twice.
 
 ### app-ads.txt
@@ -155,7 +158,9 @@ Phone builds only. The web build never loads AdMob and has no form-pick button.
 - **Rewarded.** The death card has **Watch ad: choose your form**. There is no limit. The picker opens only when the reward callback fires. The player can pick Slime, Goblin, Vending Machine, Cat, or Demon Lord. Dragon is not in the list. That pick is the next run only. The daily index still advances, so the run after that is the normal random roll again, and that roll still will not repeat the form they just played. If the ad fails or they skip it, the picker stays closed and the next form is the normal roll. **Keep random** on the picker does the same.
 - Buying `remove_ads` removes the banner and the interstitial. The death-card button becomes **Choose your form** and opens the picker with no ad. Restore still works. A later refund, once the store query says the product is gone, turns the ads back on.
 
-The pause menu has **Remove ads** and **Restore**. After the first interstitial that actually plays, the same offer appears before the next run, with **Not now**.
+The pause menu has **Remove ads** and **Restore**. On iOS and Android it also has **Privacy** and **Support**, just above that bar. They open `PRIVACY_URL` and `SUPPORT_URL` in the system browser. The web and CrazyGames pause screens do not show them. After the first interstitial that actually plays, the same remove-ads offer appears before the next run, with **Not now**.
+
+App Store Connect and Play Console still want those same URLs in the listing. The in-app row is the copy a player can open without leaving the pause screen. There is no account screen, so the pause screen is the place the store rules ask for.
 
 ## What the game collects
 
@@ -186,6 +191,16 @@ Use the list above when you fill the forms. The binary privacy manifest (device 
 - Data is encrypted in transit.
 - There is no account to delete. Players can reset the advertising id in Android settings, and they can choose another leaderboard name on the device.
 - Data is not sold.
+
+## iOS export checklist
+
+Godot writes these at export time. The TestFlight script checks the generated Xcode project before it archives.
+
+- **Tracking prompt.** `StoreConfig.ATT_USAGE_DESCRIPTION` is written to Info.plist as `NSUserTrackingUsageDescription` by `addons/raw_store`. The game calls `GodotIosAtt.request_tracking_authorization()` on iOS, so the string has to be there.
+- **AdMob app id.** `GADApplicationIdentifier` is the real iOS app id `ca-app-pub-1397621797560860~9031599553`, including on a test-ads build.
+- **SKAdNetwork.** The AdMob iOS exporter copies Google's buyer list from `addons/admob/ios/bin/ads/poing_godot_admob_ads.gd` into Info.plist, including Google's `cstr6suwn9.skadnetwork`. No mediation networks are enabled, so no extra partner ids are required.
+- **Privacy manifest.** Godot generates `PrivacyInfo.xcprivacy` from the iOS preset. Tracking is on, with the Google ad domains. Collected data is device id and advertising data for third-party advertising. Required-reason APIs are file timestamp (`DDA9.1`, `C617.1`), disk space (`E174.1`), boot time (`35F9.1`), and user defaults (`CA92.1`). The AdMob plugin static library calls `NSUserDefaults` and is linked into the app, so the app manifest has to name that category. Google's own SDK ships a separate manifest inside the Swift package.
+- **iPhone only, landscape.** `application/targeted_device_family=0` is iPhone (`TARGETED_DEVICE_FAMILY = 1`). `display/window/handheld/orientation=4` is sensor landscape, so Info.plist lists landscape left and landscape right and not portrait.
 
 ## What was not run here
 

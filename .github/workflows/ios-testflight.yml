@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       use_real_ads:
-        description: "Use real AdMob unit ids. Off keeps Google's test ads (USE_TEST_ADS)."
+        description: "Serve real interstitial and rewarded units. Off keeps Google's test ads. Real banner ids are empty, so banners stay off."
         type: boolean
         default: false
 
