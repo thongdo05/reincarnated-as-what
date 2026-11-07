@@ -2745,6 +2745,57 @@ func _check_pause_card(game) -> int:
 	if card.mouse_filter == Control.MOUSE_FILTER_IGNORE:
 		push_error("the pause card should take taps for its tabs")
 		failed += 1
+	failed += _check_pause_pages(card)
+	return failed
+
+
+func _check_pause_pages(card) -> int:
+	var failed := 0
+	var forms: Array[int] = []
+	forms.assign(FormCatalog.IDS)
+	forms.append(FormCatalog.Id.DRAGON)
+	for id in forms:
+		card.show_form(id, 0, 200, true)
+		card.show_tab(PauseGuide.TAB_YOU)
+		var page: Control = card._you
+		var page_rect: Rect2 = page.get_global_rect()
+		var card_rect: Rect2 = card.get_global_rect()
+		if page_rect.position.x < card_rect.position.x + 6.0 or page_rect.end.x > card_rect.end.x - 6.0:
+			push_error("%s you page should stay inside the border, %s" % [FormCatalog.display_name(id), page_rect])
+			failed += 1
+		for label in card._traits:
+			if not label.visible or str(label.text).is_empty():
+				continue
+			var rect: Rect2 = label.get_global_rect()
+			if not page_rect.encloses(rect):
+				push_error("%s trait leaves the pad '%s'" % [FormCatalog.display_name(id), label.text])
+				failed += 1
+			var px := int(label.get_theme_font_size("font_size"))
+			if card._text_width(label.text, px) > label.size.x + 1.0:
+				push_error("%s trait is wider than its line '%s'" % [FormCatalog.display_name(id), label.text])
+				failed += 1
+	card.show_tab(PauseGuide.TAB_PICKUPS)
+	for effect in card._pickup_effects:
+		if str(effect.text).find("\n") >= 0:
+			push_error("pickup effect should be one line, got %s" % effect.text)
+			failed += 1
+		if card._text_width(effect.text, PauseCard.EFFECT_PX) > effect.size.x + 1.0:
+			push_error("pickup effect does not fit '%s'" % effect.text)
+			failed += 1
+	card.set_store_row(true, true)
+	card.show_tab(PauseGuide.TAB_CONTROLS)
+	for label in card._control_labels:
+		if card._text_width(label.text, PauseCard.BODY_PX) > label.size.x + 1.0:
+			push_error("control line does not fit '%s'" % label.text)
+			failed += 1
+	for button in [card._resume, card._remove_ph, card._restore_ph]:
+		var px := int(button.get_theme_font_size("font_size"))
+		if card._text_width(button.text, px) + 8.0 > button.size.x + 0.5:
+			push_error("bar label needs 4px padding '%s'" % button.text)
+			failed += 1
+	card.set_store_row(false, false)
+	card.show_form(FormCatalog.Id.SLIME, 0, 0, true)
+	card.show_tab(PauseGuide.TAB_YOU)
 	return failed
 
 func _check_pause_guide_copy() -> int:

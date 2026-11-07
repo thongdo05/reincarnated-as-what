@@ -2889,6 +2889,16 @@ func _make_store_button() -> Button:
 	return button
 
 
+func _pad_store_bar_button(button: Button) -> void:
+	button.clip_text = true
+	for state in ["normal", "hover", "pressed", "focus"]:
+		var style := button.get_theme_stylebox(state)
+		if style is StyleBoxFlat:
+			var box := style as StyleBoxFlat
+			box.content_margin_left = 4.0
+			box.content_margin_right = 4.0
+
+
 func _layout_store_row(_viewport: Vector2) -> void:
 	if _remove_ads_button == null or _pause_card == null:
 		return
@@ -2899,10 +2909,10 @@ func _layout_store_row(_viewport: Vector2) -> void:
 	_remove_ads_button.size = remove.size
 	_restore_ads_button.position = origin + restore.position
 	_restore_ads_button.size = restore.size
-	_remove_ads_button.add_theme_font_size_override("font_size", PauseCard.BODY_PX)
-	_restore_ads_button.add_theme_font_size_override("font_size", PauseCard.BODY_PX)
-	_remove_ads_button.clip_text = true
-	_restore_ads_button.clip_text = true
+	_remove_ads_button.add_theme_font_size_override("font_size", PauseCard.BAR_PX)
+	_restore_ads_button.add_theme_font_size_override("font_size", PauseCard.BAR_PX)
+	_pad_store_bar_button(_remove_ads_button)
+	_pad_store_bar_button(_restore_ads_button)
 
 
 func _layout_offer() -> void:
@@ -3315,15 +3325,15 @@ func _pause_tab_key(keycode: Key) -> bool:
 func _fit_paused_sound_label(in_bar: bool) -> void:
 	if _sound_label == null or _sound_button == null:
 		return
-	var px := PauseCard.BODY_PX if in_bar else 9
+	var px := PauseCard.BAR_PX if in_bar else 9
 	_sound_label.add_theme_font_size_override("font_size", px)
 	_sound_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER if in_bar else VERTICAL_ALIGNMENT_TOP
 	_sound_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if in_bar else HORIZONTAL_ALIGNMENT_RIGHT
 	# flat draws text only. The pause bar uses the same framed style as RESUME.
 	_sound_button.flat = not in_bar
 	if in_bar:
-		_sound_label.offset_left = 2.0
-		_sound_label.offset_right = -2.0
+		_sound_label.offset_left = 4.0
+		_sound_label.offset_right = -4.0
 		_sound_label.offset_top = 0.0
 		_sound_label.offset_bottom = 0.0
 	else:

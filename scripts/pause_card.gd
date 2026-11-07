@@ -16,12 +16,18 @@ const INK := Color("100c14")
 ## kaito5x7 outlined is 9px. 18 is 2x body, 27 is 3x headings. Both are whole pixels.
 const BODY_PX := 18
 const HEAD_PX := 27
+## Pickup descriptions are one step smaller so both columns fit on one line.
+const EFFECT_PX := 9
+## Bottom-bar labels are one step smaller so REMOVE ADS and RESTORE keep padding.
+const BAR_PX := 9
 const LINE := 22.0
 const HEAD_H := 33.0
 
 const PANEL_W := 428.0
 const PANEL_H := 264.0
 const INSET := 2.0
+## Body text stays this far inside the gold border, on every side.
+const PAD := 8.0
 const TAB_H := 44.0
 const BAR_H := 44.0
 const RESUME_W := 120.0
@@ -143,11 +149,11 @@ func setup(font: Font) -> void:
 		label.text = line
 		_control_labels.append(label)
 		_controls.add_child(label)
-	_resume = _button("RESUME")
+	_resume = _button("RESUME", BAR_PX, 4.0)
 	_resume.pressed.connect(_on_resume)
 	add_child(_resume)
-	_remove_ph = _button("REMOVE ADS")
-	_restore_ph = _button("RESTORE")
+	_remove_ph = _button("REMOVE ADS", BAR_PX, 4.0)
+	_restore_ph = _button("RESTORE", BAR_PX, 4.0)
 	_remove_ph.visible = false
 	_restore_ph.visible = false
 	add_child(_remove_ph)
@@ -296,13 +302,15 @@ func apply_layout() -> void:
 		_restore_slot = Rect2()
 	_place_button(_remove_ph, _remove_slot)
 	_place_button(_restore_ph, _restore_slot)
-	var content := Rect2(INSET, INSET + TAB_H, inner_w, bar_y - (INSET + TAB_H))
+	var content := Rect2(INSET + PAD, INSET + TAB_H + PAD, width - (INSET + PAD) * 2.0, bar_y - PAD - (INSET + TAB_H + PAD))
 	for page in [_you, _pickups, _controls]:
-		page.position = Vector2.ZERO
-		page.size = size
-	_layout_you(content)
-	_layout_pickups(content)
-	_layout_controls(content)
+		page.position = content.position
+		page.size = content.size
+		page.clip_contents = true
+	var local := Rect2(Vector2.ZERO, content.size)
+	_layout_you(local)
+	_layout_pickups(local)
+	_layout_controls(local)
 
 func _layout_you(area: Rect2) -> void:
 	if _name == null:
@@ -388,28 +396,13 @@ func _layout_you(area: Rect2) -> void:
 
 func _layout_pickups(area: Rect2) -> void:
 	var cols := 2
-	var gutter := 4.0
+	var gutter := 8.0
 	var count := _pickup_names.size()
 	var col_w := floorf((area.size.x - gutter) / float(cols))
 	var row_count := int(ceil(float(count) / float(cols)))
-	var effect_lines: Array[int] = []
-	effect_lines.resize(count)
-	for i in count:
-		var effect_text := _pickup_effects[i].text
-		if effect_text.find("\n") >= 0:
-			effect_lines[i] = effect_text.split("\n", false).size()
-		elif _text_width(effect_text, BODY_PX) > col_w + 0.5:
-			effect_lines[i] = 2
-		else:
-			effect_lines[i] = 1
 	var y := area.position.y
 	for r in row_count:
-		var lines := 1
-		for c in cols:
-			var index := r * cols + c
-			if index < count:
-				lines = maxi(lines, effect_lines[index])
-		var row_h := ICON + LINE * float(lines)
+		var row_h := ICON + LINE
 		for c in cols:
 			var i := r * cols + c
 			if i >= count:
@@ -423,21 +416,23 @@ func _layout_pickups(area: Rect2) -> void:
 			title.position = Vector2(x + ICON + 4.0, y + floorf((ICON - LINE) * 0.5))
 			title.size = Vector2(maxf(col_w - ICON - 4.0, 1.0), LINE)
 			title.autowrap_mode = TextServer.AUTOWRAP_OFF
+			title.clip_text = true
 			var effect := _pickup_effects[i]
-			var explicit := effect.text.find("\n") >= 0
-			var wrapped := effect_lines[i] > 1 and not explicit
-			effect.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if wrapped else TextServer.AUTOWRAP_OFF
+			effect.add_theme_font_size_override("font_size", EFFECT_PX)
+			effect.autowrap_mode = TextServer.AUTOWRAP_OFF
+			effect.clip_text = true
 			effect.position = Vector2(x, y + ICON)
-			effect.size = Vector2(col_w, LINE * float(effect_lines[i]))
+			effect.size = Vector2(col_w, LINE)
 		y += row_h
 	_footer.visible = false
 
 func _layout_controls(area: Rect2) -> void:
-	var y := area.position.y + 4.0
+	var y := area.position.y
 	for label in _control_labels:
 		label.position = Vector2(area.position.x, y)
 		label.size = Vector2(area.size.x, LINE)
 		label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		label.clip_text = true
 		y += LINE
 
 func _style_tabs() -> void:
@@ -477,7 +472,7 @@ func _frame_size(file_name: String) -> Vector2:
 		return Vector2(26, 26)
 	return src.size
 
-func _button(text: String) -> Button:
+func _button(text: String, px: int = BODY_PX, h_pad: float = 2.0) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.focus_mode = Control.FOCUS_NONE
@@ -487,21 +482,21 @@ func _button(text: String) -> Button:
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if _font != null:
 		button.add_theme_font_override("font", _font)
-	button.add_theme_font_size_override("font_size", BODY_PX)
+	button.add_theme_font_size_override("font_size", px)
 	for color_name in ["font_color", "font_hover_color", "font_pressed_color"]:
 		button.add_theme_color_override(color_name, BODY)
 	button.add_theme_color_override("font_disabled_color", Color("8d88a8"))
-	_paint(button, Color("241428"), Color("f0d78c"))
+	_paint(button, Color("241428"), Color("f0d78c"), h_pad)
 	return button
 
-func _paint(button: Button, bg: Color, edge: Color) -> void:
+func _paint(button: Button, bg: Color, edge: Color, h_pad: float = 2.0) -> void:
 	var style := StyleBoxFlat.new()
 	style.bg_color = bg
 	style.set_border_width_all(2)
 	style.border_color = edge
 	style.set_corner_radius_all(0)
-	style.content_margin_left = 2
-	style.content_margin_right = 2
+	style.content_margin_left = h_pad
+	style.content_margin_right = h_pad
 	style.content_margin_top = 0
 	style.content_margin_bottom = 0
 	for state in ["normal", "hover", "pressed", "focus"]:
@@ -512,7 +507,7 @@ func _label(color: Color, px: int) -> Label:
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	label.clip_text = false
+	label.clip_text = true
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	if _font != null:
 		label.add_theme_font_override("font", _font)
