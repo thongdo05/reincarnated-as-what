@@ -2728,18 +2728,33 @@ func _check_hud() -> int:
 
 func _check_death_sequence() -> int:
 	var failed := 0
+	if absf(FxTimeline.death_card_at() - 1.2) > 0.0001:
+		push_error("untapped death should reach the card at 1.2s, got %s" % FxTimeline.death_card_at())
+		failed += 1
+	var source_span := 11.0 / 12.0 + 1.0
+	var scale := FxTimeline.death_scale()
+	if absf(scale * source_span - 1.2) > 0.0001:
+		push_error("death scale should compress the 1.92s source clock to 1.2s")
+		failed += 1
+	var tease_len := FxTimeline.death_card_at() - FxTimeline.death_tease_at()
+	if tease_len < 0.55 or absf(tease_len - scale * 1.0) > 0.0001:
+		push_error("the tease should keep its share of the sequence (%.3fs)" % tease_len)
+		failed += 1
+	if absf(Replay.CARD_GUARD - 0.25) > 0.001 or absf(Replay.FLASH_REVEAL - 0.48) > 0.001:
+		push_error("card guard and the short reveal should stay 0.25s and 0.48s")
+		failed += 1
 	var samples := [
 		[0.0, "hit"],
-		[1.0 / 12.0, "hit"],
-		[2.0 / 12.0, "pop"],
-		[4.0 / 12.0, "pop"],
-		[5.0 / 12.0, "puff"],
-		[8.0 / 12.0, "puff"],
-		[9.0 / 12.0, "hold"],
-		[10.0 / 12.0, "hold"],
-		[11.0 / 12.0, "tease"],
-		[11.0 / 12.0 + 0.5, "tease"],
-		[11.0 / 12.0 + 1.0, "card"],
+		[scale * 1.0 / 12.0, "hit"],
+		[scale * 2.0 / 12.0, "pop"],
+		[scale * 4.0 / 12.0, "pop"],
+		[scale * 5.0 / 12.0, "puff"],
+		[scale * 8.0 / 12.0, "puff"],
+		[scale * 9.0 / 12.0, "hold"],
+		[scale * 10.0 / 12.0, "hold"],
+		[scale * 11.0 / 12.0, "tease"],
+		[scale * (11.0 / 12.0 + 0.5), "tease"],
+		[1.2, "card"],
 	]
 	for sample in samples:
 		var stage := FxTimeline.death_stage(float(sample[0]))
@@ -2822,6 +2837,8 @@ func _check_death_play() -> int:
 		failed += 1
 	var order: Array[String] = []
 	var last := ""
+	var steps := 0
+	var step := 1.0 / 60.0
 	for _i in 400:
 		var stage := FxTimeline.death_stage(float(game.death_elapsed))
 		if stage != last:
@@ -2829,9 +2846,17 @@ func _check_death_play() -> int:
 			last = stage
 		if stage == "card":
 			break
-		game._process(1.0 / 60.0)
+		game._process(step)
+		steps += 1
+	var reached := float(steps) * step
 	if order != ["hit", "pop", "puff", "hold", "tease", "card"]:
 		push_error("death order was %s" % str(order))
+		failed += 1
+	if absf(reached - 1.2) > step + 0.001:
+		push_error("untapped death reached the card at %.3fs, want about 1.2s" % reached)
+		failed += 1
+	if absf(float(game.REVEAL_SECONDS) - 1.5) > 0.001 or absf(float(game.INVULN_SECONDS) - 1.5) > 0.001:
+		push_error("reveal and invulnerability should stay 1.5s")
 		failed += 1
 	if not game.game_over_visible or (game._tease != null and game._tease.visible):
 		push_error("the tease should give way to the death card")
@@ -3151,6 +3176,11 @@ func _check_audio() -> int:
 		tease.close()
 	for event in AudioCues.all_events():
 		var data := AudioCues.spec(event)
+		if data.is_empty():
+			if not AudioCues.is_drop_in(event):
+				push_error("cue %s has no spec" % event)
+				failed += 1
+			continue
 		var file_name := str(data["file"]).get_file()
 		if not by_file.has(file_name):
 			push_error("cue %s is not in the audio manifest" % event)
@@ -3181,9 +3211,10 @@ func _check_audio() -> int:
 	if str(by_file["sfx_evolve.wav"]["notes"]).find("0.42") < 0:
 		push_error("evolve notes should keep the 0.42 s hit")
 		failed += 1
-	# The frame-11 note lives on the wav entry. The ogg is the same sting.
-	if str(by_file["sting_reborn_tease.wav"]["notes"]).find("f11") < 0:
-		push_error("tease notes should keep the frame 11 start")
+	# The file is still 1.0 s. The engine starts it early so the ending meets the 1.2 s card.
+	var tease_notes := str(by_file["sting_reborn_tease.wav"]["notes"])
+	if tease_notes.find("1.0") < 0 or tease_notes.find("1.2") < 0:
+		push_error("tease notes should say the 1.0 s sting finishes with the 1.2 s card")
 		failed += 1
 	if AudioCues.shot_event_for_form(FormCatalog.Id.SLIME) != "slime_shot":
 		push_error("slime auto-fire should use the slime shot")
@@ -3223,16 +3254,26 @@ func _check_audio() -> int:
 	if AudioCues.reveal_event_for_card(AudioCues.VENDING_TITLE) != "reveal_vending_machine":
 		push_error("vending machine title card should map to its sting")
 		failed += 1
-	var tease_at := AudioCues.death_event_seconds("reborn_tease")
-	var death_at := AudioCues.death_event_seconds("player_death")
+	var tease_at := AudioCues.death_event_seconds(AudioCues.SIGNATURE_EVENT)
+	var death_at := AudioCues.death_event_seconds("player_death_slime")
 	if absf(death_at) > 0.0001 or FxTimeline.death_stage(death_at) != "hit":
-		push_error("death sting should start at frame 0")
+		push_error("death sting should start at the hit")
 		failed += 1
-	if absf(tease_at - float(FxTimeline.DEATH_FRAMES) / FxTimeline.FPS) > 0.0001 or FxTimeline.death_stage(tease_at) != "tease":
-		push_error("tease sting should start at death frame 11")
+	var signature_len := float(AudioCues.spec(AudioCues.SIGNATURE_EVENT).get("duration", 0.0))
+	if absf(tease_at - AudioCues.signature_start(signature_len)) > 0.0001:
+		push_error("signature sting should use the scheduled start")
 		failed += 1
-	if absf(tease_at - float(by_file["sfx_death.wav"]["duration"])) > 0.01:
-		push_error("tease should start as the 0.92 s death sting ends")
+	if absf(tease_at + signature_len - FxTimeline.death_card_at()) > 0.02:
+		push_error("the 1.0 s signature should finish as the card opens, start %.3f" % tease_at)
+		failed += 1
+	if tease_at > FxTimeline.death_tease_at() + 0.0001:
+		push_error("the signature should start at or before the tease card")
+		failed += 1
+	if absf(AudioCues.signature_start(0.4) - FxTimeline.death_tease_at()) > 0.0001:
+		push_error("a short signature should wait for the tease card")
+		failed += 1
+	if absf(AudioCues.signature_offset(2.5) - (2.5 - 1.2)) > 0.0001 or absf(AudioCues.signature_start(2.5)) > 0.0001:
+		push_error("a signature longer than the sequence should keep its ending")
 		failed += 1
 	if FxTimeline.evolve_stage(0.0) != "glow":
 		push_error("evolve sting should start on frame 0")
@@ -3245,23 +3286,28 @@ func _check_audio() -> int:
 	var prev := ""
 	var death_t := -1.0
 	var heard_tease := -1.0
+	var signed := false
 	var t := 0.0
+	var death_cue := AudioCues.death_event_for_form(FormCatalog.Id.GOBLIN)
 	while t < 3.0:
 		var stage := FxTimeline.death_stage(t)
-		for cue in AudioCues.cues_for_death_transition(prev, stage):
+		for cue in AudioCues.cues_for_death_transition(prev, stage, FormCatalog.Id.GOBLIN):
 			heard.append(str(cue))
-			if str(cue) == "player_death":
+			if str(cue) == death_cue:
 				death_t = t
-			if str(cue) == "reborn_tease":
-				heard_tease = t
+		if not signed and stage != "none" and stage != "card" and t + 0.00001 >= tease_at:
+			heard.append(AudioCues.SIGNATURE_EVENT)
+			heard_tease = t
+			signed = true
 		prev = stage
 		t += 1.0 / 60.0
-	if heard.size() != 2 or heard[0] != "player_death" or heard[1] != "reborn_tease":
+	if heard.size() != 2 or heard[0] != death_cue or heard[1] != AudioCues.SIGNATURE_EVENT:
 		push_error("death timeline cues were %s" % str(heard))
 		failed += 1
-	if absf(death_t) > 0.0001 or absf(heard_tease - tease_at) > 0.0001:
+	if absf(death_t) > 0.0001 or absf(heard_tease - tease_at) > 1.0 / 60.0 + 0.0001:
 		push_error("death cues fired at %s and %s" % [death_t, heard_tease])
 		failed += 1
+	failed += _check_audio_fallbacks()
 	var stress := AudioCues.simulate_burst(AudioCues.SHOT_STRESS_RATE, AudioCues.SHOT_DURATION, AudioCues.SHOT_POLYPHONY, 1.0)
 	if int(stress["stolen"]) != 0 or int(stress["max_active"]) > AudioCues.SHOT_POLYPHONY:
 		push_error("an 8/s shot burst should fit in the polyphony cap")
@@ -3379,6 +3425,201 @@ func _check_audio() -> int:
 	if readme.find("TEST") < 0:
 		push_error("audio README should mark the files as test assets")
 		failed += 1
+	return failed
+
+func _check_audio_fallbacks() -> int:
+	_remove_audio_drop_ins()
+	var failed := _check_audio_fallback_body()
+	_remove_audio_drop_ins()
+	return failed
+
+func _check_audio_fallback_body() -> int:
+	var failed := 0
+	failed += _expect_audio_fallbacks()
+	_write_audio_drop("res://audio/player_death_goblin.ogg")
+	_write_audio_drop("res://audio/player_death_goblin.wav")
+	if AudioCues.hook_file("player_death_goblin") != "res://audio/player_death_goblin.ogg":
+		push_error("a dropped ogg should win over the wav for the same hook")
+		failed += 1
+	var goblin := AudioCues.spec("player_death_goblin")
+	if str(goblin.get("file", "")) != "res://audio/player_death_goblin.ogg" or bool(goblin.get("using_fallback", true)):
+		push_error("player_death_goblin should use the dropped ogg, got %s" % str(goblin.get("file", "")))
+		failed += 1
+	if absf(float(goblin.get("pitch_semitones", 1.0))) > 0.001 or int(goblin.get("polyphony", 0)) != 1:
+		push_error("a dropped death file should play as mastered")
+		failed += 1
+	_remove_audio_drop_ins()
+	_write_audio_drop("res://audio/reveal_dragon.wav")
+	if AudioCues.hook_file("reveal_dragon") != "res://audio/reveal_dragon.wav":
+		push_error("reveal_dragon should see its wav")
+		failed += 1
+	if AudioCues.reveal_event_for_form(FormCatalog.Id.DRAGON) != "reveal_dragon":
+		push_error("reveal_dragon should arm once the wav exists")
+		failed += 1
+	var dragon := AudioCues.spec("reveal_dragon")
+	if str(dragon.get("file", "")) != "res://audio/reveal_dragon.wav" or bool(dragon.get("using_fallback", true)):
+		push_error("reveal_dragon should load the dropped wav")
+		failed += 1
+	_remove_audio_drop_ins()
+	failed += _expect_audio_fallbacks()
+	return failed
+
+func _expect_audio_fallbacks() -> int:
+	var failed := 0
+	var forms := {
+		"slime": FormCatalog.Id.SLIME,
+		"vending_machine": FormCatalog.Id.VENDING,
+		"goblin": FormCatalog.Id.GOBLIN,
+		"cat": FormCatalog.Id.CAT,
+		"demon_lord": FormCatalog.Id.DEMON,
+		"dragon": FormCatalog.Id.DRAGON,
+	}
+	for key in forms:
+		var death := AudioCues.spec("player_death_%s" % key)
+		if str(death.get("file", "")) != "res://audio/sfx_death.wav" or not bool(death.get("using_fallback", false)):
+			push_error("player_death_%s should fall back to sfx_death.wav" % key)
+			failed += 1
+		var reveal := AudioCues.reveal_event_for_form(int(forms[key]))
+		if key == "vending_machine":
+			if reveal != "reveal_vending_machine":
+				push_error("the vending reveal should keep today's sting")
+				failed += 1
+		elif reveal != "":
+			push_error("reveal_%s should stay silent until a file is added" % key)
+			failed += 1
+		if key != "vending_machine" and not AudioCues.spec("reveal_%s" % key).is_empty():
+			push_error("reveal_%s should have no sample until a file is added" % key)
+			failed += 1
+	var signature := AudioCues.spec(AudioCues.SIGNATURE_EVENT)
+	if str(signature.get("file", "")) != "res://audio/sting_reborn_tease.ogg" or not bool(signature.get("using_fallback", false)):
+		push_error("sting_reincarnation_signature should fall back to sting_reborn_tease.ogg")
+		failed += 1
+	var best := AudioCues.spec(AudioCues.NEW_BEST_EVENT)
+	if str(best.get("file", "")) != "res://audio/new_best.wav" or bool(best.get("using_fallback", true)):
+		push_error("new_best should play audio/new_best.wav, got %s" % str(best.get("file", "")))
+		failed += 1
+	if absf(float(best.get("lufs", 0.0)) + 17.7) > 0.05 or absf(float(best.get("pitch_semitones", 1.0))) > 0.001 or int(best.get("polyphony", 0)) != 1:
+		push_error("new_best should play the approved file as mastered")
+		failed += 1
+	if FileAccess.get_sha256("res://audio/new_best.wav") != "ff03b3842f40fe0ad6e89e3b6f3d34ec558dc9a414905e97570f1ef2a2bc6ed5":
+		push_error("new_best.wav is not the approved file")
+		failed += 1
+	var vending := AudioCues.spec("reveal_vending_machine")
+	if str(vending.get("file", "")) != "res://audio/sting_reveal_vending_machine.wav" or not bool(vending.get("using_fallback", false)):
+		push_error("reveal_vending_machine should fall back to sting_reveal_vending_machine.wav")
+		failed += 1
+	return failed
+
+func _write_audio_drop(path: String) -> void:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_8(0)
+	file.close()
+
+func _remove_audio_drop_ins() -> void:
+	var files: PackedStringArray = ["player_death_goblin.ogg", "player_death_goblin.wav", "reveal_dragon.wav"]
+	for name in files:
+		var path := "res://audio/" + name
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+func _check_death_audio_runtime(packed: PackedScene) -> int:
+	var failed := 0
+	var game := packed.instantiate()
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	var death_player: AudioStreamPlayer = game._sound.player_for("player_death_slime")
+	var best_player: AudioStreamPlayer = game._sound.player_for(AudioCues.NEW_BEST_EVENT)
+	var signature: AudioStreamPlayer = game._sound.player_for(AudioCues.SIGNATURE_EVENT)
+	if death_player == null or death_player.stream == null or not str(death_player.stream.resource_path).ends_with("sfx_death.wav"):
+		push_error("slime death should load sfx_death.wav until a file is added")
+		failed += 1
+	if best_player == null or best_player.stream == null or not str(best_player.stream.resource_path).ends_with("new_best.wav"):
+		push_error("NEW BEST should load audio/new_best.wav")
+		failed += 1
+	elif absf(best_player.stream.get_length() - 0.7) > 0.02:
+		push_error("NEW BEST should be the 0.70 s file, got %.3f" % best_player.stream.get_length())
+		failed += 1
+	if signature == null or signature.stream == null or not str(signature.stream.resource_path).ends_with("sting_reborn_tease.ogg"):
+		push_error("the signature should load sting_reborn_tease.ogg until a file is added")
+		failed += 1
+	if game._sound.player_for("reveal_slime") != null:
+		push_error("reveal_slime should not arm a player without a file")
+		failed += 1
+	if AudioCues.REVEAL_FADE_SECONDS <= 0.0 or AudioCues.REVEAL_FADE_SECONDS > 0.12:
+		push_error("the reveal fade should be a quick fade, got %s" % AudioCues.REVEAL_FADE_SECONDS)
+		failed += 1
+	game._sound.faded.clear()
+	game._sound.stopped.clear()
+	game._sound.play_event("reveal_vending_machine")
+	game._begin_play()
+	if game._sound.faded.find("reveal_vending_machine") < 0:
+		push_error("starting play should fade sting_reveal_vending_machine")
+		failed += 1
+	if float(game._sound.fade_seconds.get("reveal_vending_machine", 9.0)) > 0.12:
+		push_error("the vending reveal should fade quickly")
+		failed += 1
+	if absf(float(game.invuln) - 1.5) > 0.05:
+		push_error("fading the reveal should leave the 1.5s invulnerability")
+		failed += 1
+	root.remove_child(game)
+	game.free()
+	var skipped := packed.instantiate()
+	skipped.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(skipped)
+	skipped._sound.faded.clear()
+	skipped.reveal_elapsed = 0.4
+	skipped._sound.play_title_card(AudioCues.VENDING_TITLE)
+	skipped._try_skip_reveal()
+	if int(skipped.phase) != skipped.PHASE_PLAY or skipped._sound.faded.find("reveal_vending_machine") < 0:
+		push_error("skipping the title card should fade the reveal sting")
+		failed += 1
+	if absf(float(skipped.invuln) - 1.5) > 0.05:
+		push_error("a skipped title card should still grant 1.5s of invulnerability")
+		failed += 1
+	root.remove_child(skipped)
+	skipped.free()
+	var dead := packed.instantiate()
+	dead.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(dead)
+	dead._begin_play()
+	dead.form_id = FormCatalog.Id.CAT
+	dead._player.form_id = FormCatalog.Id.CAT
+	dead.score = 0
+	dead._sound.played.clear()
+	dead._sound.stopped.clear()
+	dead._kill_player("Anvil")
+	var cat_death := AudioCues.death_event_for_form(FormCatalog.Id.CAT)
+	if dead._sound.play_count(cat_death) != 1:
+		push_error("a cat death should play player_death_cat")
+		failed += 1
+	dead._skip_death_to_card()
+	if not dead.game_over_visible or int(dead.phase) != dead.PHASE_DEAD:
+		push_error("a tap should skip the death sting onto the card without waiting for audio")
+		failed += 1
+	if dead._sound.stopped.find(cat_death) < 0 or dead._sound.stopped.find(AudioCues.SIGNATURE_EVENT) < 0:
+		push_error("skip should stop the death and signature stings")
+		failed += 1
+	if absf(Replay.CARD_GUARD - 0.25) > 0.001 or absf(Replay.FLASH_REVEAL - 0.48) > 0.001:
+		push_error("skip must not change the 0.25s card guard or the 0.48s reveal")
+		failed += 1
+	dead._sound.stopped.clear()
+	dead._sound.played.clear()
+	dead._sound.play_event(AudioCues.NEW_BEST_EVENT)
+	if dead._sound.play_count(AudioCues.NEW_BEST_EVENT) != 1 or dead._sound.play_count("enemy_killed") != 0:
+		push_error("NEW BEST should play new_best instead of the kill pop")
+		failed += 1
+	dead._card_age = Replay.CARD_GUARD
+	dead._on_restart()
+	if int(dead.phase) != dead.PHASE_REVEAL:
+		push_error("NEW BEST must not gate the reincarnate tap")
+		failed += 1
+	if dead._sound.stopped.find(AudioCues.NEW_BEST_EVENT) < 0 or dead._sound.stopped.find(cat_death) < 0:
+		push_error("retry should stop the previous run's NEW BEST and death audio")
+		failed += 1
+	root.remove_child(dead)
+	dead.free()
 	return failed
 
 func _check_audio_play() -> int:
@@ -3595,17 +3836,22 @@ func _check_audio_play() -> int:
 		failed += 1
 	game._sound.played.clear()
 	game._kill_player("Anvil")
-	if game._sound.play_count("player_death") != 1 or game._sound.play_count("reborn_tease") != 0:
-		push_error("death should start the death sting and wait for the tease")
+	var death_cue := AudioCues.death_event_for_form(int(game.form_id))
+	if game._sound.play_count(death_cue) != 1 or game._sound.play_count(AudioCues.SIGNATURE_EVENT) != 0:
+		push_error("death should start %s and wait for the signature" % death_cue)
+		failed += 1
+	if game._sound.play_count("player_death") != 0:
+		push_error("the form death hook replaces the shared death sting")
 		failed += 1
 	var tease_heard := -1.0
 	for _i in 400:
-		if game._sound.play_count("reborn_tease") > 0:
+		if game._sound.play_count(AudioCues.SIGNATURE_EVENT) > 0:
 			tease_heard = float(game.death_elapsed)
 			break
 		game._process(step)
-	if tease_heard < 0.0 or absf(tease_heard - AudioCues.death_event_seconds("reborn_tease")) > step + 0.0001:
-		push_error("reborn tease should start at frame 11, heard at %s" % tease_heard)
+	var expect_tease := AudioCues.signature_start(game._sound.event_length(AudioCues.SIGNATURE_EVENT))
+	if tease_heard < 0.0 or absf(tease_heard - expect_tease) > step + 0.0001:
+		push_error("reincarnation signature should start at %.3f, heard at %s" % [expect_tease, tease_heard])
 		failed += 1
 	game._sound.played.clear()
 	game._sound.play_title_card(FormCatalog.title_card(FormCatalog.Id.SLIME))
@@ -3684,6 +3930,7 @@ func _check_audio_play() -> int:
 	failed += _check_power_level_cue(game)
 	root.remove_child(game)
 	game.free()
+	failed += _check_death_audio_runtime(packed)
 	AudioCues.write_enabled(true)
 	AudioCues.apply_bus_levels()
 	return failed

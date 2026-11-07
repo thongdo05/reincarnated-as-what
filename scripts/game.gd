@@ -122,6 +122,7 @@ var _sound_label: Label
 var _audio_blocked_button: Button
 var _audio_blocked_icon: Control
 var _death_audio_stage := ""
+var _signature_played := false
 var _short_reveal := false
 var _card_age := 0.0
 var _score_label: Label
@@ -201,7 +202,7 @@ func _ready() -> void:
 	_sound.play_world_music(_background.world_id)
 	_build_hud()
 	CaptureMode.finish_boot(self)
-	_sound.play_title_card(CaptureMode.title_card(form_id))
+	_sound.play_form_reveal(form_id)
 	print("Reincarnated as %s in %s (seed %d, run %d)" % [CaptureMode.announce_name(form_id), WorldCatalog.flash_name(_background.world_id), day_seed, run_index])
 	if CaptureMode.is_active():
 		print(CaptureMode.summary())
@@ -739,7 +740,7 @@ func _try_skip_tease() -> bool:
 func _skip_death_to_card() -> void:
 	if phase != PHASE_DEAD or game_over_visible:
 		return
-	var card_at := float(FxTimeline.DEATH_FRAMES) / FxTimeline.FPS + FxTimeline.TEASE_SECONDS
+	var card_at := FxTimeline.death_card_at()
 	if death_elapsed < card_at:
 		death_elapsed = card_at
 	_silence_death()
@@ -861,6 +862,8 @@ func _begin_play() -> void:
 	if CaptureMode.block_play(self):
 		return
 	phase = PHASE_PLAY
+	if _sound != null:
+		_sound.fade_form_reveals()
 	invuln = INVULN_SECONDS
 	_player.invulnerable = true
 	_reveal.visible = false
@@ -1780,6 +1783,7 @@ func _kill_player(name: String) -> void:
 	_sync_invincible_marker()
 	_paused = false
 	_death_audio_stage = ""
+	_signature_played = false
 	if _world_flash != null:
 		_world_flash.visible = false
 		_world_flash_left = 0.0
@@ -1810,8 +1814,16 @@ func _kill_player(name: String) -> void:
 func _present_death() -> void:
 	var stage := FxTimeline.death_stage(death_elapsed)
 	if _sound != null:
-		for cue in AudioCues.cues_for_death_transition(_death_audio_stage, stage):
+		for cue in AudioCues.cues_for_death_transition(_death_audio_stage, stage, form_id):
 			_sound.play_event(cue)
+		# The signature is not tied to the tease frame. A 1 s file starts
+		# early enough to finish as the card opens, so the card does not cut it.
+		# Skip jumps straight to the card and does not start it.
+		if not _signature_played and stage != "none" and stage != "card":
+			var length := _sound.event_length(AudioCues.SIGNATURE_EVENT)
+			if death_elapsed + 0.00001 >= AudioCues.signature_start(length):
+				_signature_played = true
+				_sound.play_event(AudioCues.SIGNATURE_EVENT, 0.0, -1.0, AudioCues.signature_offset(length))
 	_death_audio_stage = stage
 	if _death_fx != null:
 		_death_fx.elapsed = death_elapsed
@@ -1830,6 +1842,8 @@ func _show_game_over() -> void:
 	game_over_visible = true
 	_card_age = 0.0
 	if _sound != null:
+		# The sting was scheduled to end here. Stopping it does not chop the file.
+		_sound.stop_event(AudioCues.SIGNATURE_EVENT)
 		_sound.stop_event("reborn_tease")
 	if _tease != null:
 		_tease.visible = false
@@ -1868,8 +1882,9 @@ func _set_default_death(form_name: String, reached_rank: String) -> void:
 		_beat_button.visible = true
 		_beat_button.text = CHALLENGE_LABEL
 		_style_challenge(false)
+	# NEW BEST never waits out its sample. The 0.25 s card guard is the only delay.
 	if beaten and _sound != null:
-		_sound.play_event("enemy_killed")
+		_sound.play_event(AudioCues.NEW_BEST_EVENT)
 
 ## Pin Reincarnate inside the field. Long rank names wrap, then shrink, so the
 ## button is never pushed past the bottom of the 480x270 viewport.
@@ -3437,6 +3452,7 @@ func _reincarnate() -> void:
 	death_elapsed = 0.0
 	_card_age = 0.0
 	_death_audio_stage = ""
+	_signature_played = false
 	game_over_visible = false
 	_paused = false
 	_primary_touch = -1
@@ -3474,7 +3490,7 @@ func _reincarnate() -> void:
 		_hint_label.visible = false
 	_present_reveal()
 	if _sound != null:
-		_sound.play_title_card(FormCatalog.title_card(form_id))
+		_sound.play_form_reveal(form_id)
 	print("Reincarnated as %s in %s (seed %d, run %d)" % [FormCatalog.display_name(form_id), WorldCatalog.flash_name(_background.world_id), day_seed, run_index])
 	if _pattern_layer != null:
 		_pattern_layer.queue_redraw()
@@ -3513,8 +3529,9 @@ func _clear_field() -> void:
 func _silence_death() -> void:
 	if _sound == null:
 		return
-	_sound.stop_event("player_death")
-	_sound.stop_event("reborn_tease")
+	# Hard stop. A fade would keep the old run's death or NEW BEST under the next tap.
+	for event in AudioCues.run_end_events():
+		_sound.stop_event(event)
 
 ## 2 to 4 frames at 60 Hz, as seconds. The same hold at 144 Hz and 165 Hz.
 static func hit_stop_seconds(frames: int) -> float:

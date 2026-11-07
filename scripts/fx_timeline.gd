@@ -1,12 +1,17 @@
 extends RefCounted
 class_name FxTimeline
 
-## 12 fps, no loop. Death is 11 frames (0.92 s) then a 1 s tease.
+## 12 fps, no loop. The death sheet is still 11 frames plus a 1 s tease
+## on the source clock (about 1.92 s). Real time scales that whole
+## sequence so the game-over card lands at 1.2 s. The tease keeps its
+## share, so REBORN AS...? stays on screen long enough to read.
 ## Evolve is 8 frames (0.67 s) then the last pop frame holds for 1 s.
 
 const FPS := 12.0
 const DEATH_FRAMES := 11
 const TEASE_SECONDS := 1.0
+## Untapped death, from the hit through the tease, before the card.
+const DEATH_CARD_SECONDS := 1.2
 const EVOLVE_FRAMES := 8
 const EVOLVE_HOLD := 1.0
 const EVOLVE_HOLD_FINAL := 1.85
@@ -14,10 +19,29 @@ const EVOLVE_HOLD_FINAL := 1.85
 static func _frame(t: float) -> int:
 	return int(floor(t * FPS + 0.0001))
 
+## Source clock: 11 frames at 12 fps, then the 1 s tease. About 1.92 s.
+static func death_source_span() -> float:
+	return float(DEATH_FRAMES) / FPS + TEASE_SECONDS
+
+## Real seconds are source seconds times this. 1.92 s becomes 1.2 s.
+static func death_scale() -> float:
+	return DEATH_CARD_SECONDS / death_source_span()
+
+static func death_to_source(t: float) -> float:
+	return t / death_scale()
+
+static func death_card_at() -> float:
+	return DEATH_CARD_SECONDS
+
+## Real time when the REBORN AS...? card appears. The sheet's frame 11.
+static func death_tease_at() -> float:
+	return float(DEATH_FRAMES) / FPS * death_scale()
+
 static func death_stage(t: float) -> String:
 	if t < 0.0:
 		return "none"
-	var frame := _frame(t)
+	var source := death_to_source(t)
+	var frame := _frame(source)
 	if frame <= 1:
 		return "hit"
 	if frame <= 4:
@@ -26,7 +50,7 @@ static func death_stage(t: float) -> String:
 		return "puff"
 	if frame <= 10:
 		return "hold"
-	if t < float(DEATH_FRAMES) / FPS + TEASE_SECONDS - 0.0001:
+	if source < death_source_span() - 0.0001:
 		return "tease"
 	return "card"
 
