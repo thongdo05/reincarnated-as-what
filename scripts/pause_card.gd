@@ -19,16 +19,16 @@ const HEAD_PX := 27
 const LINE := 22.0
 const HEAD_H := 33.0
 
-const PANEL_W := 400.0
-const PANEL_H := 246.0
+const PANEL_W := 428.0
+const PANEL_H := 264.0
 const INSET := 2.0
 const TAB_H := 44.0
 const BAR_H := 44.0
 const RESUME_W := 120.0
-const SOUND_W := 44.0
-## 28px icons at half, nearest. Six native rows do not fit under 44px tabs and a 44px bar.
-const ICON := 14.0
-const GEM_ICON := 16.0
+## "SND OFF" at 18px needs more than a 44px square. Height stays 44.
+const SOUND_W := 88.0
+## Native icon size. Gem art is 8px and is drawn at 3x (24) inside this box.
+const ICON := 28.0
 
 var _font: Font
 var _tab := PauseGuide.TAB_YOU
@@ -52,7 +52,9 @@ var _weapon: Label
 var _traits: Array[Label] = []
 var _pickups: Control
 var _pickup_icons: Array[TextureRect] = []
-var _pickup_labels: Array[Label] = []
+var _pickup_names: Array[Label] = []
+var _pickup_effects: Array[Label] = []
+var _icon_px: Array[int] = []
 var _footer: Label
 var _controls: Control
 var _control_labels: Array[Label] = []
@@ -114,16 +116,23 @@ func setup(font: Font) -> void:
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.stretch_mode = TextureRect.STRETCH_SCALE
 		icon.texture = ArtLibrary.texture(str(item["icon"]))
-		var line := _label(BODY, BODY_PX)
-		line.text = str(item["line"])
+		var title := _label(KICKER, BODY_PX)
+		title.text = str(item["name"])
+		var effect := _label(BODY, BODY_PX)
+		effect.text = str(item["effect"])
 		_pickup_icons.append(icon)
-		_pickup_labels.append(line)
+		_pickup_names.append(title)
+		_pickup_effects.append(effect)
+		_icon_px.append(int(item["icon_px"]))
 		_pickups.add_child(icon)
-		_pickups.add_child(line)
+		_pickups.add_child(title)
+		_pickups.add_child(effect)
+	# The footer string stays in PauseGuide. A 22px line does not fit under the 28px grid.
 	_footer = _label(KICKER, BODY_PX)
 	_footer.text = PauseGuide.pickup_footer()
+	_footer.visible = false
 	_pickups.add_child(_footer)
 	_controls = Control.new()
 	_controls.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -240,10 +249,10 @@ func rank_line() -> String:
 
 func pickup_text() -> String:
 	var parts: PackedStringArray = []
-	for label in _pickup_labels:
+	for label in _pickup_names:
 		parts.append(label.text)
-	if _footer != null:
-		parts.append(_footer.text)
+	for label in _pickup_effects:
+		parts.append(label.text)
 	return " ".join(parts)
 
 func controls_text() -> String:
@@ -267,16 +276,21 @@ func apply_layout() -> void:
 		tab.position = Vector2(INSET + tab_w * float(i), INSET)
 		tab.size = Vector2(tab_w + extra, TAB_H)
 	var bar_y := height - INSET - BAR_H
+	var resume_w := RESUME_W
+	if _store:
+		# Leave the remove-ads label its full 18px width beside SND OFF.
+		resume_w = 112.0
 	_resume.position = Vector2(INSET, bar_y)
-	_resume.size = Vector2(RESUME_W, BAR_H)
+	_resume.size = Vector2(resume_w, BAR_H)
 	_sound_slot = Rect2(width - INSET - SOUND_W, bar_y, SOUND_W, BAR_H)
 	if _store:
-		var left := INSET + RESUME_W + 4.0
-		var right := _sound_slot.position.x - 4.0
+		var gap := 2.0
+		var left := INSET + resume_w + gap
+		var right := _sound_slot.position.x - gap
 		var restore_w := 92.0
-		var remove_w := maxf(right - left - 4.0 - restore_w, 44.0)
+		var remove_w := maxf(right - left - gap - restore_w, 44.0)
 		_remove_slot = Rect2(left, bar_y, remove_w, BAR_H)
-		_restore_slot = Rect2(left + remove_w + 4.0, bar_y, restore_w, BAR_H)
+		_restore_slot = Rect2(left + remove_w + gap, bar_y, restore_w, BAR_H)
 	else:
 		_remove_slot = Rect2()
 		_restore_slot = Rect2()
@@ -373,20 +387,50 @@ func _layout_you(area: Rect2) -> void:
 		placed = true
 
 func _layout_pickups(area: Rect2) -> void:
+	var cols := 2
+	var gutter := 4.0
+	var count := _pickup_names.size()
+	var col_w := floorf((area.size.x - gutter) / float(cols))
+	var row_count := int(ceil(float(count) / float(cols)))
+	var effect_lines: Array[int] = []
+	effect_lines.resize(count)
+	for i in count:
+		var effect_text := _pickup_effects[i].text
+		if effect_text.find("\n") >= 0:
+			effect_lines[i] = effect_text.split("\n", false).size()
+		elif _text_width(effect_text, BODY_PX) > col_w + 0.5:
+			effect_lines[i] = 2
+		else:
+			effect_lines[i] = 1
 	var y := area.position.y
-	for i in _pickup_labels.size():
-		var icon := _pickup_icons[i]
-		var label := _pickup_labels[i]
-		var icon_px := GEM_ICON if i == 0 else ICON
-		icon.position = Vector2(area.position.x, y + floorf((LINE - icon_px) * 0.5))
-		icon.size = Vector2(icon_px, icon_px)
-		label.position = Vector2(area.position.x + GEM_ICON + 6.0, y)
-		label.size = Vector2(area.size.x - GEM_ICON - 6.0, LINE)
-		label.autowrap_mode = TextServer.AUTOWRAP_OFF
-		y += LINE
-	_footer.position = Vector2(area.position.x, y)
-	_footer.size = Vector2(area.size.x, LINE)
-	_footer.autowrap_mode = TextServer.AUTOWRAP_OFF
+	for r in row_count:
+		var lines := 1
+		for c in cols:
+			var index := r * cols + c
+			if index < count:
+				lines = maxi(lines, effect_lines[index])
+		var row_h := ICON + LINE * float(lines)
+		for c in cols:
+			var i := r * cols + c
+			if i >= count:
+				continue
+			var x := area.position.x + float(c) * (col_w + gutter)
+			var icon_px := float(_icon_px[i])
+			var icon := _pickup_icons[i]
+			icon.position = Vector2(x + floorf((ICON - icon_px) * 0.5), y + floorf((ICON - icon_px) * 0.5))
+			icon.size = Vector2(icon_px, icon_px)
+			var title := _pickup_names[i]
+			title.position = Vector2(x + ICON + 4.0, y + floorf((ICON - LINE) * 0.5))
+			title.size = Vector2(maxf(col_w - ICON - 4.0, 1.0), LINE)
+			title.autowrap_mode = TextServer.AUTOWRAP_OFF
+			var effect := _pickup_effects[i]
+			var explicit := effect.text.find("\n") >= 0
+			var wrapped := effect_lines[i] > 1 and not explicit
+			effect.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if wrapped else TextServer.AUTOWRAP_OFF
+			effect.position = Vector2(x, y + ICON)
+			effect.size = Vector2(col_w, LINE * float(effect_lines[i]))
+		y += row_h
+	_footer.visible = false
 
 func _layout_controls(area: Rect2) -> void:
 	var y := area.position.y + 4.0

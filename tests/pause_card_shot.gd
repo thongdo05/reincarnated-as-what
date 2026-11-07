@@ -156,7 +156,31 @@ func _check(spec: Dictionary, card) -> String:
 			var b: Rect2 = targets[j].get_global_rect()
 			if a.intersects(b):
 				return "targets overlap %s %s" % [a, b]
+	if str(spec["tab"]) == "pickups":
+		var icon_err := _check_icons(card)
+		if icon_err != "":
+			return icon_err
+	var sound_label: Label = _game._sound_label
+	if sound_label.text != "SND ON" and sound_label.text != "SND OFF":
+		return "sound toggle should read SND ON or SND OFF, got %s" % sound_label.text
+	if _game._sound_button.flat:
+		return "sound toggle should use the resume frame"
 	return _check_lines(card)
+
+func _check_icons(card) -> String:
+	for i in card._pickup_icons.size():
+		var icon: TextureRect = card._pickup_icons[i]
+		var want := float(card._icon_px[i])
+		if absf(icon.size.x - want) > 0.01 or absf(icon.size.y - want) > 0.01:
+			return "icon %d drawn at %s, want %s" % [i, icon.size, want]
+		if icon.texture_filter != CanvasItem.TEXTURE_FILTER_NEAREST:
+			return "icon %d is not nearest" % i
+		if icon.texture == null:
+			return "icon %d missing" % i
+		var source := float(icon.texture.get_width())
+		if want / source != floorf(want / source):
+			return "icon %d scale %s/%s is not an integer" % [i, want, source]
+	return ""
 
 func _check_lines(card) -> String:
 	var pages: Array[Control] = [card._you, card._pickups, card._controls]
@@ -168,12 +192,23 @@ func _check_lines(card) -> String:
 				var label := child as Label
 				if label.text.is_empty():
 					continue
-				if label.autowrap_mode != TextServer.AUTOWRAP_OFF:
-					return "wrapped line %s" % label.text
-				var width: float = card._text_width(label.text, label.get_theme_font_size("font_size"))
-				if width > label.size.x + 1.0:
-					return "clipped '%s' %s > %s" % [label.text, width, label.size.x]
+				var px := label.get_theme_font_size("font_size")
+				if px < 18:
+					return "body text shrunk '%s'" % label.text
+				if label.autowrap_mode == TextServer.AUTOWRAP_OFF:
+					var parts: PackedStringArray = label.text.split("\n", false)
+					for part in parts:
+						var width: float = card._text_width(part, px)
+						if width > label.size.x + 1.0:
+							return "clipped '%s' %s > %s" % [part, width, label.size.x]
+				else:
+					var font: Font = label.get_theme_font("font")
+					var box := font.get_multiline_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, label.size.x, px)
+					if box.y > label.size.y + 1.0:
+						return "wrapped clip '%s' %s > %s" % [label.text, box.y, label.size.y]
 				var rect := label.get_global_rect()
 				if rect.position.y < -0.5 or rect.end.y > 270.5 or rect.end.x > 480.5:
 					return "label outside '%s' %s" % [label.text, rect]
+				if not card.get_global_rect().encloses(rect):
+					return "label leaves the card '%s'" % label.text
 	return ""

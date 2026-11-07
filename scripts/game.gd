@@ -3000,6 +3000,19 @@ func _fit_paused_sound_label(in_bar: bool) -> void:
 	_sound_label.add_theme_font_size_override("font_size", px)
 	_sound_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER if in_bar else VERTICAL_ALIGNMENT_TOP
 	_sound_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if in_bar else HORIZONTAL_ALIGNMENT_RIGHT
+	# flat draws text only. The pause bar uses the same framed style as RESUME.
+	_sound_button.flat = not in_bar
+	if in_bar:
+		_sound_label.offset_left = 2.0
+		_sound_label.offset_right = -2.0
+		_sound_label.offset_top = 0.0
+		_sound_label.offset_bottom = 0.0
+	else:
+		_sound_label.offset_left = 0.0
+		_sound_label.offset_top = 1.0
+		_sound_label.offset_right = -2.0
+		_sound_label.offset_bottom = 0.0
+	_refresh_sound_button()
 	if in_bar == _sound_in_bar:
 		return
 	_sound_in_bar = in_bar
@@ -3018,7 +3031,10 @@ func _refresh_sound_button() -> void:
 	if _sound_label == null or _sound == null:
 		return
 	var on := _sound.enabled
-	_sound_label.text = "SND" if on else "OFF"
+	if _paused:
+		_sound_label.text = "SND ON" if on else "SND OFF"
+	else:
+		_sound_label.text = "SND" if on else "OFF"
 	var color := Color("f2fbff") if on else Color("8d88a8")
 	_sound_label.add_theme_color_override("font_color", color)
 

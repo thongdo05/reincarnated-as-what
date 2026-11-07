@@ -2500,16 +2500,19 @@ func _check_pause_guide_copy() -> int:
 		failed += 1
 	var blob := ""
 	for item in PauseGuide.pickups():
-		var line := str(item["line"])
-		blob += line + "\n"
-		if PauseGuide.word_count(line) > 6:
-			push_error("pickup line should stay short, got %s" % line)
+		var effect := str(item["effect"])
+		blob += str(item["name"]) + " " + effect + "\n"
+		if PauseGuide.word_count(effect) > 6:
+			push_error("pickup line should stay short, got %s" % effect)
+			failed += 1
+		if int(item["icon_px"]) < 24:
+			push_error("pickup icons should stay near the 28px art, got %s" % item["icon_px"])
 			failed += 1
 	blob += PauseGuide.pickup_footer()
 	if blob.find(str(Difficulty.GEM_SCORE)) < 0 or blob.find(str(Difficulty.BOMB_SCORE)) < 0 or blob.find(str(Difficulty.OVERDRIVE_SCORE)) < 0:
 		push_error("pickup lines should quote gem, bomb, and overdrive scores")
 		failed += 1
-	if blob.find("%ds." % int(Difficulty.POWER_DURATION)) < 0:
+	if blob.find("%ds" % int(Difficulty.POWER_DURATION)) < 0:
 		push_error("rapid and magnet should quote the power duration")
 		failed += 1
 	if PauseGuide.word_count(PauseGuide.pickup_footer()) > 6:
