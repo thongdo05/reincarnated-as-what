@@ -131,8 +131,9 @@ var _form_flash: Label
 var _world_flash: Label
 var _world_flash_left := 0.0
 var _death_shade: ColorRect
-var _hit_stop_frames := 0
+var _hit_stop_left := 0.0
 var _hit_stop_cooldown := 0.0
+var _cg: CrazyGamesHost
 var _juice_shake := 0.0
 var _dragon_show: DragonShow
 var _lair: LairTransition
@@ -178,6 +179,11 @@ var _saved_scale_aspect := 0
 var _saved_window_size := Vector2i.ZERO
 
 func _ready() -> void:
+	_apply_crazygames_scale()
+	if CrazyGamesHost.wanted():
+		_cg = CrazyGamesHost.new()
+		_cg.name = "CrazyGamesHost"
+		add_child(_cg)
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	# Touch drags stay raw. Accumulated motion would smooth the finger and
 	# add a frame before the body can follow.
@@ -719,7 +725,9 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> bool:
 func _try_skip_reveal() -> void:
 	if phase != PHASE_REVEAL:
 		return
-	if _short_reveal or reveal_elapsed > 0.35:
+	# CrazyGames players must be in a run within one click of the load.
+	# The title still auto-starts; the first tap does not have to wait.
+	if _short_reveal or reveal_elapsed > 0.35 or CrazyGamesHost.wanted():
 		_begin_play()
 
 func _try_skip_tease() -> bool:
@@ -783,13 +791,17 @@ func _process(delta: float) -> void:
 	# Real time, not the meteor slow-mo, so the 0.5s guard does not cover the charge.
 	if phase == PHASE_PLAY and _meteor_guard > 0.0:
 		_meteor_guard = maxf(_meteor_guard - delta, 0.0)
-	# A few frozen frames. Elapsed does not move, so the spawn clock stays put.
-	if phase == PHASE_PLAY and _hit_stop_frames > 0:
-		_hit_stop_frames -= 1
+	# A short freeze. Timed in seconds so 144 Hz and 165 Hz hold the same
+	# beat as 60 Hz. Elapsed does not move, so the spawn clock stays put.
+	if phase == PHASE_PLAY and _hit_stop_left > 0.0:
+		var spent := minf(delta, _hit_stop_left)
+		_hit_stop_left -= spent
+		delta -= spent
 		if _player != null:
 			_player.invulnerable = invuln > 0.0 or _meteor_guard > 0.0
 		_sync_invincible_marker()
-		return
+		if delta <= 0.0:
+			return
 	if phase == PHASE_PLAY and _dragon_show != null:
 		_dragon_show.tick(delta)
 	var world_delta := delta
@@ -864,6 +876,8 @@ func _begin_play() -> void:
 		_tut_shot = false
 		Replay.mark_seen()
 		_hint_label.visible = false
+	if _cg != null:
+		_cg.gameplay_start()
 
 func _play_frame(delta: float, size: Vector2) -> void:
 	var bounds := _play_bounds(size)
@@ -1231,6 +1245,8 @@ func _award_kill(enemy: EnemyActor, drop_loot: bool = true) -> void:
 		_charge_meteor()
 	if enemy is DragonEnemy:
 		_present_dragon_death(enemy as DragonEnemy)
+	if enemy.is_boss() and _cg != null:
+		_cg.happy_time()
 	if enemy.max_hp >= 3:
 		_request_hit_stop(3)
 		_bump_shake()
@@ -1788,6 +1804,8 @@ func _kill_player(name: String) -> void:
 	_refresh_hud()
 	if Monetization != null:
 		Monetization.note_run_ended()
+	if _cg != null:
+		_cg.gameplay_stop()
 
 func _present_death() -> void:
 	var stage := FxTimeline.death_stage(death_elapsed)
@@ -1859,7 +1877,8 @@ func _layout_death_card() -> void:
 	if _restart_button == null or _share_label == null:
 		return
 	var field := _viewport_size()
-	var margin := 10.0 + _death_banner_reserve(field)
+	var edge := _crazygames_insets(field)
+	var margin := 10.0 + edge.w + _death_banner_reserve(field)
 	var share_w := 112.0
 	var gap := 8.0
 	var reinc_w := minf(252.0, field.x - 16.0 - share_w - gap)
@@ -1870,7 +1889,7 @@ func _layout_death_card() -> void:
 		share_w = 96.0
 		reinc_w = minf(220.0, field.x - 16.0 - share_w - gap)
 		row_w = share_w + gap + reinc_w
-	var row_x := (field.x - row_w) * 0.5
+	var row_x := edge.x + (field.x - edge.x - edge.z - row_w) * 0.5
 	var button_pos := Vector2(row_x + share_w + gap, field.y - margin - button_h)
 	_place_death_control(_restart_button, button_pos, Vector2(reinc_w, button_h))
 	if _share_button != null:
@@ -1892,7 +1911,7 @@ func _layout_death_card() -> void:
 		if show_board and pair > field.x - 12.0:
 			board_w = maxf(96.0, field.x - 12.0 - pair_gap - challenge_w)
 			pair = board_w + pair_gap + challenge_w
-		var pair_x := (field.x - pair) * 0.5
+		var pair_x := edge.x + (field.x - edge.x - edge.z - pair) * 0.5
 		var challenge_y := button_pos.y - challenge_gap - challenge_h
 		if show_board:
 			_place_death_control(_board_button, Vector2(pair_x, challenge_y), Vector2(board_w, challenge_h))
@@ -1904,12 +1923,12 @@ func _layout_death_card() -> void:
 	elif _board_button != null and _board_button.visible:
 		var lone_w := minf(200.0, field.x - 16.0)
 		var lone_y := button_pos.y - 6.0 - 44.0
-		_place_death_control(_board_button, Vector2((field.x - lone_w) * 0.5, lone_y), Vector2(lone_w, 44.0))
+		_place_death_control(_board_button, Vector2(edge.x + (field.x - edge.x - edge.z - lone_w) * 0.5, lone_y), Vector2(lone_w, 44.0))
 		challenge_h = 44.0
 		challenge_gap = 6.0
-	var text_width := minf(448.0, field.x - 16.0)
-	var text_left := (field.x - text_width) * 0.5
-	var text_top := 6.0
+	var text_width := minf(448.0, field.x - 16.0 - edge.x - edge.z)
+	var text_left := edge.x + (field.x - edge.x - edge.z - text_width) * 0.5
+	var text_top := 6.0 + edge.y
 	var pick_h := 0.0
 	var pick_gap := 0.0
 	if _form_pick_button != null and _form_pick_button.visible:
@@ -1918,7 +1937,7 @@ func _layout_death_card() -> void:
 	var text_bottom := button_pos.y - challenge_gap - challenge_h - pick_gap - pick_h - 6.0
 	if pick_h > 0.0:
 		var pick_w := minf(280.0, field.x - 16.0)
-		_place_death_control(_form_pick_button, Vector2((field.x - pick_w) * 0.5, text_bottom + 6.0), Vector2(pick_w, pick_h))
+		_place_death_control(_form_pick_button, Vector2(edge.x + (field.x - edge.x - edge.z - pick_w) * 0.5, text_bottom + 6.0), Vector2(pick_w, pick_h))
 	var text_height := maxf(text_bottom - text_top, 48.0)
 	var kicker_h := 14.0
 	var seed_h := 14.0
@@ -2783,11 +2802,53 @@ func _refresh_pause_card() -> void:
 	var split_ready := form_id != FormCatalog.Id.SLIME or not _player.small
 	_pause_card.show_form(form_id, rank_index, evo_points, split_ready)
 
+func _apply_crazygames_scale() -> void:
+	if not CrazyGamesHost.wanted() or not is_inside_tree():
+		return
+	# Pages and the phone builds keep integer stretch from project.godot.
+	get_tree().root.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_FRACTIONAL
+
+
+func _window_safe_rect() -> Rect2:
+	var window := Vector2(DisplayServer.window_get_size())
+	var engine := Rect2(DisplayServer.get_display_safe_area())
+	if not CrazyGamesHost.wanted():
+		if engine.size.x < 1.0 or engine.size.y < 1.0:
+			return Rect2(Vector2.ZERO, window)
+		return engine
+	var css := _cg.css_insets() if _cg != null else Vector4.ZERO
+	return CrazyGamesHost.merge_safe_rect(window, engine, css)
+
+
+func _crazygames_insets(viewport: Vector2) -> Vector4:
+	if not CrazyGamesHost.wanted():
+		return Vector4.ZERO
+	var window := Vector2(DisplayServer.window_get_size())
+	return safe_insets_for(viewport, window, _window_safe_rect(), false)
+
+
+func _apply_edge_insets(insets: Vector4) -> void:
+	if _hud_view != null:
+		_hud_view.safe_insets = insets
+		_hud_view.queue_redraw()
+	if _hint_label != null:
+		_hint_label.offset_top = -48.0 - insets.w
+		_hint_label.offset_bottom = -26.0 - insets.w
+	if _form_flash != null:
+		_form_flash.offset_top = -44.0 - insets.w
+		_form_flash.offset_bottom = -22.0 - insets.w
+	if _world_flash != null:
+		_world_flash.offset_top = -70.0 - insets.w
+		_world_flash.offset_bottom = -48.0 - insets.w
+
+
 func _layout_pause(viewport: Vector2) -> void:
 	var window := DisplayServer.window_get_size()
-	var safe := DisplayServer.get_display_safe_area()
-	var insets := safe_insets_for(viewport, Vector2(window), Rect2(safe))
+	var safe := _window_safe_rect()
+	var fractional := CrazyGamesHost.wanted()
+	var insets := safe_insets_for(viewport, Vector2(window), safe, not fractional)
 	apply_pause_layout(viewport, Vector2(window), DisplayServer.screen_get_scale(), insets)
+	_apply_edge_insets(insets if fractional else Vector4.ZERO)
 
 
 ## Window-pixel safe rect to viewport pixels. A full-window rect returns zero,
@@ -2822,7 +2883,7 @@ static func _content_scale(viewport: Vector2, window: Vector2) -> float:
 	return maxf(minf(floorf(screen.x / viewport.x), floorf(screen.y / viewport.y)), 1.0)
 
 
-static func safe_insets_for(viewport: Vector2, window: Vector2, safe: Rect2) -> Vector4:
+static func safe_insets_for(viewport: Vector2, window: Vector2, safe: Rect2, integer_scale: bool = true) -> Vector4:
 	if viewport.x < 1.0 or viewport.y < 1.0 or window.x < 1.0 or window.y < 1.0:
 		return Vector4.ZERO
 	if safe.size.x < 1.0 or safe.size.y < 1.0:
@@ -2836,8 +2897,11 @@ static func safe_insets_for(viewport: Vector2, window: Vector2, safe: Rect2) -> 
 			screen = Vector2(floorf(window.y * viewport_aspect), window.y)
 		else:
 			screen = Vector2(window.x, floorf(window.x / viewport_aspect))
-	scale = minf(floorf(screen.x / viewport.x), floorf(screen.y / viewport.y))
-	scale = maxf(scale, 1.0)
+	if integer_scale:
+		scale = minf(floorf(screen.x / viewport.x), floorf(screen.y / viewport.y))
+		scale = maxf(scale, 1.0)
+	else:
+		scale = maxf(minf(screen.x / viewport.x, screen.y / viewport.y), 0.01)
 	screen = Vector2(viewport.x * scale, viewport.y * scale)
 	var offset := (window - screen) * 0.5
 	var left := maxf(0.0, safe.position.x - offset.x)
@@ -2876,6 +2940,11 @@ func _toggle_pause() -> void:
 	_primary_touch = -1
 	if _sound != null:
 		_sound.set_music_paused(_paused)
+	if _cg != null:
+		if _paused:
+			_cg.gameplay_stop()
+		else:
+			_cg.gameplay_start()
 	_layout_pause(_viewport_size())
 
 func _toggle_sound() -> void:
@@ -3355,7 +3424,7 @@ func _reincarnate() -> void:
 	_juice_shake = 0.0
 	_overdrive_flash = 0.0
 	_final_flash = 0.0
-	_hit_stop_frames = 0
+	_hit_stop_left = 0.0
 	_hit_stop_cooldown = 0.0
 	_next_rake = Difficulty.RAKE_FIRST
 	_tutorial_active = false
@@ -3447,13 +3516,18 @@ func _silence_death() -> void:
 	_sound.stop_event("player_death")
 	_sound.stop_event("reborn_tease")
 
+## 2 to 4 frames at 60 Hz, as seconds. The same hold at 144 Hz and 165 Hz.
+static func hit_stop_seconds(frames: int) -> float:
+	return float(clampi(frames, 2, 4)) / 60.0
+
+
 func _request_hit_stop(frames: int) -> void:
 	# A kill-freeze skips the show's tick, so the 15 fps rain hitch-steps.
 	if _dragon_show != null and _dragon_show.phase != DragonShow.IDLE:
 		return
 	if _hit_stop_cooldown > 0.0:
 		return
-	_hit_stop_frames = clampi(frames, 2, 4)
+	_hit_stop_left = hit_stop_seconds(frames)
 	_hit_stop_cooldown = 0.2
 
 func _bump_shake() -> void:
@@ -3597,7 +3671,8 @@ func _layout_title_button(viewport: Vector2) -> void:
 		return
 	var width := 136.0
 	var height := 44.0
-	_title_board_button.position = Vector2(8, viewport.y - 6.0 - height)
+	var edge := _crazygames_insets(viewport)
+	_title_board_button.position = Vector2(8.0 + edge.x, viewport.y - 6.0 - height - edge.w)
 	_title_board_button.size = Vector2(width, height)
 	_title_board_button.custom_minimum_size = Vector2(width, height)
 
@@ -3872,6 +3947,8 @@ func _set_rank_text(text: String, color: Color) -> void:
 func _open_board() -> void:
 	if _board == null or _leaderboard == null:
 		return
+	if _cg != null and phase == PHASE_PLAY and not _paused:
+		_cg.gameplay_stop()
 	_apply_board_viewport()
 	_board.open()
 	_leaderboard.set_page_cover(true)
@@ -3883,6 +3960,8 @@ func _open_board() -> void:
 
 func _on_board_closed() -> void:
 	_restore_board_viewport()
+	if _cg != null and phase == PHASE_PLAY and not _paused:
+		_cg.gameplay_start()
 	call_deferred("_layout_after_board")
 
 func _on_board_rename() -> void:

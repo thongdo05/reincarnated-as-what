@@ -7,6 +7,11 @@ class_name StoreConfig
 ## the real interstitial units below. The app ids are always the real ones:
 ## export writes them into Info.plist and the Android manifest either way.
 ##
+## A CrazyGames export (feature "crazygames") never offers AdMob, the
+## remove_ads purchase, or a link to the App Store or Google Play. Those
+## stay on the iOS and Android builds. The web Pages build already has no
+## store, because stores_available() is false for every web export.
+##
 ## App IDs contain "~". Ad unit IDs contain "/".
 ## Banner and rewarded real units are still empty.
 ## The price of remove_ads is set in the stores, not in code.
@@ -43,10 +48,26 @@ const RUNS_BEFORE_ADS := 5
 const RUNS_BETWEEN_ADS := 5
 
 
-static func stores_available() -> bool:
-	if OS.has_feature("editor") or OS.has_feature("web"):
+static func crazygames_build() -> bool:
+	return OS.has_feature("crazygames") or OS.has_feature("CRAZYGAMES")
+
+
+## Editor, web, and CrazyGames builds have no store. Android and iOS do,
+## unless the export is also tagged as CrazyGames.
+static func stores_allowed(crazygames: bool, editor: bool, web: bool, android: bool, ios: bool) -> bool:
+	if crazygames or editor or web:
 		return false
-	return OS.has_feature("android") or OS.has_feature("ios")
+	return android or ios
+
+
+static func stores_available() -> bool:
+	return stores_allowed(
+		crazygames_build(),
+		OS.has_feature("editor"),
+		OS.has_feature("web"),
+		OS.has_feature("android"),
+		OS.has_feature("ios")
+	)
 
 
 ## Always the real app id. AdMob wants this in the binary even when the
